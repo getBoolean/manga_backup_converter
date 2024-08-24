@@ -101,7 +101,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m 'Update Protobuf schemas'
-            git push
+            git push --set-upstream origin update_schemas
           fi
       - name: Create pull request
         if: steps.get_pr_state.outputs.result != 'open'
