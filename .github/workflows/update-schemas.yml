@@ -35,7 +35,11 @@ jobs:
       
       - name: Switch Branch
         if: steps.check-branch-exists.outputs.exists == 'true'
-        run: git branch update_schemas
+        run: |
+          git branch update_schemas
+          git fetch
+          git config pull.rebase true
+          git pull origin update_schemas
 
       # Ref: https://github.com/orgs/community/discussions/27071
       - name: Find PR Number
