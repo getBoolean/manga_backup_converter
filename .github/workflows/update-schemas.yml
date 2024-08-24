@@ -36,9 +36,9 @@ jobs:
       - name: Switch Branch
         if: steps.check-branch-exists.outputs.exists == 'true'
         run: |
-          git checkout -b update_schemas
           git fetch
-          git pull origin update_schemas
+          git pull origin main
+          git checkout -b update_schemas
 
       # Ref: https://github.com/orgs/community/discussions/27071
       - name: Find PR Number
