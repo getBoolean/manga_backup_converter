@@ -111,9 +111,13 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
+          token: ${{ secrets.PAT }}
           author: schema-assistant[bot] <schema-assistant@users.noreply.github.com>
           branch: update_schemas
           base: main
+          labels: |
+            automated pr
+          draft: false
           body: Automated changes by [update-schemas](https://github.com/getBoolean/manga_backup_converter/blob/main/.github/workflows/update-schemas.yml) GitHub action
 
       - name: Approve PR
