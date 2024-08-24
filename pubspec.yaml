@@ -50,7 +50,7 @@ dependencies:
   path_provider: ^2.1.3
   riverpod: ^2.3.6
   riverpod_annotation: ^2.3.5
-  skeletonizer: ^1.1.1
+  skeletonizer: ^1.4.2
   stock: ^1.0.1
   super_clipboard: ^0.8.11
   universal_html: ^2.2.4
