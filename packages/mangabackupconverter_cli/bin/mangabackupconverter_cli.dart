@@ -37,7 +37,7 @@ ArgParser buildParser() {
       'output-format',
       abbr: 'f',
       help: 'The output backup format the backup will be converted to',
-      allowed: ['aib', 'tachibk', 'pas4'],
+      allowed: ['aidoku', 'tachi', 'paperback'],
       mandatory: true,
     );
 }
@@ -92,7 +92,8 @@ void main(List<String> arguments) {
     if (results.wasParsed('output-format')) {
       outputFormat = results.option('output-format') ?? "aib";
     }
-    if (!['.aib', '.tachibk', '.pas4', '.tmb'].contains(backupFileExtension)) {
+    if (!['.aib', '.tachibk', ".proto.gz", ".json" '.pas4', '.tmb']
+        .contains(backupFileExtension)) {
       print('Unsupported file extension: "$backupFileExtension"');
       return;
     }
@@ -118,6 +119,8 @@ void main(List<String> arguments) {
           print('Aidoku Version: ${aidokuBackup?.version}');
         }
       case ".tachibk":
+      case ".proto.gz":
+      case ".json":
         final TachibkBackup? tachibkBackup =
             converter.importTachibkBackup(ByteData.sublistView(
           backupFile.readAsBytesSync(),
@@ -162,9 +165,9 @@ void main(List<String> arguments) {
     }
 
     switch (outputFormat) {
-      case "aib":
-      case "tachibk":
-      case "pas4":
+      case "aidoku":
+      case "tachi":
+      case "paperback":
       default:
         print("Unsupported output format");
         return;
