@@ -6,7 +6,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  dependabot:
+  schema-updates:
     runs-on: ubuntu-latest
     if: github.actor == 'schema-assistant@users.noreply.github.com'
     steps:
