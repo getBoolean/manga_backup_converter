@@ -8,7 +8,7 @@ permissions:
 jobs:
   schema-updates:
     runs-on: ubuntu-latest
-    if: github.actor == 'schema-assistant@users.noreply.github.com'
+    if: github.actor == 'schema-assistant[bot]'
     steps:
       - name: Approve PR
         run: gh pr review --approve "$PR_URL"
