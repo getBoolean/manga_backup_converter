@@ -41,7 +41,6 @@ class AidokuBackup with AidokuBackupMappable {
   static AidokuBackup? fromBinaryPropertyList(ByteData bytes) {
     final asMap = PropertyListSerialization.propertyListWithData(bytes)
         as Map<String, Object>;
-    DateTimeMapper.encodingMode = DateTimeEncoding.millisSinceEpoc;
     return fromMap(asMap);
   }
 

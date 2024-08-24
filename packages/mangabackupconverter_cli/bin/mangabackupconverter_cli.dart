@@ -118,12 +118,28 @@ void main(List<String> arguments) {
           print('Aidoku Version: ${aidokuBackup?.version}');
         }
       case ".tachibk":
-      case ".pas4":
-        final PaperbackBackup? paperbackBackup =
-            converter.importPaperbackPas4Backup(ByteData.sublistView(
+        final TachibkBackup? tachibkBackup =
+            converter.importTachibkBackup(ByteData.sublistView(
           backupFile.readAsBytesSync(),
         ));
-        print(paperbackBackup?.data.toString());
+        if (verbose) {
+          print(tachibkBackup?.data.toString());
+        }
+      case ".pas4":
+        final PaperbackBackup? paperbackBackup =
+            converter.importPaperbackPas4Backup(
+          backupFile.readAsBytesSync(),
+        );
+        if (verbose) {
+          print('Imported Manga Info: ${paperbackBackup?.mangaInfo?.length}');
+          print(
+              'Imported Library Manga: ${paperbackBackup?.libraryManga?.length}');
+          print('Imported Chapters: ${paperbackBackup?.chapters?.length}');
+          print(
+              'Imported Chapter Progress: ${paperbackBackup?.chapterProgressMarker?.length}');
+          print(
+              'Imported Source Manga: ${paperbackBackup?.sourceManga?.length}');
+        }
       case ".tmb":
       // TODO: Read from SQLite file
       default:
