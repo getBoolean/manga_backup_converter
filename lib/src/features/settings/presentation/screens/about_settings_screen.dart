@@ -31,7 +31,8 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
     final packageInfo = ref.watch(packageInfoProvider);
     final version = packageInfo.requireValue.version;
     final buildNumber = packageInfo.requireValue.buildNumber;
-    final versionId = 'v$version${((!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && version == buildNumber) || buildNumber.isEmpty) ? '' : '+$buildNumber'}';
+    final versionId =
+        'v$version${((!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && version == buildNumber) || buildNumber.isEmpty) ? '' : '+$buildNumber'}';
     return Scaffold(
       appBar: AppBar(
         title: const Text('About'),
