@@ -13,6 +13,7 @@ class SettingsMapper extends ClassMapperBase<Settings> {
   static SettingsMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = SettingsMapper._());
+      MapperContainer.globals.useAll([FlexSchemeDataMapper()]);
       ThemeTypeMapper.ensureInitialized();
     }
     return _instance!;

@@ -1,10 +1,7 @@
-import 'dart:io' as io;
-
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
 import 'package:mangabackupconverter/src/features/settings/data/dto/theme_type.dart';
 import 'package:mangabackupconverter/src/features/settings/data/repository/settings_repository.dart';
-import 'package:mangabackupconverter/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'settings_service.g.dart';
@@ -22,10 +19,6 @@ class SettingsService extends _$SettingsService {
   }
 
   Future<void> resetSettings() async {
-    final io.Directory? documentsDirectory =
-        await $applicationDocumentsDirectory();
-    await SettingsRepository.deleteBox(documentsDirectory?.path);
-    await SettingsRepository.initBox(documentsDirectory?.path);
     state = _settingsRepository.getSettings();
   }
 

@@ -1,41 +1,40 @@
+import 'dart:convert';
+
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/adapters.dart';
 
-class FlexSchemeDataAdapter extends TypeAdapter<FlexSchemeData> {
-  FlexSchemeDataAdapter();
-
-  @override
-  final int typeId = 4;
+class FlexSchemeDataMapper extends SimpleMapper<FlexSchemeData> {
+  const FlexSchemeDataMapper();
 
   @override
-  FlexSchemeData read(BinaryReader reader) {
-    final Map<dynamic, dynamic> themeMap = reader.readMap();
-    return FlexSchemeDataConverter.fromMap(themeMap);
+  FlexSchemeData decode(Object value) {
+    return FlexSchemeDataConverter.fromJson(value as String);
   }
 
   @override
-  void write(BinaryWriter writer, FlexSchemeData obj) {
-    final json = FlexSchemeDataConverter(obj).toJson();
-    writer.writeMap(json);
+  dynamic encode(FlexSchemeData self) {
+    return self.toJson();
+  }
+}
+
+extension FlexSchemeDataConverterExtension on FlexSchemeData {
+  String toJson() {
+    return FlexSchemeDataConverter(this).toJson();
   }
 
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FlexSchemeDataAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
+  Map<String, dynamic> toMap() {
+    return FlexSchemeDataConverter(this).toMap();
+  }
 }
 
 class FlexSchemeDataConverter {
   const FlexSchemeDataConverter(this.schemeData);
   final FlexSchemeData schemeData;
 
-  Map<String, dynamic> toJson() {
+  String toJson() => jsonEncode(toMap());
+
+  Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'name': schemeData.name,
       'description': schemeData.description,
@@ -43,6 +42,9 @@ class FlexSchemeDataConverter {
       'dark': FlexSchemeColorConverter(schemeData.dark).toJson(),
     };
   }
+
+  static FlexSchemeData fromJson(String json) =>
+      fromMap(jsonDecode(json) as Map<dynamic, dynamic>);
 
   static FlexSchemeData fromMap(Map<dynamic, dynamic> map) {
     return FlexSchemeData(

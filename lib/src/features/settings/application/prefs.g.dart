@@ -1,24 +1,24 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'app_startup.dart';
+part of 'prefs.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$appStartupHash() => r'92b0f9a6220d1de9f5421cbcae627f3cf302f843';
+String _$prefsHash() => r'd66f304483d8c70a6e225b9f5331c9270a592b8d';
 
-/// See also [appStartup].
-@ProviderFor(appStartup)
-final appStartupProvider = FutureProvider<void>.internal(
-  appStartup,
-  name: r'appStartupProvider',
+/// See also [prefs].
+@ProviderFor(prefs)
+final prefsProvider = FutureProvider<SharedPreferences>.internal(
+  prefs,
+  name: r'prefsProvider',
   debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$appStartupHash,
+      const bool.fromEnvironment('dart.vm.product') ? null : _$prefsHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef AppStartupRef = FutureProviderRef<void>;
+typedef PrefsRef = FutureProviderRef<SharedPreferences>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

@@ -1,40 +1,26 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mangabackupconverter/src/features/settings/application/prefs.dart';
 import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
-import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 part 'settings_repository.g.dart';
 
-const String _settingsBoxName = 'settingsBox';
-
 @riverpod
 class SettingsRepository extends _$SettingsRepository {
-  static Future<void> initBox(String? directory) async =>
-      await Hive.openBox<Settings>(
-        _settingsBoxName,
-        path: directory == null
-            ? null
-            : path.join(directory, '.mangabackupconverter'),
-      );
-  static Future<void> deleteBox(String? directory) async =>
-      await Hive.deleteBoxFromDisk(
-        _settingsBoxName,
-        path: directory == null
-            ? null
-            : path.join(directory, '.mangabackupconverter'),
-      );
-
+  late final SharedPreferences _prefs;
   @override
   Settings build() {
+    _prefs = ref.read(prefsProvider).requireValue;
     return getSettings();
   }
 
   void saveSettings(Settings settings) {
-    Hive.box<Settings>(_settingsBoxName).put('settings', settings);
+    _prefs.setString('settings', settings.toJson());
   }
 
   Settings getSettings() {
-    return Hive.box<Settings>(_settingsBoxName).get('settings') ??
-        const Settings();
+    return Settings.fromJson(
+      _prefs.getString('settings') ?? '{}',
+    );
   }
 }

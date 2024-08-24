@@ -2,13 +2,8 @@ import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:mangabackupconverter/src/features/initialization/application/info_service.dart';
-import 'package:mangabackupconverter/src/features/settings/data/dto/flex_scheme_data.dart';
-import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
-import 'package:mangabackupconverter/src/features/settings/data/dto/theme_type.dart';
-import 'package:mangabackupconverter/src/features/settings/data/repository/settings_repository.dart';
-import 'package:mangabackupconverter/utils/utils.dart';
+import 'package:mangabackupconverter/src/features/settings/application/prefs.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -23,29 +18,9 @@ Future<void> appStartup(AppStartupRef ref) async {
   // all asynchronous app initialization code should belong here:
   await (
     _initWindow(),
-    _initHive(),
+    ref.watch(prefsProvider.future),
     ref.watch(packageInfoProvider.future),
   ).wait;
-}
-
-Future<void> _initHive() async {
-  await Hive.initFlutter('.mangabackupconverter');
-  final flexSchemeDataAdapter = FlexSchemeDataAdapter();
-  if (!Hive.isAdapterRegistered(flexSchemeDataAdapter.typeId)) {
-    Hive.registerAdapter(flexSchemeDataAdapter);
-  }
-
-  final settingsAdapter = SettingsAdapter();
-  if (!Hive.isAdapterRegistered(settingsAdapter.typeId)) {
-    Hive.registerAdapter(settingsAdapter);
-  }
-
-  final themeTypeAdapter = ThemeTypeAdapter();
-  if (!Hive.isAdapterRegistered(themeTypeAdapter.typeId)) {
-    Hive.registerAdapter(themeTypeAdapter);
-  }
-  final documentsDirectory = await $applicationDocumentsDirectory();
-  await SettingsRepository.initBox(documentsDirectory?.path);
 }
 
 Future<void> _initWindow() async {
