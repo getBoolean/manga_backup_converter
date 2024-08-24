@@ -119,7 +119,13 @@ void main(List<String> arguments) {
         }
       case ".tachibk":
       case ".pas4":
+        final PaperbackBackup? paperbackBackup =
+            converter.importPaperbackPas4Backup(ByteData.sublistView(
+          backupFile.readAsBytesSync(),
+        ));
+        print(paperbackBackup?.data.toString());
       case ".tmb":
+      // TODO: Read from SQLite file
       default:
         print("Unsupported imported backup type");
         return;
