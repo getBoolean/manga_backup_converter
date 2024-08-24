@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup.dart';
 import 'package:path/path.dart' as p;
 
 const String version = '0.1.0';

@@ -3,11 +3,11 @@ import 'dart:typed_data';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/aidoku_exception.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_history.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_library_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_track_item.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup_chapter.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup_history.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup_library_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/aib/aidoku_backup_track_item.dart';
 import 'package:propertylistserialization/propertylistserialization.dart';
 
 part 'aidoku_backup.mapper.dart';
