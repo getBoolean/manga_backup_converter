@@ -1,4 +1,4 @@
-# mangabackupconverter <!-- omit in toc -->
+# Manga Backup Converter <!-- omit in toc -->
 
 [![latest release](https://img.shields.io/github/release/getBoolean/manga_backup_converter.svg?maxAge=3600&label=download)](https://github.com/getBoolean/manga_backup_converter/releases)
 [![coverage](https://img.shields.io/codecov/c/github/getBoolean/manga_backup_converter)](https://app.codecov.io/gh/getBoolean/manga_backup_converter)
