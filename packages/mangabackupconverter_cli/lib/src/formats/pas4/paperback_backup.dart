@@ -24,7 +24,6 @@ class PaperbackBackup with PaperbackBackupMappable {
   });
 
   static PaperbackBackup? fromZip(Uint8List bytes) {
-    // TODO: Read json files from zip file
     final archive = ZipDecoder().decodeBytes(bytes);
     final chapterProgressMarkersArchive =
         archive.findFile('__CHAPTER_PROGRESS_MARKER_V4-1');
@@ -32,6 +31,8 @@ class PaperbackBackup with PaperbackBackupMappable {
     final libraryMangaArchive = archive.findFile('__LIBRARY_MANGA_V4');
     final mangaInfoArchive = archive.findFile('__MANGA_INFO_V4');
     final sourceMangaArchive = archive.findFile('__SOURCE_MANGA_V4');
+
+    // TODO: Parse json for each file
     return PaperbackBackup(
       chapterProgressMarker: chapterProgressMarkersArchive?.content == null
           ? null
