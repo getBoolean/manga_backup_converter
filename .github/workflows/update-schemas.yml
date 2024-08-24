@@ -43,5 +43,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m 'Update Protobuf schemas'
-            git push
+            git push -f
           fi
