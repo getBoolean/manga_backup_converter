@@ -7,6 +7,7 @@ import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mappe
 import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter.dart';
 import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter_progress_marker.dart';
 import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_library_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_source_manga.dart';
 
 part 'paperback_backup.mapper.dart';
 
@@ -16,7 +17,7 @@ class PaperbackBackup with PaperbackBackupMappable {
   final List<PaperbackBackupChapter>? chapters;
   final List<PaperbackBackupLibraryManga>? libraryManga;
   final List<Map<String, dynamic>>? mangaInfo;
-  final List<Map<String, dynamic>>? sourceManga;
+  final List<PaperbackBackupSourceManga>? sourceManga;
   final String? name;
 
   const PaperbackBackup({
@@ -87,7 +88,8 @@ class PaperbackBackup with PaperbackBackupMappable {
               sourceMangaArchiveContent as Uint8List,
             )) as Map<String, dynamic>)
               .entries
-              .map((e) => e.value as Map<String, dynamic>)
+              .map((e) => PaperbackBackupSourceManga.fromMap(
+                  e.value as Map<String, dynamic>))
               .toList(),
     );
   }

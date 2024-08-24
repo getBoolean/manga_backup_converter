@@ -15,4 +15,5 @@ export 'src/formats/pas4/paperback_backup_item_reference.dart';
 export 'src/formats/pas4/paperback_backup_item_type.dart';
 export 'src/formats/pas4/paperback_backup_library_manga.dart';
 export 'src/formats/pas4/paperback_backup_library_tab.dart';
+export 'src/formats/pas4/paperback_backup_source_manga.dart';
 export 'src/formats/tachibk/tachibk_backup.dart';
