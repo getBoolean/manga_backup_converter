@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter.dart';
 import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter_progress_marker.dart';
 import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_library_manga.dart';
 
@@ -12,7 +13,7 @@ part 'paperback_backup.mapper.dart';
 @MappableClass(includeCustomMappers: [SecondsEpochDateTimeMapper()])
 class PaperbackBackup with PaperbackBackupMappable {
   final List<PaperbackBackupChapterProgressMarker>? chapterProgressMarker;
-  final List<Map<String, dynamic>>? chapters;
+  final List<PaperbackBackupChapter>? chapters;
   final List<PaperbackBackupLibraryManga>? libraryManga;
   final List<Map<String, dynamic>>? mangaInfo;
   final List<Map<String, dynamic>>? sourceManga;
@@ -60,7 +61,8 @@ class PaperbackBackup with PaperbackBackupMappable {
               chaptersArchiveContent as Uint8List,
             )) as Map<String, dynamic>)
               .entries
-              .map((e) => e.value as Map<String, dynamic>)
+              .map((e) => PaperbackBackupChapter.fromMap(
+                  e.value as Map<String, dynamic>))
               .toList(),
       libraryManga: libraryMangaArchiveContent == null
           ? null

@@ -15,6 +15,7 @@ class PaperbackBackupMapper extends ClassMapperBase<PaperbackBackup> {
       MapperContainer.globals.use(_instance = PaperbackBackupMapper._());
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
       PaperbackBackupChapterProgressMarkerMapper.ensureInitialized();
+      PaperbackBackupChapterMapper.ensureInitialized();
       PaperbackBackupLibraryMangaMapper.ensureInitialized();
     }
     return _instance!;
@@ -29,10 +30,10 @@ class PaperbackBackupMapper extends ClassMapperBase<PaperbackBackup> {
   static const Field<PaperbackBackup,
           List<PaperbackBackupChapterProgressMarker>> _f$chapterProgressMarker =
       Field('chapterProgressMarker', _$chapterProgressMarker, opt: true);
-  static List<Map<String, dynamic>>? _$chapters(PaperbackBackup v) =>
+  static List<PaperbackBackupChapter>? _$chapters(PaperbackBackup v) =>
       v.chapters;
-  static const Field<PaperbackBackup, List<Map<String, dynamic>>> _f$chapters =
-      Field('chapters', _$chapters, opt: true);
+  static const Field<PaperbackBackup, List<PaperbackBackupChapter>>
+      _f$chapters = Field('chapters', _$chapters, opt: true);
   static List<PaperbackBackupLibraryManga>? _$libraryManga(PaperbackBackup v) =>
       v.libraryManga;
   static const Field<PaperbackBackup, List<PaperbackBackupLibraryManga>>
@@ -129,9 +130,11 @@ abstract class PaperbackBackupCopyWith<$R, $In extends PaperbackBackup, $Out>
           $R,
           PaperbackBackupChapterProgressMarker,
           PaperbackBackupChapterProgressMarker>>? get chapterProgressMarker;
-  ListCopyWith<$R, Map<String, dynamic>,
-          ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>>?
-      get chapters;
+  ListCopyWith<
+      $R,
+      PaperbackBackupChapter,
+      PaperbackBackupChapterCopyWith<$R, PaperbackBackupChapter,
+          PaperbackBackupChapter>>? get chapters;
   ListCopyWith<
       $R,
       PaperbackBackupLibraryManga,
@@ -145,7 +148,7 @@ abstract class PaperbackBackupCopyWith<$R, $In extends PaperbackBackup, $Out>
       get sourceManga;
   $R call(
       {List<PaperbackBackupChapterProgressMarker>? chapterProgressMarker,
-      List<Map<String, dynamic>>? chapters,
+      List<PaperbackBackupChapter>? chapters,
       List<PaperbackBackupLibraryManga>? libraryManga,
       List<Map<String, dynamic>>? mangaInfo,
       List<Map<String, dynamic>>? sourceManga,
@@ -177,14 +180,14 @@ class _PaperbackBackupCopyWithImpl<$R, $Out>
               (v) => call(chapterProgressMarker: v))
           : null;
   @override
-  ListCopyWith<$R, Map<String, dynamic>,
-          ObjectCopyWith<$R, Map<String, dynamic>, Map<String, dynamic>>>?
-      get chapters => $value.chapters != null
-          ? ListCopyWith(
-              $value.chapters!,
-              (v, t) => ObjectCopyWith(v, $identity, t),
-              (v) => call(chapters: v))
-          : null;
+  ListCopyWith<
+      $R,
+      PaperbackBackupChapter,
+      PaperbackBackupChapterCopyWith<$R, PaperbackBackupChapter,
+          PaperbackBackupChapter>>? get chapters => $value.chapters != null
+      ? ListCopyWith($value.chapters!, (v, t) => v.copyWith.$chain(t),
+          (v) => call(chapters: v))
+      : null;
   @override
   ListCopyWith<
       $R,
