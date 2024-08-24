@@ -38,7 +38,7 @@ jobs:
         run: |
           git branch update_schemas
           git fetch
-          git config pull.rebase true
+          git config pull.rebase false
           git pull origin update_schemas
 
       # Ref: https://github.com/orgs/community/discussions/27071
