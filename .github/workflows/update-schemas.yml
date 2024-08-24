@@ -95,8 +95,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name 'schema-assistant[bot]@users.noreply.github.com'
-          git config --global user.email 'schema-assistant[bot]@users.noreply.github.com'
+          git config --global user.name 'schema-assistant[bot]
+          git config --global user.email 'schema-assistant@users.noreply.github.com'
           git add **/*.proto
 
           # Check if there are any changes
@@ -111,7 +111,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          author: schema-assistant[bot] schema-assistant[bot]@users.noreply.github.com>
+          author: schema-assistant[bot] schema-assistant@users.noreply.github.com>
           branch: update_schemas
           base: main
           body: Automated changes by [update-schemas](https://github.com/getBoolean/manga_backup_converter/blob/main/.github/workflows/update-schemas.yml) GitHub action
