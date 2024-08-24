@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -28,6 +29,9 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final packageInfo = ref.watch(packageInfoProvider);
+    final version = packageInfo.requireValue.version;
+    final buildNumber = packageInfo.requireValue.buildNumber;
+    final versionId = 'v$version${((!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && version == buildNumber) || buildNumber.isEmpty) ? '' : '+$buildNumber'}';
     return Scaffold(
       appBar: AppBar(
         title: const Text('About'),
@@ -39,7 +43,7 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
               title: const Text('Version'),
               leading: const Icon(Icons.info),
               subtitle: Text(
-                'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
+                versionId,
               ),
               onTap: clipboard == null
                   ? null
@@ -47,7 +51,7 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
                       final item = DataWriterItem();
                       item.add(
                         Formats.plainText(
-                          'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
+                          versionId,
                         ),
                       );
                       await clipboard!.write([item]);
