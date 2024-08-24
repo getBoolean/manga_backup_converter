@@ -113,8 +113,8 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           author: schema-assistant[bot] <schema-assistant@users.noreply.github.com>
-          branch: main
-          base: update_schemas
+          branch: update_schemas
+          base: main
           labels: |
             automated pr
           draft: false
