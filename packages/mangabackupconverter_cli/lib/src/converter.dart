@@ -9,8 +9,8 @@ class MangaBackupConverter {
     return AidokuBackup.fromBinaryPropertyList(bytes);
   }
 
-  PaperbackBackup? importPaperbackPas4Backup(Uint8List bytes) {
-    return PaperbackBackup.fromZip(bytes);
+  PaperbackBackup? importPaperbackPas4Backup(Uint8List bytes, {String? name}) {
+    return PaperbackBackup.fromZip(bytes, name: name);
   }
 
   TachibkBackup? importTachibkBackup(ByteData bytes) {

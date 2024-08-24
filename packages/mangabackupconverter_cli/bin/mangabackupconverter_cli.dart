@@ -129,16 +129,29 @@ void main(List<String> arguments) {
         final PaperbackBackup? paperbackBackup =
             converter.importPaperbackPas4Backup(
           backupFile.readAsBytesSync(),
+          name: p.basenameWithoutExtension(backupFile.uri.toString()),
         );
-        if (verbose) {
-          print('Imported Manga Info: ${paperbackBackup?.mangaInfo?.length}');
+        if (verbose && paperbackBackup != null) {
+          print('Imported Manga Info: ${paperbackBackup.mangaInfo?.length}');
           print(
-              'Imported Library Manga: ${paperbackBackup?.libraryManga?.length}');
-          print('Imported Chapters: ${paperbackBackup?.chapters?.length}');
+              'Imported Library Manga: ${paperbackBackup.libraryManga?.length}');
+          print('Imported Chapters: ${paperbackBackup.chapters?.length}');
           print(
-              'Imported Chapter Progress: ${paperbackBackup?.chapterProgressMarker?.length}');
+              'Imported Chapter Progress Marker: ${paperbackBackup.chapterProgressMarker?.length}');
           print(
-              'Imported Source Manga: ${paperbackBackup?.sourceManga?.length}');
+              'Imported Source Manga: ${paperbackBackup.sourceManga?.length}');
+
+          print(
+              'First Chapter Progress Marker:\n${paperbackBackup.chapterProgressMarker?.firstOrNull}');
+          final trackedManga = paperbackBackup.libraryManga
+              ?.where((i) => i.trackedSources.isNotEmpty)
+              .toList();
+          print("Tracked Manga: ${trackedManga?.length}");
+          final mangaWithSecondarySources = paperbackBackup.libraryManga
+              ?.where((i) => i.secondarySources.isNotEmpty)
+              .toList();
+          print(
+              "Manga with Secondary Sources: ${mangaWithSecondarySources?.length}");
         }
       case ".tmb":
       // TODO: Read from SQLite file

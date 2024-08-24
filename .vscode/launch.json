@@ -15,6 +15,19 @@
             ]
         },
         {
+            "name": "CLI debug mode",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                "B:/Dropbox/Personal/Developer/Apps/BackupConverter/Paperback Archive 24-08-2024 132038.pas4",
+                "-f",
+                "tachibk",
+                "-v"
+            ]
+        },
+        {
             "name": "profile mode",
             "request": "launch",
             "type": "dart",

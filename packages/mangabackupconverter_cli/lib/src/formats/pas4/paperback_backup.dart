@@ -4,16 +4,18 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_library_manga.dart';
 
 part 'paperback_backup.mapper.dart';
 
 @MappableClass(includeCustomMappers: [SecondsEpochDateTimeMapper()])
 class PaperbackBackup with PaperbackBackupMappable {
-  final Map<String, dynamic>? chapterProgressMarker;
-  final Map<String, dynamic>? chapters;
-  final Map<String, dynamic>? libraryManga;
-  final Map<String, dynamic>? mangaInfo;
-  final Map<String, dynamic>? sourceManga;
+  final List<Map<String, dynamic>>? chapterProgressMarker;
+  final List<Map<String, dynamic>>? chapters;
+  final List<PaperbackBackupLibraryManga>? libraryManga;
+  final List<Map<String, dynamic>>? mangaInfo;
+  final List<Map<String, dynamic>>? sourceManga;
+  final String? name;
 
   const PaperbackBackup({
     this.chapterProgressMarker,
@@ -21,9 +23,10 @@ class PaperbackBackup with PaperbackBackupMappable {
     this.libraryManga,
     this.mangaInfo,
     this.sourceManga,
+    this.name,
   });
 
-  static PaperbackBackup? fromZip(Uint8List bytes) {
+  static PaperbackBackup? fromZip(Uint8List bytes, {String? name}) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final chapterProgressMarkersArchive =
         archive.findFile('__CHAPTER_PROGRESS_MARKER_V4-1');
@@ -31,34 +34,57 @@ class PaperbackBackup with PaperbackBackupMappable {
     final libraryMangaArchive = archive.findFile('__LIBRARY_MANGA_V4');
     final mangaInfoArchive = archive.findFile('__MANGA_INFO_V4');
     final sourceMangaArchive = archive.findFile('__SOURCE_MANGA_V4');
+    final chapterProgressMarkersArchiveContent =
+        chapterProgressMarkersArchive?.content;
+    final chaptersArchiveContent = chaptersArchive?.content;
+    final libraryMangaArchiveContent = libraryMangaArchive?.content;
+    final mangaInfoArchiveContent = mangaInfoArchive?.content;
+    final sourceMangaArchiveContent = sourceMangaArchive?.content;
 
     // TODO: Parse json for each file
     return PaperbackBackup(
-      chapterProgressMarker: chapterProgressMarkersArchive?.content == null
+      name: name,
+      chapterProgressMarker: chapterProgressMarkersArchiveContent == null
           ? null
-          : jsonDecode(String.fromCharCodes(
-              chapterProgressMarkersArchive!.content as Uint8List,
-            )),
-      chapters: chaptersArchive?.content == null
+          : (jsonDecode(String.fromCharCodes(
+              chapterProgressMarkersArchiveContent as Uint8List,
+            )) as Map<String, dynamic>)
+              .entries
+              .map((e) => e.value as Map<String, dynamic>)
+              .toList(),
+      chapters: chaptersArchiveContent == null
           ? null
-          : jsonDecode(String.fromCharCodes(
-              chaptersArchive!.content as Uint8List,
-            )),
-      libraryManga: libraryMangaArchive?.content == null
+          : (jsonDecode(String.fromCharCodes(
+              chaptersArchiveContent as Uint8List,
+            )) as Map<String, dynamic>)
+              .entries
+              .map((e) => e.value as Map<String, dynamic>)
+              .toList(),
+      libraryManga: libraryMangaArchiveContent == null
           ? null
-          : jsonDecode(String.fromCharCodes(
-              libraryMangaArchive!.content as Uint8List,
-            )),
-      mangaInfo: mangaInfoArchive?.content == null
+          : (jsonDecode(String.fromCharCodes(
+              libraryMangaArchiveContent as Uint8List,
+            )) as Map<String, dynamic>)
+              .entries
+              .map((e) => PaperbackBackupLibraryManga.fromMap(
+                  e.value as Map<String, dynamic>))
+              .toList(),
+      mangaInfo: mangaInfoArchiveContent == null
           ? null
-          : jsonDecode(String.fromCharCodes(
-              mangaInfoArchive!.content as Uint8List,
-            )),
-      sourceManga: sourceMangaArchive?.content == null
+          : (jsonDecode(String.fromCharCodes(
+              mangaInfoArchiveContent as Uint8List,
+            )) as Map<String, dynamic>)
+              .entries
+              .map((e) => e.value as Map<String, dynamic>)
+              .toList(),
+      sourceManga: sourceMangaArchiveContent == null
           ? null
-          : jsonDecode(String.fromCharCodes(
-              sourceMangaArchive!.content as Uint8List,
-            )),
+          : (jsonDecode(String.fromCharCodes(
+              sourceMangaArchiveContent as Uint8List,
+            )) as Map<String, dynamic>)
+              .entries
+              .map((e) => e.value as Map<String, dynamic>)
+              .toList(),
     );
   }
 
