@@ -16,6 +16,7 @@ class PaperbackBackupItemReferenceMapper
       MapperContainer.globals
           .use(_instance = PaperbackBackupItemReferenceMapper._());
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
+      PaperbackBackupItemTypeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -23,9 +24,10 @@ class PaperbackBackupItemReferenceMapper
   @override
   final String id = 'PaperbackBackupItemReference';
 
-  static String _$type(PaperbackBackupItemReference v) => v.type;
-  static const Field<PaperbackBackupItemReference, String> _f$type =
-      Field('type', _$type);
+  static PaperbackBackupItemType _$type(PaperbackBackupItemReference v) =>
+      v.type;
+  static const Field<PaperbackBackupItemReference, PaperbackBackupItemType>
+      _f$type = Field('type', _$type);
   static String _$id(PaperbackBackupItemReference v) => v.id;
   static const Field<PaperbackBackupItemReference, String> _f$id =
       Field('id', _$id);
@@ -100,7 +102,7 @@ abstract class PaperbackBackupItemReferenceCopyWith<
     $R,
     $In extends PaperbackBackupItemReference,
     $Out> implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? type, String? id});
+  $R call({PaperbackBackupItemType? type, String? id});
   PaperbackBackupItemReferenceCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -117,8 +119,9 @@ class _PaperbackBackupItemReferenceCopyWithImpl<$R, $Out>
   late final ClassMapperBase<PaperbackBackupItemReference> $mapper =
       PaperbackBackupItemReferenceMapper.ensureInitialized();
   @override
-  $R call({String? type, String? id}) => $apply(FieldCopyWithData(
-      {if (type != null) #type: type, if (id != null) #id: id}));
+  $R call({PaperbackBackupItemType? type, String? id}) =>
+      $apply(FieldCopyWithData(
+          {if (type != null) #type: type, if (id != null) #id: id}));
   @override
   PaperbackBackupItemReference $make(CopyWithData data) =>
       PaperbackBackupItemReference(
