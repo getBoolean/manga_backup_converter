@@ -15,8 +15,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -90,6 +88,7 @@ jobs:
           pip install -r requirements.txt
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/BrutuZ/tachibk-converter/main/tachibk-converter.py
           python generate_schemas.py --dump-schemas
+
 
       - name: Commit and push changes
         if: steps.get_pr_state.outputs.result != 'open'
