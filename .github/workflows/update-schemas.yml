@@ -106,6 +106,9 @@ jobs:
             git commit -m 'Update Protobuf schemas'
             git push --set-upstream origin update_schemas
           fi
+
+      - name: Switch to Main
+        run: git switch main
       
       - name: Create Pull Request
         id: cpr
@@ -114,7 +117,6 @@ jobs:
           token: ${{ secrets.PAT }}
           author: schema-assistant[bot] <schema-assistant@users.noreply.github.com>
           branch: update_schemas
-          base: main
           labels: |
             automated pr
           draft: false
