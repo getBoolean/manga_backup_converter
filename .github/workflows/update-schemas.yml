@@ -94,7 +94,7 @@ jobs:
       - name: Commit and push changes
         if: steps.get_pr_state.outputs.result != 'open'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
         run: |
           git config --global user.name 'Schema Assistant'
           git config --global user.email 'schema-assistant@users.noreply.github.com'
@@ -118,4 +118,4 @@ jobs:
         if: steps.get_pr_state.outputs.result != 'open'
         run: gh pr create -B main -H update_schemas --title 'Update Tachi Protobuf Schemas' --body 'Created by Github Actions'
         env:
-            GITHUB_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
