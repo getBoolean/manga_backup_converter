@@ -140,9 +140,6 @@ void main(List<String> arguments) {
               'Imported Chapter Progress Marker: ${paperbackBackup.chapterProgressMarker?.length}');
           print(
               'Imported Source Manga: ${paperbackBackup.sourceManga?.length}');
-
-          print(
-              'First Chapter Progress Marker:\n${paperbackBackup.chapterProgressMarker?.firstOrNull}');
           final trackedManga = paperbackBackup.libraryManga
               ?.where((i) => i.trackedSources.isNotEmpty)
               .toList();
@@ -152,6 +149,10 @@ void main(List<String> arguments) {
               .toList();
           print(
               "Manga with Secondary Sources: ${mangaWithSecondarySources?.length}");
+          final mangaTagsWithTags = paperbackBackup.mangaInfo
+              ?.where((i) => i.tags.where((e) => e.tags.isNotEmpty).isNotEmpty)
+              .toList();
+          print("Manga with Tags: ${mangaTagsWithTags?.length}");
         }
       case ".tmb":
       // TODO: Read from SQLite file
