@@ -1,6 +1,12 @@
-import 'package:args/args.dart';
+import 'dart:io' as io;
+import 'dart:typed_data';
 
-const String version = '0.0.1';
+import 'package:args/args.dart';
+import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
+import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup.dart';
+import 'package:path/path.dart' as p;
+
+const String version = '0.1.0';
 
 ArgParser buildParser() {
   return ArgParser()
@@ -20,6 +26,20 @@ ArgParser buildParser() {
       'version',
       negatable: false,
       help: 'Print the tool version.',
+    )
+    ..addOption(
+      'backup',
+      abbr: 'b',
+      help:
+          'A backup file from Mihon, Aidoku, Paperback, or Tachimanga to convert to the output format',
+      mandatory: true,
+    )
+    ..addOption(
+      'output-format',
+      abbr: 'f',
+      help: 'The output backup format the backup will be converted to',
+      allowed: ['aib', 'tachibk', 'pas4', 'tmb'],
+      mandatory: true,
     );
 }
 
@@ -33,8 +53,9 @@ void main(List<String> arguments) {
   try {
     final ArgResults results = argParser.parse(arguments);
     bool verbose = false;
+    io.File? backupFile;
+    String outputFormat = "aib";
 
-    // Process the parsed arguments.
     if (results.wasParsed('help')) {
       printUsage(argParser);
       return;
@@ -47,10 +68,72 @@ void main(List<String> arguments) {
       verbose = true;
     }
 
-    // Act on the arguments provided.
-    print('Positional arguments: ${results.rest}');
     if (verbose) {
       print('[VERBOSE] All arguments: ${results.arguments}');
+    }
+
+    if (results.wasParsed('backup')) {
+      backupFile = io.File(results.option('backup') ?? "");
+      if (!backupFile.existsSync()) {
+        print('backup file does not exist');
+        return;
+      }
+    }
+
+    if (backupFile == null) {
+      print("backup file not provided");
+      return;
+    }
+
+    final backupFileExtension = p.extension(backupFile.uri.toString());
+    if (verbose) {
+      print("Imported Backup Extension: $backupFileExtension");
+    }
+
+    if (results.wasParsed('output-format')) {
+      outputFormat = results.option('output-format') ?? "aib";
+    }
+    if (!['.aib', '.tachibk', '.pas4', '.tmb'].contains(backupFileExtension)) {
+      print('Unsupported file extension: "$backupFileExtension"');
+      return;
+    }
+
+    final converter = MangaBackupConverter();
+
+    switch (backupFileExtension) {
+      case ".aib":
+        final AidokuBackup? aidokuBackup =
+            converter.importAidokuBackup(ByteData.sublistView(
+          backupFile.readAsBytesSync(),
+        ));
+        if (verbose) {
+          print('Imported Library Manga: ${aidokuBackup?.library?.length}');
+          print('Imported Manga: ${aidokuBackup?.manga?.length}');
+          print('Imported Chapters: ${aidokuBackup?.chapters?.length}');
+          print('Imported Manga History: ${aidokuBackup?.history?.length}');
+          print(
+              'Imported Tracked Manga Items: ${aidokuBackup?.trackItems?.length}');
+          print('Imported Categories: ${aidokuBackup?.categories?.length}');
+          print('Imported Sources: ${aidokuBackup?.sources?.length}');
+          print('Aidoku Backup Name: ${aidokuBackup?.name}');
+          print('Aidoku Version: ${aidokuBackup?.version}');
+        }
+      case ".tachibk":
+      case ".pas4":
+      case ".tmb":
+      default:
+        print("Unsupported imported backup type");
+        return;
+    }
+
+    switch (outputFormat) {
+      case "aib":
+      case "tachibk":
+      case "pas4":
+      case "tmb":
+      default:
+        print("Unsupported output format");
+        return;
     }
   } on FormatException catch (e) {
     // Print usage information if an invalid argument was provided.
