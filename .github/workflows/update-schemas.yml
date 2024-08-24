@@ -43,5 +43,8 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m 'Update Protobuf schemas'
-            git push -f
           fi
+      - name: Create pull request
+        run: |
+          gh pr create -B update_schemas -H main --title 'Update Tachi Protobuf Schemas' --body 'Created by Github Actions'
+        env:
