@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/human_name_enum.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/settings.dart';
-import 'package:flutter_boolean_template/src/features/settings/presentation/utils.dart'
+import 'package:mangabackupconverter/src/features/settings/data/dto/human_name_enum.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
+import 'package:mangabackupconverter/src/features/settings/presentation/utils.dart'
     as utils;
-import 'package:flutter_boolean_template/src/features/settings/presentation/widgets/app_settings.dart';
+import 'package:mangabackupconverter/src/features/settings/presentation/widgets/app_settings.dart';
 
 extension BuildContextSettings on BuildContext {
   Settings get settings => AppSettings.of(this);

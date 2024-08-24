@@ -2,14 +2,13 @@ import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_boolean_template/src/features/initialization/application/info_service.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/flex_scheme_data.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/navigation_type_override.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/settings.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/theme_type.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/repository/settings_repository.dart';
-import 'package:flutter_boolean_template/utils/utils.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mangabackupconverter/src/features/initialization/application/info_service.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/flex_scheme_data.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/theme_type.dart';
+import 'package:mangabackupconverter/src/features/settings/data/repository/settings_repository.dart';
+import 'package:mangabackupconverter/utils/utils.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -39,11 +38,6 @@ Future<void> _initHive() async {
   final settingsAdapter = SettingsAdapter();
   if (!Hive.isAdapterRegistered(settingsAdapter.typeId)) {
     Hive.registerAdapter(settingsAdapter);
-  }
-
-  final navigationTypeOverrideAdapter = NavigationTypeOverrideAdapter();
-  if (!Hive.isAdapterRegistered(navigationTypeOverrideAdapter.typeId)) {
-    Hive.registerAdapter(navigationTypeOverrideAdapter);
   }
 
   final themeTypeAdapter = ThemeTypeAdapter();

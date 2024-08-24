@@ -1,5 +1,5 @@
-import 'package:flutter_boolean_template/src/features/settings/data/dto/settings.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/settings.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -14,14 +14,14 @@ class SettingsRepository extends _$SettingsRepository {
         _settingsBoxName,
         path: directory == null
             ? null
-            : path.join(directory, '.flutter_boolean_template'),
+            : path.join(directory, '.mangabackupconverter'),
       );
   static Future<void> deleteBox(String? directory) async =>
       await Hive.deleteBoxFromDisk(
         _settingsBoxName,
         path: directory == null
             ? null
-            : path.join(directory, '.flutter_boolean_template'),
+            : path.join(directory, '.mangabackupconverter'),
       );
 
   @override

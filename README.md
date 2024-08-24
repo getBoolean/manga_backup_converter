@@ -1,7 +1,7 @@
-# flutter_boolean_template <!-- omit in toc -->
+# mangabackupconverter <!-- omit in toc -->
 
-[![latest release](https://img.shields.io/github/release/getBoolean/flutter_boolean_template.svg?maxAge=3600&label=download)](https://github.com/getBoolean/flutter_boolean_template/releases)
-[![coverage](https://img.shields.io/codecov/c/github/getBoolean/flutter_boolean_template)](https://app.codecov.io/gh/getBoolean/flutter_boolean_template)
+[![latest release](https://img.shields.io/github/release/getBoolean/manga_backup_converter.svg?maxAge=3600&label=download)](https://github.com/getBoolean/manga_backup_converter/releases)
+[![coverage](https://img.shields.io/codecov/c/github/getBoolean/manga_backup_converter)](https://app.codecov.io/gh/getBoolean/manga_backup_converter)
 [![Codemagic build status](https://api.codemagic.io/apps/64d885be0dff4f86138da577/64d885be0dff4f86138da576/status_badge.svg)](https://codemagic.io/apps/64d885be0dff4f86138da577/64d885be0dff4f86138da576/latest_build)
 
 An opinionated starting point for a Flutter app intended to provide the boilerplate
@@ -66,7 +66,7 @@ I highly recommend reading the article. Each `layer` has its own folder per feat
 ## Demo
 
 Flutter Web is deployed to GitHub Pages in a separate subfolder for each branch. The `main` branch is deployed to
-[getboolean.github.io/flutter_boolean_template](https://getboolean.github.io/flutter_boolean_template).
+[getboolean.github.io/mangabackupconverter](https://getboolean.github.io/mangabackupconverter).
 
 - This GitHub Pages setup requires the Flutter `#` from [HashUrlStrategy](https://api.flutter.dev/flutter/package-flutter_web_plugins_url_strategy/HashUrlStrategy-class.html), so ensure it is not disabled for your Flutter Web CI builds deployed to GitHub Pages. If it is disabled, the Navigator 2.0 subroutes will prevent GitHub Pages from resolving the correct app when refreshed.
 
@@ -112,11 +112,11 @@ code provided in this template, but the licenses of the packages must still be f
    dart run change_app_package_name:main com.author.app_name
    ```
 
-1. [ ] Search for `getBoolean/flutter_boolean_template` and update it with your GitHub username and repository name
-1. [ ] Search for `com.example.flutter_boolean_template` and replace it with your new Android bundle identifier
-1. [ ] Search for `com.example.flutterBooleanTemplate` and replace it with your new iOS bundle identifier
-1. [ ] Search for `flutter_boolean_template` and replace it with your new package identifier
-1. [ ] Search for `Flutter Boolean Template` and replace it with your new app name
+1. [ ] Search for `getBoolean/manga_backup_converter` and update it with your GitHub username and repository name
+1. [ ] Search for `dev.getboolean.mangabackupconverter` and replace it with your new Android bundle identifier
+1. [ ] Search for `dev.getboolean.mangabackupconverter` and replace it with your new iOS bundle identifier
+1. [ ] Search for `mangabackupconverter` and replace it with your new package identifier
+1. [ ] Search for `Manga Backup Converter` and replace it with your new app name
 
 ### Workflow Permissions
 
@@ -364,7 +364,7 @@ Use [wolt_responsive_layout_grid](https://pub.dev/packages/wolt_responsive_layou
 
 ## Contributing
 
-1. Fork it [https://github.com/getBoolean/flutter_boolean_template/fork](https://github.com/getBoolean/flutter_boolean_template/fork)
+1. Fork it [https://github.com/getBoolean/manga_backup_converter/fork](https://github.com/getBoolean/manga_backup_converter/fork)
 1. Create your feature branch (git checkout -b feature/fooBar)
 1. Commit your changes (git commit -am 'Add some fooBar')
 1. Push to the branch (git push origin feature/fooBar)

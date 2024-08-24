@@ -1,4 +1,4 @@
-name: flutter_boolean_template
+name: mangabackupconverter
 description: An opinionated template for a Flutter project.
 
 publish_to: none
@@ -43,18 +43,13 @@ dependencies:
   http: ^1.2.0
   localization:
     path: packages/localization
-  log:
-    path: packages/log
+  logging: ^1.2.0
   modddels_annotation_fpdart: ^0.2.0
   package_info_plus: ^7.0.0
-  pagination:
-    path: packages/pub/pagination
   path: ^1.9.0
   path_provider: ^2.1.3
   riverpod: ^2.3.6
   riverpod_annotation: ^2.3.5
-  sidebarx:
-    path: packages/pub/sidebarx
   skeletonizer: ^1.1.1
   stock: ^1.0.1
   super_clipboard: ^0.8.11
@@ -98,8 +93,8 @@ msix_config:
   install_certificate: false
 
 patrol:
-  app_name: Flutter Boolean Template
+  app_name: Manga Backup Converter
   android:
-    package_name: com.example.flutter_boolean_template
+    package_name: dev.getboolean.mangabackupconverter
   ios:
-    bundle_id: com.example.flutterBooleanTemplate
+    bundle_id: dev.getboolean.mangabackupconverter

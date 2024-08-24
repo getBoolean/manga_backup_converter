@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_boolean_template/src/features/settings/application/settings_service.dart';
-import 'package:flutter_boolean_template/src/features/settings/application/themes.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/navigation_type_override.dart';
-import 'package:flutter_boolean_template/src/features/settings/data/dto/theme_type.dart';
-import 'package:flutter_boolean_template/src/features/settings/presentation/extensions.dart';
-import 'package:flutter_boolean_template/src/features/settings/presentation/widgets/segmented_button_tile.dart';
-import 'package:flutter_boolean_template/src/features/settings/presentation/widgets/theme_selector_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:mangabackupconverter/src/features/settings/application/settings_service.dart';
+import 'package:mangabackupconverter/src/features/settings/application/themes.dart';
+import 'package:mangabackupconverter/src/features/settings/data/dto/theme_type.dart';
+import 'package:mangabackupconverter/src/features/settings/presentation/widgets/segmented_button_tile.dart';
+import 'package:mangabackupconverter/src/features/settings/presentation/widgets/theme_selector_tile.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const AppearanceSettingsScreen({super.key});
@@ -45,44 +43,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                   : ref
                       .read(settingsServiceProvider.notifier)
                       .setDarkTheme(scheme);
-            },
-          ),
-          ListTile(
-            title: const Text('Portrait Navigation'),
-            subtitle: Text(settings.portraitNavigationTypeOverride.humanName),
-            onTap: () async {
-              final navigationTypeOverride =
-                  await context.showOptionsMenu<NavigationTypeOverride>(
-                title: 'Portrait Navigation',
-                current: settings.portraitNavigationTypeOverride,
-                options: NavigationTypeOverride.values,
-              );
-              if (navigationTypeOverride != null) {
-                ref
-                    .read(settingsServiceProvider.notifier)
-                    .setPortraitNavigationTypeOverride(
-                      navigationTypeOverride,
-                    );
-              }
-            },
-          ),
-          ListTile(
-            title: const Text('Landscape Navigation'),
-            subtitle: Text(settings.landscapeNavigationTypeOverride.humanName),
-            onTap: () async {
-              final navigationTypeOverride =
-                  await context.showOptionsMenu<NavigationTypeOverride>(
-                title: 'Landscape Navigation',
-                current: settings.landscapeNavigationTypeOverride,
-                options: NavigationTypeOverride.values,
-              );
-              if (navigationTypeOverride != null) {
-                ref
-                    .read(settingsServiceProvider.notifier)
-                    .setLandscapeNavigationTypeOverride(
-                      navigationTypeOverride,
-                    );
-              }
             },
           ),
         ],

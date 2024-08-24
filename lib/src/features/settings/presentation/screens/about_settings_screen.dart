@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_boolean_template/src/features/initialization/application/info_service.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:log/log.dart';
+import 'package:logging/logging.dart';
+import 'package:mangabackupconverter/src/features/initialization/application/info_service.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -15,7 +15,7 @@ class AboutSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
-  static final Logger _logger = Logger('AboutSettingsScreen');
+  static final Logger _log = Logger('AboutSettingsScreen');
 
   late SystemClipboard? clipboard;
 
@@ -70,18 +70,18 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
           ListTile(
             title: const Text('GitHub'),
             leading: const Icon(Icons.code),
-            subtitle: const Text('getBoolean/flutter_boolean_template'),
+            subtitle: const Text('getBoolean/manga_backup_converter'),
             onTap: () async {
               final url = Uri.parse(
-                'https://www.github.com/getBoolean/flutter_boolean_template',
+                'https://www.github.com/getBoolean/manga_backup_converter',
               );
               try {
                 final success = await launchUrl(url);
                 if (!success) {
-                  _logger.fine('Could not launch url: ${url.path}');
+                  _log.fine('Could not launch url: ${url.path}');
                 }
               } on PlatformException catch (e, st) {
-                _logger.severe('Could not launch url: ${e.message}', e, st);
+                _log.severe('Could not launch url: ${e.message}', e, st);
               }
             },
           ),

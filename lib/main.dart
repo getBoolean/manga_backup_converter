@@ -2,10 +2,11 @@ import 'package:constants/constants.dart';
 import 'package:env/env.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_boolean_template/app.dart';
-import 'package:flutter_boolean_template/src/features/initialization/presentation/app_startup_widget.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:logging/logging.dart';
+import 'package:mangabackupconverter/app.dart';
+import 'package:mangabackupconverter/src/features/initialization/presentation/app_startup_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,7 @@ void main() async {
   // * Register error handlers. For more info, see:
   // * https://docs.flutter.dev/testing/errors
   registerErrorHandlers();
+  initLogger();
   AppFlavor.initConfig();
   final env = EnvFlavor.instance;
   if (env.usePathUrlStrategy) {
@@ -76,4 +78,16 @@ void registerErrorHandlers() {
       ),
     );
   };
+}
+
+void initLogger() {
+  if (kDebugMode) {
+    Logger.root.level = Level.FINE;
+  }
+  Logger.root.onRecord.listen((record) {
+    if (kDebugMode) {
+      print('${record.level.name}: ${record.time}: ${record.message}');
+    }
+    // TODO: Handle production logging
+  });
 }

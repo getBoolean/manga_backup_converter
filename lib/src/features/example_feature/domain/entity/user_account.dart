@@ -1,7 +1,7 @@
-import 'package:flutter_boolean_template/src/features/example_feature/domain/value/email.dart';
-import 'package:flutter_boolean_template/src/features/example_feature/domain/value/id.dart';
-import 'package:flutter_boolean_template/src/features/example_feature/domain/value/name.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:mangabackupconverter/src/features/example_feature/domain/value/email.dart';
+import 'package:mangabackupconverter/src/features/example_feature/domain/value/id.dart';
+import 'package:mangabackupconverter/src/features/example_feature/domain/value/name.dart';
 import 'package:modddels_annotation_fpdart/modddels_annotation_fpdart.dart';
 
 part 'user_account.freezed.dart';

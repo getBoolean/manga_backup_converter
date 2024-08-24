@@ -5,7 +5,6 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_adaptive_scaffold/flutter_adaptive_scaffold.dart';
-import 'package:flutter_boolean_template/src/routing/data/navigation_type.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
 
@@ -122,23 +121,6 @@ DeviceType get _deviceTypeByUserAgent {
     deviceType = DeviceType.Android;
   }
   return deviceType;
-}
-
-NavigationType $resolveNavigationType(BuildContext context) {
-  final (type, form, orientation) = $deviceDetails(context);
-  return switch (orientation) {
-    Orientation.portrait => switch (form) {
-        DeviceForm.large => NavigationType.top,
-        DeviceForm.small when type.isDesktop => NavigationType.top,
-        DeviceForm.medium => NavigationType.sidebar,
-        DeviceForm.small => NavigationType.bottom,
-      },
-    Orientation.landscape => switch (form) {
-        DeviceForm.large => NavigationType.top,
-        DeviceForm.medium => NavigationType.sidebar,
-        DeviceForm.small => NavigationType.drawer,
-      },
-  };
 }
 
 extension ListSwap<T> on List<T> {

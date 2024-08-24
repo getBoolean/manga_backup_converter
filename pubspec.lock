@@ -895,31 +895,8 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
-  log:
-    dependency: "direct main"
-    description:
-      path: "packages/log"
-      relative: true
-    source: path
-    version: "0.0.1"
-  logger:
-    dependency: transitive
-    description:
-      name: logger
-      sha256: "7ad7215c15420a102ec687bb320a7312afd449bac63bfb1c60d9787c27b9767f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.0"
-  logger_flutter_plus:
-    dependency: transitive
-    description:
-      name: logger_flutter_plus
-      sha256: "57a378dea1e0dc8beee4d9d1a2a017e368ab96b4dfbf094eff0d08304a739660"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.5"
   logging:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: logging
       sha256: "623a88c9594aa774443aa3eb2d41807a48486b5613e67599fb4c41c0ad47c340"
@@ -1078,20 +1055,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
-  pagination:
-    dependency: "direct main"
-    description:
-      path: "packages/pub/pagination"
-      relative: true
-    source: path
-    version: "0.0.1"
-  pagination_dart:
-    dependency: "direct overridden"
-    description:
-      path: "packages/pub/pagination_dart"
-      relative: true
-    source: path
-    version: "1.0.0"
   path:
     dependency: "direct main"
     description:
@@ -1332,22 +1295,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.1.9"
-  sensors_plus:
-    dependency: transitive
-    description:
-      name: sensors_plus
-      sha256: "3ec8b74d73d72a54baa328beb6fa33df80963f3e5491fc6e714b98b935b65dd9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.5"
-  sensors_plus_platform_interface:
-    dependency: transitive
-    description:
-      name: sensors_plus_platform_interface
-      sha256: bc472d6cfd622acb4f020e726433ee31788b038056691ba433fec80e448a094f
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.2.0"
   shelf:
     dependency: transitive
     description:
@@ -1380,13 +1327,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.4"
-  sidebarx:
-    dependency: "direct main"
-    description:
-      path: "packages/pub/sidebarx"
-      relative: true
-    source: path
-    version: "0.17.0"
   skeletonizer:
     dependency: "direct main"
     description:
@@ -1520,14 +1460,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.8.11"
-  super_sliver_list:
-    dependency: transitive
-    description:
-      name: super_sliver_list
-      sha256: b1e1e64d08ce40e459b9bb5d9f8e361617c26b8c9f3bb967760b0f436b6e3f56
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.1"
   sync_http:
     dependency: transitive
     description:
