@@ -14,38 +14,43 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsServiceProvider);
     final isLight = Theme.of(context).brightness == Brightness.light;
     final themes = ref.watch(themesProvider);
-    return Material(
-      child: ListView(
-        shrinkWrap: true,
-        children: <Widget>[
-          SegmentedButtonTile(
-            initial: settings.themeType,
-            segments: const [
-              ThemeType.system,
-              ThemeType.dark,
-              ThemeType.light,
-            ],
-            onTap: (themeType) {
-              ref
-                  .read(settingsServiceProvider.notifier)
-                  .setThemeType(themeType);
-            },
-          ),
-          ThemeSelectorTile(
-            selected: isLight ? settings.lightTheme : settings.darkTheme,
-            schemes: themes,
-            colorProvider: (data) => isLight ? data.light : data.dark,
-            onTap: (scheme) {
-              isLight
-                  ? ref
-                      .read(settingsServiceProvider.notifier)
-                      .setLightTheme(scheme)
-                  : ref
-                      .read(settingsServiceProvider.notifier)
-                      .setDarkTheme(scheme);
-            },
-          ),
-        ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Appearance'),
+      ),
+      body: Material(
+        child: ListView(
+          shrinkWrap: true,
+          children: <Widget>[
+            SegmentedButtonTile(
+              initial: settings.themeType,
+              segments: const [
+                ThemeType.system,
+                ThemeType.dark,
+                ThemeType.light,
+              ],
+              onTap: (themeType) {
+                ref
+                    .read(settingsServiceProvider.notifier)
+                    .setThemeType(themeType);
+              },
+            ),
+            ThemeSelectorTile(
+              selected: isLight ? settings.lightTheme : settings.darkTheme,
+              schemes: themes,
+              colorProvider: (data) => isLight ? data.light : data.dark,
+              onTap: (scheme) {
+                isLight
+                    ? ref
+                        .read(settingsServiceProvider.notifier)
+                        .setLightTheme(scheme)
+                    : ref
+                        .read(settingsServiceProvider.notifier)
+                        .setDarkTheme(scheme);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

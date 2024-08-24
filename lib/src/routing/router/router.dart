@@ -27,12 +27,12 @@ GoRouter createRouter() {
         builder: (context, state) => const BooksRoute(),
         routes: [
           GoRoute(
-            path: '/settings',
+            path: 'settings',
             name: RouteName.settings.name,
             builder: (context, state) => const SettingsRoute(),
             routes: [
               GoRoute(
-                path: '/settings/:id',
+                path: 'settings/:id',
                 name: RouteName.settingDetails.name,
                 builder: (context, state) => SettingDetailsRoute(
                   id: state.pathParameters['id'],

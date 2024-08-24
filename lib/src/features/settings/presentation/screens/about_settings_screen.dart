@@ -28,64 +28,69 @@ class _AboutSettingsScreenState extends ConsumerState<AboutSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final packageInfo = ref.watch(packageInfoProvider);
-    return Material(
-      child: ListView(
-        children: <Widget>[
-          ListTile(
-            title: const Text('Version'),
-            leading: const Icon(Icons.info),
-            subtitle: Text(
-              'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
-            ),
-            onTap: clipboard == null
-                ? null
-                : () async {
-                    final item = DataWriterItem();
-                    item.add(
-                      Formats.plainText(
-                        'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
-                      ),
-                    );
-                    await clipboard!.write([item]);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Version copied to clipboard'),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('About'),
+      ),
+      body: Material(
+        child: ListView(
+          children: <Widget>[
+            ListTile(
+              title: const Text('Version'),
+              leading: const Icon(Icons.info),
+              subtitle: Text(
+                'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
+              ),
+              onTap: clipboard == null
+                  ? null
+                  : () async {
+                      final item = DataWriterItem();
+                      item.add(
+                        Formats.plainText(
+                          'v${packageInfo.requireValue.version}+${packageInfo.requireValue.buildNumber}',
                         ),
                       );
-                    }
-                  },
-          ),
-          ListTile(
-            title: const Text('Open Source Licenses'),
-            leading: const Icon(Icons.description),
-            onTap: () {
-              showLicensePage(
-                context: context,
-                applicationName: packageInfo.requireValue.appName,
-                useRootNavigator: true,
-              );
-            },
-          ),
-          ListTile(
-            title: const Text('GitHub'),
-            leading: const Icon(Icons.code),
-            subtitle: const Text('getBoolean/manga_backup_converter'),
-            onTap: () async {
-              final url = Uri.parse(
-                'https://www.github.com/getBoolean/manga_backup_converter',
-              );
-              try {
-                final success = await launchUrl(url);
-                if (!success) {
-                  _log.fine('Could not launch url: ${url.path}');
+                      await clipboard!.write([item]);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Version copied to clipboard'),
+                          ),
+                        );
+                      }
+                    },
+            ),
+            ListTile(
+              title: const Text('Open Source Licenses'),
+              leading: const Icon(Icons.description),
+              onTap: () {
+                showLicensePage(
+                  context: context,
+                  applicationName: packageInfo.requireValue.appName,
+                  useRootNavigator: true,
+                );
+              },
+            ),
+            ListTile(
+              title: const Text('GitHub'),
+              leading: const Icon(Icons.code),
+              subtitle: const Text('getBoolean/manga_backup_converter'),
+              onTap: () async {
+                final url = Uri.parse(
+                  'https://www.github.com/getBoolean/manga_backup_converter',
+                );
+                try {
+                  final success = await launchUrl(url);
+                  if (!success) {
+                    _log.fine('Could not launch url: ${url.path}');
+                  }
+                } on PlatformException catch (e, st) {
+                  _log.severe('Could not launch url: ${e.message}', e, st);
                 }
-              } on PlatformException catch (e, st) {
-                _log.severe('Could not launch url: ${e.message}', e, st);
-              }
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

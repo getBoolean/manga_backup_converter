@@ -24,51 +24,56 @@ class _SettingsWidgetState extends ConsumerState<SettingsScreen> {
     final settings = ref.watch(settingsServiceProvider);
     final developerSettings = _buildDeveloperSettings(settings: settings);
     final theme = Theme.of(context);
-    return SettingsList(
-      lightTheme: SettingsThemeData(
-        settingsListBackground: theme.colorScheme.surface,
-        settingsSectionBackground: theme.colorScheme.surface,
-        tileHighlightColor: theme.highlightColor,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
       ),
-      darkTheme: SettingsThemeData(
-        settingsListBackground: theme.colorScheme.surface,
-        settingsSectionBackground: theme.colorScheme.surface,
-        tileHighlightColor: theme.highlightColor,
-      ),
-      brightness: theme.brightness,
-      platform: DevicePlatform.android,
-      sections: [
-        SettingsSection(
-          tiles: [
-            SettingsTile.navigation(
-              title: const Text('Appearance'),
-              leading: const Icon(Icons.colorize),
-              onPressed: (context) {
-                context.goNamed(
-                  RouteName.settingDetails.name,
-                  pathParameters: {'id': 'appearance'},
-                );
-              },
-            ),
-            SettingsTile.navigation(
-              title: const Text('About'),
-              leading: const Icon(Icons.info),
-              onPressed: (context) {
-                context.goNamed(
-                  RouteName.settingDetails.name,
-                  pathParameters: {'id': 'about'},
-                );
-              },
-            ),
-          ],
+      body: SettingsList(
+        lightTheme: SettingsThemeData(
+          settingsListBackground: theme.colorScheme.surface,
+          settingsSectionBackground: theme.colorScheme.surface,
+          tileHighlightColor: theme.highlightColor,
         ),
-        buildAdvancedSection(),
-        if (developerSettings.isNotEmpty && !kReleaseMode)
+        darkTheme: SettingsThemeData(
+          settingsListBackground: theme.colorScheme.surface,
+          settingsSectionBackground: theme.colorScheme.surface,
+          tileHighlightColor: theme.highlightColor,
+        ),
+        brightness: theme.brightness,
+        platform: DevicePlatform.android,
+        sections: [
           SettingsSection(
-            title: const Text('Developer'),
-            tiles: developerSettings,
+            tiles: [
+              SettingsTile.navigation(
+                title: const Text('Appearance'),
+                leading: const Icon(Icons.colorize),
+                onPressed: (context) {
+                  context.goNamed(
+                    RouteName.settingDetails.name,
+                    pathParameters: {'id': 'appearance'},
+                  );
+                },
+              ),
+              SettingsTile.navigation(
+                title: const Text('About'),
+                leading: const Icon(Icons.info),
+                onPressed: (context) {
+                  context.goNamed(
+                    RouteName.settingDetails.name,
+                    pathParameters: {'id': 'about'},
+                  );
+                },
+              ),
+            ],
           ),
-      ],
+          buildAdvancedSection(),
+          if (developerSettings.isNotEmpty && !kReleaseMode)
+            SettingsSection(
+              title: const Text('Developer'),
+              tiles: developerSettings,
+            ),
+        ],
+      ),
     );
   }
 
