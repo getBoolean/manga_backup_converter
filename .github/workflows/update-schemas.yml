@@ -23,6 +23,7 @@ jobs:
 
       - name: Generate Schemas
         run: |
+          mkdir packages/mangabackupconverter_cli/assets
           cd packages/mangabackupconverter_cli/assets
           curl -o 'requirements.txt' https://raw.githubusercontent.com/BrutuZ/tachibk-converter/main/requirements.txt
           pip install -r requirements.txt
