@@ -21,7 +21,64 @@ jobs:
         with:
           python-version: '3.x' # Adjust the Python version as needed
 
+      - name: Check if update_schemas branch exists
+        id: check-branch-exists
+        uses: GuillaumeFalourd/branch-exists@v1
+        with:
+          branch: update_schemas
+      
+      - name: Create Branch
+        if: steps.check-branch-exists.outputs.exists == 'false'
+        run: git switch -c update_schemas
+      
+      - name: Switch Branch
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        run: git switch update_schemas
+
+      # Ref: https://github.com/orgs/community/discussions/27071
+      - name: Find PR Number
+        uses: actions/github-script@v6
+        id: get_pr_number
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        with:
+          script: |
+            if (context.issue.number) {
+              // Return issue number if present
+              return context.issue.number;
+            } else {
+              // Otherwise return issue number from commit
+              const comment = (
+                await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  commit_sha: context.sha,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                })
+              ).data[0];
+
+              if (comment != null) {
+                return comment.number;
+              }
+              return null;
+            }
+          result-encoding: string
+
+      - name: Get PR State
+        uses: actions/github-script@v6
+        id: get_pr_state
+        if: steps.check-branch-exists.outputs.exists == 'true' && steps.get_pr_number.outputs.result != 'null'
+        with:
+          script: |
+            return (
+                await github.rest.issues.get({
+                  issue_number: ${{ steps.get_pr_number.outputs.result }},
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                })
+              ).data.state;
+          result-encoding: string
+
       - name: Generate Schemas
+        if: steps.get_pr_state.outputs.result != 'open'
         run: |
           mkdir packages/mangabackupconverter_cli/assets
           cd packages/mangabackupconverter_cli/assets
@@ -31,6 +88,7 @@ jobs:
           python generate_schemas.py --dump-schemas
 
       - name: Commit and push changes
+        if: steps.get_pr_state.outputs.result != 'open'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -43,8 +101,10 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m 'Update Protobuf schemas'
+            git push
           fi
       - name: Create pull request
+        if: steps.get_pr_state.outputs.result != 'open'
         run: gh pr create -B main -H update_schemas --title 'Update Tachi Protobuf Schemas' --body 'Created by Github Actions'
         env:
             GITHUB_TOKEN: ${{ secrets.PAT }}
