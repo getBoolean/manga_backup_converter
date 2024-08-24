@@ -20,7 +20,6 @@ class AppearanceSettingsScreen extends ConsumerWidget {
       ),
       body: Material(
         child: ListView(
-          shrinkWrap: true,
           children: <Widget>[
             SegmentedButtonTile(
               initial: settings.themeType,
