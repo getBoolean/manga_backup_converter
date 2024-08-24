@@ -37,7 +37,7 @@ ArgParser buildParser() {
       'output-format',
       abbr: 'f',
       help: 'The output backup format the backup will be converted to',
-      allowed: ['aib', 'tachibk', 'pas4', 'tmb'],
+      allowed: ['aib', 'tachibk', 'pas4'],
       mandatory: true,
     );
 }
@@ -129,7 +129,6 @@ void main(List<String> arguments) {
       case "aib":
       case "tachibk":
       case "pas4":
-      case "tmb":
       default:
         print("Unsupported output format");
         return;
