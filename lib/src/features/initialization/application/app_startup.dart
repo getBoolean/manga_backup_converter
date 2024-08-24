@@ -13,6 +13,7 @@ part 'app_startup.g.dart';
 Future<void> appStartup(AppStartupRef ref) async {
   ref.onDispose(() {
     // invalidate all the providers we depend on
+    ref.invalidate(prefsProvider);
     ref.invalidate(packageInfoProvider);
   });
   // all asynchronous app initialization code should belong here:
