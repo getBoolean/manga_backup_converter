@@ -29,7 +29,7 @@ Future<void> appStartup(AppStartupRef ref) async {
 }
 
 Future<void> _initHive() async {
-  await Hive.initFlutter();
+  await Hive.initFlutter('.mangabackupconverter');
   final flexSchemeDataAdapter = FlexSchemeDataAdapter();
   if (!Hive.isAdapterRegistered(flexSchemeDataAdapter.typeId)) {
     Hive.registerAdapter(flexSchemeDataAdapter);
