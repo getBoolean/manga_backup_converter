@@ -19,7 +19,7 @@ class SettingsService extends _$SettingsService {
   }
 
   Future<void> resetSettings() async {
-    state = _settingsRepository.getSettings();
+    state = _settingsRepository.resetSettings();
   }
 
   bool toggleBanner() {

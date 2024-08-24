@@ -14,8 +14,13 @@ class SettingsRepository extends _$SettingsRepository {
     return getSettings();
   }
 
-  void saveSettings(Settings settings) {
+  Settings resetSettings() {
+    return saveSettings(const Settings());
+  }
+
+  Settings saveSettings(Settings settings) {
     _prefs.setString('settings', settings.toJson());
+    return settings;
   }
 
   Settings getSettings() {
