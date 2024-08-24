@@ -45,6 +45,6 @@ jobs:
             git commit -m 'Update Protobuf schemas'
           fi
       - name: Create pull request
-        run: |
-          gh pr create -B update_schemas -H main --title 'Update Tachi Protobuf Schemas' --body 'Created by Github Actions'
+        run: gh pr create -B update_schemas -H main --title 'Update Tachi Protobuf Schemas' --body 'Created by Github Actions'
         env:
+            GITHUB_TOKEN: ${{ secrets.PAT }}
