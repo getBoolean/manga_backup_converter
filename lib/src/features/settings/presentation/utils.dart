@@ -26,7 +26,7 @@ Future<OptionT?> showOptionsMenu<OptionT extends HumanReadableEnum>(
             padding: EdgeInsetsDirectional.all(16.0),
             child: CloseButton(),
           ),
-          mainContentSlivers: [
+          mainContentSliversBuilder: (context) => [
             SliverList(
               delegate: SliverChildListDelegate([
                 for (final eachOption in options)

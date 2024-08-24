@@ -33,7 +33,7 @@ enum DeviceType {
       this == DeviceType.ChromeOS;
 }
 
-const $breakpointMediumSmall = WidthPlatformBreakpoint(begin: 600, end: 700);
+const $breakpointMediumSmall = Breakpoint(beginWidth: 600, endWidth: 700);
 
 enum DeviceForm {
   /// Computer screens
@@ -43,7 +43,7 @@ enum DeviceForm {
   medium(Breakpoints.medium),
 
   /// Phones and small tablets in portrait
-  small(WidthPlatformBreakpoint(begin: 0, end: 600));
+  small(Breakpoint(beginWidth: 0, endWidth: 600));
 
   const DeviceForm(this.breakpoint);
 
