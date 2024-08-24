@@ -38,7 +38,7 @@ jobs:
         run: |
           git checkout -b update_schemas
           git fetch
-          git pull
+          git pull origin update_schemas
 
       # Ref: https://github.com/orgs/community/discussions/27071
       - name: Find PR Number
