@@ -114,14 +114,14 @@ const BackupCategory$json = {
     {'1': 'name', '3': 1, '4': 2, '5': 9, '10': 'name'},
     {'1': 'order', '3': 2, '4': 1, '5': 5, '10': 'order'},
     {'1': 'flags', '3': 100, '4': 1, '5': 5, '10': 'flags'},
-    {'1': 'mangaSort', '3': 800, '4': 1, '5': 5, '10': 'mangaSort'},
+    {'1': 'mangaSort', '3': 800, '4': 1, '5': 9, '10': 'mangaSort'},
   ],
 };
 
 /// Descriptor for `BackupCategory`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List backupCategoryDescriptor = $convert.base64Decode(
     'Cg5CYWNrdXBDYXRlZ29yeRISCgRuYW1lGAEgAigJUgRuYW1lEhQKBW9yZGVyGAIgASgFUgVvcm'
-    'RlchIUCgVmbGFncxhkIAEoBVIFZmxhZ3MSHQoJbWFuZ2FTb3J0GKAGIAEoBVIJbWFuZ2FTb3J0');
+    'RlchIUCgVmbGFncxhkIAEoBVIFZmxhZ3MSHQoJbWFuZ2FTb3J0GKAGIAEoCVIJbWFuZ2FTb3J0');
 
 @$core.Deprecated('Use backupChapterDescriptor instead')
 const BackupChapter$json = {
