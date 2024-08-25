@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/proto/schema_j2k.proto/proto/schema_j2k.pb.dart'
     as j2k;
@@ -18,15 +19,20 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
   final int order;
   final int flags;
 
-  /// J2K and Yokai only
-  final int? mangaSort;
+  /// J2K and Yokai only.
+  ///
+  /// This is represented by a char and must be null or exactly 1 char
+  final String? mangaSort;
 
-  const TachiBackupCategory({
+  TachiBackupCategory({
     required this.name,
     required this.order,
     required this.flags,
     this.mangaSort,
-  });
+  }) : assert(
+          mangaSort == null || mangaSort.characters.singleOrNull != null,
+          'mangaSort must be null or a single character',
+        );
 
   factory TachiBackupCategory.fromMihon(
     mihon.BackupCategory backupCategory,
@@ -55,7 +61,7 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
       name: backupCategory.name,
       order: backupCategory.order,
       flags: backupCategory.flags,
-      mangaSort: backupCategory.mangaSort,
+      mangaSort: backupCategory.mangaSort.characters.single,
     );
   }
 
@@ -76,7 +82,7 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
       name: backupCategory.name,
       order: backupCategory.order,
       flags: backupCategory.flags,
-      mangaSort: backupCategory.mangaSort,
+      mangaSort: backupCategory.mangaSort.characters.single,
     );
   }
 
