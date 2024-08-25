@@ -31,18 +31,12 @@ class PaperbackBackupMangaInfoMapper
   static String _$desc(PaperbackBackupMangaInfo v) => v.desc;
   static const Field<PaperbackBackupMangaInfo, String> _f$desc =
       Field('desc', _$desc);
-  static String? _$rating(PaperbackBackupMangaInfo v) => v.rating;
-  static const Field<PaperbackBackupMangaInfo, String> _f$rating =
-      Field('rating', _$rating, opt: true);
   static List<String> _$titles(PaperbackBackupMangaInfo v) => v.titles;
   static const Field<PaperbackBackupMangaInfo, List<String>> _f$titles =
       Field('titles', _$titles);
   static List<String> _$covers(PaperbackBackupMangaInfo v) => v.covers;
   static const Field<PaperbackBackupMangaInfo, List<String>> _f$covers =
       Field('covers', _$covers);
-  static String? _$banner(PaperbackBackupMangaInfo v) => v.banner;
-  static const Field<PaperbackBackupMangaInfo, String> _f$banner =
-      Field('banner', _$banner, opt: true);
   static String _$author(PaperbackBackupMangaInfo v) => v.author;
   static const Field<PaperbackBackupMangaInfo, String> _f$author =
       Field('author', _$author);
@@ -67,15 +61,19 @@ class PaperbackBackupMangaInfoMapper
   static String _$status(PaperbackBackupMangaInfo v) => v.status;
   static const Field<PaperbackBackupMangaInfo, String> _f$status =
       Field('status', _$status);
+  static String? _$rating(PaperbackBackupMangaInfo v) => v.rating;
+  static const Field<PaperbackBackupMangaInfo, String> _f$rating =
+      Field('rating', _$rating, opt: true);
+  static String? _$banner(PaperbackBackupMangaInfo v) => v.banner;
+  static const Field<PaperbackBackupMangaInfo, String> _f$banner =
+      Field('banner', _$banner, opt: true);
 
   @override
   final MappableFields<PaperbackBackupMangaInfo> fields = const {
     #tags: _f$tags,
     #desc: _f$desc,
-    #rating: _f$rating,
     #titles: _f$titles,
     #covers: _f$covers,
-    #banner: _f$banner,
     #author: _f$author,
     #image: _f$image,
     #hentai: _f$hentai,
@@ -83,23 +81,25 @@ class PaperbackBackupMangaInfoMapper
     #artist: _f$artist,
     #id: _f$id,
     #status: _f$status,
+    #rating: _f$rating,
+    #banner: _f$banner,
   };
 
   static PaperbackBackupMangaInfo _instantiate(DecodingData data) {
     return PaperbackBackupMangaInfo(
         tags: data.dec(_f$tags),
         desc: data.dec(_f$desc),
-        rating: data.dec(_f$rating),
         titles: data.dec(_f$titles),
         covers: data.dec(_f$covers),
-        banner: data.dec(_f$banner),
         author: data.dec(_f$author),
         image: data.dec(_f$image),
         hentai: data.dec(_f$hentai),
         additionalInfo: data.dec(_f$additionalInfo),
         artist: data.dec(_f$artist),
         id: data.dec(_f$id),
-        status: data.dec(_f$status));
+        status: data.dec(_f$status),
+        rating: data.dec(_f$rating),
+        banner: data.dec(_f$banner));
   }
 
   @override
@@ -173,17 +173,17 @@ abstract class PaperbackBackupMangaInfoCopyWith<
   $R call(
       {List<PaperbackBackupMangaTag>? tags,
       String? desc,
-      String? rating,
       List<String>? titles,
       List<String>? covers,
-      String? banner,
       String? author,
       String? image,
       bool? hentai,
       PaperbackBackupMangaAdditionalInfo? additionalInfo,
       String? artist,
       String? id,
-      String? status});
+      String? status,
+      String? rating,
+      String? banner});
   PaperbackBackupMangaInfoCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -223,47 +223,47 @@ class _PaperbackBackupMangaInfoCopyWithImpl<$R, $Out>
   $R call(
           {List<PaperbackBackupMangaTag>? tags,
           String? desc,
-          Object? rating = $none,
           List<String>? titles,
           List<String>? covers,
-          Object? banner = $none,
           String? author,
           String? image,
           bool? hentai,
           PaperbackBackupMangaAdditionalInfo? additionalInfo,
           String? artist,
           String? id,
-          String? status}) =>
+          String? status,
+          Object? rating = $none,
+          Object? banner = $none}) =>
       $apply(FieldCopyWithData({
         if (tags != null) #tags: tags,
         if (desc != null) #desc: desc,
-        if (rating != $none) #rating: rating,
         if (titles != null) #titles: titles,
         if (covers != null) #covers: covers,
-        if (banner != $none) #banner: banner,
         if (author != null) #author: author,
         if (image != null) #image: image,
         if (hentai != null) #hentai: hentai,
         if (additionalInfo != null) #additionalInfo: additionalInfo,
         if (artist != null) #artist: artist,
         if (id != null) #id: id,
-        if (status != null) #status: status
+        if (status != null) #status: status,
+        if (rating != $none) #rating: rating,
+        if (banner != $none) #banner: banner
       }));
   @override
   PaperbackBackupMangaInfo $make(CopyWithData data) => PaperbackBackupMangaInfo(
       tags: data.get(#tags, or: $value.tags),
       desc: data.get(#desc, or: $value.desc),
-      rating: data.get(#rating, or: $value.rating),
       titles: data.get(#titles, or: $value.titles),
       covers: data.get(#covers, or: $value.covers),
-      banner: data.get(#banner, or: $value.banner),
       author: data.get(#author, or: $value.author),
       image: data.get(#image, or: $value.image),
       hentai: data.get(#hentai, or: $value.hentai),
       additionalInfo: data.get(#additionalInfo, or: $value.additionalInfo),
       artist: data.get(#artist, or: $value.artist),
       id: data.get(#id, or: $value.id),
-      status: data.get(#status, or: $value.status));
+      status: data.get(#status, or: $value.status),
+      rating: data.get(#rating, or: $value.rating),
+      banner: data.get(#banner, or: $value.banner));
 
   @override
   PaperbackBackupMangaInfoCopyWith<$R2, PaperbackBackupMangaInfo, $Out2>

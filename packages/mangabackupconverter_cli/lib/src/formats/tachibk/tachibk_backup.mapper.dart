@@ -14,6 +14,7 @@ class TachibkBackupMapper extends ClassMapperBase<TachibkBackup> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = TachibkBackupMapper._());
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
+      TachiForkMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -24,14 +25,18 @@ class TachibkBackupMapper extends ClassMapperBase<TachibkBackup> {
   static Map<String, Object> _$data(TachibkBackup v) => v.data;
   static const Field<TachibkBackup, Map<String, Object>> _f$data =
       Field('data', _$data);
+  static TachiFork _$fork(TachibkBackup v) => v.fork;
+  static const Field<TachibkBackup, TachiFork> _f$fork =
+      Field('fork', _$fork, opt: true, def: TachiFork.mihon);
 
   @override
   final MappableFields<TachibkBackup> fields = const {
     #data: _f$data,
+    #fork: _f$fork,
   };
 
   static TachibkBackup _instantiate(DecodingData data) {
-    return TachibkBackup(data: data.dec(_f$data));
+    return TachibkBackup(data: data.dec(_f$data), fork: data.dec(_f$fork));
   }
 
   @override
@@ -88,7 +93,7 @@ extension TachibkBackupValueCopy<$R, $Out>
 abstract class TachibkBackupCopyWith<$R, $In extends TachibkBackup, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   MapCopyWith<$R, String, Object, ObjectCopyWith<$R, Object, Object>> get data;
-  $R call({Map<String, Object>? data});
+  $R call({Map<String, Object>? data, TachiFork? fork});
   TachibkBackupCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -105,11 +110,13 @@ class _TachibkBackupCopyWithImpl<$R, $Out>
       get data => MapCopyWith($value.data,
           (v, t) => ObjectCopyWith(v, $identity, t), (v) => call(data: v));
   @override
-  $R call({Map<String, Object>? data}) =>
-      $apply(FieldCopyWithData({if (data != null) #data: data}));
+  $R call({Map<String, Object>? data, TachiFork? fork}) =>
+      $apply(FieldCopyWithData(
+          {if (data != null) #data: data, if (fork != null) #fork: fork}));
   @override
-  TachibkBackup $make(CopyWithData data) =>
-      TachibkBackup(data: data.get(#data, or: $value.data));
+  TachibkBackup $make(CopyWithData data) => TachibkBackup(
+      data: data.get(#data, or: $value.data),
+      fork: data.get(#fork, or: $value.fork));
 
   @override
   TachibkBackupCopyWith<$R2, TachibkBackup, $Out2> $chain<$R2, $Out2>(

@@ -17,4 +17,5 @@ export 'src/formats/pas4/paperback_backup_library_manga.dart';
 export 'src/formats/pas4/paperback_backup_library_tab.dart';
 export 'src/formats/pas4/paperback_backup_manga_info.dart';
 export 'src/formats/pas4/paperback_backup_source_manga.dart';
+export 'src/formats/tachibk/tachi_fork.dart';
 export 'src/formats/tachibk/tachibk_backup.dart';

@@ -41,6 +41,19 @@ ArgParser buildParser() {
       help: 'The output backup format the backup will be converted to',
       allowed: ['aidoku', 'tachi', 'paperback'],
       mandatory: true,
+    )
+    ..addOption(
+      'tachi-fork',
+      abbr: 't',
+      help: 'The specific Tachiyomi fork to use for the backup format',
+      allowed: [
+        TachiFork.mihon.name,
+        TachiFork.sy.name,
+        TachiFork.j2k.name,
+        TachiFork.yokai.name,
+        TachiFork.neko.name,
+      ],
+      defaultsTo: TachiFork.mihon.name,
     );
 }
 
@@ -56,6 +69,7 @@ void main(List<String> arguments) {
     bool verbose = false;
     io.File? backupFile;
     String outputFormat = 'aib';
+    TachiFork outputTachiFork = TachiFork.mihon;
 
     if (results.wasParsed('help')) {
       printUsage(argParser);
@@ -94,10 +108,15 @@ void main(List<String> arguments) {
     if (results.wasParsed('output-format')) {
       outputFormat = results.option('output-format') ?? 'aib';
     }
-    if (!['.aib', '.tachibk', '.proto.gz', '.json', '.pas4', '.tmb']
+    if (!['.aib', '.tachibk', '.proto.gz', '.pas4', '.tmb']
         .contains(backupFileExtension)) {
       print('Unsupported file extension: "$backupFileExtension"');
       return;
+    }
+
+    if (results.wasParsed('tachi-fork')) {
+      outputTachiFork = TachiFork.values
+          .byName(results.option('tachi-fork') ?? TachiFork.mihon.name);
     }
 
     final converter = MangaBackupConverter();
@@ -124,11 +143,11 @@ void main(List<String> arguments) {
         }
       case '.tachibk':
       case '.proto.gz':
-      case '.json':
         final TachibkBackup? tachibkBackup = converter.importTachibkBackup(
           ByteData.sublistView(
             backupFile.readAsBytesSync(),
           ),
+          fork: outputTachiFork,
         );
         if (verbose) {
           print(tachibkBackup?.data);
