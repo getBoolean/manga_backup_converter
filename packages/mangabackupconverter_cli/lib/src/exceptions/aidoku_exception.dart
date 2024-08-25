@@ -1,6 +1,7 @@
-class AidokuException implements Exception {
-  final Object? message;
-  const AidokuException([this.message]);
+import 'package:mangabackupconverter_cli/src/exceptions/base_exeption.dart';
+
+class AidokuException extends MangaConverterException {
+  const AidokuException([super.message]);
 
   @override
   String toString() {

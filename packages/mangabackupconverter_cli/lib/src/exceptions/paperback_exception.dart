@@ -1,6 +1,7 @@
-class PaperbackException implements Exception {
-  final Object? message;
-  const PaperbackException([this.message]);
+import 'package:mangabackupconverter_cli/src/exceptions/base_exeption.dart';
+
+class PaperbackException extends MangaConverterException {
+  const PaperbackException([super.message]);
 
   @override
   String toString() {
