@@ -21,7 +21,16 @@ class PaperbackBackupMangaInfo with PaperbackBackupMangaInfoMappable {
   PaperbackBackupMangaInfo({
     required this.tags,
     required this.desc,
-    required this.titles, required this.covers, required this.author, required this.image, required this.hentai, required this.additionalInfo, required this.artist, required this.id, required this.status, this.rating,
+    required this.titles,
+    required this.covers,
+    required this.author,
+    required this.image,
+    required this.hentai,
+    required this.additionalInfo,
+    required this.artist,
+    required this.id,
+    required this.status,
+    this.rating,
     this.banner,
   });
 
