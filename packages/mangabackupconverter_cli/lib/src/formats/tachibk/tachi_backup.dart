@@ -147,8 +147,16 @@ class TachiBackup with TachiBackupMappable {
   }
 
   Uint8List? toBackup() {
-    // TODO: Write json to file
-    return null;
+    final json = toJson();
+    final backupJson = switch (fork) {
+      TachiFork.mihon => mihon.Backup.fromJson(json).toProto3Json(),
+      TachiFork.sy => sy.Backup.fromJson(json).toProto3Json(),
+      TachiFork.j2k => j2k.Backup.fromJson(json).toProto3Json(),
+      TachiFork.yokai => yokai.Backup.fromJson(json).toProto3Json(),
+      TachiFork.neko => neko.Backup.fromJson(json).toProto3Json(),
+    };
+    final gzip = GZipEncoder().encode(backupJson);
+    return gzip == null ? null : Uint8List.fromList(gzip);
   }
 
   static const fromMap = TachiBackupMapper.fromMap;
