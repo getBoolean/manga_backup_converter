@@ -44,8 +44,8 @@ jobs:
 
       - name: Generate Schemas
         run: |
-          mkdir -p packages/mangabackupconverter_cli/assets
-          cd packages/mangabackupconverter_cli/assets
+          mkdir -p proto
+          cd proto
           curl -o 'requirements.txt' https://raw.githubusercontent.com/getBoolean/tachibk-converter/main/requirements.txt
           pip install -r requirements.txt
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/getBoolean/tachibk-converter/main/tachibk-converter.py
@@ -53,8 +53,8 @@ jobs:
 
       - name: Generate Dart Code for Schemas
         run: |
-          INPUT_DIR="packages/mangabackupconverter_cli/assets/"
-          OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/proto/"
+          INPUT_DIR="proto/"
+          OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/"
           mkdir -p "$OUTPUT_DIR_PREFIX"
 
           for file in "$INPUT_DIR"*; do
