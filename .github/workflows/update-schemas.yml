@@ -35,7 +35,9 @@ jobs:
           cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
       
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        run: |
+          apt install -y protobuf-compiler
+          protoc --version
       
       - name: Activate Protoc Plugin
         run: dart pub global activate protoc_plugin
