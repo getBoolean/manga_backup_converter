@@ -67,6 +67,9 @@ jobs:
                   fi
               fi
           done
+
+      - name: Format Generated Dart Code
+        run: dart format .
       
       - name: Create Pull Request
         id: cpr
