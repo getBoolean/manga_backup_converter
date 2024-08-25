@@ -54,6 +54,9 @@ class TachiBackupChapterMapper extends ClassMapperBase<TachiBackupChapter> {
   static int? _$version(TachiBackupChapter v) => v.version;
   static const Field<TachiBackupChapter, int> _f$version =
       Field('version', _$version, opt: true);
+  static int? _$pagesLeft(TachiBackupChapter v) => v.pagesLeft;
+  static const Field<TachiBackupChapter, int> _f$pagesLeft =
+      Field('pagesLeft', _$pagesLeft, opt: true);
 
   @override
   final MappableFields<TachiBackupChapter> fields = const {
@@ -69,6 +72,7 @@ class TachiBackupChapterMapper extends ClassMapperBase<TachiBackupChapter> {
     #sourceOrder: _f$sourceOrder,
     #lastModifiedAt: _f$lastModifiedAt,
     #version: _f$version,
+    #pagesLeft: _f$pagesLeft,
   };
 
   static TachiBackupChapter _instantiate(DecodingData data) {
@@ -84,7 +88,8 @@ class TachiBackupChapterMapper extends ClassMapperBase<TachiBackupChapter> {
         chapterNumber: data.dec(_f$chapterNumber),
         sourceOrder: data.dec(_f$sourceOrder),
         lastModifiedAt: data.dec(_f$lastModifiedAt),
-        version: data.dec(_f$version));
+        version: data.dec(_f$version),
+        pagesLeft: data.dec(_f$pagesLeft));
   }
 
   @override
@@ -154,7 +159,8 @@ abstract class TachiBackupChapterCopyWith<$R, $In extends TachiBackupChapter,
       double? chapterNumber,
       int? sourceOrder,
       int? lastModifiedAt,
-      int? version});
+      int? version,
+      int? pagesLeft});
   TachiBackupChapterCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -180,7 +186,8 @@ class _TachiBackupChapterCopyWithImpl<$R, $Out>
           double? chapterNumber,
           int? sourceOrder,
           Object? lastModifiedAt = $none,
-          Object? version = $none}) =>
+          Object? version = $none,
+          Object? pagesLeft = $none}) =>
       $apply(FieldCopyWithData({
         if (url != null) #url: url,
         if (name != null) #name: name,
@@ -193,7 +200,8 @@ class _TachiBackupChapterCopyWithImpl<$R, $Out>
         if (chapterNumber != null) #chapterNumber: chapterNumber,
         if (sourceOrder != null) #sourceOrder: sourceOrder,
         if (lastModifiedAt != $none) #lastModifiedAt: lastModifiedAt,
-        if (version != $none) #version: version
+        if (version != $none) #version: version,
+        if (pagesLeft != $none) #pagesLeft: pagesLeft
       }));
   @override
   TachiBackupChapter $make(CopyWithData data) => TachiBackupChapter(
@@ -208,7 +216,8 @@ class _TachiBackupChapterCopyWithImpl<$R, $Out>
       chapterNumber: data.get(#chapterNumber, or: $value.chapterNumber),
       sourceOrder: data.get(#sourceOrder, or: $value.sourceOrder),
       lastModifiedAt: data.get(#lastModifiedAt, or: $value.lastModifiedAt),
-      version: data.get(#version, or: $value.version));
+      version: data.get(#version, or: $value.version),
+      pagesLeft: data.get(#pagesLeft, or: $value.pagesLeft));
 
   @override
   TachiBackupChapterCopyWith<$R2, TachiBackupChapter, $Out2> $chain<$R2, $Out2>(

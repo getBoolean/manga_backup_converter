@@ -27,6 +27,9 @@ class TachiBackupChapter with TachiBackupChapterMappable {
   final int? lastModifiedAt;
   final int? version;
 
+  /// J2K and Yokai only
+  final int? pagesLeft;
+
   const TachiBackupChapter({
     required this.url,
     required this.name,
@@ -40,6 +43,7 @@ class TachiBackupChapter with TachiBackupChapterMappable {
     required this.sourceOrder,
     this.lastModifiedAt,
     this.version,
+    this.pagesLeft,
   });
 
   factory TachiBackupChapter.fromMihon(
@@ -94,6 +98,7 @@ class TachiBackupChapter with TachiBackupChapterMappable {
       dateUpload: backupChapter.dateUpload.toInt(),
       chapterNumber: backupChapter.chapterNumber,
       sourceOrder: backupChapter.sourceOrder,
+      pagesLeft: backupChapter.pagesLeft,
     );
   }
 
@@ -128,6 +133,7 @@ class TachiBackupChapter with TachiBackupChapterMappable {
       dateUpload: backupChapter.dateUpload.toInt(),
       chapterNumber: backupChapter.chapterNumber,
       sourceOrder: backupChapter.sourceOrder,
+      pagesLeft: backupChapter.pagesLeft,
     );
   }
 

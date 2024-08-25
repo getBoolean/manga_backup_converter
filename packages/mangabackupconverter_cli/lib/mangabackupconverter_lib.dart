@@ -17,6 +17,7 @@ export 'src/formats/paperback/paperback_backup_library_manga.dart';
 export 'src/formats/paperback/paperback_backup_library_tab.dart';
 export 'src/formats/paperback/paperback_backup_manga_info.dart';
 export 'src/formats/paperback/paperback_backup_source_manga.dart';
+export 'src/formats/tachi/neko_backup_merge_manga.dart';
 export 'src/formats/tachi/tachi_backup.dart';
 export 'src/formats/tachi/tachi_backup_category.dart';
 export 'src/formats/tachi/tachi_backup_chapter.dart';

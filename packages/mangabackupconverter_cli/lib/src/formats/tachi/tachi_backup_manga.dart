@@ -1,4 +1,5 @@
 import 'package:dart_mappable/dart_mappable.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/neko_backup_merge_manga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_tracking.dart';
@@ -43,6 +44,36 @@ class TachiBackupManga with TachiBackupMangaMappable {
   final List<String>? excludedScanlators;
   final int? version;
 
+  /// SY, J2K and Yokai only
+  final int? customStatus;
+
+  /// SY only
+  final String? customThumbnailUrl;
+
+  /// SY, J2K and Yokai only
+  final String? customTitle;
+
+  /// SY, J2K and Yokai only
+  final String? customArtist;
+
+  /// SY, J2K and Yokai only
+  final String? customAuthor;
+
+  /// SY, J2K and Yokai only
+  final String? customDescription;
+
+  /// SY, J2K and Yokai only
+  final List<String>? customGenre;
+
+  /// Neko only
+  final String? scanlatorFilter;
+
+  /// Neko only
+  final String? alternativeArtwork;
+
+  /// Neko only
+  final List<NekoBackupMergeManga>? mergeMangaList;
+
   const TachiBackupManga({
     required this.source,
     required this.url,
@@ -68,6 +99,16 @@ class TachiBackupManga with TachiBackupMangaMappable {
     this.favoriteModifiedAt,
     this.excludedScanlators,
     this.version,
+    this.customStatus,
+    this.customThumbnailUrl,
+    this.customTitle,
+    this.customArtist,
+    this.customAuthor,
+    this.customDescription,
+    this.customGenre,
+    this.scanlatorFilter,
+    this.alternativeArtwork,
+    this.mergeMangaList,
   });
 
   factory TachiBackupManga.fromMihon(
@@ -136,6 +177,13 @@ class TachiBackupManga with TachiBackupMangaMappable {
       favoriteModifiedAt: backupManga.favoriteModifiedAt.toInt(),
       excludedScanlators: backupManga.excludedScanlators,
       version: backupManga.version.toInt(),
+      customStatus: backupManga.customStatus,
+      customThumbnailUrl: backupManga.customThumbnailUrl,
+      customTitle: backupManga.customTitle,
+      customArtist: backupManga.customArtist,
+      customAuthor: backupManga.customAuthor,
+      customDescription: backupManga.customDescription,
+      customGenre: backupManga.customGenre,
     );
   }
 
@@ -166,6 +214,12 @@ class TachiBackupManga with TachiBackupMangaMappable {
       history: backupManga.history.map(TachiBackupHistory.fromJ2k).toList(),
       updateStrategy:
           TachiUpdateStrategyMapper.fromValue(backupManga.updateStrategy.value),
+      customStatus: backupManga.customStatus,
+      customTitle: backupManga.customTitle,
+      customArtist: backupManga.customArtist,
+      customAuthor: backupManga.customAuthor,
+      customDescription: backupManga.customDescription,
+      customGenre: backupManga.customGenre,
     );
   }
 
@@ -194,6 +248,11 @@ class TachiBackupManga with TachiBackupMangaMappable {
           .toList(),
       viewerFlags: backupManga.viewerFlags,
       history: backupManga.history.map(TachiBackupHistory.fromNeko).toList(),
+      scanlatorFilter: backupManga.scanlatorFilter,
+      alternativeArtwork: backupManga.alternativeArtwork,
+      mergeMangaList: backupManga.mergeMangaList
+          .map(NekoBackupMergeManga.fromNeko)
+          .toList(),
     );
   }
 
@@ -225,6 +284,12 @@ class TachiBackupManga with TachiBackupMangaMappable {
       history: backupManga.history.map(TachiBackupHistory.fromYokai).toList(),
       updateStrategy:
           TachiUpdateStrategyMapper.fromValue(backupManga.updateStrategy.value),
+      customStatus: backupManga.customStatus,
+      customTitle: backupManga.customTitle,
+      customArtist: backupManga.customArtist,
+      customAuthor: backupManga.customAuthor,
+      customDescription: backupManga.customDescription,
+      customGenre: backupManga.customGenre,
     );
   }
 

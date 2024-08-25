@@ -17,6 +17,7 @@ class TachiBackupMangaMapper extends ClassMapperBase<TachiBackupManga> {
       TachiBackupTrackingMapper.ensureInitialized();
       TachiBackupHistoryMapper.ensureInitialized();
       TachiUpdateStrategyMapper.ensureInitialized();
+      NekoBackupMergeMangaMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -99,6 +100,39 @@ class TachiBackupMangaMapper extends ClassMapperBase<TachiBackupManga> {
   static int? _$version(TachiBackupManga v) => v.version;
   static const Field<TachiBackupManga, int> _f$version =
       Field('version', _$version, opt: true);
+  static int? _$customStatus(TachiBackupManga v) => v.customStatus;
+  static const Field<TachiBackupManga, int> _f$customStatus =
+      Field('customStatus', _$customStatus, opt: true);
+  static String? _$customThumbnailUrl(TachiBackupManga v) =>
+      v.customThumbnailUrl;
+  static const Field<TachiBackupManga, String> _f$customThumbnailUrl =
+      Field('customThumbnailUrl', _$customThumbnailUrl, opt: true);
+  static String? _$customTitle(TachiBackupManga v) => v.customTitle;
+  static const Field<TachiBackupManga, String> _f$customTitle =
+      Field('customTitle', _$customTitle, opt: true);
+  static String? _$customArtist(TachiBackupManga v) => v.customArtist;
+  static const Field<TachiBackupManga, String> _f$customArtist =
+      Field('customArtist', _$customArtist, opt: true);
+  static String? _$customAuthor(TachiBackupManga v) => v.customAuthor;
+  static const Field<TachiBackupManga, String> _f$customAuthor =
+      Field('customAuthor', _$customAuthor, opt: true);
+  static String? _$customDescription(TachiBackupManga v) => v.customDescription;
+  static const Field<TachiBackupManga, String> _f$customDescription =
+      Field('customDescription', _$customDescription, opt: true);
+  static List<String>? _$customGenre(TachiBackupManga v) => v.customGenre;
+  static const Field<TachiBackupManga, List<String>> _f$customGenre =
+      Field('customGenre', _$customGenre, opt: true);
+  static String? _$scanlatorFilter(TachiBackupManga v) => v.scanlatorFilter;
+  static const Field<TachiBackupManga, String> _f$scanlatorFilter =
+      Field('scanlatorFilter', _$scanlatorFilter, opt: true);
+  static String? _$alternativeArtwork(TachiBackupManga v) =>
+      v.alternativeArtwork;
+  static const Field<TachiBackupManga, String> _f$alternativeArtwork =
+      Field('alternativeArtwork', _$alternativeArtwork, opt: true);
+  static List<NekoBackupMergeManga>? _$mergeMangaList(TachiBackupManga v) =>
+      v.mergeMangaList;
+  static const Field<TachiBackupManga, List<NekoBackupMergeManga>>
+      _f$mergeMangaList = Field('mergeMangaList', _$mergeMangaList, opt: true);
 
   @override
   final MappableFields<TachiBackupManga> fields = const {
@@ -126,6 +160,16 @@ class TachiBackupMangaMapper extends ClassMapperBase<TachiBackupManga> {
     #favoriteModifiedAt: _f$favoriteModifiedAt,
     #excludedScanlators: _f$excludedScanlators,
     #version: _f$version,
+    #customStatus: _f$customStatus,
+    #customThumbnailUrl: _f$customThumbnailUrl,
+    #customTitle: _f$customTitle,
+    #customArtist: _f$customArtist,
+    #customAuthor: _f$customAuthor,
+    #customDescription: _f$customDescription,
+    #customGenre: _f$customGenre,
+    #scanlatorFilter: _f$scanlatorFilter,
+    #alternativeArtwork: _f$alternativeArtwork,
+    #mergeMangaList: _f$mergeMangaList,
   };
 
   static TachiBackupManga _instantiate(DecodingData data) {
@@ -153,7 +197,17 @@ class TachiBackupMangaMapper extends ClassMapperBase<TachiBackupManga> {
         lastModifiedAt: data.dec(_f$lastModifiedAt),
         favoriteModifiedAt: data.dec(_f$favoriteModifiedAt),
         excludedScanlators: data.dec(_f$excludedScanlators),
-        version: data.dec(_f$version));
+        version: data.dec(_f$version),
+        customStatus: data.dec(_f$customStatus),
+        customThumbnailUrl: data.dec(_f$customThumbnailUrl),
+        customTitle: data.dec(_f$customTitle),
+        customArtist: data.dec(_f$customArtist),
+        customAuthor: data.dec(_f$customAuthor),
+        customDescription: data.dec(_f$customDescription),
+        customGenre: data.dec(_f$customGenre),
+        scanlatorFilter: data.dec(_f$scanlatorFilter),
+        alternativeArtwork: data.dec(_f$alternativeArtwork),
+        mergeMangaList: data.dec(_f$mergeMangaList));
   }
 
   @override
@@ -234,6 +288,12 @@ abstract class TachiBackupMangaCopyWith<$R, $In extends TachiBackupManga, $Out>
           TachiBackupHistory>> get history;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
       get excludedScanlators;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>? get customGenre;
+  ListCopyWith<
+      $R,
+      NekoBackupMergeManga,
+      NekoBackupMergeMangaCopyWith<$R, NekoBackupMergeManga,
+          NekoBackupMergeManga>>? get mergeMangaList;
   $R call(
       {int? source,
       String? url,
@@ -258,7 +318,17 @@ abstract class TachiBackupMangaCopyWith<$R, $In extends TachiBackupManga, $Out>
       int? lastModifiedAt,
       int? favoriteModifiedAt,
       List<String>? excludedScanlators,
-      int? version});
+      int? version,
+      int? customStatus,
+      String? customThumbnailUrl,
+      String? customTitle,
+      String? customArtist,
+      String? customAuthor,
+      String? customDescription,
+      List<String>? customGenre,
+      String? scanlatorFilter,
+      String? alternativeArtwork,
+      List<NekoBackupMergeManga>? mergeMangaList});
   TachiBackupMangaCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -318,6 +388,24 @@ class _TachiBackupMangaCopyWithImpl<$R, $Out>
               (v) => call(excludedScanlators: v))
           : null;
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
+      get customGenre => $value.customGenre != null
+          ? ListCopyWith(
+              $value.customGenre!,
+              (v, t) => ObjectCopyWith(v, $identity, t),
+              (v) => call(customGenre: v))
+          : null;
+  @override
+  ListCopyWith<
+      $R,
+      NekoBackupMergeManga,
+      NekoBackupMergeMangaCopyWith<$R, NekoBackupMergeManga,
+          NekoBackupMergeManga>>? get mergeMangaList =>
+      $value.mergeMangaList != null
+          ? ListCopyWith($value.mergeMangaList!, (v, t) => v.copyWith.$chain(t),
+              (v) => call(mergeMangaList: v))
+          : null;
+  @override
   $R call(
           {int? source,
           String? url,
@@ -342,7 +430,17 @@ class _TachiBackupMangaCopyWithImpl<$R, $Out>
           Object? lastModifiedAt = $none,
           Object? favoriteModifiedAt = $none,
           Object? excludedScanlators = $none,
-          Object? version = $none}) =>
+          Object? version = $none,
+          Object? customStatus = $none,
+          Object? customThumbnailUrl = $none,
+          Object? customTitle = $none,
+          Object? customArtist = $none,
+          Object? customAuthor = $none,
+          Object? customDescription = $none,
+          Object? customGenre = $none,
+          Object? scanlatorFilter = $none,
+          Object? alternativeArtwork = $none,
+          Object? mergeMangaList = $none}) =>
       $apply(FieldCopyWithData({
         if (source != null) #source: source,
         if (url != null) #url: url,
@@ -369,7 +467,19 @@ class _TachiBackupMangaCopyWithImpl<$R, $Out>
           #favoriteModifiedAt: favoriteModifiedAt,
         if (excludedScanlators != $none)
           #excludedScanlators: excludedScanlators,
-        if (version != $none) #version: version
+        if (version != $none) #version: version,
+        if (customStatus != $none) #customStatus: customStatus,
+        if (customThumbnailUrl != $none)
+          #customThumbnailUrl: customThumbnailUrl,
+        if (customTitle != $none) #customTitle: customTitle,
+        if (customArtist != $none) #customArtist: customArtist,
+        if (customAuthor != $none) #customAuthor: customAuthor,
+        if (customDescription != $none) #customDescription: customDescription,
+        if (customGenre != $none) #customGenre: customGenre,
+        if (scanlatorFilter != $none) #scanlatorFilter: scanlatorFilter,
+        if (alternativeArtwork != $none)
+          #alternativeArtwork: alternativeArtwork,
+        if (mergeMangaList != $none) #mergeMangaList: mergeMangaList
       }));
   @override
   TachiBackupManga $make(CopyWithData data) => TachiBackupManga(
@@ -398,7 +508,20 @@ class _TachiBackupMangaCopyWithImpl<$R, $Out>
           data.get(#favoriteModifiedAt, or: $value.favoriteModifiedAt),
       excludedScanlators:
           data.get(#excludedScanlators, or: $value.excludedScanlators),
-      version: data.get(#version, or: $value.version));
+      version: data.get(#version, or: $value.version),
+      customStatus: data.get(#customStatus, or: $value.customStatus),
+      customThumbnailUrl:
+          data.get(#customThumbnailUrl, or: $value.customThumbnailUrl),
+      customTitle: data.get(#customTitle, or: $value.customTitle),
+      customArtist: data.get(#customArtist, or: $value.customArtist),
+      customAuthor: data.get(#customAuthor, or: $value.customAuthor),
+      customDescription:
+          data.get(#customDescription, or: $value.customDescription),
+      customGenre: data.get(#customGenre, or: $value.customGenre),
+      scanlatorFilter: data.get(#scanlatorFilter, or: $value.scanlatorFilter),
+      alternativeArtwork:
+          data.get(#alternativeArtwork, or: $value.alternativeArtwork),
+      mergeMangaList: data.get(#mergeMangaList, or: $value.mergeMangaList));
 
   @override
   TachiBackupMangaCopyWith<$R2, TachiBackupManga, $Out2> $chain<$R2, $Out2>(
