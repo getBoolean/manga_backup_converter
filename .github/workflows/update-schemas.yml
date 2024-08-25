@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write # Request write permissions for the workflow
 
+env:
+  FLUTTER_CHANNEL: "stable"
+  FLUTTER_VERSION: "3.22.3"
+
 jobs:
   update-schemas:
     runs-on: ubuntu-latest
@@ -20,6 +24,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x' # Adjust the Python version as needed
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+      
+      - name: Activate Protoc Plugin
+        run: dart pub global activate protoc_plugin
 
       - name: Check if update_schemas branch exists
         id: check-branch-exists
