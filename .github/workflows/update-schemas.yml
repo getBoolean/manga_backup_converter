@@ -62,6 +62,7 @@ jobs:
                   extension="${file##*.}"
                   filename=$(basename "$file")
                   if [[ "$extension" == "proto" ]]; then
+                      mkdir -p "$OUTPUT_DIR_PREFIX$filename"
                       protoc --dart_out="$OUTPUT_DIR_PREFIX$filename/." "$file"
                   fi
               fi
