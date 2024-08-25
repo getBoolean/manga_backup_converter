@@ -12,6 +12,7 @@ dependencies:
   args: ^2.4.2
   charset: ^2.0.1
   dart_mappable: ^4.2.2
+  meta: ^1.15.0
   path: ^1.9.0
   propertylistserialization: ^1.4.0
   protobuf: ^3.1.0

@@ -143,14 +143,12 @@ void main(List<String> arguments) {
         }
       case '.tachibk':
       case '.proto.gz':
-        final TachibkBackup? tachibkBackup = converter.importTachibkBackup(
-          ByteData.sublistView(
-            backupFile.readAsBytesSync(),
-          ),
+        final TachiBackup? tachibkBackup = converter.importTachibkBackup(
+          backupFile.readAsBytesSync(),
           fork: outputTachiFork,
         );
         if (verbose) {
-          print(tachibkBackup?.data);
+          print(tachibkBackup);
         }
       case '.pas4':
         final PaperbackBackup? paperbackBackup =
