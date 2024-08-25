@@ -18,10 +18,14 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
   final int order;
   final int flags;
 
+  /// J2K and Yokai only
+  final int? mangaSort;
+
   const TachiBackupCategory({
     required this.name,
     required this.order,
     required this.flags,
+    this.mangaSort,
   });
 
   factory TachiBackupCategory.fromMihon(
@@ -51,6 +55,7 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
       name: backupCategory.name,
       order: backupCategory.order,
       flags: backupCategory.flags,
+      mangaSort: backupCategory.mangaSort,
     );
   }
 
@@ -71,6 +76,7 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
       name: backupCategory.name,
       order: backupCategory.order,
       flags: backupCategory.flags,
+      mangaSort: backupCategory.mangaSort,
     );
   }
 

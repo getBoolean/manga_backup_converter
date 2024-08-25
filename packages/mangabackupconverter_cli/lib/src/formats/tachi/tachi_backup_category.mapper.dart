@@ -29,19 +29,24 @@ class TachiBackupCategoryMapper extends ClassMapperBase<TachiBackupCategory> {
   static int _$flags(TachiBackupCategory v) => v.flags;
   static const Field<TachiBackupCategory, int> _f$flags =
       Field('flags', _$flags);
+  static int? _$mangaSort(TachiBackupCategory v) => v.mangaSort;
+  static const Field<TachiBackupCategory, int> _f$mangaSort =
+      Field('mangaSort', _$mangaSort, opt: true);
 
   @override
   final MappableFields<TachiBackupCategory> fields = const {
     #name: _f$name,
     #order: _f$order,
     #flags: _f$flags,
+    #mangaSort: _f$mangaSort,
   };
 
   static TachiBackupCategory _instantiate(DecodingData data) {
     return TachiBackupCategory(
         name: data.dec(_f$name),
         order: data.dec(_f$order),
-        flags: data.dec(_f$flags));
+        flags: data.dec(_f$flags),
+        mangaSort: data.dec(_f$mangaSort));
   }
 
   @override
@@ -99,7 +104,7 @@ extension TachiBackupCategoryValueCopy<$R, $Out>
 
 abstract class TachiBackupCategoryCopyWith<$R, $In extends TachiBackupCategory,
     $Out> implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? name, int? order, int? flags});
+  $R call({String? name, int? order, int? flags, int? mangaSort});
   TachiBackupCategoryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -113,16 +118,19 @@ class _TachiBackupCategoryCopyWithImpl<$R, $Out>
   late final ClassMapperBase<TachiBackupCategory> $mapper =
       TachiBackupCategoryMapper.ensureInitialized();
   @override
-  $R call({String? name, int? order, int? flags}) => $apply(FieldCopyWithData({
+  $R call({String? name, int? order, int? flags, Object? mangaSort = $none}) =>
+      $apply(FieldCopyWithData({
         if (name != null) #name: name,
         if (order != null) #order: order,
-        if (flags != null) #flags: flags
+        if (flags != null) #flags: flags,
+        if (mangaSort != $none) #mangaSort: mangaSort
       }));
   @override
   TachiBackupCategory $make(CopyWithData data) => TachiBackupCategory(
       name: data.get(#name, or: $value.name),
       order: data.get(#order, or: $value.order),
-      flags: data.get(#flags, or: $value.flags));
+      flags: data.get(#flags, or: $value.flags),
+      mangaSort: data.get(#mangaSort, or: $value.mangaSort));
 
   @override
   TachiBackupCategoryCopyWith<$R2, TachiBackupCategory, $Out2>
