@@ -45,7 +45,6 @@ class PaperbackBackup with PaperbackBackupMappable {
     final mangaInfoArchiveContent = mangaInfoArchive?.content;
     final sourceMangaArchiveContent = sourceMangaArchive?.content;
 
-    // TODO: Parse json for each file
     return PaperbackBackup(
       name: name,
       chapterProgressMarker: chapterProgressMarkersArchiveContent == null
