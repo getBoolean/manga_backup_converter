@@ -4,11 +4,11 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
-import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_chapter_progress_marker.dart';
-import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_library_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_manga_info.dart';
-import 'package:mangabackupconverter_cli/src/formats/pas4/paperback_backup_source_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup_chapter.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup_chapter_progress_marker.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup_library_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup_manga_info.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup_source_manga.dart';
 
 part 'paperback_backup.mapper.dart';
 

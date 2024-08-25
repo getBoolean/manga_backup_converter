@@ -1,8 +1,8 @@
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_history.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_tracking.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_update_strategy.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_tracking.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_update_strategy.dart';
 import 'package:mangabackupconverter_cli/src/proto/schema_j2k.proto/proto/schema_j2k.pb.dart'
     as j2k;
 import 'package:mangabackupconverter_cli/src/proto/schema_mihon.proto/proto/schema_mihon.pb.dart'
