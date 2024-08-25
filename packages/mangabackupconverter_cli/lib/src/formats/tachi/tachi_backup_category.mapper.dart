@@ -29,8 +29,8 @@ class TachiBackupCategoryMapper extends ClassMapperBase<TachiBackupCategory> {
   static int _$flags(TachiBackupCategory v) => v.flags;
   static const Field<TachiBackupCategory, int> _f$flags =
       Field('flags', _$flags);
-  static int? _$mangaSort(TachiBackupCategory v) => v.mangaSort;
-  static const Field<TachiBackupCategory, int> _f$mangaSort =
+  static String? _$mangaSort(TachiBackupCategory v) => v.mangaSort;
+  static const Field<TachiBackupCategory, String> _f$mangaSort =
       Field('mangaSort', _$mangaSort, opt: true);
 
   @override
@@ -104,7 +104,7 @@ extension TachiBackupCategoryValueCopy<$R, $Out>
 
 abstract class TachiBackupCategoryCopyWith<$R, $In extends TachiBackupCategory,
     $Out> implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? name, int? order, int? flags, int? mangaSort});
+  $R call({String? name, int? order, int? flags, String? mangaSort});
   TachiBackupCategoryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
