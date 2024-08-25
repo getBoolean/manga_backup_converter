@@ -34,6 +34,9 @@ jobs:
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
           cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
       
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+      
       - name: Activate Protoc Plugin
         run: dart pub global activate protoc_plugin
 
@@ -46,9 +49,18 @@ jobs:
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/BrutuZ/tachibk-converter/main/tachibk-converter.py
           python generate_schemas.py --dump-schemas
 
-      # - name: Generate Dart Code
-      #   run: |
-      #     dart run protoc_plugin
+      - name: Generate Dart Code for Schemas
+        run: |
+          INPUT_DIR="packages/mangabackupconverter_cli/assets/"
+          OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/proto/"
+          mkdir -p "$OUTPUT_DIR_PREFIX"
+
+          for file in "$INPUT_DIR"*; do
+              if [ -f "$file" ]; then
+                  filename=$(basename "$file")
+                  dart run protoc --dart_out="$OUTPUT_DIR_PREFIX$filename" "$file"
+              fi
+          done
       
       - name: Create Pull Request
         id: cpr
