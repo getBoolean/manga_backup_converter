@@ -21,7 +21,7 @@
             "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
             "args": [
                 "-b",
-                "B:/Dropbox/Personal/Developer/Apps/BackupConverter/Paperback Archive 24-08-2024 132038.pas4",
+                "B:/Dropbox/Personal/Developer/Apps/BackupConverter/app.mihon_2024-08-23_20-32.tachibk",
                 "-f",
                 "tachibk",
                 "-v"
