@@ -62,9 +62,9 @@ jobs:
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/BrutuZ/tachibk-converter/main/tachibk-converter.py
           python generate_schemas.py --dump-schemas
 
-      - name: Generate Dart Code
-        run: |
-          dart run protoc_plugin
+      # - name: Generate Dart Code
+      #   run: |
+      #     dart run protoc_plugin
 
       - name: Commit and push changes
         env:
