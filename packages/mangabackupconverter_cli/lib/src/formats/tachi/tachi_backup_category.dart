@@ -30,8 +30,10 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
     required this.flags,
     this.mangaSort,
   }) : assert(
-          mangaSort == null || mangaSort.characters.singleOrNull != null,
-          'mangaSort must be null or a single character',
+          mangaSort == null ||
+              mangaSort.characters.isEmpty ||
+              mangaSort.characters.singleOrNull != null,
+          'mangaSort must be null, empty, or a single character',
         );
 
   factory TachiBackupCategory.fromMihon(
@@ -61,7 +63,7 @@ class TachiBackupCategory with TachiBackupCategoryMappable {
       name: backupCategory.name,
       order: backupCategory.order,
       flags: backupCategory.flags,
-      mangaSort: backupCategory.mangaSort.characters.single,
+      mangaSort: backupCategory.mangaSort,
     );
   }
 
