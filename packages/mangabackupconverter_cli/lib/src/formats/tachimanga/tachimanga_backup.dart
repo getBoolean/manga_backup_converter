@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:mangabackupconverter_cli/src/exceptions/tachimanga_exception.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_meta.dart';
 
 part 'tachimanga_backup.mapper.dart';
@@ -22,8 +23,7 @@ class TachimangaBackup with TachimangaBackupMappable {
     final archive = ZipDecoder().decodeBytes(bytes);
     final metaFile = archive.findFile('meta.json');
     if (metaFile == null || metaFile.content == null) {
-      // TODO: Throw exception
-      return null;
+      throw TachimangaException('Could not decode Tachimanga backup "$name"');
     }
 
     final meta = TachimangaBackupMeta.fromMap(
@@ -40,9 +40,23 @@ class TachimangaBackup with TachimangaBackupMappable {
   }
 
   Uint8List? toZip() {
-    final archive = Archive();
-    final encodingResult = ZipEncoder().encode(archive);
-    return encodingResult == null ? null : Uint8List.fromList(encodingResult);
+    final contentsArchive = Archive();
+    final contentsEncoded = ZipEncoder().encode(contentsArchive);
+    if (contentsEncoded == null) {
+      throw const TachimangaException('Could not encode Tachimanga backup');
+    }
+
+    final backupArchive = Archive();
+    backupArchive.addFile(ArchiveFile.string('meta.json', meta.toJson()));
+    backupArchive.addFile(
+      ArchiveFile.noCompress(
+        'contents.zip',
+        contentsEncoded.length,
+        contentsEncoded,
+      ),
+    );
+    final backupEncoded = ZipEncoder().encode(backupArchive);
+    return backupEncoded == null ? null : Uint8List.fromList(backupEncoded);
   }
 
   static const fromMap = TachimangaBackupMapper.fromMap;

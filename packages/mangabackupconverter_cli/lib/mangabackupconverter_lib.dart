@@ -2,6 +2,7 @@ export 'src/converter.dart';
 export 'src/exceptions/aidoku_exception.dart';
 export 'src/exceptions/paperback_exception.dart';
 export 'src/exceptions/tachi_exception.dart';
+export 'src/exceptions/tachimanga_exception.dart';
 export 'src/formats/aidoku/aidoku_backup.dart';
 export 'src/formats/aidoku/aidoku_backup_chapter.dart';
 export 'src/formats/aidoku/aidoku_backup_history.dart';
