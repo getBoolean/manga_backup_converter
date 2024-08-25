@@ -81,7 +81,7 @@
             "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
             "args": [
                 "-b",
-                ".input_files/eu.kanade.tachiyomi.tachibk",
+                ".input_files/eu.kanade.tachiyomi.j2k.tachibk",
                 "--tachi-fork",
                 "j2k",
                 "--output-format",
