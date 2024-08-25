@@ -37,50 +37,7 @@ jobs:
           git fetch origin
           git switch -c update_schemas origin/update_schemas
 
-      # Ref: https://github.com/orgs/community/discussions/27071
-      - name: Find PR Number
-        uses: actions/github-script@v6
-        id: get_pr_number
-        if: steps.check-branch-exists.outputs.exists == 'true'
-        with:
-          script: |
-            if (context.issue.number) {
-              // Return issue number if present
-              return context.issue.number;
-            } else {
-              // Otherwise return issue number from commit
-              const comment = (
-                await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  commit_sha: context.sha,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                })
-              ).data[0];
-
-              if (comment != null) {
-                return comment.number;
-              }
-              return null;
-            }
-          result-encoding: string
-
-      - name: Get PR State
-        uses: actions/github-script@v6
-        id: get_pr_state
-        if: steps.check-branch-exists.outputs.exists == 'true' && steps.get_pr_number.outputs.result != 'null'
-        with:
-          script: |
-            return (
-                await github.rest.issues.get({
-                  issue_number: ${{ steps.get_pr_number.outputs.result }},
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                })
-              ).data.state;
-          result-encoding: string
-
       - name: Generate Schemas
-        if: steps.get_pr_state.outputs.result != 'open'
         run: |
           mkdir -p packages/mangabackupconverter_cli/assets
           cd packages/mangabackupconverter_cli/assets
@@ -89,15 +46,18 @@ jobs:
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/BrutuZ/tachibk-converter/main/tachibk-converter.py
           python generate_schemas.py --dump-schemas
 
+      - name: Generate Dart Code
+        run: |
+          dart run protoc_plugin
 
       - name: Commit and push changes
-        if: steps.get_pr_state.outputs.result != 'open'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name 'schema-assistant[bot]'
           git config --global user.email 'schema-assistant@users.noreply.github.com'
           git add **/*.proto
+          git add **/*.dart
 
           # Check if there are any changes
           if git diff-index --cached --quiet HEAD --; then
@@ -105,6 +65,7 @@ jobs:
           else
             git commit -m 'Update Protobuf schemas'
             git push --set-upstream origin update_schemas
+            git reset --hard HEAD
           fi
       
       - name: Create Pull Request
