@@ -52,46 +52,46 @@ class PaperbackBackup with PaperbackBackupMappable {
           ? null
           : (jsonDecode(String.fromCharCodes(
               chapterProgressMarkersArchiveContent as Uint8List,
-            )) as Map<String, dynamic>)
+            ),) as Map<String, dynamic>)
               .entries
               .map((e) => PaperbackBackupChapterProgressMarker.fromMap(
-                  e.value as Map<String, dynamic>))
+                  e.value as Map<String, dynamic>,),)
               .toList(),
       chapters: chaptersArchiveContent == null
           ? null
           : (jsonDecode(String.fromCharCodes(
               chaptersArchiveContent as Uint8List,
-            )) as Map<String, dynamic>)
+            ),) as Map<String, dynamic>)
               .entries
               .map((e) => PaperbackBackupChapter.fromMap(
-                  e.value as Map<String, dynamic>))
+                  e.value as Map<String, dynamic>,),)
               .toList(),
       libraryManga: libraryMangaArchiveContent == null
           ? null
           : (jsonDecode(String.fromCharCodes(
               libraryMangaArchiveContent as Uint8List,
-            )) as Map<String, dynamic>)
+            ),) as Map<String, dynamic>)
               .entries
               .map((e) => PaperbackBackupLibraryManga.fromMap(
-                  e.value as Map<String, dynamic>))
+                  e.value as Map<String, dynamic>,),)
               .toList(),
       mangaInfo: mangaInfoArchiveContent == null
           ? null
           : (jsonDecode(String.fromCharCodes(
               mangaInfoArchiveContent as Uint8List,
-            )) as Map<String, dynamic>)
+            ),) as Map<String, dynamic>)
               .entries
               .map((e) => PaperbackBackupMangaInfo.fromMap(
-                  e.value as Map<String, dynamic>))
+                  e.value as Map<String, dynamic>,),)
               .toList(),
       sourceManga: sourceMangaArchiveContent == null
           ? null
           : (jsonDecode(String.fromCharCodes(
               sourceMangaArchiveContent as Uint8List,
-            )) as Map<String, dynamic>)
+            ),) as Map<String, dynamic>)
               .entries
               .map((e) => PaperbackBackupSourceManga.fromMap(
-                  e.value as Map<String, dynamic>))
+                  e.value as Map<String, dynamic>,),)
               .toList(),
     );
   }
@@ -100,18 +100,18 @@ class PaperbackBackup with PaperbackBackupMappable {
     final archive = Archive();
 
     archive.addFile(ArchiveFile.string(
-        '__CHAPTER_PROGRESS_MARKER_V4-1', jsonEncode(chapterProgressMarker)));
+        '__CHAPTER_PROGRESS_MARKER_V4-1', jsonEncode(chapterProgressMarker),),);
     archive.addFile(ArchiveFile.string('__CHAPTER_V4', jsonEncode(chapters)));
     archive.addFile(
-        ArchiveFile.string('__LIBRARY_MANGA_V4', jsonEncode(libraryManga)));
+        ArchiveFile.string('__LIBRARY_MANGA_V4', jsonEncode(libraryManga)),);
     archive
         .addFile(ArchiveFile.string('__MANGA_INFO_V4', jsonEncode(mangaInfo)));
     archive.addFile(
-        ArchiveFile.string('__SOURCE_MANGA_V4', jsonEncode(sourceManga)));
+        ArchiveFile.string('__SOURCE_MANGA_V4', jsonEncode(sourceManga)),);
     final encodingResult = ZipEncoder().encode(archive);
     return encodingResult == null ? null : Uint8List.fromList(encodingResult);
   }
 
-  static final fromMap = PaperbackBackupMapper.fromMap;
-  static final fromJson = PaperbackBackupMapper.fromJson;
+  static const fromMap = PaperbackBackupMapper.fromMap;
+  static const fromJson = PaperbackBackupMapper.fromJson;
 }

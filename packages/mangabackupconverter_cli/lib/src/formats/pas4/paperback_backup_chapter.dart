@@ -32,6 +32,6 @@ class PaperbackBackupChapter with PaperbackBackupChapterMappable {
     required this.sourceManga,
   });
 
-  static final fromMap = PaperbackBackupChapterMapper.fromMap;
-  static final fromJson = PaperbackBackupChapterMapper.fromJson;
+  static const fromMap = PaperbackBackupChapterMapper.fromMap;
+  static const fromJson = PaperbackBackupChapterMapper.fromJson;
 }

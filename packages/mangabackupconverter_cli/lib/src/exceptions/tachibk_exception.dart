@@ -4,8 +4,8 @@ class TachibkException implements Exception {
 
   @override
   String toString() {
-    Object? message = this.message;
-    if (message == null) return "TachibkException";
-    return "TachibkException: $message";
+    final Object? message = this.message;
+    if (message == null) return 'TachibkException';
+    return 'TachibkException: $message';
   }
 }

@@ -4,8 +4,8 @@ class PaperbackException implements Exception {
 
   @override
   String toString() {
-    Object? message = this.message;
-    if (message == null) return "PaperbackException";
-    return "PaperbackException: $message";
+    final Object? message = this.message;
+    if (message == null) return 'PaperbackException';
+    return 'PaperbackException: $message';
   }
 }

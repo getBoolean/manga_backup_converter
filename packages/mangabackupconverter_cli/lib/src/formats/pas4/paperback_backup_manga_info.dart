@@ -21,21 +21,12 @@ class PaperbackBackupMangaInfo with PaperbackBackupMangaInfoMappable {
   PaperbackBackupMangaInfo({
     required this.tags,
     required this.desc,
-    this.rating,
-    required this.titles,
-    required this.covers,
+    required this.titles, required this.covers, required this.author, required this.image, required this.hentai, required this.additionalInfo, required this.artist, required this.id, required this.status, this.rating,
     this.banner,
-    required this.author,
-    required this.image,
-    required this.hentai,
-    required this.additionalInfo,
-    required this.artist,
-    required this.id,
-    required this.status,
   });
 
-  static final fromMap = PaperbackBackupMangaInfoMapper.fromMap;
-  static final fromJson = PaperbackBackupMangaInfoMapper.fromJson;
+  static const fromMap = PaperbackBackupMangaInfoMapper.fromMap;
+  static const fromJson = PaperbackBackupMangaInfoMapper.fromJson;
 }
 
 @MappableClass()
@@ -57,8 +48,8 @@ class PaperbackBackupMangaAdditionalInfo
     this.langName,
   });
 
-  static final fromMap = PaperbackBackupMangaAdditionalInfoMapper.fromMap;
-  static final fromJson = PaperbackBackupMangaAdditionalInfoMapper.fromJson;
+  static const fromMap = PaperbackBackupMangaAdditionalInfoMapper.fromMap;
+  static const fromJson = PaperbackBackupMangaAdditionalInfoMapper.fromJson;
 }
 
 @MappableClass()
@@ -73,6 +64,6 @@ class PaperbackBackupMangaTag with PaperbackBackupMangaTagMappable {
     this.tags = const [],
   });
 
-  static final fromMap = PaperbackBackupMangaTagMapper.fromMap;
-  static final fromJson = PaperbackBackupMangaTagMapper.fromJson;
+  static const fromMap = PaperbackBackupMangaTagMapper.fromMap;
+  static const fromJson = PaperbackBackupMangaTagMapper.fromJson;
 }

@@ -23,6 +23,6 @@ class AidokuBackupLibraryManga with AidokuBackupLibraryMangaMappable {
     required this.sourceId,
   });
 
-  static final fromMap = AidokuBackupLibraryMangaMapper.fromMap;
-  static final fromJson = AidokuBackupLibraryMangaMapper.fromJson;
+  static const fromMap = AidokuBackupLibraryMangaMapper.fromMap;
+  static const fromJson = AidokuBackupLibraryMangaMapper.fromJson;
 }

@@ -15,6 +15,6 @@ class PaperbackBackupLibraryTab with PaperbackBackupLibraryTabMappable {
     required this.name,
   });
 
-  static final fromMap = PaperbackBackupLibraryTabMapper.fromMap;
-  static final fromJson = PaperbackBackupLibraryTabMapper.fromJson;
+  static const fromMap = PaperbackBackupLibraryTabMapper.fromMap;
+  static const fromJson = PaperbackBackupLibraryTabMapper.fromJson;
 }

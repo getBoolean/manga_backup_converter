@@ -25,6 +25,6 @@ class PaperbackBackupLibraryManga with PaperbackBackupLibraryMangaMappable {
     required this.secondarySources,
   });
 
-  static final fromMap = PaperbackBackupLibraryMangaMapper.fromMap;
-  static final fromJson = PaperbackBackupLibraryMangaMapper.fromJson;
+  static const fromMap = PaperbackBackupLibraryMangaMapper.fromMap;
+  static const fromJson = PaperbackBackupLibraryMangaMapper.fromJson;
 }

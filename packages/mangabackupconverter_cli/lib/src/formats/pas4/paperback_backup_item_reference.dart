@@ -14,6 +14,6 @@ class PaperbackBackupItemReference with PaperbackBackupItemReferenceMappable {
     required this.id,
   });
 
-  static final fromMap = PaperbackBackupItemReferenceMapper.fromMap;
-  static final fromJson = PaperbackBackupItemReferenceMapper.fromJson;
+  static const fromMap = PaperbackBackupItemReferenceMapper.fromMap;
+  static const fromJson = PaperbackBackupItemReferenceMapper.fromJson;
 }

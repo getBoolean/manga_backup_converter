@@ -36,6 +36,6 @@ class AidokuBackupManga with AidokuBackupMangaMappable {
     required this.langFilter,
   });
 
-  static final fromMap = AidokuBackupMangaMapper.fromMap;
-  static final fromJson = AidokuBackupMangaMapper.fromJson;
+  static const fromMap = AidokuBackupMangaMapper.fromMap;
+  static const fromJson = AidokuBackupMangaMapper.fromJson;
 }

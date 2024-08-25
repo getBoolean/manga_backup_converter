@@ -29,6 +29,6 @@ class AidokuBackupChapter with AidokuBackupChapterMappable {
     required this.sourceOrder,
   });
 
-  static final fromMap = AidokuBackupChapterMapper.fromMap;
-  static final fromJson = AidokuBackupChapterMapper.fromJson;
+  static const fromMap = AidokuBackupChapterMapper.fromMap;
+  static const fromJson = AidokuBackupChapterMapper.fromJson;
 }

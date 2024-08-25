@@ -4,8 +4,8 @@ class AidokuException implements Exception {
 
   @override
   String toString() {
-    Object? message = this.message;
-    if (message == null) return "AidokuException";
-    return "AidokuException: $message";
+    final Object? message = this.message;
+    if (message == null) return 'AidokuException';
+    return 'AidokuException: $message';
   }
 }

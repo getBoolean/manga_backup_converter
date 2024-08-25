@@ -18,6 +18,6 @@ class PaperbackBackupSourceManga with PaperbackBackupSourceMangaMappable {
     required this.mangaInfo,
   });
 
-  static final fromMap = PaperbackBackupSourceMangaMapper.fromMap;
-  static final fromJson = PaperbackBackupSourceMangaMapper.fromJson;
+  static const fromMap = PaperbackBackupSourceMangaMapper.fromMap;
+  static const fromJson = PaperbackBackupSourceMangaMapper.fromJson;
 }

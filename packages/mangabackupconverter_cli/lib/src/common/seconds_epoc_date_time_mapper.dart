@@ -4,8 +4,8 @@ class SecondsEpochDateTimeMapper extends SimpleMapper<DateTime> {
   const SecondsEpochDateTimeMapper();
 
   @override
-  DateTime decode(dynamic value) {
-    return DateTime.fromMillisecondsSinceEpoch((value * 1000 as num).round());
+  DateTime decode(Object value) {
+    return DateTime.fromMillisecondsSinceEpoch(((value as num) * 1000).round());
   }
 
   @override

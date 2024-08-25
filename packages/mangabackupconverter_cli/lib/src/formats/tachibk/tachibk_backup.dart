@@ -13,7 +13,7 @@ class TachibkBackup with TachibkBackupMappable {
 
   static TachibkBackup? fromBackup(ByteData bytes) {
     // TODO: Read from file
-    return TachibkBackup(data: {});
+    return const TachibkBackup(data: {});
   }
 
   ByteData? toBackup() {
@@ -21,6 +21,6 @@ class TachibkBackup with TachibkBackupMappable {
     return null;
   }
 
-  static final fromMap = TachibkBackupMapper.fromMap;
-  static final fromJson = TachibkBackupMapper.fromJson;
+  static const fromMap = TachibkBackupMapper.fromMap;
+  static const fromJson = TachibkBackupMapper.fromJson;
 }

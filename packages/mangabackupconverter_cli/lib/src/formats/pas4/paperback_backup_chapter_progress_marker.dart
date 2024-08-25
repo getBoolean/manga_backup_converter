@@ -23,6 +23,6 @@ class PaperbackBackupChapterProgressMarker
     required this.hidden,
   });
 
-  static final fromMap = PaperbackBackupChapterProgressMarkerMapper.fromMap;
-  static final fromJson = PaperbackBackupChapterProgressMarkerMapper.fromJson;
+  static const fromMap = PaperbackBackupChapterProgressMarkerMapper.fromMap;
+  static const fromJson = PaperbackBackupChapterProgressMarkerMapper.fromJson;
 }

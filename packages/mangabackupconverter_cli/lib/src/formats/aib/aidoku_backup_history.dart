@@ -23,6 +23,6 @@ class AidokuBackupHistory with AidokuBackupHistoryMappable {
     required this.completed,
   });
 
-  static final fromMap = AidokuBackupHistoryMapper.fromMap;
-  static final fromJson = AidokuBackupHistoryMapper.fromJson;
+  static const fromMap = AidokuBackupHistoryMapper.fromMap;
+  static const fromJson = AidokuBackupHistoryMapper.fromJson;
 }

@@ -52,6 +52,6 @@ class AidokuBackup with AidokuBackupMappable {
     }
   }
 
-  static final fromMap = AidokuBackupMapper.fromMap;
-  static final fromJson = AidokuBackupMapper.fromJson;
+  static const fromMap = AidokuBackupMapper.fromMap;
+  static const fromJson = AidokuBackupMapper.fromJson;
 }
