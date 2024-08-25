@@ -123,14 +123,6 @@ jobs:
           title: '[Automated] Update Tachi Protobuf Schemas'
           body: Automated changes by [update-schemas](https://github.com/getBoolean/manga_backup_converter/blob/main/.github/workflows/update-schemas.yml) GitHub action
 
-      - name: Approve PR
-        if: ${{ steps.cpr.outputs.pull-request-operation }} == 'created'
-        run: gh pr review --approve "$PR_URL"
-        env:
-          PR_URL: ${{steps.cpr.outputs.pull-request-url}}
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-          GH_TOKEN: ${{secrets.PAT}}
-
       - name: Enable auto-merge
         if: ${{ steps.cpr.outputs.pull-request-operation }} == 'created'
         run: gh pr merge --auto --merge "$PR_URL"
