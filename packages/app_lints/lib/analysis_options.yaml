@@ -33,7 +33,10 @@ analyzer:
     - "bricks/**"
 
     # protobuf files
-    - "**/*.pb*.dart"
+    - "**/*.pb.dart"
+    - "**/*.pbenum.dart"
+    - "**/*.pbjson.dart"
+    - "**/*.pbserver.dart"
 
 linter:
   # The lint rules applied to this project can be customized in the
