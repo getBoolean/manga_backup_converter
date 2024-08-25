@@ -51,22 +51,22 @@ jobs:
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/getBoolean/tachibk-converter/main/tachibk-converter.py
           python generate_schemas.py --dump-schemas
 
-      - name: Generate Dart Code for Schemas
-        run: |
-          INPUT_DIR="packages/mangabackupconverter_cli/assets/"
-          OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/proto/"
-          mkdir -p "$OUTPUT_DIR_PREFIX"
+      # - name: Generate Dart Code for Schemas
+      #   run: |
+      #     INPUT_DIR="packages/mangabackupconverter_cli/assets/"
+      #     OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/proto/"
+      #     mkdir -p "$OUTPUT_DIR_PREFIX"
 
-          for file in "$INPUT_DIR"*; do
-              if [ -f "$file" ]; then
-                  extension="${file##*.}"
-                  filename=$(basename "$file")
-                  if [[ "$extension" == "proto" ]]; then
-                      mkdir -p "$OUTPUT_DIR_PREFIX$filename"
-                      protoc --dart_out="$OUTPUT_DIR_PREFIX$filename/." "$file"
-                  fi
-              fi
-          done
+      #     for file in "$INPUT_DIR"*; do
+      #         if [ -f "$file" ]; then
+      #             extension="${file##*.}"
+      #             filename=$(basename "$file")
+      #             if [[ "$extension" == "proto" ]]; then
+      #                 mkdir -p "$OUTPUT_DIR_PREFIX$filename"
+      #                 protoc --dart_out="$OUTPUT_DIR_PREFIX$filename/." "$file"
+      #             fi
+      #         fi
+      #     done
       
       - name: Create Pull Request
         id: cpr
