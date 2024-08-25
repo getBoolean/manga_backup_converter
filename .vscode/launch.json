@@ -15,15 +15,107 @@
             ]
         },
         {
-            "name": "CLI debug mode",
+            "name": "Import Paperback (debug mode)",
             "request": "launch",
             "type": "dart",
             "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
             "args": [
                 "-b",
-                "B:/Dropbox/Personal/Developer/Apps/BackupConverter/app.mihon_2024-08-23_20-32.tachibk",
-                "-f",
+                ".input_files/Paperback Archive.pas4",
+                "--output-format",
                 "tachi",
+                "--tachi-fork",
+                "mihon",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import Aidoku (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/aidoku.aib",
+                "--output-format",
+                "tachi",
+                "--tachi-fork",
+                "mihon",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import Tachimanga (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/Tachimanga_backup.tmb",
+                "--output-format",
+                "tachi",
+                "--tachi-fork",
+                "mihon",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import Mihon (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/app.mihon.tachibk",
+                "--tachi-fork",
+                "mihon",
+                "--output-format",
+                "aidoku",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import J2K (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/eu.kanade.tachiyomi.tachibk",
+                "--tachi-fork",
+                "j2k",
+                "--output-format",
+                "aidoku",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import Yokai (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/eu.kanade.tachiyomi.yokai.tachibk",
+                "--tachi-fork",
+                "yokai",
+                "--output-format",
+                "aidoku",
+                "-v"
+            ]
+        },
+        {
+            "name": "Import Neko (debug mode)",
+            "request": "launch",
+            "type": "dart",
+            "program": "packages/mangabackupconverter_cli/bin/mangabackupconverter_cli.dart",
+            "args": [
+                "-b",
+                ".input_files/neko.tachibk",
+                "--tachi-fork",
+                "neko",
+                "--output-format",
+                "aidoku",
                 "-v"
             ]
         },
