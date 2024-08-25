@@ -23,7 +23,7 @@ export 'src/formats/tachibk/tachi_backup_chapter.dart';
 export 'src/formats/tachibk/tachi_backup_extension_repo.dart';
 export 'src/formats/tachibk/tachi_backup_history.dart';
 export 'src/formats/tachibk/tachi_backup_manga.dart';
-export 'src/formats/tachibk/tachi_backup_preferences.dart';
+export 'src/formats/tachibk/tachi_backup_preference.dart';
 export 'src/formats/tachibk/tachi_backup_source_preferences.dart';
 export 'src/formats/tachibk/tachi_backup_tracking.dart';
 export 'src/formats/tachibk/tachi_fork.dart';

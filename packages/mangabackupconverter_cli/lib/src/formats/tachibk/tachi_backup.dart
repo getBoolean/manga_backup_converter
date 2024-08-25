@@ -8,6 +8,8 @@ import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mappe
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_category.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_extension_repo.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_preference.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_source_preferences.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_fork.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_source.dart';
 import 'package:mangabackupconverter_cli/src/proto/schema_j2k.proto/proto/schema_j2k.pb.dart'
@@ -33,21 +35,21 @@ class TachiBackup with TachiBackupMappable {
   final List<TachiBackupCategory> backupCategories;
   final List<TachiBackupExtensionRepo> backupExtensionRepo;
   final List<TachiBackupManga> backupManga;
-  // final List<BackupPreference> backupPreferences;
-  // final List<BackupSourcePreferences> backupSourcePreferences;
+  final List<TachiBackupPreference> backupPreferences;
+  final List<TachiBackupSourcePreferences> backupSourcePreferences;
 
   const TachiBackup({
-    required this.backupBrokenSources,
-    required this.backupSources,
     required this.backupCategories,
     required this.backupManga,
-    required this.backupExtensionRepo,
+    this.backupBrokenSources = const [],
+    this.backupSources = const [],
+    this.backupExtensionRepo = const [],
+    this.backupPreferences = const [],
+    this.backupSourcePreferences = const [],
     this.fork = TachiFork.mihon,
   });
 
   factory TachiBackup._fromMihon({required mihon.Backup backup}) {
-    backup.backupPreferences;
-    backup.backupSourcePreferences;
     return TachiBackup(
       backupBrokenSources:
           backup.backupBrokenSources.map(TachiSource.fromMihon).toList(),
@@ -59,6 +61,64 @@ class TachiBackup with TachiBackupMappable {
       backupExtensionRepo: backup.backupExtensionRepo
           .map(TachiBackupExtensionRepo.fromMihon)
           .toList(),
+      backupPreferences: backup.backupPreferences
+          .map(TachiBackupPreference.fromMihon)
+          .toList(),
+      backupSourcePreferences: backup.backupSourcePreferences
+          .map(TachiBackupSourcePreferences.fromMihon)
+          .toList(),
+    );
+  }
+
+  factory TachiBackup._fromSy({required sy.Backup backup}) {
+    return TachiBackup(
+      backupBrokenSources:
+          backup.backupBrokenSources.map(TachiSource.fromSy).toList(),
+      backupSources:
+          backup.backupBrokenSources.map(TachiSource.fromSy).toList(),
+      backupCategories:
+          backup.backupCategories.map(TachiBackupCategory.fromSy).toList(),
+      backupManga: backup.backupManga.map(TachiBackupManga.fromSy).toList(),
+      backupExtensionRepo: backup.backupExtensionRepo
+          .map(TachiBackupExtensionRepo.fromSy)
+          .toList(),
+      backupPreferences:
+          backup.backupPreferences.map(TachiBackupPreference.fromSy).toList(),
+      backupSourcePreferences: backup.backupSourcePreferences
+          .map(TachiBackupSourcePreferences.fromSy)
+          .toList(),
+    );
+  }
+
+  factory TachiBackup._fromNeko({required neko.Backup backup}) {
+    return TachiBackup(
+      backupCategories:
+          backup.backupCategories.map(TachiBackupCategory.fromNeko).toList(),
+      backupManga: backup.backupManga.map(TachiBackupManga.fromNeko).toList(),
+    );
+  }
+
+  factory TachiBackup._fromJ2k({required j2k.Backup backup}) {
+    return TachiBackup(
+      backupBrokenSources:
+          backup.backupBrokenSources.map(TachiSource.fromJ2k).toList(),
+      backupSources:
+          backup.backupBrokenSources.map(TachiSource.fromJ2k).toList(),
+      backupCategories:
+          backup.backupCategories.map(TachiBackupCategory.fromJ2k).toList(),
+      backupManga: backup.backupManga.map(TachiBackupManga.fromJ2k).toList(),
+    );
+  }
+
+  factory TachiBackup._fromYokai({required yokai.Backup backup}) {
+    return TachiBackup(
+      backupBrokenSources:
+          backup.backupBrokenSources.map(TachiSource.fromYokai).toList(),
+      backupSources:
+          backup.backupBrokenSources.map(TachiSource.fromYokai).toList(),
+      backupCategories:
+          backup.backupCategories.map(TachiBackupCategory.fromYokai).toList(),
+      backupManga: backup.backupManga.map(TachiBackupManga.fromYokai).toList(),
     );
   }
 
@@ -66,16 +126,23 @@ class TachiBackup with TachiBackupMappable {
     Uint8List bytes, {
     TachiFork fork = TachiFork.mihon,
   }) {
-    // TODO: Read from file
     final backupArchive = GZipDecoder().decodeBytes(bytes);
     return switch (fork) {
       TachiFork.mihon => TachiBackup._fromMihon(
           backup: mihon.Backup.fromBuffer(backupArchive),
         ),
-      TachiFork.sy => throw UnimplementedError(),
-      TachiFork.j2k => throw UnimplementedError(),
-      TachiFork.yokai => throw UnimplementedError(),
-      TachiFork.neko => throw UnimplementedError(),
+      TachiFork.sy => TachiBackup._fromSy(
+          backup: sy.Backup.fromBuffer(backupArchive),
+        ),
+      TachiFork.j2k => TachiBackup._fromJ2k(
+          backup: j2k.Backup.fromBuffer(backupArchive),
+        ),
+      TachiFork.yokai => TachiBackup._fromYokai(
+          backup: yokai.Backup.fromBuffer(backupArchive),
+        ),
+      TachiFork.neko => TachiBackup._fromNeko(
+          backup: neko.Backup.fromBuffer(backupArchive),
+        ),
     };
   }
 
