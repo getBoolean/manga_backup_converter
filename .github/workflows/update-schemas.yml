@@ -54,7 +54,7 @@ jobs:
       - name: Generate Dart Code for Schemas
         run: |
           cd packages/mangabackupconverter_cli/assets/
-          INPUT_DIR="packages/mangabackupconverter_cli/assets/"
+          INPUT_DIR="."
           OUTPUT_DIR_PREFIX="../lib/src/proto/"
           mkdir -p "$OUTPUT_DIR_PREFIX"
 
@@ -68,6 +68,7 @@ jobs:
                   fi
               fi
           done
+          cd ../../..
 
       - name: Format Generated Dart Code
         run: dart format .
