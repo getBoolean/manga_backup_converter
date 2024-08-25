@@ -53,8 +53,9 @@ jobs:
 
       - name: Generate Dart Code for Schemas
         run: |
+          cd packages/mangabackupconverter_cli/assets/
           INPUT_DIR="packages/mangabackupconverter_cli/assets/"
-          OUTPUT_DIR_PREFIX="packages/mangabackupconverter_cli/lib/src/proto/"
+          OUTPUT_DIR_PREFIX="../lib/src/proto/"
           mkdir -p "$OUTPUT_DIR_PREFIX"
 
           for file in "$INPUT_DIR"*; do
