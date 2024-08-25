@@ -106,20 +106,21 @@ jobs:
             git commit -m 'Update Protobuf schemas'
             git push --set-upstream origin update_schemas
           fi
-
-      - name: Switch to Main
-        run: git switch main
       
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.PAT }}
+          commit-message: Update Tachi Protobuf Schemas
+          committer: schema-assistant[bot] <schema-assistant@users.noreply.github.com>
           author: schema-assistant[bot] <schema-assistant@users.noreply.github.com>
           branch: update_schemas
+          base: main
           labels: |
             automated pr
           draft: false
+          title: '[Automated] Update Tachi Protobuf Schemas'
           body: Automated changes by [update-schemas](https://github.com/getBoolean/manga_backup_converter/blob/main/.github/workflows/update-schemas.yml) GitHub action
 
       - name: Approve PR
