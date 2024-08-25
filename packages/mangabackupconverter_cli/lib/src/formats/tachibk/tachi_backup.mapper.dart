@@ -17,6 +17,7 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
       TachiSourceMapper.ensureInitialized();
       TachiBackupCategoryMapper.ensureInitialized();
       TachiBackupMangaMapper.ensureInitialized();
+      TachiBackupExtensionRepoMapper.ensureInitialized();
       TachiForkMapper.ensureInitialized();
     }
     return _instance!;
@@ -39,6 +40,11 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
   static List<TachiBackupManga> _$backupManga(TachiBackup v) => v.backupManga;
   static const Field<TachiBackup, List<TachiBackupManga>> _f$backupManga =
       Field('backupManga', _$backupManga);
+  static List<TachiBackupExtensionRepo> _$backupExtensionRepo(TachiBackup v) =>
+      v.backupExtensionRepo;
+  static const Field<TachiBackup, List<TachiBackupExtensionRepo>>
+      _f$backupExtensionRepo =
+      Field('backupExtensionRepo', _$backupExtensionRepo);
   static TachiFork _$fork(TachiBackup v) => v.fork;
   static const Field<TachiBackup, TachiFork> _f$fork =
       Field('fork', _$fork, opt: true, def: TachiFork.mihon);
@@ -49,6 +55,7 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
     #backupSources: _f$backupSources,
     #backupCategories: _f$backupCategories,
     #backupManga: _f$backupManga,
+    #backupExtensionRepo: _f$backupExtensionRepo,
     #fork: _f$fork,
   };
 
@@ -58,6 +65,7 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
         backupSources: data.dec(_f$backupSources),
         backupCategories: data.dec(_f$backupCategories),
         backupManga: data.dec(_f$backupManga),
+        backupExtensionRepo: data.dec(_f$backupExtensionRepo),
         fork: data.dec(_f$fork));
   }
 
@@ -125,11 +133,17 @@ abstract class TachiBackupCopyWith<$R, $In extends TachiBackup, $Out>
   ListCopyWith<$R, TachiBackupManga,
           TachiBackupMangaCopyWith<$R, TachiBackupManga, TachiBackupManga>>
       get backupManga;
+  ListCopyWith<
+      $R,
+      TachiBackupExtensionRepo,
+      TachiBackupExtensionRepoCopyWith<$R, TachiBackupExtensionRepo,
+          TachiBackupExtensionRepo>> get backupExtensionRepo;
   $R call(
       {List<TachiSource>? backupBrokenSources,
       List<TachiSource>? backupSources,
       List<TachiBackupCategory>? backupCategories,
       List<TachiBackupManga>? backupManga,
+      List<TachiBackupExtensionRepo>? backupExtensionRepo,
       TachiFork? fork});
   TachiBackupCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -167,11 +181,21 @@ class _TachiBackupCopyWithImpl<$R, $Out>
       get backupManga => ListCopyWith($value.backupManga,
           (v, t) => v.copyWith.$chain(t), (v) => call(backupManga: v));
   @override
+  ListCopyWith<
+      $R,
+      TachiBackupExtensionRepo,
+      TachiBackupExtensionRepoCopyWith<$R, TachiBackupExtensionRepo,
+          TachiBackupExtensionRepo>> get backupExtensionRepo => ListCopyWith(
+      $value.backupExtensionRepo,
+      (v, t) => v.copyWith.$chain(t),
+      (v) => call(backupExtensionRepo: v));
+  @override
   $R call(
           {List<TachiSource>? backupBrokenSources,
           List<TachiSource>? backupSources,
           List<TachiBackupCategory>? backupCategories,
           List<TachiBackupManga>? backupManga,
+          List<TachiBackupExtensionRepo>? backupExtensionRepo,
           TachiFork? fork}) =>
       $apply(FieldCopyWithData({
         if (backupBrokenSources != null)
@@ -179,6 +203,8 @@ class _TachiBackupCopyWithImpl<$R, $Out>
         if (backupSources != null) #backupSources: backupSources,
         if (backupCategories != null) #backupCategories: backupCategories,
         if (backupManga != null) #backupManga: backupManga,
+        if (backupExtensionRepo != null)
+          #backupExtensionRepo: backupExtensionRepo,
         if (fork != null) #fork: fork
       }));
   @override
@@ -189,6 +215,8 @@ class _TachiBackupCopyWithImpl<$R, $Out>
       backupCategories:
           data.get(#backupCategories, or: $value.backupCategories),
       backupManga: data.get(#backupManga, or: $value.backupManga),
+      backupExtensionRepo:
+          data.get(#backupExtensionRepo, or: $value.backupExtensionRepo),
       fork: data.get(#fork, or: $value.fork));
 
   @override

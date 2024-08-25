@@ -20,7 +20,7 @@ export 'src/formats/pas4/paperback_backup_source_manga.dart';
 export 'src/formats/tachibk/tachi_backup.dart';
 export 'src/formats/tachibk/tachi_backup_category.dart';
 export 'src/formats/tachibk/tachi_backup_chapter.dart';
-export 'src/formats/tachibk/tachi_backup_extension_repos.dart';
+export 'src/formats/tachibk/tachi_backup_extension_repo.dart';
 export 'src/formats/tachibk/tachi_backup_history.dart';
 export 'src/formats/tachibk/tachi_backup_manga.dart';
 export 'src/formats/tachibk/tachi_backup_preferences.dart';

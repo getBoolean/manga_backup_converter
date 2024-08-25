@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_category.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_extension_repo.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_backup_manga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_fork.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachibk/tachi_source.dart';
@@ -30,7 +31,7 @@ class TachiBackup with TachiBackupMappable {
   final List<TachiSource> backupBrokenSources;
   final List<TachiSource> backupSources;
   final List<TachiBackupCategory> backupCategories;
-  // final List<BackupExtensionRepos> backupExtensionRepo;
+  final List<TachiBackupExtensionRepo> backupExtensionRepo;
   final List<TachiBackupManga> backupManga;
   // final List<BackupPreference> backupPreferences;
   // final List<BackupSourcePreferences> backupSourcePreferences;
@@ -40,11 +41,11 @@ class TachiBackup with TachiBackupMappable {
     required this.backupSources,
     required this.backupCategories,
     required this.backupManga,
+    required this.backupExtensionRepo,
     this.fork = TachiFork.mihon,
   });
 
   factory TachiBackup._fromMihon({required mihon.Backup backup}) {
-    backup.backupExtensionRepo;
     backup.backupPreferences;
     backup.backupSourcePreferences;
     return TachiBackup(
@@ -55,6 +56,9 @@ class TachiBackup with TachiBackupMappable {
       backupCategories:
           backup.backupCategories.map(TachiBackupCategory.fromMihon).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromMihon).toList(),
+      backupExtensionRepo: backup.backupExtensionRepo
+          .map(TachiBackupExtensionRepo.fromMihon)
+          .toList(),
     );
   }
 
