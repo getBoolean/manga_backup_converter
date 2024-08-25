@@ -47,7 +47,6 @@ class TachiBackup with TachiBackupMappable {
     backup.backupExtensionRepo;
     backup.backupPreferences;
     backup.backupSourcePreferences;
-    print(backup);
     return TachiBackup(
       backupBrokenSources:
           backup.backupBrokenSources.map(TachiSource.fromMihon).toList(),
