@@ -59,8 +59,11 @@ jobs:
 
           for file in "$INPUT_DIR"*; do
               if [ -f "$file" ]; then
+                  extension="${file##*.}"
                   filename=$(basename "$file")
-                  protoc --dart_out="$OUTPUT_DIR_PREFIX$filename/." "$file"
+                  if [[ "$extension" == "proto" ]]; then
+                      protoc --dart_out="$OUTPUT_DIR_PREFIX$filename/." "$file"
+                  fi
               fi
           done
       
