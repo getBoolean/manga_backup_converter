@@ -20,7 +20,8 @@ migrate_working_dir/
 .idea/
 
 # CI Builds
-dist/
+**/assets/generate_schemas.py
+**/assets/requirements.txt
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
