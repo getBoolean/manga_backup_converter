@@ -1,1 +1,37 @@
 include: package:app_lints/analysis_options.yaml
+
+analyzer:
+  language:
+    strict-inference: true
+
+  errors:
+    # Required for Freezed
+    invalid_annotation_target: ignore
+    close_sinks: ignore
+  exclude:
+    # generated files
+    - "**/*.g.dart"
+    -
+    # package:dart_mappable
+    - "**/*.mapper.dart"
+
+    # package:modddels
+    - "**/*.modddel.dart"
+
+    # probably related to localization
+    - "**/*.iconfig.dart"
+
+    # i18n vscode extension
+    - "**/i18n.dart"
+
+    # package:intl localization
+    - "lib/generated/intl/messages*.dart"
+
+    # package:mason_cli
+    - "bricks/**"
+
+    # protobuf files
+    - "**/*.pb.dart"
+    - "**/*.pbenum.dart"
+    - "**/*.pbjson.dart"
+    - "**/*.pbserver.dart"
