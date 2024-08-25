@@ -14,6 +14,7 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = TachimangaBackupMapper._());
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
+      TachimangaBackupMetaMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -21,17 +22,21 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
   @override
   final String id = 'TachimangaBackup';
 
+  static TachimangaBackupMeta _$meta(TachimangaBackup v) => v.meta;
+  static const Field<TachimangaBackup, TachimangaBackupMeta> _f$meta =
+      Field('meta', _$meta);
   static String? _$name(TachimangaBackup v) => v.name;
   static const Field<TachimangaBackup, String> _f$name =
       Field('name', _$name, opt: true);
 
   @override
   final MappableFields<TachimangaBackup> fields = const {
+    #meta: _f$meta,
     #name: _f$name,
   };
 
   static TachimangaBackup _instantiate(DecodingData data) {
-    return TachimangaBackup(name: data.dec(_f$name));
+    return TachimangaBackup(meta: data.dec(_f$meta), name: data.dec(_f$name));
   }
 
   @override
@@ -88,7 +93,9 @@ extension TachimangaBackupValueCopy<$R, $Out>
 
 abstract class TachimangaBackupCopyWith<$R, $In extends TachimangaBackup, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? name});
+  TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
+      get meta;
+  $R call({TachimangaBackupMeta? meta, String? name});
   TachimangaBackupCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -102,11 +109,16 @@ class _TachimangaBackupCopyWithImpl<$R, $Out>
   late final ClassMapperBase<TachimangaBackup> $mapper =
       TachimangaBackupMapper.ensureInitialized();
   @override
-  $R call({Object? name = $none}) =>
-      $apply(FieldCopyWithData({if (name != $none) #name: name}));
+  TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
+      get meta => $value.meta.copyWith.$chain((v) => call(meta: v));
   @override
-  TachimangaBackup $make(CopyWithData data) =>
-      TachimangaBackup(name: data.get(#name, or: $value.name));
+  $R call({TachimangaBackupMeta? meta, Object? name = $none}) =>
+      $apply(FieldCopyWithData(
+          {if (meta != null) #meta: meta, if (name != $none) #name: name}));
+  @override
+  TachimangaBackup $make(CopyWithData data) => TachimangaBackup(
+      meta: data.get(#meta, or: $value.meta),
+      name: data.get(#name, or: $value.name));
 
   @override
   TachimangaBackupCopyWith<$R2, TachimangaBackup, $Out2> $chain<$R2, $Out2>(
