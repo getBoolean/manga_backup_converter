@@ -4,6 +4,7 @@ import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_fork.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
 
 class MangaBackupConverter {
   AidokuBackup? importAidokuBackup(ByteData bytes) {
@@ -19,5 +20,9 @@ class MangaBackupConverter {
     TachiFork fork = TachiFork.mihon,
   }) {
     return TachiBackup.fromBackup(bytes, fork: fork);
+  }
+
+  TachimangaBackup? importTachimangaBackup(Uint8List bytes) {
+    return TachimangaBackup.fromZip(bytes);
   }
 }
