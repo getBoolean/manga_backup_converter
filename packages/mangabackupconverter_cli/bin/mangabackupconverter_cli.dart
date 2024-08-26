@@ -184,7 +184,13 @@ void main(List<String> arguments) {
           print('Manga with Tags: ${mangaTagsWithTags?.length}');
         }
       case '.tmb':
-      // TODO: Read from SQLite file
+        final TachimangaBackup? tachimangaBackup =
+            converter.importTachimangaBackup(
+          backupFile.readAsBytesSync(),
+        );
+        if (verbose && tachimangaBackup != null) {
+          print(tachimangaBackup);
+        }
       default:
         print('Unsupported imported backup type');
         return;

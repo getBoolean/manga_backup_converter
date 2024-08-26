@@ -22,7 +22,10 @@ class MangaBackupConverter {
     return TachiBackup.fromBackup(bytes, fork: fork);
   }
 
-  TachimangaBackup? importTachimangaBackup(Uint8List bytes) {
-    return TachimangaBackup.fromZip(bytes);
+  TachimangaBackup? importTachimangaBackup(
+    Uint8List bytes, {
+    String? overrideName,
+  }) {
+    return TachimangaBackup.fromZip(bytes, overrideName: overrideName);
   }
 }

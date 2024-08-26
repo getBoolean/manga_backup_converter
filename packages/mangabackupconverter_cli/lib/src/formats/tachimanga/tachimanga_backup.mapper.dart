@@ -25,6 +25,22 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
   static TachimangaBackupMeta _$meta(TachimangaBackup v) => v.meta;
   static const Field<TachimangaBackup, TachimangaBackupMeta> _f$meta =
       Field('meta', _$meta);
+  static Uint8List _$db(TachimangaBackup v) => v.db;
+  static const Field<TachimangaBackup, Uint8List> _f$db = Field('db', _$db);
+  static Map<String, Object?>? _$pref(TachimangaBackup v) => v.pref;
+  static const Field<TachimangaBackup, Map<String, Object?>> _f$pref =
+      Field('pref', _$pref, opt: true);
+  static Pbxproj? _$prefAll(TachimangaBackup v) => v.prefAll;
+  static const Field<TachimangaBackup, Pbxproj> _f$prefAll =
+      Field('prefAll', _$prefAll, opt: true);
+  static Map<String, Map<String, Object?>>? _$prefs(TachimangaBackup v) =>
+      v.prefs;
+  static const Field<TachimangaBackup, Map<String, Map<String, Object?>>>
+      _f$prefs = Field('prefs', _$prefs, opt: true);
+  static Map<String, Uint8List>? _$extensions(TachimangaBackup v) =>
+      v.extensions;
+  static const Field<TachimangaBackup, Map<String, Uint8List>> _f$extensions =
+      Field('extensions', _$extensions, opt: true);
   static String? _$name(TachimangaBackup v) => v.name;
   static const Field<TachimangaBackup, String> _f$name =
       Field('name', _$name, opt: true);
@@ -32,11 +48,23 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
   @override
   final MappableFields<TachimangaBackup> fields = const {
     #meta: _f$meta,
+    #db: _f$db,
+    #pref: _f$pref,
+    #prefAll: _f$prefAll,
+    #prefs: _f$prefs,
+    #extensions: _f$extensions,
     #name: _f$name,
   };
 
   static TachimangaBackup _instantiate(DecodingData data) {
-    return TachimangaBackup(meta: data.dec(_f$meta), name: data.dec(_f$name));
+    return TachimangaBackup(
+        meta: data.dec(_f$meta),
+        db: data.dec(_f$db),
+        pref: data.dec(_f$pref),
+        prefAll: data.dec(_f$prefAll),
+        prefs: data.dec(_f$prefs),
+        extensions: data.dec(_f$extensions),
+        name: data.dec(_f$name));
   }
 
   @override
@@ -95,7 +123,21 @@ abstract class TachimangaBackupCopyWith<$R, $In extends TachimangaBackup, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
       get meta;
-  $R call({TachimangaBackupMeta? meta, String? name});
+  MapCopyWith<$R, String, Object?, ObjectCopyWith<$R, Object?, Object?>?>?
+      get pref;
+  MapCopyWith<$R, String, Map<String, Object?>,
+          ObjectCopyWith<$R, Map<String, Object?>, Map<String, Object?>>>?
+      get prefs;
+  MapCopyWith<$R, String, Uint8List, ObjectCopyWith<$R, Uint8List, Uint8List>>?
+      get extensions;
+  $R call(
+      {TachimangaBackupMeta? meta,
+      Uint8List? db,
+      Map<String, Object?>? pref,
+      Pbxproj? prefAll,
+      Map<String, Map<String, Object?>>? prefs,
+      Map<String, Uint8List>? extensions,
+      String? name});
   TachimangaBackupCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -112,12 +154,52 @@ class _TachimangaBackupCopyWithImpl<$R, $Out>
   TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
       get meta => $value.meta.copyWith.$chain((v) => call(meta: v));
   @override
-  $R call({TachimangaBackupMeta? meta, Object? name = $none}) =>
-      $apply(FieldCopyWithData(
-          {if (meta != null) #meta: meta, if (name != $none) #name: name}));
+  MapCopyWith<$R, String, Object?, ObjectCopyWith<$R, Object?, Object?>?>?
+      get pref => $value.pref != null
+          ? MapCopyWith($value.pref!, (v, t) => ObjectCopyWith(v, $identity, t),
+              (v) => call(pref: v))
+          : null;
+  @override
+  MapCopyWith<$R, String, Map<String, Object?>,
+          ObjectCopyWith<$R, Map<String, Object?>, Map<String, Object?>>>?
+      get prefs => $value.prefs != null
+          ? MapCopyWith($value.prefs!,
+              (v, t) => ObjectCopyWith(v, $identity, t), (v) => call(prefs: v))
+          : null;
+  @override
+  MapCopyWith<$R, String, Uint8List, ObjectCopyWith<$R, Uint8List, Uint8List>>?
+      get extensions => $value.extensions != null
+          ? MapCopyWith(
+              $value.extensions!,
+              (v, t) => ObjectCopyWith(v, $identity, t),
+              (v) => call(extensions: v))
+          : null;
+  @override
+  $R call(
+          {TachimangaBackupMeta? meta,
+          Uint8List? db,
+          Object? pref = $none,
+          Object? prefAll = $none,
+          Object? prefs = $none,
+          Object? extensions = $none,
+          Object? name = $none}) =>
+      $apply(FieldCopyWithData({
+        if (meta != null) #meta: meta,
+        if (db != null) #db: db,
+        if (pref != $none) #pref: pref,
+        if (prefAll != $none) #prefAll: prefAll,
+        if (prefs != $none) #prefs: prefs,
+        if (extensions != $none) #extensions: extensions,
+        if (name != $none) #name: name
+      }));
   @override
   TachimangaBackup $make(CopyWithData data) => TachimangaBackup(
       meta: data.get(#meta, or: $value.meta),
+      db: data.get(#db, or: $value.db),
+      pref: data.get(#pref, or: $value.pref),
+      prefAll: data.get(#prefAll, or: $value.prefAll),
+      prefs: data.get(#prefs, or: $value.prefs),
+      extensions: data.get(#extensions, or: $value.extensions),
       name: data.get(#name, or: $value.name));
 
   @override
