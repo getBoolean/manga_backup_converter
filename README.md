@@ -66,7 +66,7 @@ I highly recommend reading the article. Each `layer` has its own folder per feat
 ## Demo
 
 Flutter Web is deployed to GitHub Pages in a separate subfolder for each branch. The `main` branch is deployed to
-[getboolean.github.io/mangabackupconverter](https://getboolean.github.io/mangabackupconverter).
+[getboolean.github.io/mangabackupconverter](https://getboolean.github.io/manga_backup_converter).
 
 - This GitHub Pages setup requires the Flutter `#` from [HashUrlStrategy](https://api.flutter.dev/flutter/package-flutter_web_plugins_url_strategy/HashUrlStrategy-class.html), so ensure it is not disabled for your Flutter Web CI builds deployed to GitHub Pages. If it is disabled, the Navigator 2.0 subroutes will prevent GitHub Pages from resolving the correct app when refreshed.
 
