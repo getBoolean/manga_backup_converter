@@ -1,4 +1,4 @@
-import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_categories.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
 import 'package:meta/meta.dart';
 import 'package:sqflite_common/sqflite.dart';
 

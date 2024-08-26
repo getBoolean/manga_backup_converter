@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/constants.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_categories.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_manager.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 

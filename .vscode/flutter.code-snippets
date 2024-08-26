@@ -46,5 +46,21 @@
       "class ${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}ValueFailure extends ValueFailure with _$${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}ValueFailure {}"
     ],
     "description": "Modddel Setup for Single Value Object"
+  },
+  "Dart Mappable Data Class": {
+    "prefix": "dataClass",
+    "body": [
+      "@MappableClass(caseStyle: CaseStyle.snakeCase)",
+      "class ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}} with ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}Mappable {",
+      "  final int id;",
+      "",
+      "  const ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}({",
+      "    required this.id,",
+      "  });",
+      "",
+      "  static const fromMap = ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}Mapper.fromMap;",
+      "  static const fromJson = ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}Mapper.fromJson;",
+      "}"
+    ]
   }
 }
