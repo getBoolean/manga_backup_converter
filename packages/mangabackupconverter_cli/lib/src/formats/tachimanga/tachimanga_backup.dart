@@ -1,12 +1,19 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
+import 'package:mangabackupconverter_cli/src/common/constants.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/tachimanga_exception.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_meta.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:propertylistserialization/propertylistserialization.dart';
+import 'package:sqlite3/sqlite3.dart';
+import 'package:sqlite3/wasm.dart';
 import 'package:xcode_parser/xcode_parser.dart';
 
 part 'tachimanga_backup.mapper.dart';
@@ -31,7 +38,10 @@ class TachimangaBackup with TachimangaBackupMappable {
     this.name,
   });
 
-  static TachimangaBackup? fromZip(Uint8List bytes, {String? overrideName}) {
+  static Future<TachimangaBackup>? fromZip(
+    Uint8List bytes, {
+    String? overrideName,
+  }) async {
     final backupArchive = ZipDecoder().decodeBytes(bytes);
     final metaFile = backupArchive.findFile('meta.json');
     if (metaFile == null || metaFile.content == null) {
@@ -98,12 +108,44 @@ class TachimangaBackup with TachimangaBackupMappable {
     );
 
     final dbFile = contentArchive.findFile('tachimanga.db');
-    if (dbFile == null) {
+    if (dbFile == null || dbFile.content == null) {
       throw TachimangaException(
         'Could not decode Tachimanga backup "$archiveName", tachimanga.db not found',
       );
     }
-    // TODO: Extra data from db file
+
+    String? dbPath;
+    final CommonSqlite3 sqlite;
+    final CommonDatabase db;
+    if (kIsWeb) {
+      sqlite = await WasmSqlite3.load(dbFile.content as Uint8List);
+      final fileSystem = InMemoryFileSystem(name: 'tachimanga.db');
+      (sqlite as WasmSqlite3)
+          .registerVirtualFileSystem(fileSystem, makeDefault: true);
+      db = sqlite.openInMemory();
+    } else {
+      sqlite = sqlite3;
+      final io.Directory appDocumentsDir =
+          await getApplicationDocumentsDirectory();
+      dbPath = p.join(
+        appDocumentsDir.path,
+        '${p.basenameWithoutExtension(archiveName)}-tachimanga.db',
+      );
+      final ioFile = io.File(dbPath);
+      if (ioFile.existsSync()) {
+        await ioFile.delete();
+      }
+      await ioFile.create();
+      db = sqlite.open(ioFile.path);
+    }
+
+    final backupDb = TachimangaBackupDb(sqlite: sqlite, db: db);
+
+    db.dispose();
+    if (!kIsWeb && dbPath != null) {
+      await io.File(dbPath).delete();
+    }
+
     return TachimangaBackup(
       name: archiveName,
       meta: meta,

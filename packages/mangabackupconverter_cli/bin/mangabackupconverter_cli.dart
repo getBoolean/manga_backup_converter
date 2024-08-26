@@ -62,7 +62,7 @@ void printUsage(ArgParser argParser) {
   print(argParser.usage);
 }
 
-void main(List<String> arguments) {
+void main(List<String> arguments) async {
   final ArgParser argParser = buildParser();
   try {
     final ArgResults results = argParser.parse(arguments);
@@ -185,7 +185,7 @@ void main(List<String> arguments) {
         }
       case '.tmb':
         final TachimangaBackup? tachimangaBackup =
-            converter.importTachimangaBackup(
+            await converter.importTachimangaBackup(
           backupFile.readAsBytesSync(),
         );
         if (verbose && tachimangaBackup != null) {
