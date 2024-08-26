@@ -20,12 +20,10 @@ class TachimangaBackup with TachimangaBackupMappable {
   final Pbxproj? prefAll;
   final Map<String, Map<String, Object?>>? prefs;
   final Map<String, Uint8List>? extensions;
-  final Uint8List dbContent;
   final TachimangaBackupDb db;
 
   const TachimangaBackup({
     required this.meta,
-    required this.dbContent,
     required this.db,
     this.pref,
     this.prefAll,
@@ -118,13 +116,12 @@ class TachimangaBackup with TachimangaBackupMappable {
       pref: pref,
       prefs: prefs,
       prefAll: prefAll,
-      dbContent: dbContent,
       db: db,
       extensions: extensions,
     );
   }
 
-  Uint8List? toZip() {
+  Future<Uint8List?> toZip() async {
     final contentsArchive = Archive();
     if (pref case final Map<String, Object?> pref) {
       contentsArchive
@@ -159,8 +156,13 @@ class TachimangaBackup with TachimangaBackupMappable {
       });
     }
 
+    final dbContent = await db.exportDatabase();
     contentsArchive.addFile(
-      ArchiveFile.noCompress('tachimanga.db', dbContent.elementSizeInBytes, db),
+      ArchiveFile.noCompress(
+        'tachimanga.db',
+        dbContent.lengthInBytes,
+        dbContent,
+      ),
     );
     final contentsEncoded = ZipEncoder().encode(contentsArchive);
     if (contentsEncoded == null) {

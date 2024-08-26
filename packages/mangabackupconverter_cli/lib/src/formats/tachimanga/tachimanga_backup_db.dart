@@ -15,6 +15,7 @@ part 'tachimanga_backup_db.mapper.dart';
 )
 class TachimangaBackupDb with TachimangaBackupDbMappable {
   final List<TachimangaBackupCategories> categories;
+  // TODO: Add variables for each table
 
   const TachimangaBackupDb({
     required this.categories,
@@ -47,5 +48,27 @@ class TachimangaBackupDb with TachimangaBackupDbMappable {
     return TachimangaBackupDb(
       categories: categories,
     );
+  }
+
+  Future<Uint8List> exportDatabase() async {
+    final Database db;
+    if (kIsWeb) {
+      databaseFactory = databaseFactoryFfiWeb;
+      db = await databaseFactory.openDatabase('tachimanga.db');
+    } else {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+      db = await databaseFactory.openDatabase('tachimanga.db');
+    }
+    final backupDbManager =
+        TachimangaBackupDbManager(db: db, databaseFactory: databaseFactory);
+    await backupDbManager.initDb();
+    await backupDbManager.insertCategories(categories);
+    // TODO: Insert each added variable into DB
+
+    final dbContent = await databaseFactory.readDatabaseBytes('tachimanga.db');
+    await db.close();
+
+    return dbContent;
   }
 }
