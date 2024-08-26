@@ -1,23 +1,26 @@
+@MappableLib(generateInitializerForScope: InitializerScope.library)
+library mangabackupconverter_lib;
+
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'tachimanga_backup_db_models.mapper.dart';
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupCategories with TachimangaBackupCategoriesMappable {
+class TachimangaBackupCategory with TachimangaBackupCategoryMappable {
   final int id;
   final String name;
   final int order;
   final bool isDefault;
 
-  const TachimangaBackupCategories({
+  const TachimangaBackupCategory({
     required this.id,
     required this.name,
     required this.order,
     required this.isDefault,
   });
 
-  static const fromMap = TachimangaBackupCategoriesMapper.fromMap;
-  static const fromJson = TachimangaBackupCategoriesMapper.fromJson;
+  static const fromMap = TachimangaBackupCategoryMapper.fromMap;
+  static const fromJson = TachimangaBackupCategoryMapper.fromJson;
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
@@ -203,7 +206,7 @@ class TachimangaBackupManga with TachimangaBackupMangaMappable {
   final int lastFetchedAt;
   final int chaptersLastFetchedAt;
   final String updateStrategy;
-  final int lastDownloadedAt;
+  final int lastDownloadAt;
 
   const TachimangaBackupManga({
     required this.id,
@@ -225,7 +228,7 @@ class TachimangaBackupManga with TachimangaBackupMangaMappable {
     required this.lastFetchedAt,
     required this.chaptersLastFetchedAt,
     required this.updateStrategy,
-    required this.lastDownloadedAt,
+    required this.lastDownloadAt,
   });
 
   static const fromMap = TachimangaBackupMangaMapper.fromMap;
@@ -409,4 +412,30 @@ class TachimangaBackupSqliteSequence
 
   static const fromMap = TachimangaBackupSqliteSequenceMapper.fromMap;
   static const fromJson = TachimangaBackupSqliteSequenceMapper.fromJson;
+}
+
+@MappableEnum(caseStyle: CaseStyle.pascalCase)
+enum TachimangaBackupTable<T> {
+  category(TachimangaBackupCategory.fromMap),
+  categoryMeta(TachimangaBackupCategoryMeta.fromMap),
+  categoryManga(TachimangaBackupCategoryManga.fromMap),
+  chapter(TachimangaBackupChapter.fromMap),
+  chapterMeta(TachimangaBackupChapterMeta.fromMap),
+  extension(TachimangaBackupExtension.fromMap),
+  history(TachimangaBackupHistory.fromMap),
+  manga(TachimangaBackupManga.fromMap),
+  mangaMeta(TachimangaBackupMangaMeta.fromMap),
+  migrations(TachimangaBackupDbMigrations.fromMap),
+  page(TachimangaBackupPage.fromMap),
+  repo(TachimangaBackupRepo.fromMap),
+  setting(TachimangaBackupSetting.fromMap),
+  source(TachimangaBackupSource.fromMap),
+  trackRecord(TachimangaBackupTrackRecord.fromMap),
+
+  // ignore: constant_identifier_names
+  sqlite_sequence(TachimangaBackupSqliteSequence.fromMap);
+
+  const TachimangaBackupTable(this.fromMap);
+
+  final T Function(Map<String, dynamic> map) fromMap;
 }

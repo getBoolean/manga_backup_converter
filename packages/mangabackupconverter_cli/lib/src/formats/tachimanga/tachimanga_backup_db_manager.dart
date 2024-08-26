@@ -1,4 +1,7 @@
+import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.init.dart'
+    as tachimanga_init;
 import 'package:meta/meta.dart';
 import 'package:sqflite_common/sqflite.dart';
 
@@ -9,20 +12,23 @@ class TachimangaBackupDbManager {
 
   TachimangaBackupDbManager({required this.db, required this.databaseFactory});
 
-  Future<List<TachimangaBackupCategories>> queryCategories() async {
-    final List<Map<String, Object?>> result = await db.query('Category');
-    return result.map(TachimangaBackupCategories.fromMap).toList();
+  Future<List<T>> queryTable<T>(TachimangaBackupTable<T> table) async {
+    final List<Map<String, Object?>> result = await db.query(table.name);
+    return result.map(table.fromMap).toList();
   }
 
-  Future<void> insertCategories(
-    List<TachimangaBackupCategories> categories,
+  Future<void> insert<T>(
+    TachimangaBackupTable<T> table,
+    List<T> categories,
   ) async {
+    tachimanga_init.initializeMappers();
     for (final category in categories) {
-      await db.insert('Category', category.toMap());
+      await db.insert(table.name, MapperContainer.globals.toMap(category));
     }
   }
 
   Future<void> initDb() async {
+    tachimanga_init.initializeMappers();
     final tableQueries = [
       'CREATE TABLE Category (id INTEGER PRIMARY KEY AUTOINCREMENT, "name" VARCHAR(64) NOT NULL, "order" INT DEFAULT 0 NOT NULL, is_default BOOLEAN DEFAULT 0 NOT NULL)',
       'CREATE TABLE CategoryManga (id INTEGER PRIMARY KEY AUTOINCREMENT, category INT NOT NULL, manga INT NOT NULL, CONSTRAINT fk_CategoryManga_category__id FOREIGN KEY (category) REFERENCES Category(id) ON DELETE RESTRICT ON UPDATE RESTRICT, CONSTRAINT fk_CategoryManga_manga__id FOREIGN KEY (manga) REFERENCES Manga(id) ON DELETE RESTRICT ON UPDATE RESTRICT)',

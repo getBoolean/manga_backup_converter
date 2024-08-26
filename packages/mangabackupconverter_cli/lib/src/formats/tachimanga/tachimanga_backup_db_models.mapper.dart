@@ -6,44 +6,147 @@
 
 part of 'tachimanga_backup_db_models.dart';
 
-class TachimangaBackupCategoriesMapper
-    extends ClassMapperBase<TachimangaBackupCategories> {
-  TachimangaBackupCategoriesMapper._();
+class TachimangaBackupTableMapper extends EnumMapper<TachimangaBackupTable> {
+  TachimangaBackupTableMapper._();
 
-  static TachimangaBackupCategoriesMapper? _instance;
-  static TachimangaBackupCategoriesMapper ensureInitialized() {
+  static TachimangaBackupTableMapper? _instance;
+  static TachimangaBackupTableMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = TachimangaBackupTableMapper._());
+    }
+    return _instance!;
+  }
+
+  static TachimangaBackupTable fromValue(dynamic value) {
+    ensureInitialized();
+    return MapperContainer.globals.fromValue(value);
+  }
+
+  @override
+  TachimangaBackupTable decode(dynamic value) {
+    switch (value) {
+      case 'Category':
+        return TachimangaBackupTable.category;
+      case 'CategoryMeta':
+        return TachimangaBackupTable.categoryMeta;
+      case 'CategoryManga':
+        return TachimangaBackupTable.categoryManga;
+      case 'Chapter':
+        return TachimangaBackupTable.chapter;
+      case 'ChapterMeta':
+        return TachimangaBackupTable.chapterMeta;
+      case 'Extension':
+        return TachimangaBackupTable.extension;
+      case 'History':
+        return TachimangaBackupTable.history;
+      case 'Manga':
+        return TachimangaBackupTable.manga;
+      case 'MangaMeta':
+        return TachimangaBackupTable.mangaMeta;
+      case 'Migrations':
+        return TachimangaBackupTable.migrations;
+      case 'Page':
+        return TachimangaBackupTable.page;
+      case 'Repo':
+        return TachimangaBackupTable.repo;
+      case 'Setting':
+        return TachimangaBackupTable.setting;
+      case 'Source':
+        return TachimangaBackupTable.source;
+      case 'TrackRecord':
+        return TachimangaBackupTable.trackRecord;
+      case 'SqliteSequence':
+        return TachimangaBackupTable.sqlite_sequence;
+      default:
+        throw MapperException.unknownEnumValue(value);
+    }
+  }
+
+  @override
+  dynamic encode(TachimangaBackupTable self) {
+    switch (self) {
+      case TachimangaBackupTable.category:
+        return 'Category';
+      case TachimangaBackupTable.categoryMeta:
+        return 'CategoryMeta';
+      case TachimangaBackupTable.categoryManga:
+        return 'CategoryManga';
+      case TachimangaBackupTable.chapter:
+        return 'Chapter';
+      case TachimangaBackupTable.chapterMeta:
+        return 'ChapterMeta';
+      case TachimangaBackupTable.extension:
+        return 'Extension';
+      case TachimangaBackupTable.history:
+        return 'History';
+      case TachimangaBackupTable.manga:
+        return 'Manga';
+      case TachimangaBackupTable.mangaMeta:
+        return 'MangaMeta';
+      case TachimangaBackupTable.migrations:
+        return 'Migrations';
+      case TachimangaBackupTable.page:
+        return 'Page';
+      case TachimangaBackupTable.repo:
+        return 'Repo';
+      case TachimangaBackupTable.setting:
+        return 'Setting';
+      case TachimangaBackupTable.source:
+        return 'Source';
+      case TachimangaBackupTable.trackRecord:
+        return 'TrackRecord';
+      case TachimangaBackupTable.sqlite_sequence:
+        return 'SqliteSequence';
+    }
+  }
+}
+
+extension TachimangaBackupTableMapperExtension on TachimangaBackupTable {
+  String toValue() {
+    TachimangaBackupTableMapper.ensureInitialized();
+    return MapperContainer.globals.toValue<TachimangaBackupTable>(this)
+        as String;
+  }
+}
+
+class TachimangaBackupCategoryMapper
+    extends ClassMapperBase<TachimangaBackupCategory> {
+  TachimangaBackupCategoryMapper._();
+
+  static TachimangaBackupCategoryMapper? _instance;
+  static TachimangaBackupCategoryMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals
-          .use(_instance = TachimangaBackupCategoriesMapper._());
+          .use(_instance = TachimangaBackupCategoryMapper._());
     }
     return _instance!;
   }
 
   @override
-  final String id = 'TachimangaBackupCategories';
+  final String id = 'TachimangaBackupCategory';
 
-  static int _$id(TachimangaBackupCategories v) => v.id;
-  static const Field<TachimangaBackupCategories, int> _f$id = Field('id', _$id);
-  static String _$name(TachimangaBackupCategories v) => v.name;
-  static const Field<TachimangaBackupCategories, String> _f$name =
+  static int _$id(TachimangaBackupCategory v) => v.id;
+  static const Field<TachimangaBackupCategory, int> _f$id = Field('id', _$id);
+  static String _$name(TachimangaBackupCategory v) => v.name;
+  static const Field<TachimangaBackupCategory, String> _f$name =
       Field('name', _$name);
-  static int _$order(TachimangaBackupCategories v) => v.order;
-  static const Field<TachimangaBackupCategories, int> _f$order =
+  static int _$order(TachimangaBackupCategory v) => v.order;
+  static const Field<TachimangaBackupCategory, int> _f$order =
       Field('order', _$order);
-  static bool _$isDefault(TachimangaBackupCategories v) => v.isDefault;
-  static const Field<TachimangaBackupCategories, bool> _f$isDefault =
+  static bool _$isDefault(TachimangaBackupCategory v) => v.isDefault;
+  static const Field<TachimangaBackupCategory, bool> _f$isDefault =
       Field('isDefault', _$isDefault, key: 'is_default');
 
   @override
-  final MappableFields<TachimangaBackupCategories> fields = const {
+  final MappableFields<TachimangaBackupCategory> fields = const {
     #id: _f$id,
     #name: _f$name,
     #order: _f$order,
     #isDefault: _f$isDefault,
   };
 
-  static TachimangaBackupCategories _instantiate(DecodingData data) {
-    return TachimangaBackupCategories(
+  static TachimangaBackupCategory _instantiate(DecodingData data) {
+    return TachimangaBackupCategory(
         id: data.dec(_f$id),
         name: data.dec(_f$name),
         order: data.dec(_f$order),
@@ -53,77 +156,74 @@ class TachimangaBackupCategoriesMapper
   @override
   final Function instantiate = _instantiate;
 
-  static TachimangaBackupCategories fromMap(Map<String, dynamic> map) {
-    return ensureInitialized().decodeMap<TachimangaBackupCategories>(map);
+  static TachimangaBackupCategory fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<TachimangaBackupCategory>(map);
   }
 
-  static TachimangaBackupCategories fromJson(String json) {
-    return ensureInitialized().decodeJson<TachimangaBackupCategories>(json);
+  static TachimangaBackupCategory fromJson(String json) {
+    return ensureInitialized().decodeJson<TachimangaBackupCategory>(json);
   }
 }
 
-mixin TachimangaBackupCategoriesMappable {
+mixin TachimangaBackupCategoryMappable {
   String toJson() {
-    return TachimangaBackupCategoriesMapper.ensureInitialized()
-        .encodeJson<TachimangaBackupCategories>(
-            this as TachimangaBackupCategories);
+    return TachimangaBackupCategoryMapper.ensureInitialized()
+        .encodeJson<TachimangaBackupCategory>(this as TachimangaBackupCategory);
   }
 
   Map<String, dynamic> toMap() {
-    return TachimangaBackupCategoriesMapper.ensureInitialized()
-        .encodeMap<TachimangaBackupCategories>(
-            this as TachimangaBackupCategories);
+    return TachimangaBackupCategoryMapper.ensureInitialized()
+        .encodeMap<TachimangaBackupCategory>(this as TachimangaBackupCategory);
   }
 
-  TachimangaBackupCategoriesCopyWith<TachimangaBackupCategories,
-          TachimangaBackupCategories, TachimangaBackupCategories>
-      get copyWith => _TachimangaBackupCategoriesCopyWithImpl(
-          this as TachimangaBackupCategories, $identity, $identity);
+  TachimangaBackupCategoryCopyWith<TachimangaBackupCategory,
+          TachimangaBackupCategory, TachimangaBackupCategory>
+      get copyWith => _TachimangaBackupCategoryCopyWithImpl(
+          this as TachimangaBackupCategory, $identity, $identity);
   @override
   String toString() {
-    return TachimangaBackupCategoriesMapper.ensureInitialized()
-        .stringifyValue(this as TachimangaBackupCategories);
+    return TachimangaBackupCategoryMapper.ensureInitialized()
+        .stringifyValue(this as TachimangaBackupCategory);
   }
 
   @override
   bool operator ==(Object other) {
-    return TachimangaBackupCategoriesMapper.ensureInitialized()
-        .equalsValue(this as TachimangaBackupCategories, other);
+    return TachimangaBackupCategoryMapper.ensureInitialized()
+        .equalsValue(this as TachimangaBackupCategory, other);
   }
 
   @override
   int get hashCode {
-    return TachimangaBackupCategoriesMapper.ensureInitialized()
-        .hashValue(this as TachimangaBackupCategories);
+    return TachimangaBackupCategoryMapper.ensureInitialized()
+        .hashValue(this as TachimangaBackupCategory);
   }
 }
 
-extension TachimangaBackupCategoriesValueCopy<$R, $Out>
-    on ObjectCopyWith<$R, TachimangaBackupCategories, $Out> {
-  TachimangaBackupCategoriesCopyWith<$R, TachimangaBackupCategories, $Out>
-      get $asTachimangaBackupCategories => $base
-          .as((v, t, t2) => _TachimangaBackupCategoriesCopyWithImpl(v, t, t2));
+extension TachimangaBackupCategoryValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, TachimangaBackupCategory, $Out> {
+  TachimangaBackupCategoryCopyWith<$R, TachimangaBackupCategory, $Out>
+      get $asTachimangaBackupCategory => $base
+          .as((v, t, t2) => _TachimangaBackupCategoryCopyWithImpl(v, t, t2));
 }
 
-abstract class TachimangaBackupCategoriesCopyWith<
+abstract class TachimangaBackupCategoryCopyWith<
     $R,
-    $In extends TachimangaBackupCategories,
+    $In extends TachimangaBackupCategory,
     $Out> implements ClassCopyWith<$R, $In, $Out> {
   $R call({int? id, String? name, int? order, bool? isDefault});
-  TachimangaBackupCategoriesCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+  TachimangaBackupCategoryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
 
-class _TachimangaBackupCategoriesCopyWithImpl<$R, $Out>
-    extends ClassCopyWithBase<$R, TachimangaBackupCategories, $Out>
+class _TachimangaBackupCategoryCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, TachimangaBackupCategory, $Out>
     implements
-        TachimangaBackupCategoriesCopyWith<$R, TachimangaBackupCategories,
-            $Out> {
-  _TachimangaBackupCategoriesCopyWithImpl(super.value, super.then, super.then2);
+        TachimangaBackupCategoryCopyWith<$R, TachimangaBackupCategory, $Out> {
+  _TachimangaBackupCategoryCopyWithImpl(super.value, super.then, super.then2);
 
   @override
-  late final ClassMapperBase<TachimangaBackupCategories> $mapper =
-      TachimangaBackupCategoriesMapper.ensureInitialized();
+  late final ClassMapperBase<TachimangaBackupCategory> $mapper =
+      TachimangaBackupCategoryMapper.ensureInitialized();
   @override
   $R call({int? id, String? name, int? order, bool? isDefault}) =>
       $apply(FieldCopyWithData({
@@ -133,17 +233,16 @@ class _TachimangaBackupCategoriesCopyWithImpl<$R, $Out>
         if (isDefault != null) #isDefault: isDefault
       }));
   @override
-  TachimangaBackupCategories $make(CopyWithData data) =>
-      TachimangaBackupCategories(
-          id: data.get(#id, or: $value.id),
-          name: data.get(#name, or: $value.name),
-          order: data.get(#order, or: $value.order),
-          isDefault: data.get(#isDefault, or: $value.isDefault));
+  TachimangaBackupCategory $make(CopyWithData data) => TachimangaBackupCategory(
+      id: data.get(#id, or: $value.id),
+      name: data.get(#name, or: $value.name),
+      order: data.get(#order, or: $value.order),
+      isDefault: data.get(#isDefault, or: $value.isDefault));
 
   @override
-  TachimangaBackupCategoriesCopyWith<$R2, TachimangaBackupCategories, $Out2>
+  TachimangaBackupCategoryCopyWith<$R2, TachimangaBackupCategory, $Out2>
       $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
-          _TachimangaBackupCategoriesCopyWithImpl($value, $cast, t);
+          _TachimangaBackupCategoryCopyWithImpl($value, $cast, t);
 }
 
 class TachimangaBackupCategoryMangaMapper
@@ -1318,9 +1417,9 @@ class TachimangaBackupMangaMapper
   static String _$updateStrategy(TachimangaBackupManga v) => v.updateStrategy;
   static const Field<TachimangaBackupManga, String> _f$updateStrategy =
       Field('updateStrategy', _$updateStrategy, key: 'update_strategy');
-  static int _$lastDownloadedAt(TachimangaBackupManga v) => v.lastDownloadedAt;
-  static const Field<TachimangaBackupManga, int> _f$lastDownloadedAt =
-      Field('lastDownloadedAt', _$lastDownloadedAt, key: 'last_downloaded_at');
+  static int _$lastDownloadAt(TachimangaBackupManga v) => v.lastDownloadAt;
+  static const Field<TachimangaBackupManga, int> _f$lastDownloadAt =
+      Field('lastDownloadAt', _$lastDownloadAt, key: 'last_download_at');
 
   @override
   final MappableFields<TachimangaBackupManga> fields = const {
@@ -1343,7 +1442,7 @@ class TachimangaBackupMangaMapper
     #lastFetchedAt: _f$lastFetchedAt,
     #chaptersLastFetchedAt: _f$chaptersLastFetchedAt,
     #updateStrategy: _f$updateStrategy,
-    #lastDownloadedAt: _f$lastDownloadedAt,
+    #lastDownloadAt: _f$lastDownloadAt,
   };
 
   static TachimangaBackupManga _instantiate(DecodingData data) {
@@ -1367,7 +1466,7 @@ class TachimangaBackupMangaMapper
         lastFetchedAt: data.dec(_f$lastFetchedAt),
         chaptersLastFetchedAt: data.dec(_f$chaptersLastFetchedAt),
         updateStrategy: data.dec(_f$updateStrategy),
-        lastDownloadedAt: data.dec(_f$lastDownloadedAt));
+        lastDownloadAt: data.dec(_f$lastDownloadAt));
   }
 
   @override
@@ -1447,7 +1546,7 @@ abstract class TachimangaBackupMangaCopyWith<
       int? lastFetchedAt,
       int? chaptersLastFetchedAt,
       String? updateStrategy,
-      int? lastDownloadedAt});
+      int? lastDownloadAt});
   TachimangaBackupMangaCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -1481,7 +1580,7 @@ class _TachimangaBackupMangaCopyWithImpl<$R, $Out>
           int? lastFetchedAt,
           int? chaptersLastFetchedAt,
           String? updateStrategy,
-          int? lastDownloadedAt}) =>
+          int? lastDownloadAt}) =>
       $apply(FieldCopyWithData({
         if (id != null) #id: id,
         if (url != null) #url: url,
@@ -1504,7 +1603,7 @@ class _TachimangaBackupMangaCopyWithImpl<$R, $Out>
         if (chaptersLastFetchedAt != null)
           #chaptersLastFetchedAt: chaptersLastFetchedAt,
         if (updateStrategy != null) #updateStrategy: updateStrategy,
-        if (lastDownloadedAt != null) #lastDownloadedAt: lastDownloadedAt
+        if (lastDownloadAt != null) #lastDownloadAt: lastDownloadAt
       }));
   @override
   TachimangaBackupManga $make(CopyWithData data) => TachimangaBackupManga(
@@ -1529,8 +1628,7 @@ class _TachimangaBackupMangaCopyWithImpl<$R, $Out>
       chaptersLastFetchedAt:
           data.get(#chaptersLastFetchedAt, or: $value.chaptersLastFetchedAt),
       updateStrategy: data.get(#updateStrategy, or: $value.updateStrategy),
-      lastDownloadedAt:
-          data.get(#lastDownloadedAt, or: $value.lastDownloadedAt));
+      lastDownloadAt: data.get(#lastDownloadAt, or: $value.lastDownloadAt));
 
   @override
   TachimangaBackupMangaCopyWith<$R2, TachimangaBackupManga, $Out2>
