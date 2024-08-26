@@ -15,6 +15,7 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
       MapperContainer.globals.use(_instance = TachimangaBackupMapper._());
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
       TachimangaBackupMetaMapper.ensureInitialized();
+      TachimangaBackupDbMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -25,8 +26,9 @@ class TachimangaBackupMapper extends ClassMapperBase<TachimangaBackup> {
   static TachimangaBackupMeta _$meta(TachimangaBackup v) => v.meta;
   static const Field<TachimangaBackup, TachimangaBackupMeta> _f$meta =
       Field('meta', _$meta);
-  static Uint8List _$db(TachimangaBackup v) => v.db;
-  static const Field<TachimangaBackup, Uint8List> _f$db = Field('db', _$db);
+  static TachimangaBackupDb _$db(TachimangaBackup v) => v.db;
+  static const Field<TachimangaBackup, TachimangaBackupDb> _f$db =
+      Field('db', _$db);
   static Map<String, Object?>? _$pref(TachimangaBackup v) => v.pref;
   static const Field<TachimangaBackup, Map<String, Object?>> _f$pref =
       Field('pref', _$pref, opt: true);
@@ -123,6 +125,7 @@ abstract class TachimangaBackupCopyWith<$R, $In extends TachimangaBackup, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
       get meta;
+  TachimangaBackupDbCopyWith<$R, TachimangaBackupDb, TachimangaBackupDb> get db;
   MapCopyWith<$R, String, Object?, ObjectCopyWith<$R, Object?, Object?>?>?
       get pref;
   MapCopyWith<$R, String, Map<String, Object?>,
@@ -132,7 +135,7 @@ abstract class TachimangaBackupCopyWith<$R, $In extends TachimangaBackup, $Out>
       get extensions;
   $R call(
       {TachimangaBackupMeta? meta,
-      Uint8List? db,
+      TachimangaBackupDb? db,
       Map<String, Object?>? pref,
       Pbxproj? prefAll,
       Map<String, Map<String, Object?>>? prefs,
@@ -153,6 +156,9 @@ class _TachimangaBackupCopyWithImpl<$R, $Out>
   @override
   TachimangaBackupMetaCopyWith<$R, TachimangaBackupMeta, TachimangaBackupMeta>
       get meta => $value.meta.copyWith.$chain((v) => call(meta: v));
+  @override
+  TachimangaBackupDbCopyWith<$R, TachimangaBackupDb, TachimangaBackupDb>
+      get db => $value.db.copyWith.$chain((v) => call(db: v));
   @override
   MapCopyWith<$R, String, Object?, ObjectCopyWith<$R, Object?, Object?>?>?
       get pref => $value.pref != null
@@ -177,7 +183,7 @@ class _TachimangaBackupCopyWithImpl<$R, $Out>
   @override
   $R call(
           {TachimangaBackupMeta? meta,
-          Uint8List? db,
+          TachimangaBackupDb? db,
           Object? pref = $none,
           Object? prefAll = $none,
           Object? prefs = $none,
