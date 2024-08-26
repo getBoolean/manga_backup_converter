@@ -103,6 +103,7 @@ class TachimangaBackup with TachimangaBackupMappable {
         'Could not decode Tachimanga backup "$archiveName", tachimanga.db not found',
       );
     }
+    // TODO: Extra data from db file
     return TachimangaBackup(
       name: archiveName,
       meta: meta,
