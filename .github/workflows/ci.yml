@@ -766,12 +766,6 @@ jobs:
       - name: Check Flutter Version
         run: flutter --version
 
-        # https://pub.dev/packages/sqflite_common_ffi_web
-      - name: Setup sqflite
-        run: |
-          dart run sqflite_common_ffi_web:setup
-          dart run sqflite_common_ffi_web:setup --force
-
       # Make environment variables available to the melos generate script.
       #
       # The environment variables need to be defined in the repository secrets
@@ -785,6 +779,12 @@ jobs:
 
       - name: Bootstrap Melos
         run: melos bootstrap
+
+        # https://pub.dev/packages/sqflite_common_ffi_web
+      - name: Setup sqflite
+        run: |
+          dart run sqflite_common_ffi_web:setup
+          dart run sqflite_common_ffi_web:setup --force
 
       - name: Build Web
         run: |
@@ -825,12 +825,6 @@ jobs:
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
           cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
 
-        # https://pub.dev/packages/sqflite_common_ffi_web
-      - name: Setup sqflite
-        run: |
-          dart run sqflite_common_ffi_web:setup
-          dart run sqflite_common_ffi_web:setup --force
-
       - name: Get branch name
         id: branch-name
         if: github.actor != 'dependabot[bot]'
@@ -856,6 +850,12 @@ jobs:
       - name: Bootstrap Melos
         if: github.actor != 'dependabot[bot]'
         run: melos bootstrap
+
+        # https://pub.dev/packages/sqflite_common_ffi_web
+      - name: Setup sqflite
+        run: |
+          dart run sqflite_common_ffi_web:setup
+          dart run sqflite_common_ffi_web:setup --force
 
       - name: Build Web
         if: github.actor != 'dependabot[bot]'
