@@ -1,6 +1,6 @@
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_categories.dart';
 import 'package:meta/meta.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common/sqflite.dart';
 
 @internal
 class TachimangaBackupDbManager {
