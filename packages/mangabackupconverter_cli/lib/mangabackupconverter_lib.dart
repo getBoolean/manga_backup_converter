@@ -32,3 +32,6 @@ export 'src/formats/tachi/tachi_fork.dart';
 export 'src/formats/tachi/tachi_source.dart';
 export 'src/formats/tachi/tachi_update_strategy.dart';
 export 'src/formats/tachimanga/tachimanga_backup.dart';
+export 'src/formats/tachimanga/tachimanga_backup_categories.dart';
+export 'src/formats/tachimanga/tachimanga_backup_db.dart';
+export 'src/formats/tachimanga/tachimanga_backup_meta.dart';

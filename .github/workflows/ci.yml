@@ -586,6 +586,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install webkit2gtk-4.1 clang cmake ninja-build pkg-config libgtk-3-dev mpv libmpv-dev dpkg-dev
           sudo apt install -y libfuse2
+          sudo apt-get -y install libsqlite3-0 libsqlite3-dev
 
       - name: Check Flutter Version
         run: flutter --version
@@ -765,6 +766,12 @@ jobs:
       - name: Check Flutter Version
         run: flutter --version
 
+        # https://pub.dev/packages/sqflite_common_ffi_web
+      - name: Setup sqflite
+        run: |
+          dart run sqflite_common_ffi_web:setup
+          dart run sqflite_common_ffi_web:setup --force
+
       # Make environment variables available to the melos generate script.
       #
       # The environment variables need to be defined in the repository secrets
@@ -817,6 +824,12 @@ jobs:
           cache: true
           cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
           cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+        # https://pub.dev/packages/sqflite_common_ffi_web
+      - name: Setup sqflite
+        run: |
+          dart run sqflite_common_ffi_web:setup
+          dart run sqflite_common_ffi_web:setup --force
 
       - name: Get branch name
         id: branch-name
