@@ -891,18 +891,18 @@ packages:
     dependency: "direct dev"
     description:
       name: mason
-      sha256: "2508bb0bf51028fe6a433d694bd4d586d1ad99abb7699ee24d7ed3bfda0ea39e"
+      sha256: "02ab508e96d73b82b987f5eda94b29989944fec25126161c621e6c4b81dad9e1"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.0-dev.57"
+    version: "0.1.0-dev.59"
   mason_logger:
     dependency: transitive
     description:
       name: mason_logger
-      sha256: "1fdf5c76870eb6fc3611ed6fbae1973a3794abe581ea5e22e68af2f73c688b93"
+      sha256: "3a1dee14867763e925bc30e4be903ca800845191dde3d3a95dae225705e630b5"
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.16"
+    version: "0.3.0"
   matcher:
     dependency: transitive
     description:
