@@ -89,6 +89,7 @@ jobs:
 
       - name: Enable auto-merge
         if: ${{ steps.cpr.outputs.pull-request-operation }} == 'created'
+        continue-on-error: true
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{steps.cpr.outputs.pull-request-url}}
