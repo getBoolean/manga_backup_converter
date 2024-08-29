@@ -81,7 +81,7 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   riverpod_lint: ^2.3.10
   solid_lints: ^0.1.5
-  sqflite_common_ffi_web: ^0.4.3+1
+  sqflite_common_ffi_web: ^0.4.5+2
   test: any
 
 flutter:
