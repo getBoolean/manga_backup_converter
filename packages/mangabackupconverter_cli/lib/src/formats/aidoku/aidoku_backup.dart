@@ -38,7 +38,7 @@ class AidokuBackup with AidokuBackupMappable {
     required this.version,
   });
 
-  static AidokuBackup? fromBinaryPropertyList(ByteData bytes) {
+  static AidokuBackup fromBinaryPropertyList(ByteData bytes) {
     final asMap = PropertyListSerialization.propertyListWithData(bytes)
         as Map<String, Object>;
     return fromMap(asMap);

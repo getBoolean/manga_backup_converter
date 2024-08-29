@@ -25,9 +25,9 @@ class TachiUpdateStrategyMapper extends EnumMapper<TachiUpdateStrategy> {
   @override
   TachiUpdateStrategy decode(dynamic value) {
     switch (value) {
-      case 0:
+      case 'ALWAYS_UPDATE':
         return TachiUpdateStrategy.alwaysUpdate;
-      case 1:
+      case 'ONLY_FETCH_ONCE':
         return TachiUpdateStrategy.onlyFetchOnce;
       default:
         throw MapperException.unknownEnumValue(value);
@@ -38,16 +38,16 @@ class TachiUpdateStrategyMapper extends EnumMapper<TachiUpdateStrategy> {
   dynamic encode(TachiUpdateStrategy self) {
     switch (self) {
       case TachiUpdateStrategy.alwaysUpdate:
-        return 0;
+        return 'ALWAYS_UPDATE';
       case TachiUpdateStrategy.onlyFetchOnce:
-        return 1;
+        return 'ONLY_FETCH_ONCE';
     }
   }
 }
 
 extension TachiUpdateStrategyMapperExtension on TachiUpdateStrategy {
-  dynamic toValue() {
+  String toValue() {
     TachiUpdateStrategyMapper.ensureInitialized();
-    return MapperContainer.globals.toValue<TachiUpdateStrategy>(this);
+    return MapperContainer.globals.toValue<TachiUpdateStrategy>(this) as String;
   }
 }

@@ -2,11 +2,14 @@
 library mangabackupconverter_lib;
 
 import 'package:dart_mappable/dart_mappable.dart';
+import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 
 part 'tachimanga_backup_db_models.mapper.dart';
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupCategory with TachimangaBackupCategoryMappable {
+class TachimangaBackupCategory
+    with TachimangaBackupCategoryMappable
+    implements Convertable<TachiBackupCategory, TachimangaBackupDb> {
   final int id;
   final String name;
   final int order;
@@ -18,6 +21,15 @@ class TachimangaBackupCategory with TachimangaBackupCategoryMappable {
     required this.order,
     required this.isDefault,
   });
+
+  @override
+  TachiBackupCategory toTachi(TachimangaBackupDb db) {
+    return TachiBackupCategory(
+      name: name,
+      order: order,
+      flags: 1,
+    );
+  }
 
   static const fromMap = TachimangaBackupCategoryMapper.fromMap;
   static const fromJson = TachimangaBackupCategoryMapper.fromJson;
@@ -58,7 +70,9 @@ class TachimangaBackupCategoryMeta with TachimangaBackupCategoryMetaMappable {
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupChapter with TachimangaBackupChapterMappable {
+class TachimangaBackupChapter
+    with TachimangaBackupChapterMappable
+    implements Convertable<TachiBackupChapter, TachimangaBackupDb> {
   final int id;
   final String url;
   final String name;
@@ -96,6 +110,23 @@ class TachimangaBackupChapter with TachimangaBackupChapterMappable {
     required this.pageCount,
     required this.manga,
   });
+
+  @override
+  TachiBackupChapter toTachi(TachimangaBackupDb db) {
+    return TachiBackupChapter(
+      url: url,
+      name: name,
+      scanlator: scanlator ?? '',
+      read: read,
+      bookmark: bookmark,
+      lastPageRead: lastPageRead,
+      dateFetch: fetchedAt,
+      dateUpload: dateUpload,
+      chapterNumber: chapterNumber,
+      sourceOrder: sourceOrder,
+      lastModifiedAt: lastReadAt,
+    );
+  }
 
   static const fromMap = TachimangaBackupChapterMapper.fromMap;
   static const fromJson = TachimangaBackupChapterMapper.fromJson;
@@ -164,7 +195,9 @@ class TachimangaBackupExtension with TachimangaBackupExtensionMappable {
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupHistory with TachimangaBackupHistoryMappable {
+class TachimangaBackupHistory
+    with TachimangaBackupHistoryMappable
+    implements Convertable<TachiBackupHistory, TachimangaBackupDb> {
   final int id;
   final int createAt;
   final bool isDelete;
@@ -181,12 +214,24 @@ class TachimangaBackupHistory with TachimangaBackupHistoryMappable {
     required this.lastReadAt,
   });
 
+  @override
+  TachiBackupHistory toTachi(TachimangaBackupDb db) {
+    final manga = db.mangaTable.firstWhere((manga) => manga.id == mangaId);
+    return TachiBackupHistory(
+      url: manga.realUrl ?? manga.url,
+      lastRead: lastChapterId,
+      readDuration: lastReadAt,
+    );
+  }
+
   static const fromMap = TachimangaBackupHistoryMapper.fromMap;
   static const fromJson = TachimangaBackupHistoryMapper.fromJson;
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupManga with TachimangaBackupMangaMappable {
+class TachimangaBackupManga
+    with TachimangaBackupMangaMappable
+    implements Convertable<TachiBackupManga, TachimangaBackupDb> {
   final int id;
   final String url;
   final String title;
@@ -230,6 +275,33 @@ class TachimangaBackupManga with TachimangaBackupMangaMappable {
     required this.updateStrategy,
     required this.lastDownloadAt,
   });
+
+  @override
+  TachiBackupManga toTachi(TachimangaBackupDb db) {
+    TachiUpdateStrategyMapper.ensureInitialized();
+    return TachiBackupManga(
+      url: realUrl ?? url,
+      title: title,
+      artist: artist ?? '',
+      author: author ?? '',
+      description: description ?? '',
+      genre: (genre ?? '').split(', '),
+      status: status,
+      thumbnailUrl: thumbnailUrl ?? '',
+      source: source,
+      updateStrategy: TachiUpdateStrategyMapper.fromValue(updateStrategy),
+      dateAdded: DateTime.now().millisecondsSinceEpoch,
+      viewer: 1,
+      viewerFlags: 1,
+      chapterFlags: 1,
+      favorite: false,
+      chapters: db.chapterTable.map((c) => c.toTachi(db)).toList(),
+      history: db.historyTable.map((c) => c.toTachi(db)).toList(),
+      brokenHistory: [],
+      categories: db.categoryTable.map((c) => c.id).toList(),
+      tracking: db.trackRecordTable.map((c) => c.toTachi(db)).toList(),
+    );
+  }
 
   static const fromMap = TachimangaBackupMangaMapper.fromMap;
   static const fromJson = TachimangaBackupMangaMapper.fromJson;
@@ -290,7 +362,9 @@ class TachimangaBackupPage with TachimangaBackupPageMappable {
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupRepo with TachimangaBackupRepoMappable {
+class TachimangaBackupRepo
+    with TachimangaBackupRepoMappable
+    implements Convertable<TachiBackupExtensionRepo, TachimangaBackupDb> {
   final int id;
   final int type;
   final String name;
@@ -312,6 +386,17 @@ class TachimangaBackupRepo with TachimangaBackupRepoMappable {
     required this.createAt,
     required this.updateAt,
   });
+
+  @override
+  TachiBackupExtensionRepo toTachi(TachimangaBackupDb arg) {
+    return TachiBackupExtensionRepo(
+      name: name,
+      baseUrl: baseUrl,
+      shortName: name,
+      website: homepage ?? baseUrl,
+      signingKeyFingerprint: '',
+    );
+  }
 
   static const fromMap = TachimangaBackupRepoMapper.fromMap;
   static const fromJson = TachimangaBackupRepoMapper.fromJson;
@@ -340,7 +425,9 @@ class TachimangaBackupSetting with TachimangaBackupSettingMappable {
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupSource with TachimangaBackupSourceMappable {
+class TachimangaBackupSource
+    with TachimangaBackupSourceMappable
+    implements Convertable<TachiBackupSource, TachimangaBackupDb> {
   final int id;
   final String name;
   final String lang;
@@ -359,12 +446,19 @@ class TachimangaBackupSource with TachimangaBackupSourceMappable {
     required this.randomUa,
   });
 
+  @override
+  TachiBackupSource toTachi(TachimangaBackupDb arg) {
+    return TachiBackupSource(name: name, sourceId: id);
+  }
+
   static const fromMap = TachimangaBackupSourceMapper.fromMap;
   static const fromJson = TachimangaBackupSourceMapper.fromJson;
 }
 
 @MappableClass(caseStyle: CaseStyle.snakeCase)
-class TachimangaBackupTrackRecord with TachimangaBackupTrackRecordMappable {
+class TachimangaBackupTrackRecord
+    with TachimangaBackupTrackRecordMappable
+    implements Convertable<TachiBackupTracking, TachimangaBackupDb> {
   final int id;
   final int mangaId;
   final int syncId;
@@ -394,6 +488,24 @@ class TachimangaBackupTrackRecord with TachimangaBackupTrackRecordMappable {
     required this.startDate,
     required this.finishDate,
   });
+
+  @override
+  TachiBackupTracking toTachi(TachimangaBackupDb db) {
+    return TachiBackupTracking(
+      syncId: syncId,
+      libraryId: libraryId ?? -1,
+      mediaIdInt: mangaId,
+      trackingUrl: remoteUrl,
+      title: title,
+      lastChapterRead: lastChapterRead,
+      totalChapters: totalChapters,
+      score: score,
+      status: status,
+      startedReadingDate: startDate,
+      finishedReadingDate: finishDate,
+      mediaId: mangaId,
+    );
+  }
 
   static const fromMap = TachimangaBackupTrackRecordMapper.fromMap;
   static const fromJson = TachimangaBackupTrackRecordMapper.fromJson;

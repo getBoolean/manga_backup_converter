@@ -9,9 +9,9 @@ import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_category
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_extension_repo.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_manga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_preference.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_source.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_source_preferences.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_fork.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_source.dart';
 import 'package:mangabackupconverter_cli/src/proto/schema_j2k.proto/proto/schema_j2k.pb.dart'
     as j2k;
 import 'package:mangabackupconverter_cli/src/proto/schema_mihon.proto/proto/schema_mihon.pb.dart'
@@ -30,8 +30,8 @@ part 'tachi_backup.mapper.dart';
 @MappableClass(includeCustomMappers: [SecondsEpochDateTimeMapper()])
 class TachiBackup with TachiBackupMappable {
   final TachiFork fork;
-  final List<TachiSource> backupBrokenSources;
-  final List<TachiSource> backupSources;
+  final List<TachiBackupSource> backupBrokenSources;
+  final List<TachiBackupSource> backupSources;
   final List<TachiBackupCategory> backupCategories;
   final List<TachiBackupExtensionRepo> backupExtensionRepo;
   final List<TachiBackupManga> backupManga;
@@ -52,9 +52,9 @@ class TachiBackup with TachiBackupMappable {
   factory TachiBackup._fromMihon({required mihon.Backup backup}) {
     return TachiBackup(
       backupBrokenSources:
-          backup.backupBrokenSources.map(TachiSource.fromMihon).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromMihon).toList(),
       backupSources:
-          backup.backupBrokenSources.map(TachiSource.fromMihon).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromMihon).toList(),
       backupCategories:
           backup.backupCategories.map(TachiBackupCategory.fromMihon).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromMihon).toList(),
@@ -73,9 +73,9 @@ class TachiBackup with TachiBackupMappable {
   factory TachiBackup._fromSy({required sy.Backup backup}) {
     return TachiBackup(
       backupBrokenSources:
-          backup.backupBrokenSources.map(TachiSource.fromSy).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromSy).toList(),
       backupSources:
-          backup.backupBrokenSources.map(TachiSource.fromSy).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromSy).toList(),
       backupCategories:
           backup.backupCategories.map(TachiBackupCategory.fromSy).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromSy).toList(),
@@ -101,9 +101,9 @@ class TachiBackup with TachiBackupMappable {
   factory TachiBackup._fromJ2k({required j2k.Backup backup}) {
     return TachiBackup(
       backupBrokenSources:
-          backup.backupBrokenSources.map(TachiSource.fromJ2k).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromJ2k).toList(),
       backupSources:
-          backup.backupBrokenSources.map(TachiSource.fromJ2k).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromJ2k).toList(),
       backupCategories:
           backup.backupCategories.map(TachiBackupCategory.fromJ2k).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromJ2k).toList(),
@@ -113,16 +113,16 @@ class TachiBackup with TachiBackupMappable {
   factory TachiBackup._fromYokai({required yokai.Backup backup}) {
     return TachiBackup(
       backupBrokenSources:
-          backup.backupBrokenSources.map(TachiSource.fromYokai).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromYokai).toList(),
       backupSources:
-          backup.backupBrokenSources.map(TachiSource.fromYokai).toList(),
+          backup.backupBrokenSources.map(TachiBackupSource.fromYokai).toList(),
       backupCategories:
           backup.backupCategories.map(TachiBackupCategory.fromYokai).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromYokai).toList(),
     );
   }
 
-  static TachiBackup? fromBackup(
+  factory TachiBackup.fromBackup(
     Uint8List bytes, {
     TachiFork fork = TachiFork.mihon,
   }) {

@@ -16,7 +16,7 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
       MapperContainer.globals.useAll([SecondsEpochDateTimeMapper()]);
       TachiBackupCategoryMapper.ensureInitialized();
       TachiBackupMangaMapper.ensureInitialized();
-      TachiSourceMapper.ensureInitialized();
+      TachiBackupSourceMapper.ensureInitialized();
       TachiBackupExtensionRepoMapper.ensureInitialized();
       TachiBackupPreferenceMapper.ensureInitialized();
       TachiBackupSourcePreferencesMapper.ensureInitialized();
@@ -35,13 +35,15 @@ class TachiBackupMapper extends ClassMapperBase<TachiBackup> {
   static List<TachiBackupManga> _$backupManga(TachiBackup v) => v.backupManga;
   static const Field<TachiBackup, List<TachiBackupManga>> _f$backupManga =
       Field('backupManga', _$backupManga);
-  static List<TachiSource> _$backupBrokenSources(TachiBackup v) =>
+  static List<TachiBackupSource> _$backupBrokenSources(TachiBackup v) =>
       v.backupBrokenSources;
-  static const Field<TachiBackup, List<TachiSource>> _f$backupBrokenSources =
-      Field('backupBrokenSources', _$backupBrokenSources,
+  static const Field<TachiBackup, List<TachiBackupSource>>
+      _f$backupBrokenSources = Field(
+          'backupBrokenSources', _$backupBrokenSources,
           opt: true, def: const []);
-  static List<TachiSource> _$backupSources(TachiBackup v) => v.backupSources;
-  static const Field<TachiBackup, List<TachiSource>> _f$backupSources =
+  static List<TachiBackupSource> _$backupSources(TachiBackup v) =>
+      v.backupSources;
+  static const Field<TachiBackup, List<TachiBackupSource>> _f$backupSources =
       Field('backupSources', _$backupSources, opt: true, def: const []);
   static List<TachiBackupExtensionRepo> _$backupExtensionRepo(TachiBackup v) =>
       v.backupExtensionRepo;
@@ -148,11 +150,12 @@ abstract class TachiBackupCopyWith<$R, $In extends TachiBackup, $Out>
   ListCopyWith<$R, TachiBackupManga,
           TachiBackupMangaCopyWith<$R, TachiBackupManga, TachiBackupManga>>
       get backupManga;
-  ListCopyWith<$R, TachiSource,
-          TachiSourceCopyWith<$R, TachiSource, TachiSource>>
+  ListCopyWith<$R, TachiBackupSource,
+          TachiBackupSourceCopyWith<$R, TachiBackupSource, TachiBackupSource>>
       get backupBrokenSources;
-  ListCopyWith<$R, TachiSource,
-      TachiSourceCopyWith<$R, TachiSource, TachiSource>> get backupSources;
+  ListCopyWith<$R, TachiBackupSource,
+          TachiBackupSourceCopyWith<$R, TachiBackupSource, TachiBackupSource>>
+      get backupSources;
   ListCopyWith<
       $R,
       TachiBackupExtensionRepo,
@@ -171,8 +174,8 @@ abstract class TachiBackupCopyWith<$R, $In extends TachiBackup, $Out>
   $R call(
       {List<TachiBackupCategory>? backupCategories,
       List<TachiBackupManga>? backupManga,
-      List<TachiSource>? backupBrokenSources,
-      List<TachiSource>? backupSources,
+      List<TachiBackupSource>? backupBrokenSources,
+      List<TachiBackupSource>? backupSources,
       List<TachiBackupExtensionRepo>? backupExtensionRepo,
       List<TachiBackupPreference>? backupPreferences,
       List<TachiBackupSourcePreferences>? backupSourcePreferences,
@@ -203,13 +206,13 @@ class _TachiBackupCopyWithImpl<$R, $Out>
       get backupManga => ListCopyWith($value.backupManga,
           (v, t) => v.copyWith.$chain(t), (v) => call(backupManga: v));
   @override
-  ListCopyWith<$R, TachiSource,
-          TachiSourceCopyWith<$R, TachiSource, TachiSource>>
+  ListCopyWith<$R, TachiBackupSource,
+          TachiBackupSourceCopyWith<$R, TachiBackupSource, TachiBackupSource>>
       get backupBrokenSources => ListCopyWith($value.backupBrokenSources,
           (v, t) => v.copyWith.$chain(t), (v) => call(backupBrokenSources: v));
   @override
-  ListCopyWith<$R, TachiSource,
-          TachiSourceCopyWith<$R, TachiSource, TachiSource>>
+  ListCopyWith<$R, TachiBackupSource,
+          TachiBackupSourceCopyWith<$R, TachiBackupSource, TachiBackupSource>>
       get backupSources => ListCopyWith($value.backupSources,
           (v, t) => v.copyWith.$chain(t), (v) => call(backupSources: v));
   @override
@@ -244,8 +247,8 @@ class _TachiBackupCopyWithImpl<$R, $Out>
   $R call(
           {List<TachiBackupCategory>? backupCategories,
           List<TachiBackupManga>? backupManga,
-          List<TachiSource>? backupBrokenSources,
-          List<TachiSource>? backupSources,
+          List<TachiBackupSource>? backupBrokenSources,
+          List<TachiBackupSource>? backupSources,
           List<TachiBackupExtensionRepo>? backupExtensionRepo,
           List<TachiBackupPreference>? backupPreferences,
           List<TachiBackupSourcePreferences>? backupSourcePreferences,

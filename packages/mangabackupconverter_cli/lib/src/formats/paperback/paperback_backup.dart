@@ -30,7 +30,7 @@ class PaperbackBackup with PaperbackBackupMappable {
     this.name,
   });
 
-  static PaperbackBackup? fromZip(Uint8List bytes, {String? name}) {
+  factory PaperbackBackup.fromZip(Uint8List bytes, {String? name}) {
     final archive = ZipDecoder().decodeBytes(bytes);
     final chapterProgressMarkersArchive =
         archive.findFile('__CHAPTER_PROGRESS_MARKER_V4-1');

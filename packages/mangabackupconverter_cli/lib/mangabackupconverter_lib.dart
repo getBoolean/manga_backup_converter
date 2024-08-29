@@ -1,3 +1,4 @@
+export 'src/common/convertable.dart';
 export 'src/converter.dart';
 export 'src/exceptions/aidoku_exception.dart';
 export 'src/exceptions/paperback_exception.dart';
@@ -26,10 +27,10 @@ export 'src/formats/tachi/tachi_backup_extension_repo.dart';
 export 'src/formats/tachi/tachi_backup_history.dart';
 export 'src/formats/tachi/tachi_backup_manga.dart';
 export 'src/formats/tachi/tachi_backup_preference.dart';
+export 'src/formats/tachi/tachi_backup_source.dart';
 export 'src/formats/tachi/tachi_backup_source_preferences.dart';
 export 'src/formats/tachi/tachi_backup_tracking.dart';
 export 'src/formats/tachi/tachi_fork.dart';
-export 'src/formats/tachi/tachi_source.dart';
 export 'src/formats/tachi/tachi_update_strategy.dart';
 export 'src/formats/tachimanga/tachimanga_backup.dart';
 export 'src/formats/tachimanga/tachimanga_backup_db.dart';

@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/tachimanga_exception.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_meta.dart';
 import 'package:propertylistserialization/propertylistserialization.dart';
@@ -32,7 +33,7 @@ class TachimangaBackup with TachimangaBackupMappable {
     this.name,
   });
 
-  static Future<TachimangaBackup>? fromZip(
+  static Future<TachimangaBackup> fromZip(
     Uint8List bytes, {
     String? overrideName,
   }) async {
@@ -180,6 +181,15 @@ class TachimangaBackup with TachimangaBackupMappable {
     );
     final backupEncoded = ZipEncoder().encode(backupArchive);
     return backupEncoded == null ? null : Uint8List.fromList(backupEncoded);
+  }
+
+  TachiBackup toTachi() {
+    return TachiBackup(
+      backupCategories: db.categoryTable.map((c) => c.toTachi(db)).toList(),
+      backupManga: db.mangaTable.map((c) => c.toTachi(db)).toList(),
+      backupSources: db.sourceTable.map((c) => c.toTachi(db)).toList(),
+      backupExtensionRepo: db.repoTable.map((c) => c.toTachi(db)).toList(),
+    );
   }
 
   static const fromMap = TachimangaBackupMapper.fromMap;

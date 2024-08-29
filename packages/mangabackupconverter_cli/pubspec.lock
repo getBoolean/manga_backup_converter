@@ -177,13 +177,13 @@ packages:
     source: hosted
     version: "4.10.0"
   collection:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: collection
-      sha256: ee67cb0715911d28db6bf4af1026078bd6f0128b07a5f66fb2ed94ec6783c09a
+      sha256: a1ace0a119f20aabc852d165077c036cd864315bd99b7eaa10a60100341941bf
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.0"
+    version: "1.19.0"
   convert:
     dependency: transitive
     description:
@@ -755,12 +755,11 @@ packages:
   xcode_parser:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "8a7e64cb1b2fbcc26144442fb5168005d2bb33ea"
-      resolved-ref: "8a7e64cb1b2fbcc26144442fb5168005d2bb33ea"
-      url: "https://github.com/getBoolean/xcode_parser"
-    source: git
-    version: "1.1.4"
+      name: xcode_parser
+      sha256: ab8c8c2f97517cca2048bc2d2095096d4184d485433c647a22496220745bd875
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.1"
   xml:
     dependency: transitive
     description:

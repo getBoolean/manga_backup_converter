@@ -67,7 +67,6 @@ void main(List<String> arguments) async {
   try {
     final ArgResults results = argParser.parse(arguments);
     bool verbose = false;
-    io.File? backupFile;
     String outputFormat = 'aib';
     TachiFork outputTachiFork = TachiFork.mihon;
 
@@ -87,15 +86,14 @@ void main(List<String> arguments) async {
       print('[VERBOSE] All arguments: ${results.arguments}');
     }
 
+    final io.File backupFile;
     if (results.wasParsed('backup')) {
       backupFile = io.File(results.option('backup') ?? '');
       if (!backupFile.existsSync()) {
         print('backup file does not exist');
         return;
       }
-    }
-
-    if (backupFile == null) {
+    } else {
       print('backup file not provided');
       return;
     }
@@ -121,85 +119,126 @@ void main(List<String> arguments) async {
 
     final converter = MangaBackupConverter();
 
-    switch (backupFileExtension) {
-      case '.aib':
-        final AidokuBackup? aidokuBackup = converter.importAidokuBackup(
-          ByteData.sublistView(
+    final TachiBackup? tachiBackup = switch (backupFileExtension) {
+      '.aib' => () {
+          final AidokuBackup aidokuBackup = converter.importAidokuBackup(
+            ByteData.sublistView(
+              backupFile.readAsBytesSync(),
+            ),
+          );
+          if (verbose) {
+            print('Imported Library Manga: ${aidokuBackup.library?.length}');
+            print('Imported Manga: ${aidokuBackup.manga?.length}');
+            print('Imported Chapters: ${aidokuBackup.chapters?.length}');
+            print('Imported Manga History: ${aidokuBackup.history?.length}');
+            print(
+              'Imported Tracked Manga Items: ${aidokuBackup.trackItems?.length}',
+            );
+            print('Imported Categories: ${aidokuBackup.categories?.length}');
+            print('Imported Sources: ${aidokuBackup.sources?.length}');
+            print('Aidoku Backup Name: ${aidokuBackup.name}');
+            print('Aidoku Version: ${aidokuBackup.version}');
+          }
+          return null;
+        }(),
+      '.tachibk' || '.proto.gz' => () {
+          final TachiBackup tachibkBackup = converter.importTachibkBackup(
             backupFile.readAsBytesSync(),
-          ),
-        );
-        if (verbose) {
-          print('Imported Library Manga: ${aidokuBackup?.library?.length}');
-          print('Imported Manga: ${aidokuBackup?.manga?.length}');
-          print('Imported Chapters: ${aidokuBackup?.chapters?.length}');
-          print('Imported Manga History: ${aidokuBackup?.history?.length}');
-          print(
-            'Imported Tracked Manga Items: ${aidokuBackup?.trackItems?.length}',
+            fork: outputTachiFork,
           );
-          print('Imported Categories: ${aidokuBackup?.categories?.length}');
-          print('Imported Sources: ${aidokuBackup?.sources?.length}');
-          print('Aidoku Backup Name: ${aidokuBackup?.name}');
-          print('Aidoku Version: ${aidokuBackup?.version}');
-        }
-      case '.tachibk':
-      case '.proto.gz':
-        final TachiBackup? tachibkBackup = converter.importTachibkBackup(
-          backupFile.readAsBytesSync(),
-          fork: outputTachiFork,
-        );
-        if (verbose) {
-          print(tachibkBackup);
-        }
-      case '.pas4':
-        final PaperbackBackup? paperbackBackup =
-            converter.importPaperbackPas4Backup(
-          backupFile.readAsBytesSync(),
-          name: p.basenameWithoutExtension(backupFile.uri.toString()),
-        );
-        if (verbose && paperbackBackup != null) {
-          print('Imported Manga Info: ${paperbackBackup.mangaInfo?.length}');
-          print(
-            'Imported Library Manga: ${paperbackBackup.libraryManga?.length}',
+          if (verbose) {
+            print(tachibkBackup);
+          }
+          return tachibkBackup;
+        }(),
+      '.pas4' => () {
+          final PaperbackBackup paperbackBackup =
+              converter.importPaperbackPas4Backup(
+            backupFile.readAsBytesSync(),
+            name: p.basenameWithoutExtension(backupFile.uri.toString()),
           );
-          print('Imported Chapters: ${paperbackBackup.chapters?.length}');
-          print(
-            'Imported Chapter Progress Marker: ${paperbackBackup.chapterProgressMarker?.length}',
+          if (verbose) {
+            print('Imported Manga Info: ${paperbackBackup.mangaInfo?.length}');
+            print(
+              'Imported Library Manga: ${paperbackBackup.libraryManga?.length}',
+            );
+            print('Imported Chapters: ${paperbackBackup.chapters?.length}');
+            print(
+              'Imported Chapter Progress Marker: ${paperbackBackup.chapterProgressMarker?.length}',
+            );
+            print(
+              'Imported Source Manga: ${paperbackBackup.sourceManga?.length}',
+            );
+            final trackedManga = paperbackBackup.libraryManga
+                ?.where((i) => i.trackedSources.isNotEmpty)
+                .toList();
+            print('Tracked Manga: ${trackedManga?.length}');
+            final mangaWithSecondarySources = paperbackBackup.libraryManga
+                ?.where((i) => i.secondarySources.isNotEmpty)
+                .toList();
+            print(
+              'Manga with Secondary Sources: ${mangaWithSecondarySources?.length}',
+            );
+            final mangaTagsWithTags = paperbackBackup.mangaInfo
+                ?.where(
+                  (i) => i.tags.where((e) => e.tags.isNotEmpty).isNotEmpty,
+                )
+                .toList();
+            print('Manga with Tags: ${mangaTagsWithTags?.length}');
+          }
+
+          return null;
+        }(),
+      '.tmb' => await () async {
+          final TachimangaBackup tachimangaBackup =
+              await converter.importTachimangaBackup(
+            backupFile.readAsBytesSync(),
           );
-          print(
-            'Imported Source Manga: ${paperbackBackup.sourceManga?.length}',
-          );
-          final trackedManga = paperbackBackup.libraryManga
-              ?.where((i) => i.trackedSources.isNotEmpty)
-              .toList();
-          print('Tracked Manga: ${trackedManga?.length}');
-          final mangaWithSecondarySources = paperbackBackup.libraryManga
-              ?.where((i) => i.secondarySources.isNotEmpty)
-              .toList();
-          print(
-            'Manga with Secondary Sources: ${mangaWithSecondarySources?.length}',
-          );
-          final mangaTagsWithTags = paperbackBackup.mangaInfo
-              ?.where((i) => i.tags.where((e) => e.tags.isNotEmpty).isNotEmpty)
-              .toList();
-          print('Manga with Tags: ${mangaTagsWithTags?.length}');
-        }
-      case '.tmb':
-        final TachimangaBackup? tachimangaBackup =
-            await converter.importTachimangaBackup(
-          backupFile.readAsBytesSync(),
-        );
-        if (verbose && tachimangaBackup != null) {
-          print(tachimangaBackup);
-        }
-      default:
-        print('Unsupported imported backup type');
-        return;
+          if (verbose) {
+            print('Imported Manga: ${tachimangaBackup.db.mangaTable.length}');
+            print(
+              'Imported Chapters: ${tachimangaBackup.db.chapterTable.length}',
+            );
+            print(
+              'Imported Manga History: ${tachimangaBackup.db.historyTable.length}',
+            );
+            print(
+              'Imported Tracked Manga Items: ${tachimangaBackup.db.trackRecordTable.length}',
+            );
+            print(
+              'Imported Categories: ${tachimangaBackup.db.categoryTable.length}',
+            );
+            print(
+              'Imported Sources: ${tachimangaBackup.db.sourceTable.length}',
+            );
+            print('Imported Repos: ${tachimangaBackup.db.repoTable.length}');
+            print('Tachimanga Backup Name: ${tachimangaBackup.name}');
+            print('Tachimanga Version: ${tachimangaBackup.meta.version}');
+          }
+
+          return tachimangaBackup.toTachi();
+        }(),
+      _ => () {
+          print('Unsupported imported backup type');
+          return null;
+        }(),
+    };
+    if (verbose) {
+      print('Converted Categories: ${tachiBackup?.backupCategories.length}');
+      print('Converted Manga: ${tachiBackup?.backupManga.length}');
+      print('Converted Sources: ${tachiBackup?.backupSources.length}');
+      print(
+        'Converted Extension Repos: ${tachiBackup?.backupExtensionRepo.length}',
+      );
     }
 
     switch (outputFormat) {
-      case 'aidoku':
       case 'tachi':
+        return;
       case 'paperback':
+      // TODO: Implement Tachi to Paperback
+      case 'aidoku':
+      // TODO: Implement Tachi to Aidoku
       default:
         print('Unsupported output format');
         return;

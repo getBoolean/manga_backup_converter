@@ -8,51 +8,51 @@ import 'package:mangabackupconverter_cli/src/proto/schema_sy.proto/proto/schema_
 import 'package:mangabackupconverter_cli/src/proto/schema_yokai.proto/proto/schema_yokai.pb.dart'
     as yokai;
 
-part 'tachi_source.mapper.dart';
+part 'tachi_backup_source.mapper.dart';
 
 @MappableClass()
-class TachiSource with TachiSourceMappable {
+class TachiBackupSource with TachiBackupSourceMappable {
   final String name;
   final int sourceId;
 
-  const TachiSource({required this.name, required this.sourceId});
+  const TachiBackupSource({required this.name, required this.sourceId});
 
-  factory TachiSource.fromMihon(
+  factory TachiBackupSource.fromMihon(
     mihon.BrokenBackupSource brokenBackupSource,
   ) {
-    return TachiSource(
+    return TachiBackupSource(
       name: brokenBackupSource.name,
       sourceId: brokenBackupSource.sourceId.toInt(),
     );
   }
 
-  factory TachiSource.fromSy(
+  factory TachiBackupSource.fromSy(
     sy.BrokenBackupSource brokenBackupSource,
   ) {
-    return TachiSource(
+    return TachiBackupSource(
       name: brokenBackupSource.name,
       sourceId: brokenBackupSource.sourceId.toInt(),
     );
   }
 
-  factory TachiSource.fromJ2k(
+  factory TachiBackupSource.fromJ2k(
     j2k.BrokenBackupSource brokenBackupSource,
   ) {
-    return TachiSource(
+    return TachiBackupSource(
       name: brokenBackupSource.name,
       sourceId: brokenBackupSource.sourceId.toInt(),
     );
   }
 
-  factory TachiSource.fromYokai(
+  factory TachiBackupSource.fromYokai(
     yokai.BrokenBackupSource brokenBackupSource,
   ) {
-    return TachiSource(
+    return TachiBackupSource(
       name: brokenBackupSource.name,
       sourceId: brokenBackupSource.sourceId.toInt(),
     );
   }
 
-  static const fromMap = TachiSourceMapper.fromMap;
-  static const fromJson = TachiSourceMapper.fromJson;
+  static const fromMap = TachiBackupSourceMapper.fromMap;
+  static const fromJson = TachiBackupSourceMapper.fromJson;
 }
