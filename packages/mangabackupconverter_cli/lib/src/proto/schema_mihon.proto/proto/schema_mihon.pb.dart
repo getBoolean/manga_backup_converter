@@ -98,7 +98,7 @@ class Backup extends $pb.GeneratedMessage {
     $core.Iterable<BackupSource>? backupSources,
     $core.Iterable<BackupPreference>? backupPreferences,
     $core.Iterable<BackupSourcePreferences>? backupSourcePreferences,
-    $core.Iterable<BackupExtensionRepos>? backupExtensionRepo,
+    $core.Iterable<BackupExtensionStore>? backupExtensionStores,
   }) {
     final $result = create();
     if (backupManga != null) {
@@ -116,8 +116,8 @@ class Backup extends $pb.GeneratedMessage {
     if (backupSourcePreferences != null) {
       $result.backupSourcePreferences.addAll(backupSourcePreferences);
     }
-    if (backupExtensionRepo != null) {
-      $result.backupExtensionRepo.addAll(backupExtensionRepo);
+    if (backupExtensionStores != null) {
+      $result.backupExtensionStores.addAll(backupExtensionStores);
     }
     return $result;
   }
@@ -138,8 +138,8 @@ class Backup extends $pb.GeneratedMessage {
         protoName: 'backupPreferences', subBuilder: BackupPreference.create)
     ..pc<BackupSourcePreferences>(105, _omitFieldNames ? '' : 'backupSourcePreferences', $pb.PbFieldType.PM,
         protoName: 'backupSourcePreferences', subBuilder: BackupSourcePreferences.create)
-    ..pc<BackupExtensionRepos>(106, _omitFieldNames ? '' : 'backupExtensionRepo', $pb.PbFieldType.PM,
-        protoName: 'backupExtensionRepo', subBuilder: BackupExtensionRepos.create);
+    ..pc<BackupExtensionStore>(106, _omitFieldNames ? '' : 'backupExtensionStores', $pb.PbFieldType.PM,
+        protoName: 'backupExtensionStores', subBuilder: BackupExtensionStore.create);
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -176,7 +176,7 @@ class Backup extends $pb.GeneratedMessage {
   $core.List<BackupSourcePreferences> get backupSourcePreferences => $_getList(4);
 
   @$pb.TagNumber(106)
-  $core.List<BackupExtensionRepos> get backupExtensionRepo => $_getList(5);
+  $core.List<BackupExtensionStore> get backupExtensionStores => $_getList(5);
 }
 
 /// BackupCategory.kt
@@ -525,80 +525,90 @@ class BackupChapter extends $pb.GeneratedMessage {
   void clearVersion() => clearField(12);
 }
 
-/// BackupExtensionRepos.kt
-class BackupExtensionRepos extends $pb.GeneratedMessage {
-  factory BackupExtensionRepos({
-    $core.String? baseUrl,
+/// BackupExtensionStore.kt
+class BackupExtensionStore extends $pb.GeneratedMessage {
+  factory BackupExtensionStore({
+    $core.String? indexUrl,
     $core.String? name,
-    $core.String? shortName,
-    $core.String? website,
-    $core.String? signingKeyFingerprint,
+    $core.String? badgeLabel,
+    $core.String? contactWebsite,
+    $core.String? signingKey,
+    $core.String? contactDiscord,
+    $core.bool? isLegacy,
   }) {
     final $result = create();
-    if (baseUrl != null) {
-      $result.baseUrl = baseUrl;
+    if (indexUrl != null) {
+      $result.indexUrl = indexUrl;
     }
     if (name != null) {
       $result.name = name;
     }
-    if (shortName != null) {
-      $result.shortName = shortName;
+    if (badgeLabel != null) {
+      $result.badgeLabel = badgeLabel;
     }
-    if (website != null) {
-      $result.website = website;
+    if (contactWebsite != null) {
+      $result.contactWebsite = contactWebsite;
     }
-    if (signingKeyFingerprint != null) {
-      $result.signingKeyFingerprint = signingKeyFingerprint;
+    if (signingKey != null) {
+      $result.signingKey = signingKey;
+    }
+    if (contactDiscord != null) {
+      $result.contactDiscord = contactDiscord;
+    }
+    if (isLegacy != null) {
+      $result.isLegacy = isLegacy;
     }
     return $result;
   }
-  BackupExtensionRepos._() : super();
-  factory BackupExtensionRepos.fromBuffer($core.List<$core.int> i,
+  BackupExtensionStore._() : super();
+  factory BackupExtensionStore.fromBuffer($core.List<$core.int> i,
           [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(i, r);
-  factory BackupExtensionRepos.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+  factory BackupExtensionStore.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i =
-      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupExtensionRepos', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'baseUrl', protoName: 'baseUrl')
+      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupExtensionStore', createEmptyInstance: create)
+        ..aQS(1, _omitFieldNames ? '' : 'indexUrl', protoName: 'indexUrl')
         ..aQS(2, _omitFieldNames ? '' : 'name')
-        ..aOS(3, _omitFieldNames ? '' : 'shortName', protoName: 'shortName')
-        ..aQS(4, _omitFieldNames ? '' : 'website')
-        ..aQS(5, _omitFieldNames ? '' : 'signingKeyFingerprint', protoName: 'signingKeyFingerprint');
+        ..aOS(3, _omitFieldNames ? '' : 'badgeLabel', protoName: 'badgeLabel')
+        ..aQS(4, _omitFieldNames ? '' : 'contactWebsite', protoName: 'contactWebsite')
+        ..aQS(5, _omitFieldNames ? '' : 'signingKey', protoName: 'signingKey')
+        ..aOS(6, _omitFieldNames ? '' : 'contactDiscord', protoName: 'contactDiscord')
+        ..aOB(7, _omitFieldNames ? '' : 'isLegacy', protoName: 'isLegacy');
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
       'Will be removed in next major version')
-  BackupExtensionRepos clone() => BackupExtensionRepos()..mergeFromMessage(this);
+  BackupExtensionStore clone() => BackupExtensionStore()..mergeFromMessage(this);
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
       'Will be removed in next major version')
-  BackupExtensionRepos copyWith(void Function(BackupExtensionRepos) updates) =>
-      super.copyWith((message) => updates(message as BackupExtensionRepos)) as BackupExtensionRepos;
+  BackupExtensionStore copyWith(void Function(BackupExtensionStore) updates) =>
+      super.copyWith((message) => updates(message as BackupExtensionStore)) as BackupExtensionStore;
 
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static BackupExtensionRepos create() => BackupExtensionRepos._();
-  BackupExtensionRepos createEmptyInstance() => create();
-  static $pb.PbList<BackupExtensionRepos> createRepeated() => $pb.PbList<BackupExtensionRepos>();
+  static BackupExtensionStore create() => BackupExtensionStore._();
+  BackupExtensionStore createEmptyInstance() => create();
+  static $pb.PbList<BackupExtensionStore> createRepeated() => $pb.PbList<BackupExtensionStore>();
   @$core.pragma('dart2js:noInline')
-  static BackupExtensionRepos getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupExtensionRepos>(create);
-  static BackupExtensionRepos? _defaultInstance;
+  static BackupExtensionStore getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupExtensionStore>(create);
+  static BackupExtensionStore? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.String get baseUrl => $_getSZ(0);
+  $core.String get indexUrl => $_getSZ(0);
   @$pb.TagNumber(1)
-  set baseUrl($core.String v) {
+  set indexUrl($core.String v) {
     $_setString(0, v);
   }
 
   @$pb.TagNumber(1)
-  $core.bool hasBaseUrl() => $_has(0);
+  $core.bool hasIndexUrl() => $_has(0);
   @$pb.TagNumber(1)
-  void clearBaseUrl() => clearField(1);
+  void clearIndexUrl() => clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get name => $_getSZ(1);
@@ -613,40 +623,64 @@ class BackupExtensionRepos extends $pb.GeneratedMessage {
   void clearName() => clearField(2);
 
   @$pb.TagNumber(3)
-  $core.String get shortName => $_getSZ(2);
+  $core.String get badgeLabel => $_getSZ(2);
   @$pb.TagNumber(3)
-  set shortName($core.String v) {
+  set badgeLabel($core.String v) {
     $_setString(2, v);
   }
 
   @$pb.TagNumber(3)
-  $core.bool hasShortName() => $_has(2);
+  $core.bool hasBadgeLabel() => $_has(2);
   @$pb.TagNumber(3)
-  void clearShortName() => clearField(3);
+  void clearBadgeLabel() => clearField(3);
 
   @$pb.TagNumber(4)
-  $core.String get website => $_getSZ(3);
+  $core.String get contactWebsite => $_getSZ(3);
   @$pb.TagNumber(4)
-  set website($core.String v) {
+  set contactWebsite($core.String v) {
     $_setString(3, v);
   }
 
   @$pb.TagNumber(4)
-  $core.bool hasWebsite() => $_has(3);
+  $core.bool hasContactWebsite() => $_has(3);
   @$pb.TagNumber(4)
-  void clearWebsite() => clearField(4);
+  void clearContactWebsite() => clearField(4);
 
   @$pb.TagNumber(5)
-  $core.String get signingKeyFingerprint => $_getSZ(4);
+  $core.String get signingKey => $_getSZ(4);
   @$pb.TagNumber(5)
-  set signingKeyFingerprint($core.String v) {
+  set signingKey($core.String v) {
     $_setString(4, v);
   }
 
   @$pb.TagNumber(5)
-  $core.bool hasSigningKeyFingerprint() => $_has(4);
+  $core.bool hasSigningKey() => $_has(4);
   @$pb.TagNumber(5)
-  void clearSigningKeyFingerprint() => clearField(5);
+  void clearSigningKey() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get contactDiscord => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set contactDiscord($core.String v) {
+    $_setString(5, v);
+  }
+
+  @$pb.TagNumber(6)
+  $core.bool hasContactDiscord() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContactDiscord() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get isLegacy => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isLegacy($core.bool v) {
+    $_setBool(6, v);
+  }
+
+  @$pb.TagNumber(7)
+  $core.bool hasIsLegacy() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIsLegacy() => clearField(7);
 }
 
 /// BackupHistory.kt
