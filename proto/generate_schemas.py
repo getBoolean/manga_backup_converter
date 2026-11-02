@@ -22,7 +22,7 @@ FORKS = {
     'neko': 'nekomangaorg/Neko',
 }
 
-PROTONUMBER_RE = r'(?:^\s*(?!\/\/\s*)@ProtoNumber\((?P<number>\d+)\)\s*|data class \w+\(|^)va[rl]\s+(?P<name>\w+):\s+(?:(?:(?:List|Set)<(?P<list>\w+)>)|(?P<type>\w+))(?P<optional>\?|(:?\s+=))?'
+PROTONUMBER_RE = r'(?:^\s*(?!\/\/\s*)@ProtoNumber\((?P<number>\d+)\)\s*|data class \w+\(|^(?:@\w+\s+)*)va[rl]\s+(?P<name>\w+):\s+(?:(?:(?:List|Set)<(?P<list>\w+)>)|(?P<type>\w+))(?P<optional>\?|(:?\s+=))?'
 CLASS_RE = r'^(?:data )?class (?P<name>\w+)\((?P<defs>(?:[^)(]+|\((?:[^)(]+|\([^)(]*\))*\))*)\)'
 DATA_TYPES = {
     'String': 'string',
@@ -31,6 +31,7 @@ DATA_TYPES = {
     'Boolean': 'bool',
     'Float': 'float',
     'Char': 'string',
+    'ByteArray': 'bytes',
 }
 
 argp = ArgumentParser()
