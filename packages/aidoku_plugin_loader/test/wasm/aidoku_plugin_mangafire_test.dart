@@ -17,14 +17,14 @@ import 'package:checks/checks.dart';
 import 'package:test/scaffolding.dart';
 
 void main() {
-  const fixturePath = 'test/aidoku/fixtures/multi.mangafire-v5.aix';
+  const fixturePath = 'test/aidoku/fixtures/multi.mangafire-v8.aix';
   final fixture = File(fixturePath).existsSync()
       ? File(fixturePath)
       : File('packages/aidoku_plugin_loader/$fixturePath');
 
   group(
     'AidokuPlugin mangafire',
-    skip: !fixture.existsSync() ? 'Missing test/aidoku/fixtures/multi.mangafire-v5.aix' : null,
+    skip: !fixture.existsSync() ? 'Missing test/aidoku/fixtures/multi.mangafire-v8.aix' : null,
     () {
       late AidokuPlugin plugin;
 
