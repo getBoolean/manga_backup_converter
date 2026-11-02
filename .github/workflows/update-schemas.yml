@@ -51,7 +51,6 @@ jobs:
           curl -o 'requirements.txt' https://raw.githubusercontent.com/getBoolean/tachibk-converter/main/requirements.txt
           pip install -r requirements.txt
           curl -o 'generate_schemas.py' https://raw.githubusercontent.com/getBoolean/tachibk-converter/main/tachibk-converter.py
-          python ../.github/scripts/patch_schema_generator.py generate_schemas.py
           python generate_schemas.py --dump-schemas
           # Fail early with a clear message if any schema references an unmapped Kotlin type
           for f in *.proto; do protoc --descriptor_set_out=/dev/null "$f"; done
