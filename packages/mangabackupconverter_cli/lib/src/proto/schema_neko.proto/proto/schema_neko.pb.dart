@@ -148,6 +148,7 @@ class BackupCategory extends $pb.GeneratedMessage {
     $core.String? name,
     $core.int? order,
     $core.int? flags,
+    $core.String? mangaSort,
   }) {
     final $result = create();
     if (name != null) {
@@ -158,6 +159,9 @@ class BackupCategory extends $pb.GeneratedMessage {
     }
     if (flags != null) {
       $result.flags = flags;
+    }
+    if (mangaSort != null) {
+      $result.mangaSort = mangaSort;
     }
     return $result;
   }
@@ -171,7 +175,8 @@ class BackupCategory extends $pb.GeneratedMessage {
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupCategory', createEmptyInstance: create)
         ..aQS(1, _omitFieldNames ? '' : 'name')
         ..a<$core.int>(2, _omitFieldNames ? '' : 'order', $pb.PbFieldType.O3)
-        ..a<$core.int>(100, _omitFieldNames ? '' : 'flags', $pb.PbFieldType.O3);
+        ..a<$core.int>(100, _omitFieldNames ? '' : 'flags', $pb.PbFieldType.O3)
+        ..aOS(800, _omitFieldNames ? '' : 'mangaSort', protoName: 'mangaSort');
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -228,6 +233,18 @@ class BackupCategory extends $pb.GeneratedMessage {
   $core.bool hasFlags() => $_has(2);
   @$pb.TagNumber(100)
   void clearFlags() => clearField(100);
+
+  @$pb.TagNumber(800)
+  $core.String get mangaSort => $_getSZ(3);
+  @$pb.TagNumber(800)
+  set mangaSort($core.String v) {
+    $_setString(3, v);
+  }
+
+  @$pb.TagNumber(800)
+  $core.bool hasMangaSort() => $_has(3);
+  @$pb.TagNumber(800)
+  void clearMangaSort() => clearField(800);
 }
 
 /// BackupChapter.kt

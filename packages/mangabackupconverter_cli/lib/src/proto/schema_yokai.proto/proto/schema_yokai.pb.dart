@@ -288,6 +288,7 @@ class BackupChapter extends $pb.GeneratedMessage {
     $fixnum.Int64? dateUpload,
     $core.double? chapterNumber,
     $core.int? sourceOrder,
+    $core.List<$core.int>? memo,
     $core.int? pagesLeft,
   }) {
     final $result = create();
@@ -321,6 +322,9 @@ class BackupChapter extends $pb.GeneratedMessage {
     if (sourceOrder != null) {
       $result.sourceOrder = sourceOrder;
     }
+    if (memo != null) {
+      $result.memo = memo;
+    }
     if (pagesLeft != null) {
       $result.pagesLeft = pagesLeft;
     }
@@ -344,6 +348,7 @@ class BackupChapter extends $pb.GeneratedMessage {
         ..aInt64(8, _omitFieldNames ? '' : 'dateUpload', protoName: 'dateUpload')
         ..a<$core.double>(9, _omitFieldNames ? '' : 'chapterNumber', $pb.PbFieldType.OF, protoName: 'chapterNumber')
         ..a<$core.int>(10, _omitFieldNames ? '' : 'sourceOrder', $pb.PbFieldType.O3, protoName: 'sourceOrder')
+        ..a<$core.List<$core.int>>(13, _omitFieldNames ? '' : 'memo', $pb.PbFieldType.OY)
         ..a<$core.int>(800, _omitFieldNames ? '' : 'pagesLeft', $pb.PbFieldType.O3, protoName: 'pagesLeft');
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -486,15 +491,27 @@ class BackupChapter extends $pb.GeneratedMessage {
   @$pb.TagNumber(10)
   void clearSourceOrder() => clearField(10);
 
+  @$pb.TagNumber(13)
+  $core.List<$core.int> get memo => $_getN(10);
+  @$pb.TagNumber(13)
+  set memo($core.List<$core.int> v) {
+    $_setBytes(10, v);
+  }
+
+  @$pb.TagNumber(13)
+  $core.bool hasMemo() => $_has(10);
+  @$pb.TagNumber(13)
+  void clearMemo() => clearField(13);
+
   @$pb.TagNumber(800)
-  $core.int get pagesLeft => $_getIZ(10);
+  $core.int get pagesLeft => $_getIZ(11);
   @$pb.TagNumber(800)
   set pagesLeft($core.int v) {
-    $_setSignedInt32(10, v);
+    $_setSignedInt32(11, v);
   }
 
   @$pb.TagNumber(800)
-  $core.bool hasPagesLeft() => $_has(10);
+  $core.bool hasPagesLeft() => $_has(11);
   @$pb.TagNumber(800)
   void clearPagesLeft() => clearField(800);
 }
@@ -702,6 +719,7 @@ class BackupManga extends $pb.GeneratedMessage {
     $core.Iterable<BackupHistory>? history,
     UpdateStrategy? updateStrategy,
     $core.Iterable<$core.String>? excludedScanlators,
+    $core.List<$core.int>? memo,
     $core.int? customStatus,
     $core.String? customTitle,
     $core.String? customArtist,
@@ -773,6 +791,9 @@ class BackupManga extends $pb.GeneratedMessage {
     if (excludedScanlators != null) {
       $result.excludedScanlators.addAll(excludedScanlators);
     }
+    if (memo != null) {
+      $result.memo = memo;
+    }
     if (customStatus != null) {
       $result.customStatus = customStatus;
     }
@@ -826,6 +847,7 @@ class BackupManga extends $pb.GeneratedMessage {
         valueOf: UpdateStrategy.valueOf,
         enumValues: UpdateStrategy.values)
     ..pPS(108, _omitFieldNames ? '' : 'excludedScanlators', protoName: 'excludedScanlators')
+    ..a<$core.List<$core.int>>(112, _omitFieldNames ? '' : 'memo', $pb.PbFieldType.OY)
     ..a<$core.int>(602, _omitFieldNames ? '' : 'customStatus', $pb.PbFieldType.O3, protoName: 'customStatus')
     ..aOS(800, _omitFieldNames ? '' : 'customTitle', protoName: 'customTitle')
     ..aOS(801, _omitFieldNames ? '' : 'customArtist', protoName: 'customArtist')
@@ -1042,68 +1064,80 @@ class BackupManga extends $pb.GeneratedMessage {
   @$pb.TagNumber(108)
   $core.List<$core.String> get excludedScanlators => $_getList(20);
 
+  @$pb.TagNumber(112)
+  $core.List<$core.int> get memo => $_getN(21);
+  @$pb.TagNumber(112)
+  set memo($core.List<$core.int> v) {
+    $_setBytes(21, v);
+  }
+
+  @$pb.TagNumber(112)
+  $core.bool hasMemo() => $_has(21);
+  @$pb.TagNumber(112)
+  void clearMemo() => clearField(112);
+
   @$pb.TagNumber(602)
-  $core.int get customStatus => $_getIZ(21);
+  $core.int get customStatus => $_getIZ(22);
   @$pb.TagNumber(602)
   set customStatus($core.int v) {
-    $_setSignedInt32(21, v);
+    $_setSignedInt32(22, v);
   }
 
   @$pb.TagNumber(602)
-  $core.bool hasCustomStatus() => $_has(21);
+  $core.bool hasCustomStatus() => $_has(22);
   @$pb.TagNumber(602)
   void clearCustomStatus() => clearField(602);
 
   @$pb.TagNumber(800)
-  $core.String get customTitle => $_getSZ(22);
+  $core.String get customTitle => $_getSZ(23);
   @$pb.TagNumber(800)
   set customTitle($core.String v) {
-    $_setString(22, v);
+    $_setString(23, v);
   }
 
   @$pb.TagNumber(800)
-  $core.bool hasCustomTitle() => $_has(22);
+  $core.bool hasCustomTitle() => $_has(23);
   @$pb.TagNumber(800)
   void clearCustomTitle() => clearField(800);
 
   @$pb.TagNumber(801)
-  $core.String get customArtist => $_getSZ(23);
+  $core.String get customArtist => $_getSZ(24);
   @$pb.TagNumber(801)
   set customArtist($core.String v) {
-    $_setString(23, v);
+    $_setString(24, v);
   }
 
   @$pb.TagNumber(801)
-  $core.bool hasCustomArtist() => $_has(23);
+  $core.bool hasCustomArtist() => $_has(24);
   @$pb.TagNumber(801)
   void clearCustomArtist() => clearField(801);
 
   @$pb.TagNumber(802)
-  $core.String get customAuthor => $_getSZ(24);
+  $core.String get customAuthor => $_getSZ(25);
   @$pb.TagNumber(802)
   set customAuthor($core.String v) {
-    $_setString(24, v);
+    $_setString(25, v);
   }
 
   @$pb.TagNumber(802)
-  $core.bool hasCustomAuthor() => $_has(24);
+  $core.bool hasCustomAuthor() => $_has(25);
   @$pb.TagNumber(802)
   void clearCustomAuthor() => clearField(802);
 
   @$pb.TagNumber(804)
-  $core.String get customDescription => $_getSZ(25);
+  $core.String get customDescription => $_getSZ(26);
   @$pb.TagNumber(804)
   set customDescription($core.String v) {
-    $_setString(25, v);
+    $_setString(26, v);
   }
 
   @$pb.TagNumber(804)
-  $core.bool hasCustomDescription() => $_has(25);
+  $core.bool hasCustomDescription() => $_has(26);
   @$pb.TagNumber(804)
   void clearCustomDescription() => clearField(804);
 
   @$pb.TagNumber(805)
-  $core.List<$core.String> get customGenre => $_getList(26);
+  $core.List<$core.String> get customGenre => $_getList(27);
 }
 
 /// BackupPreference.kt

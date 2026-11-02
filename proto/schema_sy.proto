@@ -17,13 +17,14 @@ message Backup {
   repeated BackupSource backupSources = 101;
   repeated BackupPreference backupPreferences = 104;
   repeated BackupSourcePreferences backupSourcePreferences = 105;
-  repeated BackupExtensionRepos backupExtensionRepo = 106;
+  repeated BackupExtensionStore backupExtensionStores = 106;
   repeated BackupSavedSearch backupSavedSearches = 600;
+  repeated BackupFeed backupFeeds = 601;
 }
 
 // BackupCategory.kt
 message BackupCategory {
-  required string name = 1;
+  optional string name = 1;
   optional int64 order = 2;
   optional int64 id = 3;
   optional int64 flags = 100;
@@ -34,8 +35,8 @@ message BackupCategory {
 
 // BackupChapter.kt
 message BackupChapter {
-  required string url = 1;
-  required string name = 2;
+  optional string url = 1;
+  optional string name = 2;
   optional string scanlator = 3;
   optional bool read = 4;
   optional bool bookmark = 5;
@@ -46,35 +47,46 @@ message BackupChapter {
   optional int64 sourceOrder = 10;
   optional int64 lastModifiedAt = 11;
   optional int64 version = 12;
+  optional bytes memo = 13;
 }
 
-// BackupExtensionRepos.kt
-message BackupExtensionRepos {
-  required string baseUrl = 1;
-  required string name = 2;
-  optional string shortName = 3;
-  required string website = 4;
-  required string signingKeyFingerprint = 5;
+// BackupExtensionStore.kt
+message BackupExtensionStore {
+  optional string indexUrl = 1;
+  optional string name = 2;
+  optional string badgeLabel = 3;
+  optional string signingKey = 5;
+  optional string contactWebsite = 4;
+  optional string contactDiscord = 6;
+  optional bool isLegacy = 7;
+  optional string extensionListUrl = 8;
+}
+
+// BackupFeed.kt
+message BackupFeed {
+  optional int64 source = 1;
+  optional bool global = 2;
+  optional string savedSearchName = 3;
 }
 
 // BackupFlatMetadata.kt
 message BackupFlatMetadata {
-  required BackupSearchMetadata searchMetadata = 1;
+  optional BackupSearchMetadata searchMetadata = 1;
   repeated BackupSearchTag searchTags = 2;
   repeated BackupSearchTitle searchTitles = 3;
 }
 
 // BackupHistory.kt
 message BackupHistory {
-  required string url = 1;
-  required int64 lastRead = 2;
+  optional string url = 1;
+  optional int64 lastRead = 2;
   optional int64 readDuration = 3;
 }
 
 // BackupManga.kt
 message BackupManga {
-  required int64 source = 1;
-  required string url = 2;
+  optional int64 source = 1;
+  optional string url = 2;
   optional string title = 3;
   optional string artist = 4;
   optional string author = 5;
@@ -98,10 +110,13 @@ message BackupManga {
   optional int64 version = 109;
   optional string notes = 110;
   optional bool initialized = 111;
-  repeated BackupMergedMangaReference mergedMangaReferences = 600;
+  optional bytes memo = 112;
+  optional int64 nextUpdate = 113;
+  repeated BackupMergedEntry mergedEntries = 600;
   optional BackupFlatMetadata flatMetadata = 601;
   optional int32 customStatus = 602;
   optional string customThumbnailUrl = 603;
+  optional BackupMergeSettings mergeSettings = 604;
   optional string customTitle = 800;
   optional string customArtist = 801;
   optional string customAuthor = 802;
@@ -109,47 +124,52 @@ message BackupManga {
   repeated string customGenre = 805;
 }
 
-// BackupMergedMangaReference.kt
-message BackupMergedMangaReference {
-  required bool isInfoManga = 1;
-  required bool getChapterUpdates = 2;
-  required int32 chapterSortMode = 3;
-  required int32 chapterPriority = 4;
-  required bool downloadChapters = 5;
-  required string mergeUrl = 6;
-  required string mangaUrl = 7;
-  required int64 mangaSourceId = 8;
+// BackupMergedEntry.kt
+message BackupMergedEntry {
+  optional bool isInfoManga = 1;
+  optional bool fetchChapterUpdates = 2;
+  optional int32 chapterSortMode = 3;
+  optional int32 chapterPriority = 4;
+  optional bool downloadChapters = 5;
+  optional string mangaUrl = 7;
+  optional int64 mangaSourceId = 8;
+}
+
+message BackupMergeSettings {
+  optional int32 chapterSortMode = 1;
+  optional string infoMangaUrl = 2;
+  optional int64 infoMangaSourceId = 3;
 }
 
 // BackupPreference.kt
 message BackupPreference {
-  required string key = 1;
+  optional string key = 1;
   required PreferenceValue value = 2;
 }
 
 message BackupSourcePreferences {
-  required string sourceKey = 1;
+  optional string sourceKey = 1;
   repeated BackupPreference prefs = 2;
 }
 
 message IntPreferenceValue {
-  required int32 value = 1;
+  optional int32 value = 1;
 }
 
 message LongPreferenceValue {
-  required int64 value = 1;
+  optional int64 value = 1;
 }
 
 message FloatPreferenceValue {
-  required float value = 1;
+  optional float value = 1;
 }
 
 message StringPreferenceValue {
-  required string value = 1;
+  optional string value = 1;
 }
 
 message BooleanPreferenceValue {
-  required bool value = 1;
+  optional bool value = 1;
 }
 
 message StringSetPreferenceValue {
@@ -158,7 +178,7 @@ message StringSetPreferenceValue {
 
 // BackupSavedSearch.kt
 message BackupSavedSearch {
-  required string name = 1;
+  optional string name = 1;
   optional string query = 2;
   optional string filterList = 3;
   optional int64 source = 4;
@@ -167,13 +187,13 @@ message BackupSavedSearch {
 // BackupSource.kt
 message BackupSource {
   optional string name = 1;
-  required int64 sourceId = 2;
+  optional int64 sourceId = 2;
 }
 
 // BackupTracking.kt
 message BackupTracking {
-  required int32 syncId = 1;
-  required int64 libraryId = 2;
+  optional int32 syncId = 1;
+  optional int64 libraryId = 2;
   optional int32 mediaIdInt = 3;
   optional string trackingUrl = 4;
   optional string title = 5;
@@ -190,21 +210,21 @@ message BackupTracking {
 // BackupSearchMetadata.kt
 message BackupSearchMetadata {
   optional string uploader = 1;
-  required string extra = 2;
+  optional string extra = 2;
   optional string indexedExtra = 3;
-  required int32 extraVersion = 4;
+  optional int32 extraVersion = 4;
 }
 
 // BackupSearchTag.kt
 message BackupSearchTag {
   optional string namespace = 1;
-  required string name = 2;
-  required int32 type = 3;
+  optional string name = 2;
+  optional int32 type = 3;
 }
 
 // BackupSearchTitle.kt
 message BackupSearchTitle {
-  required string title = 1;
-  required int32 type = 2;
+  optional string title = 1;
+  optional int32 type = 2;
 }
 

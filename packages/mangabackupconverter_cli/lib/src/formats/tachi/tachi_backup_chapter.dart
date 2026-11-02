@@ -1,4 +1,5 @@
 import 'package:dart_mappable/dart_mappable.dart';
+import 'package:mangabackupconverter_cli/src/common/legacy_proto_field.dart';
 import 'package:mangabackupconverter_cli/src/proto/schema_j2k.proto/proto/schema_j2k.pb.dart' as j2k;
 import 'package:mangabackupconverter_cli/src/proto/schema_mihon.proto/proto/schema_mihon.pb.dart' as mihon;
 import 'package:mangabackupconverter_cli/src/proto/schema_neko.proto/proto/schema_neko.pb.dart' as neko;
@@ -53,8 +54,9 @@ class TachiBackupChapter with TachiBackupChapterMappable {
       dateUpload: backupChapter.dateUpload.toInt(),
       chapterNumber: backupChapter.chapterNumber,
       sourceOrder: backupChapter.sourceOrder.toInt(),
-      lastModifiedAt: backupChapter.lastModifiedAt.toInt(),
-      version: backupChapter.version.toInt(),
+      // Removed from Mihon's schema; still present in older backups.
+      lastModifiedAt: legacyVarintField(backupChapter, 11),
+      version: legacyVarintField(backupChapter, 12),
     );
   }
 

@@ -20,23 +20,26 @@ class TachiBackupExtensionRepo with TachiBackupExtensionRepoMappable {
     required this.signingKeyFingerprint,
   });
 
-  factory TachiBackupExtensionRepo.fromMihon(mihon.BackupExtensionRepos backupExtensionRepos) {
+  /// Mihon renamed `BackupExtensionRepos` to `BackupExtensionStore`; field
+  /// numbers are unchanged, so older backups decode into the same fields.
+  factory TachiBackupExtensionRepo.fromMihon(mihon.BackupExtensionStore backupExtensionStore) {
     return TachiBackupExtensionRepo(
-      name: backupExtensionRepos.name,
-      baseUrl: backupExtensionRepos.baseUrl,
-      shortName: backupExtensionRepos.shortName,
-      website: backupExtensionRepos.website,
-      signingKeyFingerprint: backupExtensionRepos.signingKeyFingerprint,
+      name: backupExtensionStore.name,
+      baseUrl: backupExtensionStore.indexUrl,
+      shortName: backupExtensionStore.badgeLabel,
+      website: backupExtensionStore.contactWebsite,
+      signingKeyFingerprint: backupExtensionStore.signingKey,
     );
   }
 
-  factory TachiBackupExtensionRepo.fromSy(sy.BackupExtensionRepos backupExtensionRepos) {
+  /// See [TachiBackupExtensionRepo.fromMihon]; SY followed the same rename.
+  factory TachiBackupExtensionRepo.fromSy(sy.BackupExtensionStore backupExtensionStore) {
     return TachiBackupExtensionRepo(
-      name: backupExtensionRepos.name,
-      baseUrl: backupExtensionRepos.baseUrl,
-      shortName: backupExtensionRepos.shortName,
-      website: backupExtensionRepos.website,
-      signingKeyFingerprint: backupExtensionRepos.signingKeyFingerprint,
+      name: backupExtensionStore.name,
+      baseUrl: backupExtensionStore.indexUrl,
+      shortName: backupExtensionStore.badgeLabel,
+      website: backupExtensionStore.contactWebsite,
+      signingKeyFingerprint: backupExtensionStore.signingKey,
     );
   }
 

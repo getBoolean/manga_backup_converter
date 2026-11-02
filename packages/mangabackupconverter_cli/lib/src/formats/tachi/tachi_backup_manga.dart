@@ -1,5 +1,6 @@
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:mangabackupconverter_cli/src/common/legacy_proto_field.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/neko_backup_merge_manga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
@@ -129,10 +130,11 @@ class TachiBackupManga with TachiBackupMangaMappable, MangaSearchEntry {
       viewerFlags: backupManga.viewerFlags,
       history: backupManga.history.map(TachiBackupHistory.fromMihon).toList(),
       updateStrategy: TachiUpdateStrategyMapper.fromValue(backupManga.updateStrategy.value),
-      lastModifiedAt: backupManga.lastModifiedAt.toInt(),
+      // Removed from Mihon's schema; still present in older backups.
+      lastModifiedAt: legacyVarintField(backupManga, 106),
       favoriteModifiedAt: backupManga.favoriteModifiedAt.toInt(),
       excludedScanlators: backupManga.excludedScanlators,
-      version: backupManga.version.toInt(),
+      version: legacyVarintField(backupManga, 109),
     );
   }
 

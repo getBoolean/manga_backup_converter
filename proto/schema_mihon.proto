@@ -17,7 +17,7 @@ message Backup {
   repeated BackupSource backupSources = 101;
   repeated BackupPreference backupPreferences = 104;
   repeated BackupSourcePreferences backupSourcePreferences = 105;
-  repeated BackupExtensionRepos backupExtensionRepo = 106;
+  repeated BackupExtensionStore backupExtensionStores = 106;
 }
 
 // BackupCategory.kt
@@ -40,17 +40,19 @@ message BackupChapter {
   optional int64 dateUpload = 8;
   optional float chapterNumber = 9;
   optional int64 sourceOrder = 10;
-  optional int64 lastModifiedAt = 11;
-  optional int64 version = 12;
+  optional bytes memo = 13;
 }
 
-// BackupExtensionRepos.kt
-message BackupExtensionRepos {
-  required string baseUrl = 1;
+// BackupExtensionStore.kt
+message BackupExtensionStore {
+  required string indexUrl = 1;
   required string name = 2;
-  optional string shortName = 3;
-  required string website = 4;
-  required string signingKeyFingerprint = 5;
+  optional string badgeLabel = 3;
+  required string signingKey = 5;
+  required string contactWebsite = 4;
+  optional string contactDiscord = 6;
+  optional bool isLegacy = 7;
+  optional string extensionListUrl = 8;
 }
 
 // BackupHistory.kt
@@ -81,12 +83,12 @@ message BackupManga {
   optional int32 viewer_flags = 103;
   repeated BackupHistory history = 104;
   optional UpdateStrategy updateStrategy = 105;
-  optional int64 lastModifiedAt = 106;
   optional int64 favoriteModifiedAt = 107;
   repeated string excludedScanlators = 108;
-  optional int64 version = 109;
   optional string notes = 110;
   optional bool initialized = 111;
+  optional bytes memo = 112;
+  optional int64 nextUpdate = 113;
 }
 
 // BackupPreference.kt

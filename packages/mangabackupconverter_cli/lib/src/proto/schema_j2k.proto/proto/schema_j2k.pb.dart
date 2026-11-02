@@ -297,6 +297,7 @@ class BackupChapter extends $pb.GeneratedMessage {
     $fixnum.Int64? dateUpload,
     $core.double? chapterNumber,
     $core.int? sourceOrder,
+    $core.String? memo,
     $core.int? pagesLeft,
   }) {
     final $result = create();
@@ -330,6 +331,9 @@ class BackupChapter extends $pb.GeneratedMessage {
     if (sourceOrder != null) {
       $result.sourceOrder = sourceOrder;
     }
+    if (memo != null) {
+      $result.memo = memo;
+    }
     if (pagesLeft != null) {
       $result.pagesLeft = pagesLeft;
     }
@@ -353,6 +357,7 @@ class BackupChapter extends $pb.GeneratedMessage {
         ..aInt64(8, _omitFieldNames ? '' : 'dateUpload', protoName: 'dateUpload')
         ..a<$core.double>(9, _omitFieldNames ? '' : 'chapterNumber', $pb.PbFieldType.OF, protoName: 'chapterNumber')
         ..a<$core.int>(10, _omitFieldNames ? '' : 'sourceOrder', $pb.PbFieldType.O3, protoName: 'sourceOrder')
+        ..aOS(13, _omitFieldNames ? '' : 'memo')
         ..a<$core.int>(800, _omitFieldNames ? '' : 'pagesLeft', $pb.PbFieldType.O3, protoName: 'pagesLeft');
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -495,15 +500,27 @@ class BackupChapter extends $pb.GeneratedMessage {
   @$pb.TagNumber(10)
   void clearSourceOrder() => clearField(10);
 
+  @$pb.TagNumber(13)
+  $core.String get memo => $_getSZ(10);
+  @$pb.TagNumber(13)
+  set memo($core.String v) {
+    $_setString(10, v);
+  }
+
+  @$pb.TagNumber(13)
+  $core.bool hasMemo() => $_has(10);
+  @$pb.TagNumber(13)
+  void clearMemo() => clearField(13);
+
   @$pb.TagNumber(800)
-  $core.int get pagesLeft => $_getIZ(10);
+  $core.int get pagesLeft => $_getIZ(11);
   @$pb.TagNumber(800)
   set pagesLeft($core.int v) {
-    $_setSignedInt32(10, v);
+    $_setSignedInt32(11, v);
   }
 
   @$pb.TagNumber(800)
-  $core.bool hasPagesLeft() => $_has(10);
+  $core.bool hasPagesLeft() => $_has(11);
   @$pb.TagNumber(800)
   void clearPagesLeft() => clearField(800);
 }
@@ -710,6 +727,8 @@ class BackupManga extends $pb.GeneratedMessage {
     $core.int? viewerFlags,
     $core.Iterable<BackupHistory>? history,
     UpdateStrategy? updateStrategy,
+    $core.Iterable<$core.String>? excludedScanlators,
+    $core.String? memo,
     $core.int? customStatus,
     $core.String? customTitle,
     $core.String? customArtist,
@@ -778,6 +797,12 @@ class BackupManga extends $pb.GeneratedMessage {
     if (updateStrategy != null) {
       $result.updateStrategy = updateStrategy;
     }
+    if (excludedScanlators != null) {
+      $result.excludedScanlators.addAll(excludedScanlators);
+    }
+    if (memo != null) {
+      $result.memo = memo;
+    }
     if (customStatus != null) {
       $result.customStatus = customStatus;
     }
@@ -830,6 +855,8 @@ class BackupManga extends $pb.GeneratedMessage {
         defaultOrMaker: UpdateStrategy.ALWAYS_UPDATE,
         valueOf: UpdateStrategy.valueOf,
         enumValues: UpdateStrategy.values)
+    ..pPS(108, _omitFieldNames ? '' : 'excludedScanlators', protoName: 'excludedScanlators')
+    ..aOS(112, _omitFieldNames ? '' : 'memo')
     ..a<$core.int>(602, _omitFieldNames ? '' : 'customStatus', $pb.PbFieldType.O3, protoName: 'customStatus')
     ..aOS(800, _omitFieldNames ? '' : 'customTitle', protoName: 'customTitle')
     ..aOS(801, _omitFieldNames ? '' : 'customArtist', protoName: 'customArtist')
@@ -1043,68 +1070,83 @@ class BackupManga extends $pb.GeneratedMessage {
   @$pb.TagNumber(105)
   void clearUpdateStrategy() => clearField(105);
 
+  @$pb.TagNumber(108)
+  $core.List<$core.String> get excludedScanlators => $_getList(20);
+
+  @$pb.TagNumber(112)
+  $core.String get memo => $_getSZ(21);
+  @$pb.TagNumber(112)
+  set memo($core.String v) {
+    $_setString(21, v);
+  }
+
+  @$pb.TagNumber(112)
+  $core.bool hasMemo() => $_has(21);
+  @$pb.TagNumber(112)
+  void clearMemo() => clearField(112);
+
   @$pb.TagNumber(602)
-  $core.int get customStatus => $_getIZ(20);
+  $core.int get customStatus => $_getIZ(22);
   @$pb.TagNumber(602)
   set customStatus($core.int v) {
-    $_setSignedInt32(20, v);
+    $_setSignedInt32(22, v);
   }
 
   @$pb.TagNumber(602)
-  $core.bool hasCustomStatus() => $_has(20);
+  $core.bool hasCustomStatus() => $_has(22);
   @$pb.TagNumber(602)
   void clearCustomStatus() => clearField(602);
 
   @$pb.TagNumber(800)
-  $core.String get customTitle => $_getSZ(21);
+  $core.String get customTitle => $_getSZ(23);
   @$pb.TagNumber(800)
   set customTitle($core.String v) {
-    $_setString(21, v);
+    $_setString(23, v);
   }
 
   @$pb.TagNumber(800)
-  $core.bool hasCustomTitle() => $_has(21);
+  $core.bool hasCustomTitle() => $_has(23);
   @$pb.TagNumber(800)
   void clearCustomTitle() => clearField(800);
 
   @$pb.TagNumber(801)
-  $core.String get customArtist => $_getSZ(22);
+  $core.String get customArtist => $_getSZ(24);
   @$pb.TagNumber(801)
   set customArtist($core.String v) {
-    $_setString(22, v);
+    $_setString(24, v);
   }
 
   @$pb.TagNumber(801)
-  $core.bool hasCustomArtist() => $_has(22);
+  $core.bool hasCustomArtist() => $_has(24);
   @$pb.TagNumber(801)
   void clearCustomArtist() => clearField(801);
 
   @$pb.TagNumber(802)
-  $core.String get customAuthor => $_getSZ(23);
+  $core.String get customAuthor => $_getSZ(25);
   @$pb.TagNumber(802)
   set customAuthor($core.String v) {
-    $_setString(23, v);
+    $_setString(25, v);
   }
 
   @$pb.TagNumber(802)
-  $core.bool hasCustomAuthor() => $_has(23);
+  $core.bool hasCustomAuthor() => $_has(25);
   @$pb.TagNumber(802)
   void clearCustomAuthor() => clearField(802);
 
   @$pb.TagNumber(804)
-  $core.String get customDescription => $_getSZ(24);
+  $core.String get customDescription => $_getSZ(26);
   @$pb.TagNumber(804)
   set customDescription($core.String v) {
-    $_setString(24, v);
+    $_setString(26, v);
   }
 
   @$pb.TagNumber(804)
-  $core.bool hasCustomDescription() => $_has(24);
+  $core.bool hasCustomDescription() => $_has(26);
   @$pb.TagNumber(804)
   void clearCustomDescription() => clearField(804);
 
   @$pb.TagNumber(805)
-  $core.List<$core.String> get customGenre => $_getList(25);
+  $core.List<$core.String> get customGenre => $_getList(27);
 }
 
 /// BackupPreference.kt
@@ -1614,6 +1656,7 @@ class BackupTracking extends $pb.GeneratedMessage {
     $core.int? status,
     $fixnum.Int64? startedReadingDate,
     $fixnum.Int64? finishedReadingDate,
+    $core.bool? private,
     $fixnum.Int64? mediaId,
   }) {
     final $result = create();
@@ -1650,6 +1693,9 @@ class BackupTracking extends $pb.GeneratedMessage {
     if (finishedReadingDate != null) {
       $result.finishedReadingDate = finishedReadingDate;
     }
+    if (private != null) {
+      $result.private = private;
+    }
     if (mediaId != null) {
       $result.mediaId = mediaId;
     }
@@ -1675,6 +1721,7 @@ class BackupTracking extends $pb.GeneratedMessage {
         ..a<$core.int>(9, _omitFieldNames ? '' : 'status', $pb.PbFieldType.O3)
         ..aInt64(10, _omitFieldNames ? '' : 'startedReadingDate', protoName: 'startedReadingDate')
         ..aInt64(11, _omitFieldNames ? '' : 'finishedReadingDate', protoName: 'finishedReadingDate')
+        ..aOB(12, _omitFieldNames ? '' : 'private')
         ..aInt64(100, _omitFieldNames ? '' : 'mediaId', protoName: 'mediaId');
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1829,15 +1876,27 @@ class BackupTracking extends $pb.GeneratedMessage {
   @$pb.TagNumber(11)
   void clearFinishedReadingDate() => clearField(11);
 
+  @$pb.TagNumber(12)
+  $core.bool get private => $_getBF(11);
+  @$pb.TagNumber(12)
+  set private($core.bool v) {
+    $_setBool(11, v);
+  }
+
+  @$pb.TagNumber(12)
+  $core.bool hasPrivate() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearPrivate() => clearField(12);
+
   @$pb.TagNumber(100)
-  $fixnum.Int64 get mediaId => $_getI64(11);
+  $fixnum.Int64 get mediaId => $_getI64(12);
   @$pb.TagNumber(100)
   set mediaId($fixnum.Int64 v) {
-    $_setInt64(11, v);
+    $_setInt64(12, v);
   }
 
   @$pb.TagNumber(100)
-  $core.bool hasMediaId() => $_has(11);
+  $core.bool hasMediaId() => $_has(12);
   @$pb.TagNumber(100)
   void clearMediaId() => clearField(100);
 }
