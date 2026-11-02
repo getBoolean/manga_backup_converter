@@ -57,7 +57,14 @@ const Backup$json = {
       '6': '.BackupSourcePreferences',
       '10': 'backupSourcePreferences'
     },
-    {'1': 'backupExtensionRepo', '3': 106, '4': 3, '5': 11, '6': '.BackupExtensionRepos', '10': 'backupExtensionRepo'},
+    {
+      '1': 'backupExtensionStores',
+      '3': 106,
+      '4': 3,
+      '5': 11,
+      '6': '.BackupExtensionStore',
+      '10': 'backupExtensionStores'
+    },
   ],
 };
 
@@ -68,9 +75,9 @@ final $typed_data.Uint8List backupDescriptor =
         'Z29yaWVzEjMKDWJhY2t1cFNvdXJjZXMYZSADKAsyDS5CYWNrdXBTb3VyY2VSDWJhY2t1cFNvdX'
         'JjZXMSPwoRYmFja3VwUHJlZmVyZW5jZXMYaCADKAsyES5CYWNrdXBQcmVmZXJlbmNlUhFiYWNr'
         'dXBQcmVmZXJlbmNlcxJSChdiYWNrdXBTb3VyY2VQcmVmZXJlbmNlcxhpIAMoCzIYLkJhY2t1cF'
-        'NvdXJjZVByZWZlcmVuY2VzUhdiYWNrdXBTb3VyY2VQcmVmZXJlbmNlcxJHChNiYWNrdXBFeHRl'
-        'bnNpb25SZXBvGGogAygLMhUuQmFja3VwRXh0ZW5zaW9uUmVwb3NSE2JhY2t1cEV4dGVuc2lvbl'
-        'JlcG8=');
+        'NvdXJjZVByZWZlcmVuY2VzUhdiYWNrdXBTb3VyY2VQcmVmZXJlbmNlcxJLChViYWNrdXBFeHRl'
+        'bnNpb25TdG9yZXMYaiADKAsyFS5CYWNrdXBFeHRlbnNpb25TdG9yZVIVYmFja3VwRXh0ZW5zaW'
+        '9uU3RvcmVz');
 
 @$core.Deprecated('Use backupCategoryDescriptor instead')
 const BackupCategory$json = {
@@ -102,8 +109,7 @@ const BackupChapter$json = {
     {'1': 'dateUpload', '3': 8, '4': 1, '5': 3, '10': 'dateUpload'},
     {'1': 'chapterNumber', '3': 9, '4': 1, '5': 2, '10': 'chapterNumber'},
     {'1': 'sourceOrder', '3': 10, '4': 1, '5': 3, '10': 'sourceOrder'},
-    {'1': 'lastModifiedAt', '3': 11, '4': 1, '5': 3, '10': 'lastModifiedAt'},
-    {'1': 'version', '3': 12, '4': 1, '5': 3, '10': 'version'},
+    {'1': 'memo', '3': 13, '4': 1, '5': 12, '10': 'memo'},
   ],
 };
 
@@ -114,27 +120,31 @@ final $typed_data.Uint8List backupChapterDescriptor =
         'bWFyaxgFIAEoCFIIYm9va21hcmsSIgoMbGFzdFBhZ2VSZWFkGAYgASgDUgxsYXN0UGFnZVJlYW'
         'QSHAoJZGF0ZUZldGNoGAcgASgDUglkYXRlRmV0Y2gSHgoKZGF0ZVVwbG9hZBgIIAEoA1IKZGF0'
         'ZVVwbG9hZBIkCg1jaGFwdGVyTnVtYmVyGAkgASgCUg1jaGFwdGVyTnVtYmVyEiAKC3NvdXJjZU'
-        '9yZGVyGAogASgDUgtzb3VyY2VPcmRlchImCg5sYXN0TW9kaWZpZWRBdBgLIAEoA1IObGFzdE1v'
-        'ZGlmaWVkQXQSGAoHdmVyc2lvbhgMIAEoA1IHdmVyc2lvbg==');
+        '9yZGVyGAogASgDUgtzb3VyY2VPcmRlchISCgRtZW1vGA0gASgMUgRtZW1v');
 
-@$core.Deprecated('Use backupExtensionReposDescriptor instead')
-const BackupExtensionRepos$json = {
-  '1': 'BackupExtensionRepos',
+@$core.Deprecated('Use backupExtensionStoreDescriptor instead')
+const BackupExtensionStore$json = {
+  '1': 'BackupExtensionStore',
   '2': [
-    {'1': 'baseUrl', '3': 1, '4': 2, '5': 9, '10': 'baseUrl'},
+    {'1': 'indexUrl', '3': 1, '4': 2, '5': 9, '10': 'indexUrl'},
     {'1': 'name', '3': 2, '4': 2, '5': 9, '10': 'name'},
-    {'1': 'shortName', '3': 3, '4': 1, '5': 9, '10': 'shortName'},
-    {'1': 'website', '3': 4, '4': 2, '5': 9, '10': 'website'},
-    {'1': 'signingKeyFingerprint', '3': 5, '4': 2, '5': 9, '10': 'signingKeyFingerprint'},
+    {'1': 'badgeLabel', '3': 3, '4': 1, '5': 9, '10': 'badgeLabel'},
+    {'1': 'signingKey', '3': 5, '4': 2, '5': 9, '10': 'signingKey'},
+    {'1': 'contactWebsite', '3': 4, '4': 2, '5': 9, '10': 'contactWebsite'},
+    {'1': 'contactDiscord', '3': 6, '4': 1, '5': 9, '10': 'contactDiscord'},
+    {'1': 'isLegacy', '3': 7, '4': 1, '5': 8, '10': 'isLegacy'},
+    {'1': 'extensionListUrl', '3': 8, '4': 1, '5': 9, '10': 'extensionListUrl'},
   ],
 };
 
-/// Descriptor for `BackupExtensionRepos`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List backupExtensionReposDescriptor =
-    $convert.base64Decode('ChRCYWNrdXBFeHRlbnNpb25SZXBvcxIYCgdiYXNlVXJsGAEgAigJUgdiYXNlVXJsEhIKBG5hbW'
-        'UYAiACKAlSBG5hbWUSHAoJc2hvcnROYW1lGAMgASgJUglzaG9ydE5hbWUSGAoHd2Vic2l0ZRgE'
-        'IAIoCVIHd2Vic2l0ZRI0ChVzaWduaW5nS2V5RmluZ2VycHJpbnQYBSACKAlSFXNpZ25pbmdLZX'
-        'lGaW5nZXJwcmludA==');
+/// Descriptor for `BackupExtensionStore`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List backupExtensionStoreDescriptor =
+    $convert.base64Decode('ChRCYWNrdXBFeHRlbnNpb25TdG9yZRIaCghpbmRleFVybBgBIAIoCVIIaW5kZXhVcmwSEgoEbm'
+        'FtZRgCIAIoCVIEbmFtZRIeCgpiYWRnZUxhYmVsGAMgASgJUgpiYWRnZUxhYmVsEh4KCnNpZ25p'
+        'bmdLZXkYBSACKAlSCnNpZ25pbmdLZXkSJgoOY29udGFjdFdlYnNpdGUYBCACKAlSDmNvbnRhY3'
+        'RXZWJzaXRlEiYKDmNvbnRhY3REaXNjb3JkGAYgASgJUg5jb250YWN0RGlzY29yZBIaCghpc0xl'
+        'Z2FjeRgHIAEoCFIIaXNMZWdhY3kSKgoQZXh0ZW5zaW9uTGlzdFVybBgIIAEoCVIQZXh0ZW5zaW'
+        '9uTGlzdFVybA==');
 
 @$core.Deprecated('Use backupHistoryDescriptor instead')
 const BackupHistory$json = {
@@ -174,12 +184,12 @@ const BackupManga$json = {
     {'1': 'viewer_flags', '3': 103, '4': 1, '5': 5, '10': 'viewerFlags'},
     {'1': 'history', '3': 104, '4': 3, '5': 11, '6': '.BackupHistory', '10': 'history'},
     {'1': 'updateStrategy', '3': 105, '4': 1, '5': 14, '6': '.UpdateStrategy', '10': 'updateStrategy'},
-    {'1': 'lastModifiedAt', '3': 106, '4': 1, '5': 3, '10': 'lastModifiedAt'},
     {'1': 'favoriteModifiedAt', '3': 107, '4': 1, '5': 3, '10': 'favoriteModifiedAt'},
     {'1': 'excludedScanlators', '3': 108, '4': 3, '5': 9, '10': 'excludedScanlators'},
-    {'1': 'version', '3': 109, '4': 1, '5': 3, '10': 'version'},
     {'1': 'notes', '3': 110, '4': 1, '5': 9, '10': 'notes'},
     {'1': 'initialized', '3': 111, '4': 1, '5': 8, '10': 'initialized'},
+    {'1': 'memo', '3': 112, '4': 1, '5': 12, '10': 'memo'},
+    {'1': 'nextUpdate', '3': 113, '4': 1, '5': 3, '10': 'nextUpdate'},
   ],
 };
 
@@ -196,11 +206,10 @@ final $typed_data.Uint8List backupMangaDescriptor =
         'EiIKDGNoYXB0ZXJGbGFncxhlIAEoBVIMY2hhcHRlckZsYWdzEiEKDHZpZXdlcl9mbGFncxhnIA'
         'EoBVILdmlld2VyRmxhZ3MSKAoHaGlzdG9yeRhoIAMoCzIOLkJhY2t1cEhpc3RvcnlSB2hpc3Rv'
         'cnkSNwoOdXBkYXRlU3RyYXRlZ3kYaSABKA4yDy5VcGRhdGVTdHJhdGVneVIOdXBkYXRlU3RyYX'
-        'RlZ3kSJgoObGFzdE1vZGlmaWVkQXQYaiABKANSDmxhc3RNb2RpZmllZEF0Ei4KEmZhdm9yaXRl'
-        'TW9kaWZpZWRBdBhrIAEoA1ISZmF2b3JpdGVNb2RpZmllZEF0Ei4KEmV4Y2x1ZGVkU2NhbmxhdG'
-        '9ycxhsIAMoCVISZXhjbHVkZWRTY2FubGF0b3JzEhgKB3ZlcnNpb24YbSABKANSB3ZlcnNpb24S'
-        'FAoFbm90ZXMYbiABKAlSBW5vdGVzEiAKC2luaXRpYWxpemVkGG8gASgIUgtpbml0aWFsaXplZA'
-        '==');
+        'RlZ3kSLgoSZmF2b3JpdGVNb2RpZmllZEF0GGsgASgDUhJmYXZvcml0ZU1vZGlmaWVkQXQSLgoS'
+        'ZXhjbHVkZWRTY2FubGF0b3JzGGwgAygJUhJleGNsdWRlZFNjYW5sYXRvcnMSFAoFbm90ZXMYbi'
+        'ABKAlSBW5vdGVzEiAKC2luaXRpYWxpemVkGG8gASgIUgtpbml0aWFsaXplZBISCgRtZW1vGHAg'
+        'ASgMUgRtZW1vEh4KCm5leHRVcGRhdGUYcSABKANSCm5leHRVcGRhdGU=');
 
 @$core.Deprecated('Use backupPreferenceDescriptor instead')
 const BackupPreference$json = {

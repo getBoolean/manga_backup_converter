@@ -59,7 +59,7 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
       backupSources: backup.backupSources.map(TachiBackupSource.fromMihon).toList(),
       backupCategories: backup.backupCategories.map(TachiBackupCategory.fromMihon).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromMihon).toList(),
-      backupExtensionRepo: backup.backupExtensionRepo.map(TachiBackupExtensionRepo.fromMihon).toList(),
+      backupExtensionRepo: backup.backupExtensionStores.map(TachiBackupExtensionRepo.fromMihon).toList(),
       backupPreferences: backup.backupPreferences.map(TachiBackupPreference.fromMihon).toList(),
       backupSourcePreferences: backup.backupSourcePreferences.map(TachiBackupSourcePreferences.fromMihon).toList(),
     );
@@ -71,7 +71,7 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
       backupSources: backup.backupSources.map(TachiBackupSource.fromSy).toList(),
       backupCategories: backup.backupCategories.map(TachiBackupCategory.fromSy).toList(),
       backupManga: backup.backupManga.map(TachiBackupManga.fromSy).toList(),
-      backupExtensionRepo: backup.backupExtensionRepo.map(TachiBackupExtensionRepo.fromSy).toList(),
+      backupExtensionRepo: backup.backupExtensionStores.map(TachiBackupExtensionRepo.fromSy).toList(),
       backupPreferences: backup.backupPreferences.map(TachiBackupPreference.fromSy).toList(),
       backupSourcePreferences: backup.backupSourcePreferences.map(TachiBackupSourcePreferences.fromSy).toList(),
     );

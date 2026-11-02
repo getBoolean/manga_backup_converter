@@ -98,8 +98,9 @@ class Backup extends $pb.GeneratedMessage {
     $core.Iterable<BackupSource>? backupSources,
     $core.Iterable<BackupPreference>? backupPreferences,
     $core.Iterable<BackupSourcePreferences>? backupSourcePreferences,
-    $core.Iterable<BackupExtensionRepos>? backupExtensionRepo,
+    $core.Iterable<BackupExtensionStore>? backupExtensionStores,
     $core.Iterable<BackupSavedSearch>? backupSavedSearches,
+    $core.Iterable<BackupFeed>? backupFeeds,
   }) {
     final $result = create();
     if (backupManga != null) {
@@ -117,11 +118,14 @@ class Backup extends $pb.GeneratedMessage {
     if (backupSourcePreferences != null) {
       $result.backupSourcePreferences.addAll(backupSourcePreferences);
     }
-    if (backupExtensionRepo != null) {
-      $result.backupExtensionRepo.addAll(backupExtensionRepo);
+    if (backupExtensionStores != null) {
+      $result.backupExtensionStores.addAll(backupExtensionStores);
     }
     if (backupSavedSearches != null) {
       $result.backupSavedSearches.addAll(backupSavedSearches);
+    }
+    if (backupFeeds != null) {
+      $result.backupFeeds.addAll(backupFeeds);
     }
     return $result;
   }
@@ -142,10 +146,12 @@ class Backup extends $pb.GeneratedMessage {
         protoName: 'backupPreferences', subBuilder: BackupPreference.create)
     ..pc<BackupSourcePreferences>(105, _omitFieldNames ? '' : 'backupSourcePreferences', $pb.PbFieldType.PM,
         protoName: 'backupSourcePreferences', subBuilder: BackupSourcePreferences.create)
-    ..pc<BackupExtensionRepos>(106, _omitFieldNames ? '' : 'backupExtensionRepo', $pb.PbFieldType.PM,
-        protoName: 'backupExtensionRepo', subBuilder: BackupExtensionRepos.create)
+    ..pc<BackupExtensionStore>(106, _omitFieldNames ? '' : 'backupExtensionStores', $pb.PbFieldType.PM,
+        protoName: 'backupExtensionStores', subBuilder: BackupExtensionStore.create)
     ..pc<BackupSavedSearch>(600, _omitFieldNames ? '' : 'backupSavedSearches', $pb.PbFieldType.PM,
-        protoName: 'backupSavedSearches', subBuilder: BackupSavedSearch.create);
+        protoName: 'backupSavedSearches', subBuilder: BackupSavedSearch.create)
+    ..pc<BackupFeed>(601, _omitFieldNames ? '' : 'backupFeeds', $pb.PbFieldType.PM,
+        protoName: 'backupFeeds', subBuilder: BackupFeed.create);
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -182,10 +188,13 @@ class Backup extends $pb.GeneratedMessage {
   $core.List<BackupSourcePreferences> get backupSourcePreferences => $_getList(4);
 
   @$pb.TagNumber(106)
-  $core.List<BackupExtensionRepos> get backupExtensionRepo => $_getList(5);
+  $core.List<BackupExtensionStore> get backupExtensionStores => $_getList(5);
 
   @$pb.TagNumber(600)
   $core.List<BackupSavedSearch> get backupSavedSearches => $_getList(6);
+
+  @$pb.TagNumber(601)
+  $core.List<BackupFeed> get backupFeeds => $_getList(7);
 }
 
 /// BackupCategory.kt
@@ -231,13 +240,14 @@ class BackupCategory extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupCategory', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'name')
+        ..aOS(1, _omitFieldNames ? '' : 'name')
         ..aInt64(2, _omitFieldNames ? '' : 'order')
         ..aInt64(3, _omitFieldNames ? '' : 'id')
         ..aInt64(100, _omitFieldNames ? '' : 'flags')
         ..aInt64(601, _omitFieldNames ? '' : 'version')
         ..aInt64(602, _omitFieldNames ? '' : 'uid')
-        ..aInt64(603, _omitFieldNames ? '' : 'lastModifiedAt', protoName: 'lastModifiedAt');
+        ..aInt64(603, _omitFieldNames ? '' : 'lastModifiedAt', protoName: 'lastModifiedAt')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -359,6 +369,7 @@ class BackupChapter extends $pb.GeneratedMessage {
     $fixnum.Int64? sourceOrder,
     $fixnum.Int64? lastModifiedAt,
     $fixnum.Int64? version,
+    $core.List<$core.int>? memo,
   }) {
     final $result = create();
     if (url != null) {
@@ -397,6 +408,9 @@ class BackupChapter extends $pb.GeneratedMessage {
     if (version != null) {
       $result.version = version;
     }
+    if (memo != null) {
+      $result.memo = memo;
+    }
     return $result;
   }
   BackupChapter._() : super();
@@ -407,8 +421,8 @@ class BackupChapter extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupChapter', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'url')
-        ..aQS(2, _omitFieldNames ? '' : 'name')
+        ..aOS(1, _omitFieldNames ? '' : 'url')
+        ..aOS(2, _omitFieldNames ? '' : 'name')
         ..aOS(3, _omitFieldNames ? '' : 'scanlator')
         ..aOB(4, _omitFieldNames ? '' : 'read')
         ..aOB(5, _omitFieldNames ? '' : 'bookmark')
@@ -418,7 +432,9 @@ class BackupChapter extends $pb.GeneratedMessage {
         ..a<$core.double>(9, _omitFieldNames ? '' : 'chapterNumber', $pb.PbFieldType.OF, protoName: 'chapterNumber')
         ..aInt64(10, _omitFieldNames ? '' : 'sourceOrder', protoName: 'sourceOrder')
         ..aInt64(11, _omitFieldNames ? '' : 'lastModifiedAt', protoName: 'lastModifiedAt')
-        ..aInt64(12, _omitFieldNames ? '' : 'version');
+        ..aInt64(12, _omitFieldNames ? '' : 'version')
+        ..a<$core.List<$core.int>>(13, _omitFieldNames ? '' : 'memo', $pb.PbFieldType.OY)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -583,82 +599,110 @@ class BackupChapter extends $pb.GeneratedMessage {
   $core.bool hasVersion() => $_has(11);
   @$pb.TagNumber(12)
   void clearVersion() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.List<$core.int> get memo => $_getN(12);
+  @$pb.TagNumber(13)
+  set memo($core.List<$core.int> v) {
+    $_setBytes(12, v);
+  }
+
+  @$pb.TagNumber(13)
+  $core.bool hasMemo() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearMemo() => clearField(13);
 }
 
-/// BackupExtensionRepos.kt
-class BackupExtensionRepos extends $pb.GeneratedMessage {
-  factory BackupExtensionRepos({
-    $core.String? baseUrl,
+/// BackupExtensionStore.kt
+class BackupExtensionStore extends $pb.GeneratedMessage {
+  factory BackupExtensionStore({
+    $core.String? indexUrl,
     $core.String? name,
-    $core.String? shortName,
-    $core.String? website,
-    $core.String? signingKeyFingerprint,
+    $core.String? badgeLabel,
+    $core.String? contactWebsite,
+    $core.String? signingKey,
+    $core.String? contactDiscord,
+    $core.bool? isLegacy,
+    $core.String? extensionListUrl,
   }) {
     final $result = create();
-    if (baseUrl != null) {
-      $result.baseUrl = baseUrl;
+    if (indexUrl != null) {
+      $result.indexUrl = indexUrl;
     }
     if (name != null) {
       $result.name = name;
     }
-    if (shortName != null) {
-      $result.shortName = shortName;
+    if (badgeLabel != null) {
+      $result.badgeLabel = badgeLabel;
     }
-    if (website != null) {
-      $result.website = website;
+    if (contactWebsite != null) {
+      $result.contactWebsite = contactWebsite;
     }
-    if (signingKeyFingerprint != null) {
-      $result.signingKeyFingerprint = signingKeyFingerprint;
+    if (signingKey != null) {
+      $result.signingKey = signingKey;
+    }
+    if (contactDiscord != null) {
+      $result.contactDiscord = contactDiscord;
+    }
+    if (isLegacy != null) {
+      $result.isLegacy = isLegacy;
+    }
+    if (extensionListUrl != null) {
+      $result.extensionListUrl = extensionListUrl;
     }
     return $result;
   }
-  BackupExtensionRepos._() : super();
-  factory BackupExtensionRepos.fromBuffer($core.List<$core.int> i,
+  BackupExtensionStore._() : super();
+  factory BackupExtensionStore.fromBuffer($core.List<$core.int> i,
           [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(i, r);
-  factory BackupExtensionRepos.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+  factory BackupExtensionStore.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i =
-      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupExtensionRepos', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'baseUrl', protoName: 'baseUrl')
-        ..aQS(2, _omitFieldNames ? '' : 'name')
-        ..aOS(3, _omitFieldNames ? '' : 'shortName', protoName: 'shortName')
-        ..aQS(4, _omitFieldNames ? '' : 'website')
-        ..aQS(5, _omitFieldNames ? '' : 'signingKeyFingerprint', protoName: 'signingKeyFingerprint');
+      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupExtensionStore', createEmptyInstance: create)
+        ..aOS(1, _omitFieldNames ? '' : 'indexUrl', protoName: 'indexUrl')
+        ..aOS(2, _omitFieldNames ? '' : 'name')
+        ..aOS(3, _omitFieldNames ? '' : 'badgeLabel', protoName: 'badgeLabel')
+        ..aOS(4, _omitFieldNames ? '' : 'contactWebsite', protoName: 'contactWebsite')
+        ..aOS(5, _omitFieldNames ? '' : 'signingKey', protoName: 'signingKey')
+        ..aOS(6, _omitFieldNames ? '' : 'contactDiscord', protoName: 'contactDiscord')
+        ..aOB(7, _omitFieldNames ? '' : 'isLegacy', protoName: 'isLegacy')
+        ..aOS(8, _omitFieldNames ? '' : 'extensionListUrl', protoName: 'extensionListUrl')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
       'Will be removed in next major version')
-  BackupExtensionRepos clone() => BackupExtensionRepos()..mergeFromMessage(this);
+  BackupExtensionStore clone() => BackupExtensionStore()..mergeFromMessage(this);
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
       'Will be removed in next major version')
-  BackupExtensionRepos copyWith(void Function(BackupExtensionRepos) updates) =>
-      super.copyWith((message) => updates(message as BackupExtensionRepos)) as BackupExtensionRepos;
+  BackupExtensionStore copyWith(void Function(BackupExtensionStore) updates) =>
+      super.copyWith((message) => updates(message as BackupExtensionStore)) as BackupExtensionStore;
 
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static BackupExtensionRepos create() => BackupExtensionRepos._();
-  BackupExtensionRepos createEmptyInstance() => create();
-  static $pb.PbList<BackupExtensionRepos> createRepeated() => $pb.PbList<BackupExtensionRepos>();
+  static BackupExtensionStore create() => BackupExtensionStore._();
+  BackupExtensionStore createEmptyInstance() => create();
+  static $pb.PbList<BackupExtensionStore> createRepeated() => $pb.PbList<BackupExtensionStore>();
   @$core.pragma('dart2js:noInline')
-  static BackupExtensionRepos getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupExtensionRepos>(create);
-  static BackupExtensionRepos? _defaultInstance;
+  static BackupExtensionStore getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupExtensionStore>(create);
+  static BackupExtensionStore? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.String get baseUrl => $_getSZ(0);
+  $core.String get indexUrl => $_getSZ(0);
   @$pb.TagNumber(1)
-  set baseUrl($core.String v) {
+  set indexUrl($core.String v) {
     $_setString(0, v);
   }
 
   @$pb.TagNumber(1)
-  $core.bool hasBaseUrl() => $_has(0);
+  $core.bool hasIndexUrl() => $_has(0);
   @$pb.TagNumber(1)
-  void clearBaseUrl() => clearField(1);
+  void clearIndexUrl() => clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get name => $_getSZ(1);
@@ -673,40 +717,164 @@ class BackupExtensionRepos extends $pb.GeneratedMessage {
   void clearName() => clearField(2);
 
   @$pb.TagNumber(3)
-  $core.String get shortName => $_getSZ(2);
+  $core.String get badgeLabel => $_getSZ(2);
   @$pb.TagNumber(3)
-  set shortName($core.String v) {
+  set badgeLabel($core.String v) {
     $_setString(2, v);
   }
 
   @$pb.TagNumber(3)
-  $core.bool hasShortName() => $_has(2);
+  $core.bool hasBadgeLabel() => $_has(2);
   @$pb.TagNumber(3)
-  void clearShortName() => clearField(3);
+  void clearBadgeLabel() => clearField(3);
 
   @$pb.TagNumber(4)
-  $core.String get website => $_getSZ(3);
+  $core.String get contactWebsite => $_getSZ(3);
   @$pb.TagNumber(4)
-  set website($core.String v) {
+  set contactWebsite($core.String v) {
     $_setString(3, v);
   }
 
   @$pb.TagNumber(4)
-  $core.bool hasWebsite() => $_has(3);
+  $core.bool hasContactWebsite() => $_has(3);
   @$pb.TagNumber(4)
-  void clearWebsite() => clearField(4);
+  void clearContactWebsite() => clearField(4);
 
   @$pb.TagNumber(5)
-  $core.String get signingKeyFingerprint => $_getSZ(4);
+  $core.String get signingKey => $_getSZ(4);
   @$pb.TagNumber(5)
-  set signingKeyFingerprint($core.String v) {
+  set signingKey($core.String v) {
     $_setString(4, v);
   }
 
   @$pb.TagNumber(5)
-  $core.bool hasSigningKeyFingerprint() => $_has(4);
+  $core.bool hasSigningKey() => $_has(4);
   @$pb.TagNumber(5)
-  void clearSigningKeyFingerprint() => clearField(5);
+  void clearSigningKey() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get contactDiscord => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set contactDiscord($core.String v) {
+    $_setString(5, v);
+  }
+
+  @$pb.TagNumber(6)
+  $core.bool hasContactDiscord() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContactDiscord() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get isLegacy => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isLegacy($core.bool v) {
+    $_setBool(6, v);
+  }
+
+  @$pb.TagNumber(7)
+  $core.bool hasIsLegacy() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIsLegacy() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get extensionListUrl => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set extensionListUrl($core.String v) {
+    $_setString(7, v);
+  }
+
+  @$pb.TagNumber(8)
+  $core.bool hasExtensionListUrl() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearExtensionListUrl() => clearField(8);
+}
+
+/// BackupFeed.kt
+class BackupFeed extends $pb.GeneratedMessage {
+  factory BackupFeed({
+    $fixnum.Int64? source,
+    $core.bool? global,
+    $core.String? savedSearchName,
+  }) {
+    final $result = create();
+    if (source != null) {
+      $result.source = source;
+    }
+    if (global != null) {
+      $result.global = global;
+    }
+    if (savedSearchName != null) {
+      $result.savedSearchName = savedSearchName;
+    }
+    return $result;
+  }
+  BackupFeed._() : super();
+  factory BackupFeed.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory BackupFeed.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupFeed', createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'source')
+    ..aOB(2, _omitFieldNames ? '' : 'global')
+    ..aOS(3, _omitFieldNames ? '' : 'savedSearchName', protoName: 'savedSearchName')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('Using this can add significant overhead to your binary. '
+      'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+      'Will be removed in next major version')
+  BackupFeed clone() => BackupFeed()..mergeFromMessage(this);
+  @$core.Deprecated('Using this can add significant overhead to your binary. '
+      'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+      'Will be removed in next major version')
+  BackupFeed copyWith(void Function(BackupFeed) updates) =>
+      super.copyWith((message) => updates(message as BackupFeed)) as BackupFeed;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BackupFeed create() => BackupFeed._();
+  BackupFeed createEmptyInstance() => create();
+  static $pb.PbList<BackupFeed> createRepeated() => $pb.PbList<BackupFeed>();
+  @$core.pragma('dart2js:noInline')
+  static BackupFeed getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupFeed>(create);
+  static BackupFeed? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get source => $_getI64(0);
+  @$pb.TagNumber(1)
+  set source($fixnum.Int64 v) {
+    $_setInt64(0, v);
+  }
+
+  @$pb.TagNumber(1)
+  $core.bool hasSource() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSource() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get global => $_getBF(1);
+  @$pb.TagNumber(2)
+  set global($core.bool v) {
+    $_setBool(1, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.bool hasGlobal() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGlobal() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get savedSearchName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set savedSearchName($core.String v) {
+    $_setString(2, v);
+  }
+
+  @$pb.TagNumber(3)
+  $core.bool hasSavedSearchName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSavedSearchName() => clearField(3);
 }
 
 /// BackupFlatMetadata.kt
@@ -737,12 +905,13 @@ class BackupFlatMetadata extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupFlatMetadata', createEmptyInstance: create)
-        ..aQM<BackupSearchMetadata>(1, _omitFieldNames ? '' : 'searchMetadata',
+        ..aOM<BackupSearchMetadata>(1, _omitFieldNames ? '' : 'searchMetadata',
             protoName: 'searchMetadata', subBuilder: BackupSearchMetadata.create)
         ..pc<BackupSearchTag>(2, _omitFieldNames ? '' : 'searchTags', $pb.PbFieldType.PM,
             protoName: 'searchTags', subBuilder: BackupSearchTag.create)
         ..pc<BackupSearchTitle>(3, _omitFieldNames ? '' : 'searchTitles', $pb.PbFieldType.PM,
-            protoName: 'searchTitles', subBuilder: BackupSearchTitle.create);
+            protoName: 'searchTitles', subBuilder: BackupSearchTitle.create)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -813,10 +982,10 @@ class BackupHistory extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupHistory', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'url')
-        ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'lastRead', $pb.PbFieldType.Q6,
-            protoName: 'lastRead', defaultOrMaker: $fixnum.Int64.ZERO)
-        ..aInt64(3, _omitFieldNames ? '' : 'readDuration', protoName: 'readDuration');
+        ..aOS(1, _omitFieldNames ? '' : 'url')
+        ..aInt64(2, _omitFieldNames ? '' : 'lastRead', protoName: 'lastRead')
+        ..aInt64(3, _omitFieldNames ? '' : 'readDuration', protoName: 'readDuration')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -903,10 +1072,13 @@ class BackupManga extends $pb.GeneratedMessage {
     $fixnum.Int64? version,
     $core.String? notes,
     $core.bool? initialized,
-    $core.Iterable<BackupMergedMangaReference>? mergedMangaReferences,
+    $core.List<$core.int>? memo,
+    $fixnum.Int64? nextUpdate,
+    $core.Iterable<BackupMergedEntry>? mergedEntries,
     BackupFlatMetadata? flatMetadata,
     $core.int? customStatus,
     $core.String? customThumbnailUrl,
+    BackupMergeSettings? mergeSettings,
     $core.String? customTitle,
     $core.String? customArtist,
     $core.String? customAuthor,
@@ -989,8 +1161,14 @@ class BackupManga extends $pb.GeneratedMessage {
     if (initialized != null) {
       $result.initialized = initialized;
     }
-    if (mergedMangaReferences != null) {
-      $result.mergedMangaReferences.addAll(mergedMangaReferences);
+    if (memo != null) {
+      $result.memo = memo;
+    }
+    if (nextUpdate != null) {
+      $result.nextUpdate = nextUpdate;
+    }
+    if (mergedEntries != null) {
+      $result.mergedEntries.addAll(mergedEntries);
     }
     if (flatMetadata != null) {
       $result.flatMetadata = flatMetadata;
@@ -1000,6 +1178,9 @@ class BackupManga extends $pb.GeneratedMessage {
     }
     if (customThumbnailUrl != null) {
       $result.customThumbnailUrl = customThumbnailUrl;
+    }
+    if (mergeSettings != null) {
+      $result.mergeSettings = mergeSettings;
     }
     if (customTitle != null) {
       $result.customTitle = customTitle;
@@ -1025,8 +1206,8 @@ class BackupManga extends $pb.GeneratedMessage {
       create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupManga', createEmptyInstance: create)
-    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'source', $pb.PbFieldType.Q6, defaultOrMaker: $fixnum.Int64.ZERO)
-    ..aQS(2, _omitFieldNames ? '' : 'url')
+    ..aInt64(1, _omitFieldNames ? '' : 'source')
+    ..aOS(2, _omitFieldNames ? '' : 'url')
     ..aOS(3, _omitFieldNames ? '' : 'title')
     ..aOS(4, _omitFieldNames ? '' : 'artist')
     ..aOS(5, _omitFieldNames ? '' : 'author')
@@ -1054,17 +1235,22 @@ class BackupManga extends $pb.GeneratedMessage {
     ..aInt64(109, _omitFieldNames ? '' : 'version')
     ..aOS(110, _omitFieldNames ? '' : 'notes')
     ..aOB(111, _omitFieldNames ? '' : 'initialized')
-    ..pc<BackupMergedMangaReference>(600, _omitFieldNames ? '' : 'mergedMangaReferences', $pb.PbFieldType.PM,
-        protoName: 'mergedMangaReferences', subBuilder: BackupMergedMangaReference.create)
+    ..a<$core.List<$core.int>>(112, _omitFieldNames ? '' : 'memo', $pb.PbFieldType.OY)
+    ..aInt64(113, _omitFieldNames ? '' : 'nextUpdate', protoName: 'nextUpdate')
+    ..pc<BackupMergedEntry>(600, _omitFieldNames ? '' : 'mergedEntries', $pb.PbFieldType.PM,
+        protoName: 'mergedEntries', subBuilder: BackupMergedEntry.create)
     ..aOM<BackupFlatMetadata>(601, _omitFieldNames ? '' : 'flatMetadata',
         protoName: 'flatMetadata', subBuilder: BackupFlatMetadata.create)
     ..a<$core.int>(602, _omitFieldNames ? '' : 'customStatus', $pb.PbFieldType.O3, protoName: 'customStatus')
     ..aOS(603, _omitFieldNames ? '' : 'customThumbnailUrl', protoName: 'customThumbnailUrl')
+    ..aOM<BackupMergeSettings>(604, _omitFieldNames ? '' : 'mergeSettings',
+        protoName: 'mergeSettings', subBuilder: BackupMergeSettings.create)
     ..aOS(800, _omitFieldNames ? '' : 'customTitle', protoName: 'customTitle')
     ..aOS(801, _omitFieldNames ? '' : 'customArtist', protoName: 'customArtist')
     ..aOS(802, _omitFieldNames ? '' : 'customAuthor', protoName: 'customAuthor')
     ..aOS(804, _omitFieldNames ? '' : 'customDescription', protoName: 'customDescription')
-    ..pPS(805, _omitFieldNames ? '' : 'customGenre', protoName: 'customGenre');
+    ..pPS(805, _omitFieldNames ? '' : 'customGenre', protoName: 'customGenre')
+    ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -1332,108 +1518,145 @@ class BackupManga extends $pb.GeneratedMessage {
   @$pb.TagNumber(111)
   void clearInitialized() => clearField(111);
 
+  @$pb.TagNumber(112)
+  $core.List<$core.int> get memo => $_getN(25);
+  @$pb.TagNumber(112)
+  set memo($core.List<$core.int> v) {
+    $_setBytes(25, v);
+  }
+
+  @$pb.TagNumber(112)
+  $core.bool hasMemo() => $_has(25);
+  @$pb.TagNumber(112)
+  void clearMemo() => clearField(112);
+
+  @$pb.TagNumber(113)
+  $fixnum.Int64 get nextUpdate => $_getI64(26);
+  @$pb.TagNumber(113)
+  set nextUpdate($fixnum.Int64 v) {
+    $_setInt64(26, v);
+  }
+
+  @$pb.TagNumber(113)
+  $core.bool hasNextUpdate() => $_has(26);
+  @$pb.TagNumber(113)
+  void clearNextUpdate() => clearField(113);
+
   @$pb.TagNumber(600)
-  $core.List<BackupMergedMangaReference> get mergedMangaReferences => $_getList(25);
+  $core.List<BackupMergedEntry> get mergedEntries => $_getList(27);
 
   @$pb.TagNumber(601)
-  BackupFlatMetadata get flatMetadata => $_getN(26);
+  BackupFlatMetadata get flatMetadata => $_getN(28);
   @$pb.TagNumber(601)
   set flatMetadata(BackupFlatMetadata v) {
     setField(601, v);
   }
 
   @$pb.TagNumber(601)
-  $core.bool hasFlatMetadata() => $_has(26);
+  $core.bool hasFlatMetadata() => $_has(28);
   @$pb.TagNumber(601)
   void clearFlatMetadata() => clearField(601);
   @$pb.TagNumber(601)
-  BackupFlatMetadata ensureFlatMetadata() => $_ensure(26);
+  BackupFlatMetadata ensureFlatMetadata() => $_ensure(28);
 
   @$pb.TagNumber(602)
-  $core.int get customStatus => $_getIZ(27);
+  $core.int get customStatus => $_getIZ(29);
   @$pb.TagNumber(602)
   set customStatus($core.int v) {
-    $_setSignedInt32(27, v);
+    $_setSignedInt32(29, v);
   }
 
   @$pb.TagNumber(602)
-  $core.bool hasCustomStatus() => $_has(27);
+  $core.bool hasCustomStatus() => $_has(29);
   @$pb.TagNumber(602)
   void clearCustomStatus() => clearField(602);
 
   @$pb.TagNumber(603)
-  $core.String get customThumbnailUrl => $_getSZ(28);
+  $core.String get customThumbnailUrl => $_getSZ(30);
   @$pb.TagNumber(603)
   set customThumbnailUrl($core.String v) {
-    $_setString(28, v);
+    $_setString(30, v);
   }
 
   @$pb.TagNumber(603)
-  $core.bool hasCustomThumbnailUrl() => $_has(28);
+  $core.bool hasCustomThumbnailUrl() => $_has(30);
   @$pb.TagNumber(603)
   void clearCustomThumbnailUrl() => clearField(603);
 
+  @$pb.TagNumber(604)
+  BackupMergeSettings get mergeSettings => $_getN(31);
+  @$pb.TagNumber(604)
+  set mergeSettings(BackupMergeSettings v) {
+    setField(604, v);
+  }
+
+  @$pb.TagNumber(604)
+  $core.bool hasMergeSettings() => $_has(31);
+  @$pb.TagNumber(604)
+  void clearMergeSettings() => clearField(604);
+  @$pb.TagNumber(604)
+  BackupMergeSettings ensureMergeSettings() => $_ensure(31);
+
   @$pb.TagNumber(800)
-  $core.String get customTitle => $_getSZ(29);
+  $core.String get customTitle => $_getSZ(32);
   @$pb.TagNumber(800)
   set customTitle($core.String v) {
-    $_setString(29, v);
+    $_setString(32, v);
   }
 
   @$pb.TagNumber(800)
-  $core.bool hasCustomTitle() => $_has(29);
+  $core.bool hasCustomTitle() => $_has(32);
   @$pb.TagNumber(800)
   void clearCustomTitle() => clearField(800);
 
   @$pb.TagNumber(801)
-  $core.String get customArtist => $_getSZ(30);
+  $core.String get customArtist => $_getSZ(33);
   @$pb.TagNumber(801)
   set customArtist($core.String v) {
-    $_setString(30, v);
+    $_setString(33, v);
   }
 
   @$pb.TagNumber(801)
-  $core.bool hasCustomArtist() => $_has(30);
+  $core.bool hasCustomArtist() => $_has(33);
   @$pb.TagNumber(801)
   void clearCustomArtist() => clearField(801);
 
   @$pb.TagNumber(802)
-  $core.String get customAuthor => $_getSZ(31);
+  $core.String get customAuthor => $_getSZ(34);
   @$pb.TagNumber(802)
   set customAuthor($core.String v) {
-    $_setString(31, v);
+    $_setString(34, v);
   }
 
   @$pb.TagNumber(802)
-  $core.bool hasCustomAuthor() => $_has(31);
+  $core.bool hasCustomAuthor() => $_has(34);
   @$pb.TagNumber(802)
   void clearCustomAuthor() => clearField(802);
 
   @$pb.TagNumber(804)
-  $core.String get customDescription => $_getSZ(32);
+  $core.String get customDescription => $_getSZ(35);
   @$pb.TagNumber(804)
   set customDescription($core.String v) {
-    $_setString(32, v);
+    $_setString(35, v);
   }
 
   @$pb.TagNumber(804)
-  $core.bool hasCustomDescription() => $_has(32);
+  $core.bool hasCustomDescription() => $_has(35);
   @$pb.TagNumber(804)
   void clearCustomDescription() => clearField(804);
 
   @$pb.TagNumber(805)
-  $core.List<$core.String> get customGenre => $_getList(33);
+  $core.List<$core.String> get customGenre => $_getList(36);
 }
 
-/// BackupMergedMangaReference.kt
-class BackupMergedMangaReference extends $pb.GeneratedMessage {
-  factory BackupMergedMangaReference({
+/// BackupMergedEntry.kt
+class BackupMergedEntry extends $pb.GeneratedMessage {
+  factory BackupMergedEntry({
     $core.bool? isInfoManga,
-    $core.bool? getChapterUpdates,
+    $core.bool? fetchChapterUpdates,
     $core.int? chapterSortMode,
     $core.int? chapterPriority,
     $core.bool? downloadChapters,
-    $core.String? mergeUrl,
     $core.String? mangaUrl,
     $fixnum.Int64? mangaSourceId,
   }) {
@@ -1441,8 +1664,8 @@ class BackupMergedMangaReference extends $pb.GeneratedMessage {
     if (isInfoManga != null) {
       $result.isInfoManga = isInfoManga;
     }
-    if (getChapterUpdates != null) {
-      $result.getChapterUpdates = getChapterUpdates;
+    if (fetchChapterUpdates != null) {
+      $result.fetchChapterUpdates = fetchChapterUpdates;
     }
     if (chapterSortMode != null) {
       $result.chapterSortMode = chapterSortMode;
@@ -1453,9 +1676,6 @@ class BackupMergedMangaReference extends $pb.GeneratedMessage {
     if (downloadChapters != null) {
       $result.downloadChapters = downloadChapters;
     }
-    if (mergeUrl != null) {
-      $result.mergeUrl = mergeUrl;
-    }
     if (mangaUrl != null) {
       $result.mangaUrl = mangaUrl;
     }
@@ -1464,46 +1684,44 @@ class BackupMergedMangaReference extends $pb.GeneratedMessage {
     }
     return $result;
   }
-  BackupMergedMangaReference._() : super();
-  factory BackupMergedMangaReference.fromBuffer($core.List<$core.int> i,
+  BackupMergedEntry._() : super();
+  factory BackupMergedEntry.fromBuffer($core.List<$core.int> i,
           [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(i, r);
-  factory BackupMergedMangaReference.fromJson($core.String i,
-          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+  factory BackupMergedEntry.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(i, r);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupMergedMangaReference',
-      createEmptyInstance: create)
-    ..a<$core.bool>(1, _omitFieldNames ? '' : 'isInfoManga', $pb.PbFieldType.QB, protoName: 'isInfoManga')
-    ..a<$core.bool>(2, _omitFieldNames ? '' : 'getChapterUpdates', $pb.PbFieldType.QB, protoName: 'getChapterUpdates')
-    ..a<$core.int>(3, _omitFieldNames ? '' : 'chapterSortMode', $pb.PbFieldType.Q3, protoName: 'chapterSortMode')
-    ..a<$core.int>(4, _omitFieldNames ? '' : 'chapterPriority', $pb.PbFieldType.Q3, protoName: 'chapterPriority')
-    ..a<$core.bool>(5, _omitFieldNames ? '' : 'downloadChapters', $pb.PbFieldType.QB, protoName: 'downloadChapters')
-    ..aQS(6, _omitFieldNames ? '' : 'mergeUrl', protoName: 'mergeUrl')
-    ..aQS(7, _omitFieldNames ? '' : 'mangaUrl', protoName: 'mangaUrl')
-    ..a<$fixnum.Int64>(8, _omitFieldNames ? '' : 'mangaSourceId', $pb.PbFieldType.Q6,
-        protoName: 'mangaSourceId', defaultOrMaker: $fixnum.Int64.ZERO);
+  static final $pb.BuilderInfo _i =
+      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupMergedEntry', createEmptyInstance: create)
+        ..aOB(1, _omitFieldNames ? '' : 'isInfoManga', protoName: 'isInfoManga')
+        ..aOB(2, _omitFieldNames ? '' : 'fetchChapterUpdates', protoName: 'fetchChapterUpdates')
+        ..a<$core.int>(3, _omitFieldNames ? '' : 'chapterSortMode', $pb.PbFieldType.O3, protoName: 'chapterSortMode')
+        ..a<$core.int>(4, _omitFieldNames ? '' : 'chapterPriority', $pb.PbFieldType.O3, protoName: 'chapterPriority')
+        ..aOB(5, _omitFieldNames ? '' : 'downloadChapters', protoName: 'downloadChapters')
+        ..aOS(7, _omitFieldNames ? '' : 'mangaUrl', protoName: 'mangaUrl')
+        ..aInt64(8, _omitFieldNames ? '' : 'mangaSourceId', protoName: 'mangaSourceId')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
       'Will be removed in next major version')
-  BackupMergedMangaReference clone() => BackupMergedMangaReference()..mergeFromMessage(this);
+  BackupMergedEntry clone() => BackupMergedEntry()..mergeFromMessage(this);
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
       'Will be removed in next major version')
-  BackupMergedMangaReference copyWith(void Function(BackupMergedMangaReference) updates) =>
-      super.copyWith((message) => updates(message as BackupMergedMangaReference)) as BackupMergedMangaReference;
+  BackupMergedEntry copyWith(void Function(BackupMergedEntry) updates) =>
+      super.copyWith((message) => updates(message as BackupMergedEntry)) as BackupMergedEntry;
 
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static BackupMergedMangaReference create() => BackupMergedMangaReference._();
-  BackupMergedMangaReference createEmptyInstance() => create();
-  static $pb.PbList<BackupMergedMangaReference> createRepeated() => $pb.PbList<BackupMergedMangaReference>();
+  static BackupMergedEntry create() => BackupMergedEntry._();
+  BackupMergedEntry createEmptyInstance() => create();
+  static $pb.PbList<BackupMergedEntry> createRepeated() => $pb.PbList<BackupMergedEntry>();
   @$core.pragma('dart2js:noInline')
-  static BackupMergedMangaReference getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupMergedMangaReference>(create);
-  static BackupMergedMangaReference? _defaultInstance;
+  static BackupMergedEntry getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupMergedEntry>(create);
+  static BackupMergedEntry? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.bool get isInfoManga => $_getBF(0);
@@ -1518,16 +1736,16 @@ class BackupMergedMangaReference extends $pb.GeneratedMessage {
   void clearIsInfoManga() => clearField(1);
 
   @$pb.TagNumber(2)
-  $core.bool get getChapterUpdates => $_getBF(1);
+  $core.bool get fetchChapterUpdates => $_getBF(1);
   @$pb.TagNumber(2)
-  set getChapterUpdates($core.bool v) {
+  set fetchChapterUpdates($core.bool v) {
     $_setBool(1, v);
   }
 
   @$pb.TagNumber(2)
-  $core.bool hasGetChapterUpdates() => $_has(1);
+  $core.bool hasFetchChapterUpdates() => $_has(1);
   @$pb.TagNumber(2)
-  void clearGetChapterUpdates() => clearField(2);
+  void clearFetchChapterUpdates() => clearField(2);
 
   @$pb.TagNumber(3)
   $core.int get chapterSortMode => $_getIZ(2);
@@ -1565,41 +1783,119 @@ class BackupMergedMangaReference extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   void clearDownloadChapters() => clearField(5);
 
-  @$pb.TagNumber(6)
-  $core.String get mergeUrl => $_getSZ(5);
-  @$pb.TagNumber(6)
-  set mergeUrl($core.String v) {
+  @$pb.TagNumber(7)
+  $core.String get mangaUrl => $_getSZ(5);
+  @$pb.TagNumber(7)
+  set mangaUrl($core.String v) {
     $_setString(5, v);
   }
 
-  @$pb.TagNumber(6)
-  $core.bool hasMergeUrl() => $_has(5);
-  @$pb.TagNumber(6)
-  void clearMergeUrl() => clearField(6);
-
   @$pb.TagNumber(7)
-  $core.String get mangaUrl => $_getSZ(6);
-  @$pb.TagNumber(7)
-  set mangaUrl($core.String v) {
-    $_setString(6, v);
-  }
-
-  @$pb.TagNumber(7)
-  $core.bool hasMangaUrl() => $_has(6);
+  $core.bool hasMangaUrl() => $_has(5);
   @$pb.TagNumber(7)
   void clearMangaUrl() => clearField(7);
 
   @$pb.TagNumber(8)
-  $fixnum.Int64 get mangaSourceId => $_getI64(7);
+  $fixnum.Int64 get mangaSourceId => $_getI64(6);
   @$pb.TagNumber(8)
   set mangaSourceId($fixnum.Int64 v) {
-    $_setInt64(7, v);
+    $_setInt64(6, v);
   }
 
   @$pb.TagNumber(8)
-  $core.bool hasMangaSourceId() => $_has(7);
+  $core.bool hasMangaSourceId() => $_has(6);
   @$pb.TagNumber(8)
   void clearMangaSourceId() => clearField(8);
+}
+
+class BackupMergeSettings extends $pb.GeneratedMessage {
+  factory BackupMergeSettings({
+    $core.int? chapterSortMode,
+    $core.String? infoMangaUrl,
+    $fixnum.Int64? infoMangaSourceId,
+  }) {
+    final $result = create();
+    if (chapterSortMode != null) {
+      $result.chapterSortMode = chapterSortMode;
+    }
+    if (infoMangaUrl != null) {
+      $result.infoMangaUrl = infoMangaUrl;
+    }
+    if (infoMangaSourceId != null) {
+      $result.infoMangaSourceId = infoMangaSourceId;
+    }
+    return $result;
+  }
+  BackupMergeSettings._() : super();
+  factory BackupMergeSettings.fromBuffer($core.List<$core.int> i,
+          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(i, r);
+  factory BackupMergeSettings.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i =
+      $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupMergeSettings', createEmptyInstance: create)
+        ..a<$core.int>(1, _omitFieldNames ? '' : 'chapterSortMode', $pb.PbFieldType.O3, protoName: 'chapterSortMode')
+        ..aOS(2, _omitFieldNames ? '' : 'infoMangaUrl', protoName: 'infoMangaUrl')
+        ..aInt64(3, _omitFieldNames ? '' : 'infoMangaSourceId', protoName: 'infoMangaSourceId')
+        ..hasRequiredFields = false;
+
+  @$core.Deprecated('Using this can add significant overhead to your binary. '
+      'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+      'Will be removed in next major version')
+  BackupMergeSettings clone() => BackupMergeSettings()..mergeFromMessage(this);
+  @$core.Deprecated('Using this can add significant overhead to your binary. '
+      'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+      'Will be removed in next major version')
+  BackupMergeSettings copyWith(void Function(BackupMergeSettings) updates) =>
+      super.copyWith((message) => updates(message as BackupMergeSettings)) as BackupMergeSettings;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BackupMergeSettings create() => BackupMergeSettings._();
+  BackupMergeSettings createEmptyInstance() => create();
+  static $pb.PbList<BackupMergeSettings> createRepeated() => $pb.PbList<BackupMergeSettings>();
+  @$core.pragma('dart2js:noInline')
+  static BackupMergeSettings getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BackupMergeSettings>(create);
+  static BackupMergeSettings? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get chapterSortMode => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set chapterSortMode($core.int v) {
+    $_setSignedInt32(0, v);
+  }
+
+  @$pb.TagNumber(1)
+  $core.bool hasChapterSortMode() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearChapterSortMode() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get infoMangaUrl => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set infoMangaUrl($core.String v) {
+    $_setString(1, v);
+  }
+
+  @$pb.TagNumber(2)
+  $core.bool hasInfoMangaUrl() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearInfoMangaUrl() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get infoMangaSourceId => $_getI64(2);
+  @$pb.TagNumber(3)
+  set infoMangaSourceId($fixnum.Int64 v) {
+    $_setInt64(2, v);
+  }
+
+  @$pb.TagNumber(3)
+  $core.bool hasInfoMangaSourceId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearInfoMangaSourceId() => clearField(3);
 }
 
 /// BackupPreference.kt
@@ -1626,7 +1922,7 @@ class BackupPreference extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupPreference', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'key')
+        ..aOS(1, _omitFieldNames ? '' : 'key')
         ..aQM<PreferenceValue>(2, _omitFieldNames ? '' : 'value', subBuilder: PreferenceValue.create);
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1700,7 +1996,7 @@ class BackupSourcePreferences extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSourcePreferences',
       createEmptyInstance: create)
-    ..aQS(1, _omitFieldNames ? '' : 'sourceKey', protoName: 'sourceKey')
+    ..aOS(1, _omitFieldNames ? '' : 'sourceKey', protoName: 'sourceKey')
     ..pc<BackupPreference>(2, _omitFieldNames ? '' : 'prefs', $pb.PbFieldType.PM, subBuilder: BackupPreference.create);
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1759,7 +2055,8 @@ class IntPreferenceValue extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'IntPreferenceValue', createEmptyInstance: create)
-        ..a<$core.int>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.Q3);
+        ..a<$core.int>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.O3)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -1814,7 +2111,8 @@ class LongPreferenceValue extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'LongPreferenceValue', createEmptyInstance: create)
-        ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.Q6, defaultOrMaker: $fixnum.Int64.ZERO);
+        ..aInt64(1, _omitFieldNames ? '' : 'value')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -1869,7 +2167,8 @@ class FloatPreferenceValue extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'FloatPreferenceValue', createEmptyInstance: create)
-        ..a<$core.double>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.QF);
+        ..a<$core.double>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OF)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -1924,7 +2223,8 @@ class StringPreferenceValue extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'StringPreferenceValue', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'value');
+        ..aOS(1, _omitFieldNames ? '' : 'value')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -1979,7 +2279,8 @@ class BooleanPreferenceValue extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BooleanPreferenceValue', createEmptyInstance: create)
-        ..a<$core.bool>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.QB);
+        ..aOB(1, _omitFieldNames ? '' : 'value')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2094,10 +2395,11 @@ class BackupSavedSearch extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSavedSearch', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'name')
+        ..aOS(1, _omitFieldNames ? '' : 'name')
         ..aOS(2, _omitFieldNames ? '' : 'query')
         ..aOS(3, _omitFieldNames ? '' : 'filterList', protoName: 'filterList')
-        ..aInt64(4, _omitFieldNames ? '' : 'source');
+        ..aInt64(4, _omitFieldNames ? '' : 'source')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2193,8 +2495,8 @@ class BackupSource extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSource', createEmptyInstance: create)
         ..aOS(1, _omitFieldNames ? '' : 'name')
-        ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'sourceId', $pb.PbFieldType.Q6,
-            protoName: 'sourceId', defaultOrMaker: $fixnum.Int64.ZERO);
+        ..aInt64(2, _omitFieldNames ? '' : 'sourceId', protoName: 'sourceId')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2308,9 +2610,8 @@ class BackupTracking extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupTracking', createEmptyInstance: create)
-        ..a<$core.int>(1, _omitFieldNames ? '' : 'syncId', $pb.PbFieldType.Q3, protoName: 'syncId')
-        ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'libraryId', $pb.PbFieldType.Q6,
-            protoName: 'libraryId', defaultOrMaker: $fixnum.Int64.ZERO)
+        ..a<$core.int>(1, _omitFieldNames ? '' : 'syncId', $pb.PbFieldType.O3, protoName: 'syncId')
+        ..aInt64(2, _omitFieldNames ? '' : 'libraryId', protoName: 'libraryId')
         ..a<$core.int>(3, _omitFieldNames ? '' : 'mediaIdInt', $pb.PbFieldType.O3, protoName: 'mediaIdInt')
         ..aOS(4, _omitFieldNames ? '' : 'trackingUrl', protoName: 'trackingUrl')
         ..aOS(5, _omitFieldNames ? '' : 'title')
@@ -2321,7 +2622,8 @@ class BackupTracking extends $pb.GeneratedMessage {
         ..aInt64(10, _omitFieldNames ? '' : 'startedReadingDate', protoName: 'startedReadingDate')
         ..aInt64(11, _omitFieldNames ? '' : 'finishedReadingDate', protoName: 'finishedReadingDate')
         ..aOB(12, _omitFieldNames ? '' : 'private')
-        ..aInt64(100, _omitFieldNames ? '' : 'mediaId', protoName: 'mediaId');
+        ..aInt64(100, _omitFieldNames ? '' : 'mediaId', protoName: 'mediaId')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2533,9 +2835,10 @@ class BackupSearchMetadata extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSearchMetadata', createEmptyInstance: create)
         ..aOS(1, _omitFieldNames ? '' : 'uploader')
-        ..aQS(2, _omitFieldNames ? '' : 'extra')
+        ..aOS(2, _omitFieldNames ? '' : 'extra')
         ..aOS(3, _omitFieldNames ? '' : 'indexedExtra', protoName: 'indexedExtra')
-        ..a<$core.int>(4, _omitFieldNames ? '' : 'extraVersion', $pb.PbFieldType.Q3, protoName: 'extraVersion');
+        ..a<$core.int>(4, _omitFieldNames ? '' : 'extraVersion', $pb.PbFieldType.O3, protoName: 'extraVersion')
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2636,8 +2939,9 @@ class BackupSearchTag extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSearchTag', createEmptyInstance: create)
         ..aOS(1, _omitFieldNames ? '' : 'namespace')
-        ..aQS(2, _omitFieldNames ? '' : 'name')
-        ..a<$core.int>(3, _omitFieldNames ? '' : 'type', $pb.PbFieldType.Q3);
+        ..aOS(2, _omitFieldNames ? '' : 'name')
+        ..a<$core.int>(3, _omitFieldNames ? '' : 'type', $pb.PbFieldType.O3)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
@@ -2721,8 +3025,9 @@ class BackupSearchTitle extends $pb.GeneratedMessage {
 
   static final $pb.BuilderInfo _i =
       $pb.BuilderInfo(_omitMessageNames ? '' : 'BackupSearchTitle', createEmptyInstance: create)
-        ..aQS(1, _omitFieldNames ? '' : 'title')
-        ..a<$core.int>(2, _omitFieldNames ? '' : 'type', $pb.PbFieldType.Q3);
+        ..aOS(1, _omitFieldNames ? '' : 'title')
+        ..a<$core.int>(2, _omitFieldNames ? '' : 'type', $pb.PbFieldType.O3)
+        ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
       'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
