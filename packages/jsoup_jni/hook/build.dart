@@ -3,7 +3,7 @@
 //
 // Downloads:
 // 1. Adoptium JDK 17 (Windows x64, Linux x64/arm64)
-// 2. Jsoup 1.18.3 JAR from Maven Central
+// 2. Jsoup 1.23.2 JAR from Maven Central
 //
 // The JVM library is registered as a CodeAsset. The Jsoup JAR is placed in the
 // shared output directory where JreManager finds it at runtime.

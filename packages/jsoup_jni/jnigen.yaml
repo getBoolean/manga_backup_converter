@@ -12,6 +12,6 @@ classes:
 
 maven_downloads:
   source_deps:
-    - org.jsoup:jsoup:1.18.3
+    - org.jsoup:jsoup:1.23.2
   jar_only_deps:
     - org.jspecify:jspecify:1.0.0
