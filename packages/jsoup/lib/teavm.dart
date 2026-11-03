@@ -1,4 +1,4 @@
-/// TeaVM-compiled Jsoup 1.18.3 bridge (UMD module, minified).
+/// TeaVM-compiled Jsoup 1.23.2 bridge (UMD module, minified).
 ///
 /// Provides `teavmJsoupJs`, a JavaScript source string that exposes
 /// the real Java Jsoup library when evaluated in a Web Worker context
