@@ -1,6 +1,6 @@
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/src/common/convertable.dart';
-import 'package:manga_backup_core/src/conversion/conversion_summary.dart';
+import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/manga_details.dart';
 import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
@@ -12,17 +12,17 @@ import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_history.dart'
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_library_manga.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_manga.dart';
 import 'package:manga_backup_core/src/formats/paperback/paperback_backup.dart';
-import 'package:manga_backup_core/src/reconciliation/chapter_reconciler.dart';
 import 'package:test/scaffolding.dart';
 
 import '../fixtures/paperback_fixtures.dart' as fx;
+import '../support/test_refs.dart';
 
 void main() {
   group('AidokuBackupBuilder', () {
     const builder = AidokuBackupBuilder();
 
     test('empty confirmations produces empty backup', () {
-      final ConvertableBackup result = builder.build(const <MangaMatchConfirmation>[]);
+      final ConvertableBackup result = buildFrom(builder, const <MangaMatchConfirmation>[]);
       check(result).isA<AidokuBackup>();
       final backup = result as AidokuBackup;
       check(backup.manga).isNotNull().isEmpty();
@@ -48,7 +48,7 @@ void main() {
             categories: const <String>['Favorites'],
             dateAdded: DateTime(2024),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'multi.mangadex',
             mangaKey: '/manga/abc123',
             title: 'Matched Title',
@@ -58,7 +58,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
 
       check(backup.manga).isNotNull().length.equals(1);
@@ -96,7 +96,7 @@ void main() {
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Kept Manga'),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'en.source',
             mangaKey: 'key1',
             title: 'Kept Manga',
@@ -104,7 +104,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
 
       check(backup.manga).isNotNull().length.equals(1);
@@ -117,7 +117,7 @@ void main() {
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Manga A'),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'multi.mangadex',
             mangaKey: 'key-a',
             title: 'Manga A',
@@ -127,7 +127,7 @@ void main() {
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Manga B'),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'multi.mangadex',
             mangaKey: 'key-b',
             title: 'Manga B',
@@ -135,7 +135,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
 
       check(backup.manga).isNotNull().length.equals(2);
@@ -149,7 +149,7 @@ void main() {
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'No Tags'),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'en.src',
             mangaKey: 'k',
             title: 'No Tags',
@@ -157,7 +157,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
       check(backup.manga!.first.tags).isNull();
     });
@@ -180,7 +180,7 @@ void main() {
               ),
             ],
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'en.src',
             mangaKey: 'manga-key',
             title: 'With Chapters',
@@ -192,7 +192,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
 
       check(backup.chapters).isNotNull().length.equals(2);
@@ -216,7 +216,7 @@ void main() {
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Tracked'),
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'en.src',
             mangaKey: 'tracked-key',
             title: 'Tracked',
@@ -224,7 +224,8 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final report = ConversionReport();
+      final ConvertableBackup result = buildFrom(builder, confirmations, report: report);
       final backup = result as AidokuBackup;
 
       check(backup.trackItems).isNull();
@@ -237,7 +238,7 @@ void main() {
             details: MangaSearchDetails(title: 'A'),
             categories: <String>['Favorites', 'Action'],
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'src',
             mangaKey: 'a',
             title: 'A',
@@ -248,7 +249,7 @@ void main() {
             details: MangaSearchDetails(title: 'B'),
             categories: <String>['Action', 'Comedy'],
           ),
-          confirmedMatch: const PluginSearchResult(
+          confirmedMatch: testResult(
             pluginSourceId: 'src',
             mangaKey: 'b',
             title: 'B',
@@ -256,7 +257,7 @@ void main() {
         ),
       ];
 
-      final ConvertableBackup result = builder.build(confirmations);
+      final ConvertableBackup result = buildFrom(builder, confirmations);
       final backup = result as AidokuBackup;
 
       check(backup.categories).isNotNull().length.equals(3);
@@ -269,20 +270,24 @@ void main() {
   group('UnimplementedBackupBuilder', () {
     test('throws UnimplementedError', () {
       const builder = UnimplementedBackupBuilder();
-      check(() => builder.build(const <MangaMatchConfirmation>[])).throws<UnimplementedError>();
+      check(() => buildFrom(builder, const <MangaMatchConfirmation>[])).throws<UnimplementedError>();
     });
   });
 
   group('AidokuBackupBuilder characterization (chapter state)', () {
     const builder = AidokuBackupBuilder();
-    const match = PluginSearchResult(pluginSourceId: 'dest.src', mangaKey: 'dest-manga', title: 'Fixture Manga');
+    final PluginSearchResult match = testResult(
+      pluginSourceId: 'dest.src',
+      mangaKey: 'dest-manga',
+      title: 'Fixture Manga',
+    );
 
     AidokuBackup buildOne(
       List<SourceChapter> chapters,
       List<PluginChapter> target, {
       List<SourceHistoryEntry>? history,
     }) {
-      return builder.build(<MangaMatchConfirmation>[
+      return buildFrom(builder, <MangaMatchConfirmation>[
         MangaMatchConfirmation(
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Fixture Manga'),
@@ -434,10 +439,14 @@ void main() {
 
   group('AidokuBackupBuilder reconciliation output', () {
     const builder = AidokuBackupBuilder();
-    const match = PluginSearchResult(pluginSourceId: 'dest.src', mangaKey: 'dest-manga', title: 'Fixture Manga');
+    final PluginSearchResult match = testResult(
+      pluginSourceId: 'dest.src',
+      mangaKey: 'dest-manga',
+      title: 'Fixture Manga',
+    );
 
     test('history linked by source chapter ID reaches the matched destination chapter', () {
-      final backup = builder.build(<MangaMatchConfirmation>[
+      final backup = buildFrom(builder, <MangaMatchConfirmation>[
         MangaMatchConfirmation(
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Fixture Manga'),
@@ -470,7 +479,7 @@ void main() {
     });
 
     test('per-chapter read dates are used instead of the manga-level date', () {
-      final backup = builder.build(<MangaMatchConfirmation>[
+      final backup = buildFrom(builder, <MangaMatchConfirmation>[
         MangaMatchConfirmation(
           sourceManga: SourceMangaData(
             details: MangaSearchDetails(title: 'Fixture Manga'),
@@ -494,9 +503,9 @@ void main() {
       check(dates).deepEquals(<String, DateTime>{'d1': DateTime.utc(2023, 2), 'd2': DateTime.utc(2023, 3)});
     });
 
-    test('summary lists unresolved manga, ambiguous chapters, collisions, orphan history and bookmarks', () {
-      final summary = ConversionSummary();
-      builder.build(<MangaMatchConfirmation>[
+    test('report accounts for unresolved manga, ambiguous chapters, collisions, orphan history and bookmarks', () {
+      final report = ConversionReport();
+      buildFrom(builder, <MangaMatchConfirmation>[
         MangaMatchConfirmation(
           sourceManga: SourceMangaData(details: MangaSearchDetails(title: 'Unmatched Manga')),
         ),
@@ -522,28 +531,30 @@ void main() {
             PluginChapter(chapterId: 'd9', chapterNumber: 9),
           ],
         ),
-      ], summary: summary);
+      ], report: report);
 
-      check(summary.unresolvedManga.map((SourceMangaData m) => m.details.title).toList()).deepEquals(<String>[
-        'Unmatched Manga',
-      ]);
-      final MangaChapterReport report = summary.chapterReports.single;
-      check(report.mangaTitle).equals('Fixture Manga');
-      check(report.unresolvedChapters.whereType<AmbiguousChapter>()).length.equals(1);
-      check(report.unresolvedChapters.whereType<ChapterCollision>().single.destination.chapterId).equals('d7');
-      check(report.orphanHistoryEntries).equals(1);
-      check(report.secondarySourceChaptersWithState).equals(1);
-      check(report.bookmarksNotRepresentable).equals(1);
+      check(
+        report.where(RecordKind.manga, RecordDisposition.unresolved).map((ReportEntry e) => e.manga).toList(),
+      ).deepEquals(<String>['Unmatched Manga']);
+      check(report.where(RecordKind.manga, RecordDisposition.transferred).single.manga).equals('Fixture Manga');
+      final List<ReportEntry> unresolved = report.where(RecordKind.chapterState, RecordDisposition.unresolved).toList();
+      // c5 ambiguous, c7a + c7b collide on d7, the secondary-source chapter is not reconciled.
+      check(unresolved.length).equals(4);
+      check(report.count(RecordKind.chapterState, RecordDisposition.transferred)).equals(1);
+      check(report.count(RecordKind.history, RecordDisposition.unresolved)).equals(1);
+      check(report.count(RecordKind.field, RecordDisposition.unrepresentable)).equals(1);
+      check(report.isPartial).isTrue();
 
-      final String text = summary.describe().join('\n');
+      final String text = report.describe().join('\n');
       check(text).contains('Unmatched Manga');
       check(text).contains('2 equally plausible destination chapters');
       check(text).contains('2 source chapters');
+      check(text).contains('bookmark');
     });
 
     test('Paperback fixture: progress, read dates and identity flow through to Aidoku history', () {
       final SourceMangaData source = PaperbackBackup.fromData(fx.libraryLinkageArchive()).sourceMangaDataEntries.single;
-      final backup = builder.build(<MangaMatchConfirmation>[
+      final backup = buildFrom(builder, <MangaMatchConfirmation>[
         MangaMatchConfirmation(
           sourceManga: source,
           confirmedMatch: match,

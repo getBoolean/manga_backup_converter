@@ -9,8 +9,12 @@ abstract interface class ConvertableType<ReturnType, ArgumentType> {
 
 abstract interface class ConvertableBackup {
   Future<Uint8List> toData();
-  // ignore: avoid_positional_boolean_parameters
-  void verbosePrint(bool verbose);
+
+  /// Structured summary lines for diagnostics; hosts decide how to render them.
+  List<String> get diagnostics;
   List<MangaSearchEntry> get mangaSearchEntries;
   List<SourceMangaData> get sourceMangaDataEntries;
+
+  /// Library records that could not be extracted into [sourceMangaDataEntries].
+  List<ExtractionLoss> get extractionLosses;
 }

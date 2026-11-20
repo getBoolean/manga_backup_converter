@@ -84,10 +84,17 @@ final class ChapterCollision extends UnresolvedChapter {
 }
 
 class ChapterReconciliation {
-  const ChapterReconciliation({required this.matches, required this.unresolved});
+  const ChapterReconciliation({
+    required this.matches,
+    required this.unresolved,
+    this.excluded = const <SourceChapter>[],
+  });
 
   final List<ChapterMatch> matches;
   final List<UnresolvedChapter> unresolved;
+
+  /// Source chapters the user explicitly excluded; they receive no state.
+  final List<SourceChapter> excluded;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +191,7 @@ List<PluginChapter> _candidatesFor(
   if (candidates.length <= 1) return candidates;
 
   final Set<String> groups = scanlatorGroups(source.scanlator);
-  bool sharesGroup(PluginChapter d) => scanlatorGroups(d.scanlator).intersection(groups).isNotEmpty;
+  bool sharesGroup(PluginChapter d) => d.scanlators.expand(scanlatorGroups).toSet().intersection(groups).isNotEmpty;
   final List<PluginChapter> byTitle = title == null
       ? const <PluginChapter>[]
       : candidates.where((PluginChapter d) => normalizedChapterTitle(d.title) == title).toList();

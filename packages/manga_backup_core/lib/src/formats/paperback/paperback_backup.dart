@@ -193,28 +193,43 @@ class PaperbackBackup with PaperbackBackupMappable implements ConvertableBackup 
     return ZipEncoder().encodeBytes(archive);
   }
 
+  /// Library entries whose primary source does not lead to manga info.
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
-    print('Manga Info: ${mangaInfo?.length}');
-    print('Library Manga: ${libraryManga?.length}');
-    print('Chapters: ${chapters?.length}');
-    print('Chapter Progress Marker: ${chapterProgressMarker?.length}');
-    print('Source Manga: ${sourceManga?.length}');
+  List<ExtractionLoss> get extractionLosses {
+    final index = _PaperbackIndex(this);
+    return <ExtractionLoss>[
+      for (final PaperbackBackupLibraryManga lib in libraryManga ?? const <PaperbackBackupLibraryManga>[])
+        if (index.resolveLibrary(lib) == null)
+          ExtractionLoss(
+            subject: 'Paperback library entry ${lib.id}',
+            reason: 'primary source ${lib.primarySource.id} does not resolve to manga info; not migrated',
+          ),
+    ];
+  }
+
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+    lines.add('Manga Info: ${mangaInfo?.length}');
+    lines.add('Library Manga: ${libraryManga?.length}');
+    lines.add('Chapters: ${chapters?.length}');
+    lines.add('Chapter Progress Marker: ${chapterProgressMarker?.length}');
+    lines.add('Source Manga: ${sourceManga?.length}');
     final List<PaperbackBackupLibraryManga>? trackedManga = libraryManga
         ?.where((PaperbackBackupLibraryManga i) => i.trackedSources.isNotEmpty)
         .toList();
-    print('Tracked Manga: ${trackedManga?.length}');
+    lines.add('Tracked Manga: ${trackedManga?.length}');
     final List<PaperbackBackupLibraryManga>? mangaWithSecondarySources = libraryManga
         ?.where((PaperbackBackupLibraryManga i) => i.secondarySources.isNotEmpty)
         .toList();
-    print('Manga with Secondary Sources: ${mangaWithSecondarySources?.length}');
+    lines.add('Manga with Secondary Sources: ${mangaWithSecondarySources?.length}');
     final List<PaperbackBackupMangaInfo>? mangaTagsWithTags = mangaInfo
         ?.where(
           (PaperbackBackupMangaInfo i) => i.tags.where((PaperbackBackupMangaTag e) => e.tags.isNotEmpty).isNotEmpty,
         )
         .toList();
-    print('Manga with Tags: ${mangaTagsWithTags?.length}');
+    lines.add('Manga with Tags: ${mangaTagsWithTags?.length}');
+    return lines;
   }
 }
 

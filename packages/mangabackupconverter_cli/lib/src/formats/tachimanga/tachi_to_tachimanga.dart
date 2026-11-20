@@ -212,3 +212,10 @@ extension TachiToTachimanga on TachiBackup {
     );
   }
 }
+
+/// The CLI's [DirectConverter]: Tachimanga↔Tachi without source plugins.
+ConvertableBackup legacyDirectConvert(ConvertableBackup source, BackupFormat target) => switch (source) {
+  TachimangaBackup() => source.toTachiBackup(),
+  TachiBackup() => source.toTachimangaBackup(),
+  _ => throw StateError('Unexpected source type for direct conversion: ${source.runtimeType}'),
+};

@@ -16,7 +16,5 @@ export 'src/formats/tachimanga/tachimanga_backup.dart';
 export 'src/formats/tachimanga/tachimanga_backup_db.dart';
 export 'src/formats/tachimanga/tachimanga_backup_db_models.dart';
 export 'src/formats/tachimanga/tachimanga_backup_meta.dart';
-export 'src/pipeline/migration_pipeline.dart';
 export 'src/pipeline/plugin_loader.dart';
-export 'src/pipeline/plugin_source_aidoku.dart';
 export 'src/pipeline/plugin_source_stub.dart';

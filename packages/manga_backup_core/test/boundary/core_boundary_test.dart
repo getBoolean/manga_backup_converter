@@ -23,9 +23,9 @@ void main() {
   test('core lib imports no CLI, Flutter, dart:io, loader, HTTP, SQLite or desktop backend code (KTD14)', () {
     final forbidden = RegExp(
       r'''^\s*(import|export)\s+['"]('''
-      r'dart:io|dart:ffi|dart:isolate|package:flutter|package:mangabackupconverter_cli|'
+      'dart:io|dart:ffi|dart:isolate|package:flutter|package:mangabackupconverter_cli|'
       r'package:aidoku_plugin_loader|package:http/|package:sqflite|package:source_runtime/source_runtime\.dart|'
-      r'''package:source_runtime/src/)''',
+      '''package:source_runtime/src/)''',
       multiLine: true,
     );
     final offenders = <String>[];
@@ -46,19 +46,20 @@ void main() {
   });
 
   test('update-schemas workflow writes generated Tachi protobuf code only to the core path', () {
-    final File workflow = File(p.join(pkg.path, '..', '..', '.github', 'workflows', 'update-schemas.yml'));
+    final workflow = File(p.join(pkg.path, '..', '..', '.github', 'workflows', 'update-schemas.yml'));
     final String yml = workflow.readAsStringSync();
     final List<String> prefixes = RegExp(
-      r'OUTPUT_DIR_PREFIX="([^"]+)"',
+      'OUTPUT_DIR_PREFIX="([^"]+)"',
     ).allMatches(yml).map((Match m) => m[1]!).toList();
     check(prefixes).deepEquals(<String>['packages/manga_backup_core/lib/src/formats/tachi/proto/']);
     check(yml).not((it) => it.contains('mangabackupconverter_cli/lib/src/proto'));
 
-    final repo = p.join(pkg.path, '..', '..');
+    final String repo = p.join(pkg.path, '..', '..');
     for (final schema in <String>['j2k', 'mihon', 'neko', 'sy', 'yokai']) {
       final generated = File(p.join(repo, prefixes.single, 'schema_$schema.proto', 'proto', 'schema_$schema.pb.dart'));
       check(generated.existsSync()).isTrue();
     }
-    check(Directory(p.join(repo, 'packages', 'mangabackupconverter_cli', 'lib', 'src', 'proto')).existsSync()).isFalse();
+    check(Directory(p.join(repo, 'packages', 'mangabackupconverter_cli', 'lib', 'src', 'proto')).existsSync())
+        .isFalse();
   });
 }

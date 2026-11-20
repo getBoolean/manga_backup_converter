@@ -205,11 +205,15 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
   static const TachiBackup Function(String json) fromJson = TachiBackupMapper.fromJson;
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
-    print('Categories: ${backupCategories.length}');
-    print('Manga: ${backupManga.length}');
-    print('Sources: ${backupSources.length}');
-    print('Extension Repos: ${backupExtensionRepo.length}');
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
+
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+    lines.add('Categories: ${backupCategories.length}');
+    lines.add('Manga: ${backupManga.length}');
+    lines.add('Sources: ${backupSources.length}');
+    lines.add('Extension Repos: ${backupExtensionRepo.length}');
+    return lines;
   }
 }

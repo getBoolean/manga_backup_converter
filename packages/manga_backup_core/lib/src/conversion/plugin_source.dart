@@ -1,18 +1,36 @@
 import 'package:manga_backup_core/src/common/normalize_chapter_number.dart';
 import 'package:manga_backup_core/src/conversion/chapter_data.dart';
+import 'package:manga_backup_core/src/conversion/details_outcome.dart';
+import 'package:source_runtime/source_contracts.dart';
 
+/// A loaded source as the migration pipeline sees it. Implemented over the
+/// backend-neutral `SourceSession` by `SessionPluginSource` (KTD15).
 abstract interface class PluginSource {
+  /// Runtime source ID ([SourceIdentity.sourceId]).
   String get sourceId;
   String get sourceName;
-  Future<PluginSearchPageResult> search(String query, int page);
-  Future<(PluginMangaDetails, List<PluginChapter>)?> getMangaWithChapters(String mangaKey);
-  void dispose();
+
+  /// The verified identity the source runs as.
+  SourceIdentity get identity;
+
+  /// Secret-free revision of the settings the source runs with.
+  String get settingsRevision;
+
+  /// Searches; failures are typed, never thrown.
+  Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page);
+
+  /// Fetches metadata and the complete chapter list for [ref].
+  Future<DetailsOutcome> fetchDetails(NativeMangaRef ref);
+
+  /// Closes the source; awaited by the conversion owner.
+  Future<void> dispose();
 }
 
+/// One search hit. Carries the source's durable [NativeMangaRef] (KTD3) —
+/// never only a handle-like key string.
 class PluginSearchResult {
   const PluginSearchResult({
-    required this.pluginSourceId,
-    required this.mangaKey,
+    required this.ref,
     required this.title,
     this.pluginSourceName,
     this.coverUrl,
@@ -21,14 +39,31 @@ class PluginSearchResult {
     this.chapters = const <PluginChapter>[],
   });
 
-  final String pluginSourceId;
+  final NativeMangaRef ref;
   final String? pluginSourceName;
-  final String mangaKey;
   final String title;
   final String? coverUrl;
   final List<String> authors;
   final PluginMangaDetails? details;
   final List<PluginChapter> chapters;
+
+  /// Runtime source ID of [ref].
+  String get pluginSourceId => ref.source.sourceId;
+
+  /// Source-native manga ID of [ref].
+  String get mangaKey => ref.mangaId;
+
+  /// A copy carrying fetched details (search fields are kept; detail-level
+  /// authors win when present).
+  PluginSearchResult enrichedWith(FetchedManga fetched) => PluginSearchResult(
+    ref: ref,
+    pluginSourceName: pluginSourceName,
+    title: title,
+    coverUrl: coverUrl,
+    authors: fetched.details.authors.isNotEmpty ? fetched.details.authors : authors,
+    details: fetched.details,
+    chapters: fetched.chapters,
+  );
 }
 
 class PluginSearchPageResult {
@@ -73,19 +108,62 @@ class PluginMangaDetails {
   final String? url;
 }
 
+/// Maps contract metadata to [PluginMangaDetails].
+PluginMangaDetails pluginDetailsFromMetadata(String key, MangaMetadata m) => PluginMangaDetails(
+  key: key,
+  title: m.title,
+  coverUrl: m.coverUrl,
+  authors: m.authors,
+  artists: m.artists,
+  description: m.description,
+  tags: m.tags,
+  status: switch (m.status) {
+    PublishingStatus.unknown => MangaPublishingStatus.unknown,
+    PublishingStatus.ongoing => MangaPublishingStatus.ongoing,
+    PublishingStatus.completed => MangaPublishingStatus.completed,
+    PublishingStatus.cancelled => MangaPublishingStatus.cancelled,
+    PublishingStatus.hiatus => MangaPublishingStatus.hiatus,
+  },
+  contentRating: switch (m.contentRating) {
+    ContentRatingLevel.safe || ContentRatingLevel.unknown => MangaContentRating.safe,
+    ContentRatingLevel.suggestive => MangaContentRating.suggestive,
+    ContentRatingLevel.nsfw => MangaContentRating.nsfw,
+  },
+  url: m.url,
+);
+
+/// A destination chapter. Keeps every scanlator the source reported
+/// ([scanlators]); [scanlator] joins them for single-field formats.
 class PluginChapter implements ChapterData {
   PluginChapter({
     required this.chapterId,
     this.title,
     double? chapterNumber,
     double? volumeNumber,
-    this.scanlator,
+    String? scanlator,
+    List<String>? scanlators,
     this.language,
     this.dateUploaded,
     this.url,
     this.sourceOrder = 0,
   }) : chapterNumber = chapterNumber == null ? null : normalizeChapterNumber(chapterNumber),
-       volumeNumber = volumeNumber == null ? null : normalizeChapterNumber(volumeNumber);
+       volumeNumber = volumeNumber == null ? null : normalizeChapterNumber(volumeNumber),
+       scanlators = List<String>.unmodifiable(
+         scanlators ?? (scanlator == null || scanlator.isEmpty ? const <String>[] : <String>[scanlator]),
+       );
+
+  /// Maps a contract chapter, keeping all of its scanlators.
+  factory PluginChapter.fromNative(NativeChapter c) => PluginChapter(
+    chapterId: c.chapterId,
+    title: c.title,
+    chapterNumber: c.chapterNumber,
+    volumeNumber: c.volumeNumber,
+    scanlators: c.scanlators.where((String s) => s.trim().isNotEmpty).toList(),
+    language: c.language,
+    dateUploaded: c.dateUploaded,
+    url: c.url,
+    sourceOrder: c.sourceOrder,
+  );
 
   @override
   final String chapterId;
@@ -99,8 +177,12 @@ class PluginChapter implements ChapterData {
   @override
   final double? volumeNumber;
 
+  /// Every scanlator group, in source order.
+  final List<String> scanlators;
+
+  /// All [scanlators] joined with `, `, or `null` when there are none.
   @override
-  final String? scanlator;
+  String? get scanlator => scanlators.isEmpty ? null : scanlators.join(', ');
 
   @override
   final String? language;

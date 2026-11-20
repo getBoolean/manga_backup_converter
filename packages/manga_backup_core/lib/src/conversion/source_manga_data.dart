@@ -145,3 +145,15 @@ class SourceTrackingEntry {
   final DateTime? startedReadingDate;
   final DateTime? finishedReadingDate;
 }
+
+/// An input record a codec could read but not turn into [SourceMangaData]
+/// (for example a Paperback library entry whose primary-source link does not
+/// resolve). Reported as an unresolved manga, never dropped silently (KTD8).
+class ExtractionLoss {
+  const ExtractionLoss({required this.subject, required this.reason});
+
+  /// Identifies the record (title, or the backup's own ID when no title is
+  /// reachable).
+  final String subject;
+  final String reason;
+}

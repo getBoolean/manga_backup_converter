@@ -270,18 +270,22 @@ class AidokuBackup with AidokuBackupMappable implements ConvertableBackup {
   }
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
 
-    print('Library Manga: ${library?.length}');
-    print('Manga: ${manga?.length}');
-    print('Chapters: ${chapters?.length}');
-    print('Manga History: ${history?.length}');
-    print('Tracked Manga Items: ${trackItems?.length}');
-    print('Categories: ${categories?.length}');
-    print('Sources: ${sources?.length}');
-    print('Aidoku Backup Name: $name');
-    print('Aidoku Version: $version');
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+
+    lines.add('Library Manga: ${library?.length}');
+    lines.add('Manga: ${manga?.length}');
+    lines.add('Chapters: ${chapters?.length}');
+    lines.add('Manga History: ${history?.length}');
+    lines.add('Tracked Manga Items: ${trackItems?.length}');
+    lines.add('Categories: ${categories?.length}');
+    lines.add('Sources: ${sources?.length}');
+    lines.add('Aidoku Backup Name: $name');
+    lines.add('Aidoku Version: $version');
+    return lines;
   }
 }
 

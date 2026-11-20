@@ -174,20 +174,24 @@ class MangayomiBackup with MangayomiBackupMappable implements ConvertableBackup 
   }
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
 
-    print('Mangayomi name: $name');
-    print('Manga: ${db.manga?.length}');
-    print('Categories: ${db.categories?.length}');
-    print('Chapters: ${db.chapters?.length}');
-    print('Downloads: ${db.downloads?.length}');
-    print('Tracks: ${db.tracks?.length}');
-    print('History: ${db.history?.length}');
-    print('Updates: ${db.updates?.length}');
-    print('Settings: ${db.settings?.length}');
-    print('Extension Preferences: ${db.extensionPreferences?.length}');
-    print('Track Preferences: ${db.trackPreferences?.length}');
-    print('Extensions: ${db.extensions?.length}');
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+
+    lines.add('Mangayomi name: $name');
+    lines.add('Manga: ${db.manga?.length}');
+    lines.add('Categories: ${db.categories?.length}');
+    lines.add('Chapters: ${db.chapters?.length}');
+    lines.add('Downloads: ${db.downloads?.length}');
+    lines.add('Tracks: ${db.tracks?.length}');
+    lines.add('History: ${db.history?.length}');
+    lines.add('Updates: ${db.updates?.length}');
+    lines.add('Settings: ${db.settings?.length}');
+    lines.add('Extension Preferences: ${db.extensionPreferences?.length}');
+    lines.add('Track Preferences: ${db.trackPreferences?.length}');
+    lines.add('Extensions: ${db.extensions?.length}');
+    return lines;
   }
 }

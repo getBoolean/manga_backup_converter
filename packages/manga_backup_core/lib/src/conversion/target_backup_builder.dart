@@ -1,5 +1,6 @@
 import 'package:manga_backup_core/src/common/convertable.dart';
-import 'package:manga_backup_core/src/conversion/conversion_summary.dart';
+import 'package:manga_backup_core/src/conversion/conversion_plan.dart';
+import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
@@ -13,40 +14,38 @@ import 'package:manga_backup_core/src/reconciliation/chapter_reconciler.dart';
 sealed class TargetBackupBuilder {
   const TargetBackupBuilder();
 
-  /// Builds the target backup. When [summary] is given, the builder records
-  /// unresolved manga and withheld chapter state in it.
-  ConvertableBackup build(
-    List<MangaMatchConfirmation> confirmations, {
-    String? sourceFormatAlias,
-    ConversionSummary? summary,
-  });
+  /// Builds the target backup from reconciliation [plans] (one per source
+  /// manga). When [report] is given, the builder accounts for every input
+  /// record (KTD8). Builders consume the plans' correspondence and never
+  /// guess chapter matches themselves.
+  ConvertableBackup build(List<MangaConversionPlan> plans, {String? sourceFormatAlias, ConversionReport? report});
 }
 
 class AidokuBackupBuilder extends TargetBackupBuilder {
   const AidokuBackupBuilder();
 
   @override
-  ConvertableBackup build(
-    List<MangaMatchConfirmation> confirmations, {
-    String? sourceFormatAlias,
-    ConversionSummary? summary,
-  }) {
+  ConvertableBackup build(List<MangaConversionPlan> plans, {String? sourceFormatAlias, ConversionReport? report}) {
     final mangaSet = <AidokuBackupManga>{};
     final librarySet = <AidokuBackupLibraryManga>{};
     final chapterSet = <AidokuBackupChapter>{};
     final historySet = <AidokuBackupHistory>{};
     final sources = <String>{};
     final allCategories = <String>{};
+    var joinedScanlators = 0;
 
-    for (final confirmation in confirmations) {
+    for (final plan in plans) {
+      final MangaMatchConfirmation confirmation = plan.confirmation;
       final PluginSearchResult? match = confirmation.confirmedMatch;
       final SourceMangaData sourceManga = confirmation.sourceManga;
-      if (match == null) {
-        summary?.unresolvedManga.add(sourceManga);
+      if (!plan.isBuildable || match == null) {
+        if (report != null) accountUnbuilt(plan, report);
         continue;
       }
       final PluginMangaDetails? details = confirmation.targetMangaDetails;
       final List<PluginChapter> targetChapters = confirmation.targetChapters;
+      final String title = sourceManga.details.title;
+      report?.add(RecordKind.manga, RecordDisposition.transferred, title, title);
 
       mangaSet.add(
         AidokuBackupManga(
@@ -80,12 +79,15 @@ class AidokuBackupBuilder extends TargetBackupBuilder {
       allCategories.addAll(sourceManga.categories);
 
       for (final (int i, PluginChapter ch) in targetChapters.indexed) {
+        if (ch.scanlators.length > 1) joinedScanlators++;
         chapterSet.add(
           AidokuBackupChapter(
             sourceId: match.pluginSourceId,
             mangaId: match.mangaKey,
             id: ch.chapterId,
             title: ch.title,
+            // Aidoku backups hold one scanlator string: every group is kept,
+            // joined (see the report note).
             scanlator: ch.scanlator,
             lang: ch.language ?? 'en',
             chapter: ch.chapterNumber,
@@ -96,10 +98,15 @@ class AidokuBackupBuilder extends TargetBackupBuilder {
         );
       }
 
-      final MangaChapterReport report = _addChapterState(sourceManga, match, targetChapters, historySet);
-      if (!report.isEmpty) summary?.chapterReports.add(report);
-
+      _addChapterState(plan, match, historySet, report);
       sources.add(match.pluginSourceId);
+    }
+
+    if (joinedScanlators > 0) {
+      report?.notes.add(
+        '$joinedScanlators destination chapter(s) list several scanlators; Aidoku backups store one scanlator '
+        'field, so the groups are joined with ", "',
+      );
     }
 
     return AidokuBackup(
@@ -116,36 +123,29 @@ class AidokuBackupBuilder extends TargetBackupBuilder {
     );
   }
 
-  /// Transfers per-chapter reading state onto the fetched destination
-  /// chapters through [reconcileChapters]. Every emitted history record
-  /// references a destination chapter; unresolved chapters get no state.
-  MangaChapterReport _addChapterState(
-    SourceMangaData sourceManga,
+  /// Writes per-chapter reading state for the plan's accepted matches only.
+  /// Every emitted history record references a fetched destination chapter;
+  /// unresolved and excluded chapters get no state.
+  void _addChapterState(
+    MangaConversionPlan plan,
     PluginSearchResult match,
-    List<PluginChapter> targetChapters,
     Set<AidokuBackupHistory> historySet,
+    ConversionReport? report,
   ) {
-    final (List<SourceChapter> chapters, int orphanHistory) = mergeHistoryIntoChapters(sourceManga);
-    final List<SourceChapter> stateful = chapters.where((SourceChapter c) => c.hasReadingState).toList();
-
-    // Exact chapter IDs are only trusted when the destination is the very
-    // same source and manga the backup came from.
-    final bool sameSourceIdentity =
-        sourceManga.sourceId != null &&
-        sourceManga.sourceId == match.pluginSourceId &&
-        sourceManga.sourceMangaKey != null &&
-        sourceManga.sourceMangaKey == match.mangaKey;
-
-    final ChapterReconciliation reconciliation = reconcileChapters(
-      sourceChapters: stateful,
-      destinationChapters: targetChapters,
-      sameSourceIdentity: sameSourceIdentity,
-    );
-
-    var bookmarks = 0;
-    for (final ChapterMatch m in reconciliation.matches) {
+    final SourceMangaData sourceManga = plan.sourceManga;
+    final String title = sourceManga.details.title;
+    for (final ChapterMatch m in plan.reconciliation.matches) {
       final SourceChapter s = m.source;
-      if (s.isBookmarked) bookmarks++;
+      report?.add(RecordKind.chapterState, RecordDisposition.transferred, title, chapterLabel(s));
+      if (s.isBookmarked) {
+        report?.add(
+          RecordKind.field,
+          RecordDisposition.unrepresentable,
+          title,
+          'bookmark on ${chapterLabel(s)}',
+          reason: 'Aidoku backups cannot represent chapter bookmarks',
+        );
+      }
       if (!s.isRead && s.lastPageRead <= 0 && s.dateRead == null) continue;
       historySet.add(
         AidokuBackupHistory(
@@ -159,82 +159,60 @@ class AidokuBackupBuilder extends TargetBackupBuilder {
         ),
       );
     }
-
-    return MangaChapterReport(
-      mangaTitle: sourceManga.details.title,
-      unresolvedChapters: reconciliation.unresolved,
-      orphanHistoryEntries: orphanHistory,
-      secondarySourceChaptersWithState: sourceManga.secondarySourceChapters
-          .where((SourceChapter c) => c.hasReadingState)
-          .length,
-      bookmarksNotRepresentable: bookmarks,
-    );
-  }
-}
-
-/// Folds [SourceMangaData.history] into the chapters it references by
-/// [SourceHistoryEntry.chapterKey]: completion, furthest page, total pages and
-/// latest read date. Returns the merged chapters and the number of history
-/// entries that reference no chapter (those are never transferred — a
-/// chapter title is not a destination identifier).
-(List<SourceChapter>, int) mergeHistoryIntoChapters(SourceMangaData manga) {
-  final byKey = <String, List<SourceHistoryEntry>>{};
-  var orphans = 0;
-  final chapterKeys = <String>{
-    for (final SourceChapter c in manga.chapters) ?c.chapterKey,
-  };
-  for (final SourceHistoryEntry h in manga.history) {
-    final String? key = h.chapterKey;
-    if (key == null || !chapterKeys.contains(key)) {
-      orphans++;
-      continue;
+    if (report == null) return;
+    for (final UnresolvedChapter u in plan.reconciliation.unresolved) {
+      final String reason = unresolvedReason(u);
+      for (final SourceChapter s in switch (u) {
+        UnmatchedChapter(:final source) || AmbiguousChapter(:final source) => <SourceChapter>[source],
+        ChapterCollision(:final sources) => sources,
+      }) {
+        report.add(RecordKind.chapterState, RecordDisposition.unresolved, title, chapterLabel(s), reason: reason);
+      }
     }
-    (byKey[key] ??= <SourceHistoryEntry>[]).add(h);
-  }
-
-  final List<SourceChapter> merged = manga.chapters.map((SourceChapter c) {
-    final List<SourceHistoryEntry>? entries = c.chapterKey == null ? null : byKey[c.chapterKey];
-    if (entries == null || entries.isEmpty) return c;
-    bool isRead = c.isRead;
-    int lastPage = c.lastPageRead;
-    int? total = c.totalPages;
-    DateTime? dateRead = c.dateRead;
-    for (final SourceHistoryEntry h in entries) {
-      isRead = isRead || h.completed;
-      if ((h.progress ?? 0) > lastPage) lastPage = h.progress!;
-      total ??= h.total;
-      final DateTime? d = h.dateRead;
-      if (d != null && (dateRead == null || d.isAfter(dateRead))) dateRead = d;
+    for (final SourceChapter s in plan.reconciliation.excluded) {
+      report.add(
+        RecordKind.chapterState,
+        RecordDisposition.excluded,
+        title,
+        chapterLabel(s),
+        reason: 'excluded by the user',
+      );
     }
-    return SourceChapter(
-      title: c.title,
-      chapterKey: c.chapterKey,
-      sourceId: c.sourceId,
-      chapterNumber: c.chapterNumber,
-      volumeNumber: c.volumeNumber,
-      scanlator: c.scanlator,
-      language: c.language,
-      isRead: isRead,
-      isBookmarked: c.isBookmarked,
-      lastPageRead: lastPage,
-      totalPages: total,
-      dateRead: dateRead,
-      dateUploaded: c.dateUploaded,
-      sourceOrder: c.sourceOrder,
-    );
-  }).toList();
-  return (merged, orphans);
+    for (final SourceChapter s in sourceManga.secondarySourceChapters.where((SourceChapter c) => c.hasReadingState)) {
+      report.add(
+        RecordKind.chapterState,
+        RecordDisposition.unresolved,
+        title,
+        '${s.sourceId ?? '?'} ${chapterLabel(s)}',
+        reason: 'reading state on a secondary source is not reconciled; not transferred',
+      );
+    }
+    for (var i = 0; i < plan.orphanHistory; i++) {
+      report.add(
+        RecordKind.history,
+        RecordDisposition.unresolved,
+        title,
+        'history entry ${i + 1}',
+        reason: 'not linked to a source chapter; not transferred',
+      );
+    }
+    for (final SourceTrackingEntry t in sourceManga.tracking) {
+      report.add(
+        RecordKind.tracking,
+        RecordDisposition.unrepresentable,
+        title,
+        trackingLabel(t),
+        reason: 'destination tracker identities are unknown, so Aidoku track items are not written',
+      );
+    }
+  }
 }
 
 class UnimplementedBackupBuilder extends TargetBackupBuilder {
   const UnimplementedBackupBuilder();
 
   @override
-  ConvertableBackup build(
-    List<MangaMatchConfirmation> confirmations, {
-    String? sourceFormatAlias,
-    ConversionSummary? summary,
-  }) {
+  ConvertableBackup build(List<MangaConversionPlan> plans, {String? sourceFormatAlias, ConversionReport? report}) {
     // TODO: Implement backup builders for other formats
     throw UnimplementedError('Target backup construction not yet implemented for this format');
   }

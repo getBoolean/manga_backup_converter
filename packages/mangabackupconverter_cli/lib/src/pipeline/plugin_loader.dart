@@ -1,19 +1,59 @@
 import 'dart:typed_data';
 
-import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
+import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart' show RemoteSourceList, SourceEntry, SourceListManager;
+import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvider;
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_aidoku.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
+import 'package:source_runtime/source_contracts.dart';
 
+/// Artifact bytes held in memory, verified against the digest computed when
+/// they were admitted.
+final class BytesArtifact implements VerifiedArtifact {
+  BytesArtifact(Uint8List bytes, {required String kind, required String version})
+    : _bytes = Uint8List.fromList(bytes),
+      binding = ArtifactBinding(sha256: sha256.convert(bytes).toString(), kind: kind, version: version);
+
+  final Uint8List _bytes;
+
+  @override
+  final ArtifactBinding binding;
+
+  @override
+  Future<Uint8List> readVerified() async {
+    if (sha256.convert(_bytes).toString() != binding.sha256) {
+      throw StateError('Artifact bytes no longer match ${binding.sha256}');
+    }
+    return Uint8List.fromList(_bytes);
+  }
+}
+
+/// Settings an Aidoku extension entry runs with: the repository's base URL
+/// default, when it has one.
+SettingsSnapshot aidokuSettingsFor(AidokuExtensionEntry entry) =>
+    SettingsSnapshot(values: <String, Object>{'url': ?entry.baseUrl});
+
+/// Aidoku loader: lists repositories and opens each `.aix` through the
+/// backend-neutral `AidokuSourceProvider`, reaching the pipeline through
+/// [SessionPluginSource] (KTD15).
 class AidokuPluginLoader extends PluginLoader {
-  const AidokuPluginLoader();
+  const AidokuPluginLoader({this.providerFactory = AidokuSourceProvider.new, this.onSettings});
+
+  /// Builds the source provider; tests inject one with a fake plugin loader.
+  final AidokuSourceProvider Function() providerFactory;
+
+  /// Receives each settings snapshot a source is opened with, so the host
+  /// can register its secrets with the log redactor (KTD9).
+  final void Function(SettingsSnapshot settings)? onSettings;
 
   @override
   Future<List<ExtensionEntry>> fetchExtensionLists(
     List<String> repoUrls, {
     void Function(String)? onWarning,
+    RepositoryTrustGate? trust,
   }) async {
+    // Aidoku repositories are unsigned; [trust] is never consulted.
     final entries = <ExtensionEntry>[];
     final manager = SourceListManager();
     for (final url in repoUrls) {
@@ -48,41 +88,42 @@ class AidokuPluginLoader extends PluginLoader {
   Future<List<PluginSource>> loadPlugins(
     List<ExtensionEntry> extensions, {
     void Function(int current, int total, String message)? onProgress,
+    ConversionOwner? owner,
+    void Function(PluginLoadFailure failure)? onFailure,
   }) async {
     final plugins = <PluginSource>[];
-    for (final (int i, ExtensionEntry extension_) in extensions.indexed) {
-      final entry = extension_ as AidokuExtensionEntry;
-      try {
-        onProgress?.call(
-          i + 1,
-          extensions.length,
-          'Loading plugin: ${entry.name}',
-        );
-        final http.Response response = await http.get(Uri.parse(entry.downloadUrl));
-        if (response.statusCode != 200) {
-          onProgress?.call(
-            i + 1,
-            extensions.length,
-            'Warning: failed to download ${entry.name}: '
-            'HTTP ${response.statusCode}',
-          );
-          continue;
-        }
-        final bytes = Uint8List.fromList(response.bodyBytes);
-        final AidokuPlugin plugin = await AidokuPlugin.fromAix(
-          bytes,
-          defaults: entry.baseUrl != null ? <String, dynamic>{'url': entry.baseUrl} : null,
-        );
-        plugins.add(AidokuPluginSource(plugin: plugin));
-      } on Exception catch (e) {
-        onProgress?.call(
-          i + 1,
-          extensions.length,
-          'Warning: failed to load ${entry.name}: $e',
-        );
+    for (final (int i, ExtensionEntry entry) in extensions.indexed) {
+      onProgress?.call(i + 1, extensions.length, 'Loading plugin: ${entry.name}');
+      final Uint8List? bytes = await _download(entry, onFailure);
+      if (bytes == null) {
+        onProgress?.call(i + 1, extensions.length, 'Warning: failed to download ${entry.name}');
+        continue;
+      }
+      final SourceOutcome<PluginSource> loaded = await loadPluginFromBytes(entry, bytes, owner: owner);
+      switch (loaded) {
+        case SourceSuccess<PluginSource>(:final PluginSource value):
+          plugins.add(value);
+        case SourceFailed<PluginSource>(:final SourceFailure failure):
+          onFailure?.call(PluginLoadFailure(extensionId: entry.id, failure: failure));
+          onProgress?.call(i + 1, extensions.length, 'Warning: failed to load ${entry.name}: ${failure.message}');
       }
     }
     return plugins;
+  }
+
+  Future<Uint8List?> _download(ExtensionEntry entry, void Function(PluginLoadFailure failure)? onFailure) async {
+    try {
+      final Uint8List? bytes = await downloadPluginBytes(entry);
+      if (bytes == null) {
+        onFailure?.call(
+          PluginLoadFailure(extensionId: entry.id, failure: const SourceErrorFailure('Download failed')),
+        );
+      }
+      return bytes;
+    } on Exception catch (e) {
+      onFailure?.call(PluginLoadFailure(extensionId: entry.id, failure: SourceErrorFailure('Download failed: $e')));
+      return null;
+    }
   }
 
   @override
@@ -93,85 +134,82 @@ class AidokuPluginLoader extends PluginLoader {
     return Uint8List.fromList(response.bodyBytes);
   }
 
+  /// Opens [bytes] as a source session and adopts it into [owner] as soon as
+  /// it exists.
   @override
-  Future<PluginSource?> loadPluginFromBytes(
+  Future<SourceOutcome<PluginSource>> loadPluginFromBytes(
     ExtensionEntry entry,
-    Uint8List bytes,
-  ) async {
+    Uint8List bytes, {
+    ConversionOwner? owner,
+  }) async {
     final aidokuEntry = entry as AidokuExtensionEntry;
-    final AidokuPlugin plugin = await AidokuPlugin.fromAix(
-      bytes,
-      defaults: aidokuEntry.baseUrl != null ? <String, dynamic>{'url': aidokuEntry.baseUrl} : null,
+    final SettingsSnapshot settings = aidokuSettingsFor(aidokuEntry);
+    onSettings?.call(settings);
+    final SourceOutcome<SourcePackage> opened = await providerFactory().openPackage(
+      BytesArtifact(bytes, kind: AidokuSourceProvider.artifactKind, version: '${aidokuEntry.version}'),
+      settings,
     );
-    return AidokuPluginSource(plugin: plugin);
+    switch (opened) {
+      case SourceFailed<SourcePackage>(:final SourceFailure failure):
+        return SourceFailed<PluginSource>(failure);
+      case SourceSuccess<SourcePackage>(value: final SourcePackage package):
+        await owner?.adopt(package.close);
+        final SourceSession? session = package.sessions.firstOrNull;
+        if (session == null) {
+          await package.close();
+          return const SourceFailed<PluginSource>(ArtifactIncompatibleFailure('Package exposes no source'));
+        }
+        final plugin = SessionPluginSource(session, onDispose: package.close);
+        await owner?.adopt(plugin.dispose);
+        return SourceSuccess<PluginSource>(plugin);
+    }
   }
 }
 
-class PaperbackPluginLoader extends PluginLoader {
-  const PaperbackPluginLoader();
+/// Loader for ecosystems whose runtime is not wired yet: every entry becomes
+/// a [StubPluginSource] that answers with a typed capability failure.
+class StubPluginLoader extends PluginLoader {
+  const StubPluginLoader(this.ecosystem);
+
+  final String ecosystem;
 
   @override
   Future<List<ExtensionEntry>> fetchExtensionLists(
     List<String> repoUrls, {
     void Function(String)? onWarning,
+    RepositoryTrustGate? trust,
   }) async => <ExtensionEntry>[];
 
   @override
   Future<List<PluginSource>> loadPlugins(
     List<ExtensionEntry> extensions, {
     void Function(int current, int total, String message)? onProgress,
-  }) async => extensions
-      .map(
-        (ExtensionEntry e) => StubPluginSource(sourceId: e.id, sourceName: e.name),
-      )
-      .toList();
+    ConversionOwner? owner,
+    void Function(PluginLoadFailure failure)? onFailure,
+  }) async => <PluginSource>[
+    for (final ExtensionEntry e in extensions)
+      StubPluginSource(ecosystem: ecosystem, sourceId: e.id, sourceName: e.name),
+  ];
 }
 
-class TachiPluginLoader extends PluginLoader {
-  const TachiPluginLoader();
-
-  @override
-  Future<List<ExtensionEntry>> fetchExtensionLists(
-    List<String> repoUrls, {
-    void Function(String)? onWarning,
-  }) async => <ExtensionEntry>[];
-
-  @override
-  Future<List<PluginSource>> loadPlugins(
-    List<ExtensionEntry> extensions, {
-    void Function(int current, int total, String message)? onProgress,
-  }) async => extensions
-      .map(
-        (ExtensionEntry e) => StubPluginSource(sourceId: e.id, sourceName: e.name),
-      )
-      .toList();
+class PaperbackPluginLoader extends StubPluginLoader {
+  const PaperbackPluginLoader() : super('paperback');
 }
 
-class MangayomiPluginLoader extends PluginLoader {
-  const MangayomiPluginLoader();
+class TachiPluginLoader extends StubPluginLoader {
+  const TachiPluginLoader() : super('tachi');
+}
 
-  @override
-  Future<List<ExtensionEntry>> fetchExtensionLists(
-    List<String> repoUrls, {
-    void Function(String)? onWarning,
-  }) async => <ExtensionEntry>[];
-
-  @override
-  Future<List<PluginSource>> loadPlugins(
-    List<ExtensionEntry> extensions, {
-    void Function(int current, int total, String message)? onProgress,
-  }) async => extensions
-      .map(
-        (ExtensionEntry e) => StubPluginSource(sourceId: e.id, sourceName: e.name),
-      )
-      .toList();
+class MangayomiPluginLoader extends StubPluginLoader {
+  const MangayomiPluginLoader() : super('mangayomi');
 }
 
 /// The plugin loader the composition root registers for a target [format]
 /// (KTD15: formats describe files, not how sources execute).
-PluginLoader pluginLoaderFor(BackupFormat format) => switch (format) {
-  Aidoku() => const AidokuPluginLoader(),
-  Paperback() => const PaperbackPluginLoader(),
-  Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
-  Mangayomi() => const MangayomiPluginLoader(),
-};
+PluginLoader pluginLoaderFor(BackupFormat format, {void Function(SettingsSnapshot settings)? onSettings}) =>
+    switch (format) {
+      Aidoku() => AidokuPluginLoader(onSettings: onSettings),
+      Paperback() => const PaperbackPluginLoader(),
+      Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
+      Mangayomi() => const MangayomiPluginLoader(),
+    };

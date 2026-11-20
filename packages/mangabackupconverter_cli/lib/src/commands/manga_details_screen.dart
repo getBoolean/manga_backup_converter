@@ -3,12 +3,13 @@ import 'dart:math';
 
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 class MangaDetailsScreen {
   Future<bool> run({
     required TerminalContext context,
     required PluginSearchResult result,
-    required Future<(PluginMangaDetails, List<PluginChapter>)?> Function(String mangaKey) fetchDetails,
+    required Future<DetailsOutcome> Function() fetchDetails,
   }) async {
     final screen = ScreenRegion(context);
     final spinner = Spinner();
@@ -20,11 +21,18 @@ class MangaDetailsScreen {
       screen.render([bold(result.title), '', '  Loading... ${spinner.frame}']);
     });
 
-    final (PluginMangaDetails, List<PluginChapter>)? fetchResult = await fetchDetails(result.mangaKey);
+    final DetailsOutcome outcome = await fetchDetails();
     loadTimer.cancel();
 
-    if (fetchResult == null) {
-      screen.render([bold(result.title), '', '  ${yellow('Failed to load details.')}', '', dim('Esc to back')]);
+    if (outcome case DetailsFailed(:final SourceFailure failure)) {
+      screen.render([
+        bold(result.title),
+        '',
+        '  ${yellow('Failed to load details (${failure.code}).')}',
+        '  ${dim(truncate(failure.message, context.width - 4))}',
+        '',
+        dim('Esc to back'),
+      ]);
       final StreamSubscription<KeyEvent> keySub = context.keyInput.stream.listen(null);
       final completer = Completer<bool>();
       keySub.onData((KeyEvent k) {
@@ -39,7 +47,9 @@ class MangaDetailsScreen {
       return false;
     }
 
-    final (PluginMangaDetails details, List<PluginChapter> chapters) = fetchResult;
+    final FetchedManga fetched = outcome.fetchedOrNull!;
+    final PluginMangaDetails details = fetched.details;
+    final List<PluginChapter> chapters = fetched.chapters;
 
     // Sort chapters by number descending.
     final sortedChapters = List<PluginChapter>.of(chapters)
@@ -64,9 +74,12 @@ class MangaDetailsScreen {
       );
     }
 
+    headerLines.add('');
     if (sortedChapters.isNotEmpty) {
-      headerLines.add('');
       headerLines.add(bold('   Chapters (${sortedChapters.length})'));
+    } else {
+      // A successful fetch with no chapters, distinct from a failed fetch.
+      headerLines.add(dim('   The source lists no chapters for this manga.'));
     }
 
     // Total lines available for chapters + scroll indicators.

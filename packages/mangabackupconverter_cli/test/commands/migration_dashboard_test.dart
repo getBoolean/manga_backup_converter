@@ -7,8 +7,9 @@ import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/migration_dashboard.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
 import 'package:test/scaffolding.dart';
+
+import '../support/test_refs.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -28,7 +29,7 @@ PluginSearchResult _result(
   String? mangaKey,
   List<PluginChapter> chapters = const [],
   PluginMangaDetails? details,
-}) => PluginSearchResult(
+}) => testResult(
   pluginSourceId: pluginId,
   mangaKey: mangaKey ?? title.toLowerCase().replaceAll(' ', '-'),
   title: title,
@@ -70,7 +71,7 @@ Future<List<MangaMatchConfirmation>> _runDashboard({
     pluginNames: pluginNames,
     manga: manga,
     onSearch: onSearch,
-    onFetchDetails: onFetchDetails,
+    onFetchDetails: legacyFetch(onFetchDetails),
   );
 
   // Wait for searches + enrichment to settle.

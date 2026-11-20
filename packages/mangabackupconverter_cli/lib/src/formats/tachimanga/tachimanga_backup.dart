@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -245,16 +243,20 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
   static const TachimangaBackup Function(String json) fromJson = TachimangaBackupMapper.fromJson;
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
-    print('Imported Manga: ${db.mangaTable.length}');
-    print('Imported Chapters: ${db.chapterTable.length}');
-    print('Imported Manga History: ${db.historyTable.length}');
-    print('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
-    print('Imported Categories: ${db.categoryTable.length}');
-    print('Imported Sources: ${db.sourceTable.length}');
-    print('Imported Repos: ${db.repoTable.length}');
-    print('Tachimanga Backup Name: $name');
-    print('Tachimanga Version: ${meta.version}');
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
+
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+    lines.add('Imported Manga: ${db.mangaTable.length}');
+    lines.add('Imported Chapters: ${db.chapterTable.length}');
+    lines.add('Imported Manga History: ${db.historyTable.length}');
+    lines.add('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
+    lines.add('Imported Categories: ${db.categoryTable.length}');
+    lines.add('Imported Sources: ${db.sourceTable.length}');
+    lines.add('Imported Repos: ${db.repoTable.length}');
+    lines.add('Tachimanga Backup Name: $name');
+    lines.add('Tachimanga Version: ${meta.version}');
+    return lines;
   }
 }
