@@ -1,0 +1,1 @@
+/* Synthetic stand-in for https://docs.opencv.org/5.0/opencv.js (desktop_webview test fixture). The solver only calls cv after generate() reports at most two shapes; this fixture reports three, so cv is never used. */ window.cv = {};

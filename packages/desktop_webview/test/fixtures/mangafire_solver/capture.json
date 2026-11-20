@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "ecosystem": "browser",
+  "source": "mangafire-solver",
+  "recordedAt": "2026-11-20T00:00:00.000Z",
+  "recordedBy": "hand-written synthetic fixture (packages/desktop_webview); not recorded from the live site",
+  "notes": "Synthetic responses for replaying MangaFire's challenge solver page (assets/solver.html from the committed all.mangafire 1.6.38 JAR) offline. No challenge fired when the real captures were recorded, so these bodies are invented: generate() reports three shapes, which makes every solve attempt throw, so the page finishes with bridge.postMessage('false') without needing OpenCV. They exercise the browser path (loadData with base URL, user agent, page-start script, window.bridge.postMessage fallback, relative fetches, request headers), not the real captcha.",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {"method": "GET", "url": "https://docs.opencv.org/5.0/opencv.js", "bodySha256": null},
+      "response": {
+        "status": 200,
+        "headers": {"content-type": "application/javascript"},
+        "body": "bodies/d54b41442224f625d27b2f58eaf1629d6bc992971f974ae60baf15b7f2726061.bin"
+      },
+      "artifact": {
+        "sourceUrl": "synthetic:opencv-stub",
+        "sha256": "d54b41442224f625d27b2f58eaf1629d6bc992971f974ae60baf15b7f2726061",
+        "size": 233,
+        "licence": "Written for this repository (same licence as the repository)."
+      }
+    },
+    {
+      "request": {"method": "GET", "url": "https://mangafire.to/@waf/generate", "bodySha256": null},
+      "response": {
+        "status": 200,
+        "headers": {"content-type": "application/json"},
+        "body": "bodies/1313ad1075371ebf8272a9c193dcd679a6aa65b6451004ec1ce355dd7f18491d.bin"
+      },
+      "artifact": {
+        "sourceUrl": "synthetic:mangafire-waf-generate",
+        "sha256": "1313ad1075371ebf8272a9c193dcd679a6aa65b6451004ec1ce355dd7f18491d",
+        "size": 86,
+        "licence": "Written for this repository (same licence as the repository)."
+      }
+    }
+  ]
+}
