@@ -1,0 +1,10 @@
+include: package:app_lints/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - lib/src/bindings/**
+    - build/**
+    - android/**
+
+formatter:
+  page_width: 120

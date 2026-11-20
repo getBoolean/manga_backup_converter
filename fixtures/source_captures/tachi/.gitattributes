@@ -1,0 +1,2 @@
+# Artifacts and index excerpts are digest-pinned; never normalise line endings.
+* -text
