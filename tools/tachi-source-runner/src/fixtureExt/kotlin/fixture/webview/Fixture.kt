@@ -69,13 +69,20 @@ class WebViewSource : HttpSource() {
                 "bridge",
             )
             view.webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? =
+                    if (query == "intercept") android.webkit.WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(ByteArray(0))) else null
+
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error2: WebResourceError) {
                     error = error2.description.toString()
                     latch.countDown()
                 }
             }
             val base = if (query == "file") "file:///etc/passwd" else "https://webview.test/"
-            view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)
+            if (query == "intercept" || query == "load") {
+                view.loadUrl("https://webview.test/page")
+            } else {
+                view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)
+            }
         }
         if (!latch.await(30, TimeUnit.SECONDS)) throw IOException("WebView timed out")
         main.post { webView?.destroy() }

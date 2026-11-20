@@ -5,8 +5,12 @@ import mangabackup.tachi.host.PackageOwned
 import java.io.File
 import java.net.URL
 import java.net.URLClassLoader
+import java.security.CodeSigner
+import java.security.CodeSource
+import java.security.ProtectionDomain
 import java.util.Collections
 import java.util.Enumeration
+import java.util.jar.JarFile
 
 /**
  * Child-first class loader for one extension package (KTD5). Classes and
@@ -19,6 +23,37 @@ class PackageClassLoader(
     parent: ClassLoader,
     override val environment: PackageEnvironment,
 ) : URLClassLoader("tachi-pkg:${environment.packageId}", arrayOf(stagedJar.toURI().toURL()), parent), PackageOwned {
+
+    private val jar = JarFile(stagedJar, false)
+
+    /**
+     * Extension classes are defined with a protection domain that holds no class
+     * loader. On JDK 21 every new thread inherits the access-control context of
+     * the stack that created it; when extension code triggers a long-lived
+     * library thread (Okio's watchdog, OkHttp's task runner), a normal protection
+     * domain would pin this loader until that thread exits, so unloading a
+     * package would not free it.
+     */
+    private val domain = ProtectionDomain(CodeSource(stagedJar.toURI().toURL(), null as Array<CodeSigner>?), null, null, null)
+
+    override fun findClass(name: String): Class<*> {
+        val entry = jar.getJarEntry(name.replace('.', '/') + ".class") ?: throw ClassNotFoundException(name)
+        val bytes = jar.getInputStream(entry).use { it.readBytes() }
+        val pkg = name.substringBeforeLast('.', "")
+        if (pkg.isNotEmpty() && getDefinedPackage(pkg) == null) {
+            try {
+                definePackage(pkg, null, null, null, null, null, null, null)
+            } catch (_: IllegalArgumentException) {
+                // Defined concurrently.
+            }
+        }
+        return defineClass(name, bytes, 0, bytes.size, domain)
+    }
+
+    override fun close() {
+        jar.close()
+        super.close()
+    }
 
     override fun loadClass(name: String, resolve: Boolean): Class<*> {
         synchronized(getClassLoadingLock(name)) {

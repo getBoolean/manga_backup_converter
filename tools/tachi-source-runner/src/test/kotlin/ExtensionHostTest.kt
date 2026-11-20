@@ -143,5 +143,121 @@ class ExtensionHostTest {
         assertEquals("t", two.getString("token", null))
         assertThrows<ClassCastException> { one.getBoolean("lang", false) }
     }
-}
 
+    @Test
+    fun `settings update replaces the snapshot, stales old refs, and dispose and unload release state`() {
+        WorkerHarness(FakeSite().transport()).use { h ->
+            val pkg = h.loadFixture("a")
+            val hit = h.hits(h.search(pkg, "setpref:one"))[0]
+            assertTrue(h.hits(h.search(pkg, "x"))[0]["title"]!!.jsonPrimitive.content.contains("[a/one]"))
+            val sourceId = pkg.sources.first()["sourceId"]!!.jsonPrimitive.content
+            h.client.call("settings.update", pkg.packageId, buildJsonObject {
+                put("settings", h.settings(values = mapOf("source_$sourceId/mark" to "seeded"), revision = "rev-2"))
+            })
+            val updated = pkg.copy(revision = "rev-2")
+            assertTrue(h.hits(h.search(updated, "x"))[0]["title"]!!.jsonPrimitive.content.contains("[a/seeded]"), "snapshot replaced extension writes")
+            assertEquals(ErrorCode.STALE_REFERENCE, assertThrows<WorkerError> { h.details(updated, hit) }.code, "ref confirmed under rev-1")
+
+            val fresh = h.hits(h.search(updated, "y"))[0]
+            h.client.call("dispose", pkg.packageId, buildJsonObject {
+                put("source", h.identity(updated))
+                put("handles", kotlinx.serialization.json.JsonArray(listOf(fresh["handle"]!!)))
+            })
+            assertEquals(ErrorCode.STALE_REFERENCE, assertThrows<WorkerError> { h.details(updated, fresh) }.code, "disposed handle")
+            assertEquals("Details /m/1", h.details(updated, fresh, useHandle = false)["metadata"]!!.jsonObject["title"]!!.jsonPrimitive.content, "durable ref survives dispose")
+
+            h.client.call("package.unload", pkg.packageId)
+            assertEquals(ErrorCode.RUNTIME_UNAVAILABLE, assertThrows<WorkerError> { h.search(updated, "z") }.code)
+        }
+    }
+
+    @Test
+    fun `a package that has run operations releases its class loader on unload`() {
+        val site = FakeSite()
+        val transport = site.transport()
+        val ref = runAndClose(transport)
+        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(20)
+        while (ref.get() != null && System.nanoTime() < deadline) {
+            System.gc()
+            Thread.sleep(100)
+        }
+        transport.close()
+        assertEquals(null, ref.get(), "class loader still reachable after search and details")
+    }
+
+    private fun runAndClose(transport: mangabackup.tachi.host.HostTransport): java.lang.ref.WeakReference<ClassLoader> {
+        val env = mangabackup.tachi.host.PackageEnvironment("fixture.a", TestSupport.tempDir("unload"), transport, "UA", HostSettings.EMPTY)
+        mangabackup.tachi.host.HostInjekt.install()
+        val pkg = mangabackup.tachi.host.PackageScope.bind(env) { mangabackup.tachi.extensions.ExtensionLoader.load(File(TestSupport.fixtureJars, "fixture-a.jar"), env) }
+        val source = pkg.sources.single() as eu.kanade.tachiyomi.source.CatalogueSource
+        kotlinx.coroutines.runBlocking {
+            mangabackup.tachi.host.PackageScope.bind(env) {
+                val page = source.getSearchManga(1, "q", source.getFilterList())
+                source.getMangaUpdate(page.mangas.first(), emptyList(), true, true)
+            }
+        }
+        val ref = java.lang.ref.WeakReference<ClassLoader>(pkg.loader)
+        pkg.close()
+        return ref
+    }
+
+    @Test
+    fun `an unsupported extension API version is unsupported-api`() {
+        val src = File(TestSupport.fixtureJars, "fixture-busy.jar")
+        val out = File(TestSupport.tempDir("lib13"), "lib13.jar")
+        rewriteJar(src, out) { name, bytes ->
+            if (name == "AndroidManifest.xml") String(bytes).replace("android:value=\"1.6\"", "android:value=\"1.3\"").toByteArray() else bytes
+        }
+        WorkerHarness().use { h ->
+            assertEquals(ErrorCode.UNSUPPORTED_API, assertThrows<WorkerError> { h.load("fixture.busy", out) }.code)
+        }
+    }
+
+    @Test
+    fun `a missing host class is named, at load and during an operation`() {
+        // A factory whose constructor touches android.graphics.Canvas, which the host does not supply.
+        val cw = org.objectweb.asm.ClassWriter(org.objectweb.asm.ClassWriter.COMPUTE_FRAMES or org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
+        cw.visit(org.objectweb.asm.Opcodes.V17, org.objectweb.asm.Opcodes.ACC_PUBLIC, "fixture/missing/Factory", null, "java/lang/Object", arrayOf("eu/kanade/tachiyomi/source/SourceFactory"))
+        cw.visitMethod(org.objectweb.asm.Opcodes.ACC_PUBLIC, "<init>", "()V", null, null).apply {
+            visitCode()
+            visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 0)
+            visitMethodInsn(org.objectweb.asm.Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+            visitTypeInsn(org.objectweb.asm.Opcodes.NEW, "android/graphics/Canvas")
+            visitInsn(org.objectweb.asm.Opcodes.POP)
+            visitInsn(org.objectweb.asm.Opcodes.RETURN)
+            visitMaxs(0, 0)
+            visitEnd()
+        }
+        cw.visitEnd()
+        val src = File(TestSupport.fixtureJars, "fixture-busy.jar")
+        val out = File(TestSupport.tempDir("missing"), "missing.jar")
+        rewriteJar(src, out, extra = mapOf("fixture/missing/Factory.class" to cw.toByteArray())) { name, bytes ->
+            if (name == "AndroidManifest.xml") String(bytes).replace("fixture.busy.Factory", "fixture.missing.Factory").toByteArray() else bytes
+        }
+        WorkerHarness().use { h ->
+            val e = assertThrows<WorkerError> { h.load("fixture.busy", out) }
+            assertEquals(ErrorCode.ARTIFACT_INCOMPATIBLE, e.code)
+            assertTrue(e.message!!.contains("android.graphics.Canvas"), e.message)
+        }
+        val during = mangabackup.tachi.protocol.Worker.mapError(java.io.IOException("wrapped", NoClassDefFoundError("android/graphics/Canvas")), null)
+        assertEquals(ErrorCode.CAPABILITY_UNAVAILABLE, during.code)
+        assertEquals("host.class:android.graphics.Canvas", during.operation)
+    }
+
+    private fun rewriteJar(src: File, out: File, extra: Map<String, ByteArray> = emptyMap(), edit: (String, ByteArray) -> ByteArray) {
+        java.util.zip.ZipFile(src).use { zip ->
+            java.util.zip.ZipOutputStream(out.outputStream()).use { zos ->
+                for (e in zip.entries()) {
+                    zos.putNextEntry(java.util.zip.ZipEntry(e.name))
+                    zos.write(edit(e.name, zip.getInputStream(e).use { it.readBytes() }))
+                    zos.closeEntry()
+                }
+                for ((name, bytes) in extra) {
+                    zos.putNextEntry(java.util.zip.ZipEntry(name))
+                    zos.write(bytes)
+                    zos.closeEntry()
+                }
+            }
+        }
+    }
+}

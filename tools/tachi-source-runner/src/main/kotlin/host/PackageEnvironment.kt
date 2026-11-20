@@ -43,6 +43,11 @@ interface OperationContext {
 
     /** Source the operation addresses, if any (browser sessions are scoped to it). */
     val sourceId: String? get() = null
+
+    /** Records a non-fatal degraded capability, reported in the reply's `warnings` where the reply has them. */
+    fun addWarning(warning: String) {}
+
+    val warnings: List<String> get() = emptyList()
 }
 
 /**

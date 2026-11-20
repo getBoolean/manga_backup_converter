@@ -65,6 +65,8 @@ class WebkitShimTest {
             val pkg = h.loadFixture("webview")
             val title = h.hits(h.search(pkg, "go"))[0]["title"]!!.jsonPrimitive.content
             assertEquals("no-glue:solved", title)
+            val warnings = h.search(pkg, "go")["warnings"].toString()
+            assertTrue(warnings.contains("subresource observation unavailable"), warnings)
             assertEquals("host.browser.open", port.ops.first())
             assertTrue("host.browser.setMessageHandler" in port.ops)
             assertTrue("host.browser.loadData" in port.ops)
@@ -87,6 +89,21 @@ class WebkitShimTest {
             assertEquals(ErrorCode.CAPABILITY_UNAVAILABLE, e.code)
             assertEquals("host.browser.loadData", e.operation)
             assertTrue("host.browser.loadData" !in port.ops)
+        }
+    }
+
+    @Test
+    fun `replacing a response from shouldInterceptRequest is a named capability error`() {
+        lateinit var h: WorkerHarness
+        val port = FakePort({ h })
+        h = WorkerHarness()
+        h.use {
+            h.client.reverseHandler = port
+            val pkg = h.loadFixture("webview")
+            val e = assertThrows<WorkerError> { h.search(pkg, "intercept") }
+            assertEquals(ErrorCode.CAPABILITY_UNAVAILABLE, e.code)
+            assertEquals("android.webkit.shouldInterceptRequest.replace", e.operation)
+            assertEquals("no-glue:solved", h.hits(h.search(pkg, "load"))[0]["title"]!!.jsonPrimitive.content, "observe-only loadUrl still works")
         }
     }
 

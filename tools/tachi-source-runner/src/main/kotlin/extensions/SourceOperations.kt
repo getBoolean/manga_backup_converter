@@ -81,7 +81,7 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
                 }
             })
             put("nextCursor", if (result.hasNextPage) (page + 1).toString() else null)
-            put("warnings", JsonArray(emptyList()))
+            put("warnings", stringArray(pkg.environment.currentOperation?.warnings.orEmpty()))
         }
     }
 

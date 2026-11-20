@@ -143,6 +143,7 @@ class CapturedProofTest {
             assertEquals("https://mangafire.to/@waf/solver", load.optStr("baseUrl"))
             assertTrue(load.optStr("html")!!.isNotEmpty(), "solver.html resource reached the browser")
             assertEquals(emptyList<CaptureFormat.Key>(), log.misses)
+            dumpTranscript("mangafire-challenge", h.client.transcript)
         }
     }
 

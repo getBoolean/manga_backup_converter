@@ -2,7 +2,7 @@
   "format": 1,
   "ecosystem": "tachi",
   "source": "all.mangadex",
-  "recordedAt": "2026-11-20T10:16:00Z",
+  "recordedAt": "2026-11-20T16:16:00Z",
   "recordedBy": "U3 desktop Tachi worker (one manual download; tests never download)",
   "notes": "Repository JAR and APK of the same release. Both verify against the keiyoushi signer (JAR: every entry signed; APK: apksig v2), so they share one trust identity. Loaded by tools/tachi-source-runner tests on both KTD5 paths; site responses for the fixed test query are in capture.json.",
   "repository": {

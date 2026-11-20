@@ -1,0 +1,7 @@
+jar search 'Onimai': 2 hits
+jar details 'Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)': 15 chapters; durable-ref details equal: true
+jar path: 4 live requests
+apk search 'Onimai': 2 hits
+apk details 'Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)': 15 chapters; durable-ref details equal: true
+apk path: 7 requests served from the JAR recording; ok
+jar/apk results equal: true

@@ -146,6 +146,14 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         put("httpOnly", c.httpOnly)
     }
 
+    /** KTD20 observe-only tier: platform browsers cannot show subresource requests to the extension. */
+    private fun noteInterceptionTier() {
+        val overrides = generateSequence<Class<*>>(view.webViewClient.javaClass) { it.superclass }
+            .takeWhile { it != android.webkit.WebViewClient::class.java }
+            .any { c -> c.declaredMethods.any { it.name == "shouldInterceptRequest" } }
+        if (overrides) environment.currentOperation?.addWarning(SUBRESOURCE_WARNING)
+    }
+
     private fun onMain(block: () -> Unit) {
         WebkitHost.mainHandler.post { if (!view.isDestroyed) block() }
     }
@@ -153,6 +161,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     override fun loadUrl(url: String, headers: Map<String, String>) {
         currentUrl = url
         val request = SimpleRequest(url, headers, mainFrame = true)
+        noteInterceptionTier()
         enqueue {
             if (!bridge.isNavigable(url)) {
                 recordAndThrow(CapabilityUnavailableException("Scheme of $url is not allowed (only http, https, about:blank)", "host.browser.load"))
@@ -180,6 +189,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     override fun loadDataWithBaseUrl(baseUrl: String?, data: String, mimeType: String?, encoding: String?, historyUrl: String?) {
         val base = baseUrl ?: "about:blank"
         currentUrl = base
+        noteInterceptionTier()
         enqueue {
             if (!bridge.isWebUrl(base)) {
                 recordAndThrow(CapabilityUnavailableException("loadData needs an http(s) base URL, got $base", "host.browser.loadData"))
@@ -348,6 +358,8 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
 
     companion object {
         const val ERROR_UNKNOWN = -1
+        const val SUBRESOURCE_WARNING =
+            "degraded: subresource observation unavailable (shouldInterceptRequest sees main-frame loadUrl navigations only)"
         private val EXECUTOR = Executors.newCachedThreadPool { r -> Thread(r, "tachi-browser").apply { isDaemon = true } }
     }
 }

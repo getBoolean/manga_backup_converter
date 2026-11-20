@@ -18,8 +18,10 @@ import java.util.zip.ZipOutputStream
  * APK → JVM JAR through pinned dex2jar (KTD5). Runs only after
  * [ArtifactVerifier.verifyApk]. Every class from every `classes*.dex` is
  * translated; resources (AndroidManifest.xml, resources.arsc, res/, assets/)
- * are carried over unchanged. Output is deterministic (sorted entries, fixed
- * timestamps) so one input always yields one cache identity.
+ * are carried over unchanged. Entries are sorted with fixed timestamps. dex2jar's
+ * register allocation can differ between conversions in the same JVM (cause not
+ * identified; separate processes produced identical output), so the bytes are not
+ * guaranteed identical; callers re-hash the staged output and never rely on it.
  */
 object ApkConverter {
     /** dex2jar version pinned in gradle/libs.versions.toml; part of the cache identity. */

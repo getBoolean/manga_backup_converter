@@ -94,7 +94,9 @@ class WorkerLifecycleTest {
     fun `the worker refuses a JRE below the security floor`() {
         assertFalse(jreMeetsFloor(Runtime.Version.parse("21.0.12")))
         assertFalse(jreMeetsFloor(Runtime.Version.parse("17.0.20")))
-        assertTrue(jreMeetsFloor(Runtime.Version.parse("21.0.13")))
+        assertFalse(jreMeetsFloor(Runtime.Version.parse("21.0.13")), "21.0.13 without the .1 patch is below the floor")
+        assertTrue(jreMeetsFloor(Runtime.Version.parse("21.0.13.1")))
+        assertTrue(jreMeetsFloor(Runtime.Version.parse("21.0.14")))
         assertTrue(jreMeetsFloor(Runtime.Version.parse("25")))
         assertTrue(jreMeetsFloor(), "tests must run on the Corretto floor or later")
     }

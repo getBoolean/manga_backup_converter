@@ -103,6 +103,13 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         @Volatile
         var finished = false
         val hostFailures = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+        private val warningSet = java.util.concurrent.CopyOnWriteArraySet<String>()
+
+        override fun addWarning(warning: String) {
+            warningSet += warning
+        }
+
+        override val warnings: List<String> get() = warningSet.toList()
 
         override fun recordHostFailure(failure: Throwable) {
             hostFailures += failure

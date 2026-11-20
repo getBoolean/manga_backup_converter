@@ -12,12 +12,10 @@ import java.io.PrintStream
 import java.nio.file.Files
 import kotlin.system.exitProcess
 
-/** KTD1 security floor: Amazon Corretto 21.0.13.1 or later (Java4Shell fix). */
-const val JRE_FLOOR_FEATURE = 21
-const val JRE_FLOOR_UPDATE = 13
+/** KTD1 security floor: Amazon Corretto 21.0.13.1 or later (Java4Shell fix). Raised with each security release. */
+val JRE_FLOOR: Runtime.Version = Runtime.Version.parse("21.0.13.1")
 
-fun jreMeetsFloor(version: Runtime.Version = Runtime.version()): Boolean =
-    version.feature() > JRE_FLOOR_FEATURE || (version.feature() == JRE_FLOOR_FEATURE && version.update() >= JRE_FLOOR_UPDATE)
+fun jreMeetsFloor(version: Runtime.Version = Runtime.version()): Boolean = version.compareToIgnoreOptional(JRE_FLOOR) >= 0
 
 private fun usage(message: String): Nothing {
     System.err.println("tachi-source-runner: $message")
@@ -34,7 +32,7 @@ fun main(args: Array<String>) {
     System.setOut(PrintStream(FileOutputStream(FileDescriptor.err), true, Charsets.UTF_8))
 
     if (!jreMeetsFloor()) {
-        System.err.println("tachi-source-runner: Java ${Runtime.version()} is below the security floor $JRE_FLOOR_FEATURE.0.$JRE_FLOOR_UPDATE; refusing to start")
+        System.err.println("tachi-source-runner: Java ${Runtime.version()} is below the security floor $JRE_FLOOR; refusing to start")
         exitProcess(3)
     }
 
