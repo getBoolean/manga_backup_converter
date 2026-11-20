@@ -367,6 +367,12 @@ class ConvertCommand extends Command<void> {
           );
         }
 
+        // A resumed conversion reuses its journaled sources unless
+        // --extensions names others.
+        if (extensionIds.isEmpty && request.previousSelection.isNotEmpty) {
+          return request.previousSelection;
+        }
+
         // --extensions flag: filter by ID, skip TUI/auto-select. Matching
         // runs after the rating policy, so a hidden source cannot be named.
         if (extensionIds.isNotEmpty) {

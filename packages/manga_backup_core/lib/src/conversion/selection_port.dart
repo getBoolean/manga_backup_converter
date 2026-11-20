@@ -25,9 +25,18 @@ typedef OnConfirmMatches = Future<List<MangaMatchConfirmation>> Function(
 
 /// Sources the user may choose from, after the content-rating policy.
 final class SourceSelectionRequest {
-  const SourceSelectionRequest({required this.available, required this.hiddenByRating});
+  const SourceSelectionRequest({
+    required this.available,
+    required this.hiddenByRating,
+    this.previousSelection = const <ExtensionEntry>[],
+  });
 
   final List<ExtensionEntry> available;
+
+  /// The selection journaled by an interrupted run of the same conversion,
+  /// limited to sources still offered at the same version. Hosts may default
+  /// to it; explicit user choices (for example `--extensions`) win.
+  final List<ExtensionEntry> previousSelection;
 
   /// How many sources the rating policy hid.
   final int hiddenByRating;

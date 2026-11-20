@@ -161,7 +161,13 @@ class MigrationPipeline {
     // Sources are always chosen afresh (a resumed run may pick other flags);
     // journaled confirmations rehydrate only against matching sessions.
     final List<ExtensionEntry> selected =
-        (await selection.selectSources(SourceSelectionRequest(available: rated.visible, hiddenByRating: rated.hidden)))
+        (await selection.selectSources(
+              SourceSelectionRequest(
+                available: rated.visible,
+                hiddenByRating: rated.hidden,
+                previousSelection: journal.previousSelection(rated.visible),
+              ),
+            ))
             // The rating policy holds even if a selection UI returns a hidden source.
             .where((ExtensionEntry e) => ratingPolicy.allows(e.contentRating))
             .toList();
@@ -448,6 +454,13 @@ final class _Journal {
     if (store == null || journal == null) return Future<void>.value();
     return _writes = _writes.then((_) => store.write(journal.toJson()));
   }
+
+  /// The journaled selection, limited to sources still offered at the same
+  /// version.
+  List<ExtensionEntry> previousSelection(List<ExtensionEntry> visible) => <ExtensionEntry>[
+    for (final JournaledSource s in _journal?.sources ?? const <JournaledSource>[])
+      ?visible.where((ExtensionEntry v) => v.id == s.extensionId && v.cacheKey == s.cacheKey).firstOrNull,
+  ];
 
   Future<void> recordSelection(List<ExtensionEntry> selected) {
     final ConversionJournal? j = _journal;

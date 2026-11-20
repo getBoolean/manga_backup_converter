@@ -552,12 +552,17 @@ void main() {
       final FakePluginSource resumed = destination(settings());
       final searchedAgain = <String>[];
       var resumedWith = 0;
+      var previous = <ExtensionEntry>[];
       final ConversionDraft draft = await _run(
         _pipeline(
           loader: FakePluginLoader(sources: <PluginSource>[resumed]),
           journalStore: store,
           selection: CallbackSelectionPort(
             onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onSelectSources: (SourceSelectionRequest request) async {
+              previous = request.previousSelection;
+              return request.available;
+            },
             onConfirmMatches: (names, manga, onSearch, onFetch) {
               searchedAgain.addAll(manga.map((SourceMangaData m) => m.details.title));
               return confirmExactTitle(names, manga, onSearch, onFetch);
@@ -572,6 +577,7 @@ void main() {
       // Only the manga without a confirmed match is searched again.
       check(searchedAgain).deepEquals(<String>['Nowhere']);
       check(resumedWith).equals(2);
+      check(previous.map((ExtensionEntry e) => e.id).toList()).deepEquals(<String>['ext']);
       check(resumed.fetches).equals(0);
       check((draft.backup as AidokuBackup).manga!.map((AidokuBackupManga m) => m.id).toSet()).deepEquals(<String>{
         'a',
