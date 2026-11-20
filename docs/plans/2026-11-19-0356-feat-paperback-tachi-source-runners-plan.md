@@ -74,7 +74,7 @@ The converter currently runs Aidoku WASM sources, but its Paperback and Tachi lo
 #### Mobile execution
 
 - R13. Execute Aidoku WASM sources, Paperback bundles, and Tachi sources locally inside the iOS app, including search, details, and chapter enumeration, without a desktop helper, remote runner, or Suwayomi service.
-- R14. Qualify local iOS execution in a signed build on a physical device under ordinary app entitlements; simulator execution, VM startup, or a bridge ping alone does not prove extension compatibility.
+- R14. Qualify local iOS execution in a signed build on a physical device under ordinary app entitlements; simulator execution, VM startup, or a bridge ping alone does not prove extension compatibility. Physical-device runs use development signing; distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup (Key Decisions).
 - R15. Execute Aidoku WASM sources, original Tachi APK sources on Android ART, and Paperback bundles in local QuickJS inside the Android app, without a desktop helper, remote runner, or Suwayomi service. Build the resulting backup on the Android device through the shared conversion core.
 - R18. Keep the iOS build App Store compliant even though it is distributed by sideloading, then TestFlight: extensions run in an interpreter with no JIT, downloaded extensions are data for the app's own runtime and never native code, and the app ships a privacy manifest covering its runtimes. A committed compliance note maps the design to App Store Review Guidelines 2.5.2 and 4.7: interpreted extensions as plug-ins, the native features exposed to them, age-rating handling for extensions rated above the app's rating, and the precedent relied on. Within this plan R18 is checked locally on unsigned builds: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Age-rating handling: extensions rated above the app's rating are hidden by default on every platform until the user enables an age-confirming setting, and the app's own rating stays moderate (Key Decisions).
 - R16. Qualify Android source execution for all three ecosystems, verified APK loading, service death/recovery, cancellation, browser interaction, and conversion on a physical ARM64 device. Emulator, class-loading, or bridge-only success is insufficient.
@@ -1396,7 +1396,7 @@ Update existing release packaging locations identified during implementation rat
 
 ### U15. Qualify iOS on-device conversion and packaging (M3)
 
-**Goal:** Deliver a signed iOS integration build that performs complete local conversions for all six directions with the Aidoku, Tachi, and Paperback runtimes.
+**Goal:** Deliver a development-signed iOS integration build that performs complete local conversions for all six directions with the Aidoku, Tachi, and Paperback runtimes on a physical device. Distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup (Key Decisions).
 
 **Requirements:** R5, R9-R14, R17, R18; AE7, AE8, AE11. **Dependencies:** U7, U9, U10, U18.
 
@@ -1407,7 +1407,7 @@ Update existing release packaging locations identified during implementation rat
 - Scripts and evidence: native-runtime build/manifest scripts under `scripts/`, and redacted receipts under `docs/validation/source-runners/ios/`.
 
 **Approach:**
-- **Packaging.** Package U9's native Tachi runtime/class libraries, U10's QuickJS/parser assets, and U18's wasm3/SwiftSoup libraries into a signed Flutter integration build. Record iPhoneOS and simulator slice identities separately, verify linkage and embedded signatures, and use only native artifacts built from recorded inputs.
+- **Packaging.** Package U9's native Tachi runtime/class libraries, U10's QuickJS/parser assets, and U18's wasm3/SwiftSoup libraries into a development-signed Flutter integration build for physical-device runs (distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup, Key Decisions). Record iPhoneOS and simulator slice identities separately, verify linkage and embedded signatures, and use only native artifacts built from recorded inputs.
 - **Code boundary.** Native interpreter code ships with the app; selected extension bytecode is data for that runtime, not an unsigned replacement native library.
 - **Deployment target and approval.** Verify that the deployment target U16 set matches the runtime minimum, and record the declared minimum and ordinary entitlements. The build is distributed by sideloading, passes the local R18 checks (interpreter-only, no executable memory, no downloaded native code, privacy manifest, GPL notices), and claims no store approval. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Finalize the R18 guideline-mapping note at `docs/validation/source-runners/ios/app-store-compliance.md`.
 - **Harness scope.** The harness exercises parsing, local runtime fetches, reconciliation, core building/validation, and app-local output publication, without a desktop CLI.
