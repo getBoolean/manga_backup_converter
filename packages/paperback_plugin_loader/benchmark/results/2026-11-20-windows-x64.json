@@ -1,0 +1,170 @@
+{
+  "benchmark": "quickjs-limits-v1",
+  "engine": "0.18.0",
+  "os": "windows",
+  "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
+  "dartVersion": "3.14.0",
+  "device": {
+    "physicalMemoryBytes": 137242288128,
+    "threadStackBytes": 1036192,
+    "processors": 16,
+    "calibrationMicros": 62930
+  },
+  "workloads": {
+    "bundle-eval": {
+      "description": "Evaluate a ~1 MiB synthetic bundle and call into it",
+      "medianMicros": 49695,
+      "p95Micros": 58145,
+      "peakAllocatedBytes": 5597814,
+      "minimalHeapLimitBytes": 5603361,
+      "minimalStackLimitBytes": 16160
+    },
+    "html-parse": {
+      "description": "Parse a ~600 KiB results page into a tree and extract 1000 cards",
+      "medianMicros": 41353,
+      "p95Micros": 45013,
+      "peakAllocatedBytes": 4382838,
+      "minimalHeapLimitBytes": 4397877,
+      "minimalStackLimitBytes": 52016
+    },
+    "json-response": {
+      "description": "Fetch a ~2 MiB JSON response through the promise bridge and map it",
+      "medianMicros": 30375,
+      "p95Micros": 78094,
+      "peakAllocatedBytes": 13628466,
+      "minimalHeapLimitBytes": 13677618,
+      "minimalStackLimitBytes": 24128
+    },
+    "deep-tree": {
+      "description": "Recursive descent over a 64-level nested structure (deep DOM nesting)",
+      "medianMicros": 116,
+      "p95Micros": 194,
+      "peakAllocatedBytes": 192528,
+      "minimalHeapLimitBytes": 197644,
+      "minimalStackLimitBytes": 310980
+    },
+    "await-loop": {
+      "description": "2000 sequential awaits on host calls",
+      "medianMicros": 189371,
+      "p95Micros": 302848,
+      "peakAllocatedBytes": 180368,
+      "minimalHeapLimitBytes": 188524,
+      "minimalStackLimitBytes": 12176
+    }
+  },
+  "jsFrameStackBytes": 4842,
+  "maxRecursionDepthAtStackCeiling": 107,
+  "stackCeilingBytes": 518152,
+  "interruptOvershootMicros": {
+    "median": 235,
+    "max": 254
+  },
+  "profile": {
+    "source": "synthetic workloads, windows 64-bit JSValue build",
+    "peakHeapBytes": 13677618,
+    "peakStackBytes": 310980,
+    "slowestOperationMicros": 302848,
+    "referenceCalibrationMicros": 62930
+  },
+  "sizing": {
+    "concurrent-1": {
+      "rule": "quickjs-sizing-v1 (provisional: synthetic workloads)",
+      "limits": {
+        "memoryLimitBytes": 27355236,
+        "maxStackBytes": 518096,
+        "operationDeadlineMicros": 1211392,
+        "jobSliceMicros": 24227
+      },
+      "device": {
+        "physicalMemoryBytes": 137242288128,
+        "threadStackBytes": 1036192,
+        "processors": 16,
+        "calibrationMicros": 62930
+      },
+      "profile": {
+        "source": "synthetic workloads, windows 64-bit JSValue build",
+        "peakHeapBytes": 13677618,
+        "peakStackBytes": 310980,
+        "slowestOperationMicros": 302848,
+        "referenceCalibrationMicros": 62930
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 1,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    },
+    "concurrent-4": {
+      "rule": "quickjs-sizing-v1 (provisional: synthetic workloads)",
+      "limits": {
+        "memoryLimitBytes": 27355236,
+        "maxStackBytes": 518096,
+        "operationDeadlineMicros": 1211392,
+        "jobSliceMicros": 24227
+      },
+      "device": {
+        "physicalMemoryBytes": 137242288128,
+        "threadStackBytes": 1036192,
+        "processors": 16,
+        "calibrationMicros": 62930
+      },
+      "profile": {
+        "source": "synthetic workloads, windows 64-bit JSValue build",
+        "peakHeapBytes": 13677618,
+        "peakStackBytes": 310980,
+        "slowestOperationMicros": 302848,
+        "referenceCalibrationMicros": 62930
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 4,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    },
+    "concurrent-16": {
+      "rule": "quickjs-sizing-v1 (provisional: synthetic workloads)",
+      "limits": {
+        "memoryLimitBytes": 27355236,
+        "maxStackBytes": 518096,
+        "operationDeadlineMicros": 1211392,
+        "jobSliceMicros": 24227
+      },
+      "device": {
+        "physicalMemoryBytes": 137242288128,
+        "threadStackBytes": 1036192,
+        "processors": 16,
+        "calibrationMicros": 62930
+      },
+      "profile": {
+        "source": "synthetic workloads, windows 64-bit JSValue build",
+        "peakHeapBytes": 13677618,
+        "peakStackBytes": 310980,
+        "slowestOperationMicros": 302848,
+        "referenceCalibrationMicros": 62930
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 16,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    }
+  }
+}

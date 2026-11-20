@@ -1,0 +1,32 @@
+name: quickjs
+description: >-
+  Vendored QuickJS-ng JavaScript engine built from source by a build hook,
+  with a small Dart FFI API (evaluation, host functions, promises, pending
+  jobs, interrupts, memory and stack limits).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+resolution: workspace
+
+dependencies:
+  code_assets: ^1.0.0
+  ffi: ^2.2.0
+  hooks: ^1.0.0
+  meta: ^1.12.0
+  native_toolchain_c: ^0.17.4
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  ffigen: ^20.1.1
+  test: ^1.24.0
+
+platforms:
+  ios:
+  android:
+  windows:
+  macos:
+  linux:
