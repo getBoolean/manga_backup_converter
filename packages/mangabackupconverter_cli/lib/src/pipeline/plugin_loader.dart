@@ -2,33 +2,9 @@ import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
 import 'package:http/http.dart' as http;
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_aidoku.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
-
-abstract class PluginLoader {
-  const PluginLoader();
-
-  Future<List<ExtensionEntry>> fetchExtensionLists(
-    List<String> repoUrls, {
-    void Function(String)? onWarning,
-  });
-
-  Future<List<PluginSource>> loadPlugins(
-    List<ExtensionEntry> extensions, {
-    void Function(int current, int total, String message)? onProgress,
-  });
-
-  /// Downloads raw plugin bytes for [entry]. Returns null if not downloadable.
-  Future<Uint8List?> downloadPluginBytes(ExtensionEntry entry) async => null;
-
-  /// Loads a plugin from raw [bytes] for [entry]. Returns null if not supported.
-  Future<PluginSource?> loadPluginFromBytes(
-    ExtensionEntry entry,
-    Uint8List bytes,
-  ) async => null;
-}
 
 class AidokuPluginLoader extends PluginLoader {
   const AidokuPluginLoader();
@@ -190,3 +166,12 @@ class MangayomiPluginLoader extends PluginLoader {
       )
       .toList();
 }
+
+/// The plugin loader the composition root registers for a target [format]
+/// (KTD15: formats describe files, not how sources execute).
+PluginLoader pluginLoaderFor(BackupFormat format) => switch (format) {
+  Aidoku() => const AidokuPluginLoader(),
+  Paperback() => const PaperbackPluginLoader(),
+  Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
+  Mangayomi() => const MangayomiPluginLoader(),
+};

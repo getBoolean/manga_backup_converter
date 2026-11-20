@@ -1,7 +1,6 @@
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup_settings.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
 
 part 'mangayomi_backup_db.mapper.dart';
 

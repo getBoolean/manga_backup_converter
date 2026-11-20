@@ -1,19 +1,9 @@
 import 'dart:async';
 
 import 'package:checks/checks.dart';
-import 'package:mangabackupconverter_cli/src/common/convertable.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_tracking.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/backup_format.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:test/scaffolding.dart';
 
 TachiBackup _minimalTachiBackup() {

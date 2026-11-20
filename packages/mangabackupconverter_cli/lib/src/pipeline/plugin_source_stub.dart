@@ -1,4 +1,4 @@
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 
 // TODO: implement search functionality for other sources
 class StubPluginSource implements PluginSource {

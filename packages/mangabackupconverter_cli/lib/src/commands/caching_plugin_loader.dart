@@ -1,9 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
 
 class CachingPluginLoader extends PluginLoader {
   const CachingPluginLoader(this._inner, {required this.cache});

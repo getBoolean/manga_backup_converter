@@ -1,17 +1,9 @@
 import 'dart:async';
 
-import 'package:mangabackupconverter_cli/src/common/convertable.dart';
-import 'package:mangabackupconverter_cli/src/exceptions/migration_exception.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachi_to_tachimanga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/backup_format.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/conversion_strategy.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/conversion_summary.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 
 // ---------------------------------------------------------------------------
 // Streaming search events
@@ -104,7 +96,7 @@ class MigrationPipeline {
     BackupFormat sourceFormat,
     BackupFormat targetFormat,
   ) async {
-    final PluginLoader loader = pluginLoader ?? targetFormat.pluginLoader;
+    final PluginLoader loader = pluginLoader ?? pluginLoaderFor(targetFormat);
 
     onProgress(0, 0, 'Fetching extension lists...');
     final List<ExtensionEntry> availableExtensions = await loader.fetchExtensionLists(
@@ -274,56 +266,4 @@ class MigrationPipeline {
     onSummary?.call(summary);
     return backup;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Data classes
-// ---------------------------------------------------------------------------
-
-class MangaMatchConfirmation {
-  const MangaMatchConfirmation({
-    required this.sourceManga,
-    this.confirmedMatch,
-    this.targetMangaDetails,
-    this.targetChapters = const <PluginChapter>[],
-  });
-
-  final SourceMangaData sourceManga;
-  final PluginSearchResult? confirmedMatch;
-  final PluginMangaDetails? targetMangaDetails;
-  final List<PluginChapter> targetChapters;
-}
-
-class MangaMatchProposal {
-  const MangaMatchProposal({
-    required this.sourceManga,
-    required this.candidates,
-    this.bestMatch,
-    this.failures = const <PluginSearchFailure>[],
-  });
-
-  final MangaSearchDetails sourceManga;
-  final List<PluginSearchResult> candidates;
-  final PluginSearchResult? bestMatch;
-  final List<PluginSearchFailure> failures;
-}
-
-class PluginSearchFailure {
-  const PluginSearchFailure({required this.pluginId, required this.error});
-
-  final String pluginId;
-  final Object error;
-
-  @override
-  String toString() => 'PluginSearchFailure(pluginId: $pluginId, error: $error)';
-}
-
-class PluginLoadFailure {
-  const PluginLoadFailure({required this.extensionId, required this.error});
-
-  final String extensionId;
-  final Object error;
-
-  @override
-  String toString() => 'PluginLoadFailure(extensionId: $extensionId, error: $error)';
 }

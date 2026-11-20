@@ -344,7 +344,7 @@ class ConvertCommand extends Command<void> {
 
           final pluginCache = PluginCache();
           final cachingLoader = CachingPluginLoader(
-            outputFormat.pluginLoader,
+            pluginLoaderFor(outputFormat),
             cache: pluginCache,
           );
           final pipeline = MigrationPipeline(

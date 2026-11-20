@@ -9,7 +9,8 @@ Manga Backup Converter — a Flutter/Dart monorepo that converts manga backup fi
 ## Monorepo Structure (Melos)
 
 - Root: Flutter app + monorepo workspace config (melos scripts, dependency_overrides)
-- `packages/mangabackupconverter_cli/` — Core conversion logic (pure Dart, no Flutter dependency)
+- `packages/manga_backup_core/` — Portable conversion core (KTD14): Aidoku/Paperback/Tachi codecs, normalized data, reconciliation, loss report, builders, migration pipeline, conversion journal; pure Dart, depends only on `source_runtime` contracts (`source_contracts.dart`) — never Flutter, `dart:io`, the CLI, concrete loaders or HTTP (`test/boundary/core_boundary_test.dart` enforces this)
+- `packages/mangabackupconverter_cli/` — CLI composition root: commands/TUI, concrete plugin loaders (`pluginLoaderFor`), native-dependent Tachimanga (SQLite) and Mangayomi codecs, Tachi→Tachimanga extension; its barrel re-exports `manga_backup_core`
 - `packages/aidoku_plugin_loader/` — Aidoku WASM plugin loader (host imports, isolate management, picks runtime)
 - `packages/wasm_runner/` — Abstract WASM runner interface (`WasmRunner`, `WasmRuntimeException`, `WasmTrapException`)
 - `packages/wasmer_runner/` — Wasmer FFI runner implementing `WasmRunner` (native platforms, build hook downloads prebuilt wasmer)
@@ -152,7 +153,7 @@ Active features: `books`, `connectivity`, `initialization`, `settings`. The `exa
 - `PluginSearchResult` carries optional `pluginSourceName` (friendly display name, falls back to `pluginSourceId`), `details` (`PluginMangaDetails?`), and `chapters` (`List<PluginChapter>`) — NOT populated during search; the TUI uses `onFetchDetails` callback when needed; `detailedConfirmations` in `_runMigration` fetches details for confirmed matches before building target backup; when constructing enriched copies, always preserve `pluginSourceName`
 - WASM `get_search_manga_list` returns minimal data (authors typically empty); full author/artist data comes from `getMangaWithChapters` (called in `detailedConfirmations`, not during search) — always prefer detail-level fields over search-level fields when both exist
 - `PluginMangaDetails` has separate `authors` and `artists` lists — display code should merge both into a `<String>{}` set to deduplicate (authors who are also artists)
-- `lib/src/proto/` — Protocol buffer schemas for Tachi forks (mihon, j2k, neko, sy, yokai)
+- Generated Tachi fork protobuf code (mihon, j2k, neko, sy, yokai) lives in `packages/manga_backup_core/lib/src/formats/tachi/proto/`; `.github/workflows/update-schemas.yml` regenerates it there (`OUTPUT_DIR_PREFIX`), and no copy remains in the CLI
 - `lib/src/exceptions/` — Format-specific exception classes
 
 Each backup format class has a `fromData(Uint8List)` factory and conversion methods to other formats.

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:path/path.dart' as p;
 
 class PluginCache {

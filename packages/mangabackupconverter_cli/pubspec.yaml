@@ -20,9 +20,13 @@ dependencies:
   ffi: ^2.2.0
   fixnum: ^1.1.1
   http: ^1.2.0
+  manga_backup_core:
+    path: ../manga_backup_core
   meta: ^1.12.0
   path: ^1.9.0
   propertylistserialization: ^1.4.0
+  source_runtime:
+    path: ../source_runtime
   protobuf: ^3.1.0
   sqflite_common: ^2.5.4
   sqflite_common_ffi: ^2.3.3

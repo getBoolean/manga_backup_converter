@@ -1,5 +1,5 @@
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 
 part 'tachimanga_backup_meta.mapper.dart';
 

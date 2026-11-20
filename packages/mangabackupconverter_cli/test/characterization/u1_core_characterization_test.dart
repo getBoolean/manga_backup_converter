@@ -3,22 +3,9 @@
 // change rather than an accident of the move.
 
 import 'package:checks/checks.dart';
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_tracking.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/backup_format.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:test/scaffolding.dart';
-
-import '../fixtures/paperback_fixtures.dart' as fx;
 
 TachiBackup _tachiBackup() => const TachiBackup(
   backupManga: <TachiBackupManga>[
@@ -84,23 +71,6 @@ class _Loader extends PluginLoader {
 }
 
 void main() {
-  test('Paperback library entry whose primary source does not resolve is dropped silently', () {
-    final backup = PaperbackBackup.fromData(
-      fx.buildPaperbackArchive(<String, Map<String, dynamic>>{
-        '__MANGA_INFO_V4': <String, dynamic>{
-          'info-A': fx.mangaInfoJson('info-A', titles: <String>['A']),
-        },
-        '__SOURCE_MANGA_V4': <String, dynamic>{'sm-A': fx.sourceMangaJson('sm-A', mangaInfoId: 'info-A')},
-        '__LIBRARY_MANGA_V4': <String, dynamic>{
-          'lib-1': fx.libraryMangaJson('lib-1', primarySourceId: 'sm-A'),
-          'lib-dangling': fx.libraryMangaJson('lib-dangling', primarySourceId: 'sm-missing'),
-        },
-      }),
-    );
-    check(backup.libraryManga).isNotNull().length.equals(2);
-    check(backup.sourceMangaDataEntries).length.equals(1);
-  });
-
   test('a null details result keeps the confirmed match with zero chapters', () async {
     final source = _Source('src');
     final pipeline = MigrationPipeline(

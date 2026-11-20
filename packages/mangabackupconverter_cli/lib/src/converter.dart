@@ -1,11 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/backup_format.dart';
 
 class MangaBackupConverter {
   AidokuBackup importAidokuBackup(Uint8List bytes) {

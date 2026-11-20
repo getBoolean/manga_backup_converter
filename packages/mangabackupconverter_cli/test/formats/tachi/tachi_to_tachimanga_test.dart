@@ -1,13 +1,6 @@
 import 'package:checks/checks.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_category.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_chapter.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_extension_repo.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_history.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_manga.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_source.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup_tracking.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_update_strategy.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachi_to_tachimanga.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
 import 'package:test/scaffolding.dart';

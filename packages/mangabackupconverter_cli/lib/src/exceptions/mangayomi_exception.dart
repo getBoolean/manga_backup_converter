@@ -1,4 +1,4 @@
-import 'package:mangabackupconverter_cli/src/exceptions/base_exception.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 
 class MangayomiException extends MangaConverterException {
   const MangayomiException([super.message, super.cause, super.stackTrace]);

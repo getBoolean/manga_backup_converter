@@ -3,10 +3,10 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:checks/checks.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/mangayomi_exception.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup_db.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:test/scaffolding.dart';
 
 Uint8List _buildMangayomiZip(Map<String, dynamic> dbContent, {String fileName = 'backup.db'}) {
