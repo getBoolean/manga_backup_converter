@@ -1,0 +1,320 @@
+{
+  "receipt": "U16 iOS runtime gate",
+  "description": "mechanism B: Zero back-edge poll + JVMTI StopThread, re-issued",
+  "evidenceClass": "simulator (does not pass the physical-iPhone gate)",
+  "hostCommitBase": "ba39def5e9af166495867d3936ec6e68c0868924",
+  "branch": "feat/source-runners-u16",
+  "simulator": "iPad Pro 13-inch (M5), iOS 26.5 (23F77), arm64",
+  "xcode": "Xcode 27.2 Build version 27B52",
+  "flutter": "3.50.0 (Dart 3.14.0)",
+  "ffigen": "20.1.1",
+  "objective_c": "9.3.0",
+  "runtime": {
+    "openjdkMobileCommit": "ad8bb1b065bf230d193a1dfd0ebd39a8b1fedf53",
+    "javaRuntimeVersion": "26-internal-sourcerunner.r1",
+    "patches": {
+      "0001-JDK-8374535-ios-module-image-path.patch": "314aa71f8575e8bda81394f3e0192d996142fb0a382b75d2ff0c179bb1348819",
+      "0002-ios-java-home-and-static-native-lookup.patch": "7e9dd27459be7268a82badbe5e78b54df0e4ec8efdb65bac6d6d97fc163c731c",
+      "0003-ios-platform-props-macos.patch": "d8c97f9bbe983c852751cd36c745e7f9ffdde46f48ae56a0cf1c9cd5aa321051",
+      "0004-zero-backedge-safepoint-poll.patch": "a400556139d2e5274c173861f7fbe5491ee828f573dfb295759ba9a895886127",
+      "0005-java-base-source-runner-deadline.patch": "7b47112ad68b3c262d5b90b944d0a3bdf8c30c887b0fe240f33fc8b1df264b5d",
+      "0006-ios-no-executable-memory.patch": "f58fab706d284d61a2892934c928b935f866f2ea85be6516ac0319abab824de7"
+    },
+    "libffi": {
+      "version": "3.8.1",
+      "sha256": "81e879c094cc5ec3186c48510c6385ac6b3e866192e8bc71a35245703757ee40"
+    },
+    "iosDeploymentTarget": "15.0",
+    "simulatorArchiveSha256": "336fcb1883bc8c18f6f110e8286ac1798a42087f260732bbc9779b59ec775c88",
+    "simulatorModulesSha256": "0886db7917435e77e28a7a7414063f1df79a4c5e28e13d3cf8ebf9293bce6752"
+  },
+  "report": {
+    "evidence": "simulator",
+    "os": "Version 26.5 (Build 23F77)",
+    "dart": "3.14.0 (stable) (Wed Nov 4 16:28:39 2026 -0800) on \"ios_arm64\"",
+    "mechanism": "stopThread",
+    "start": {
+      "createVmMs": 111.591,
+      "jvmtiSignalThread": true,
+      "backedgePoll": 1,
+      "startToReadyMs": 134.12,
+      "options": [
+        "-Xint",
+        "-Xshare:off",
+        "-XX:+UseSerialGC",
+        "-Xms32m",
+        "-Xmx256m",
+        "-Djava.class.path=<bundle>/gate-host-plain.jar:<bundle>/gate-ext-plain.jar",
+        "--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED"
+      ]
+    },
+    "hello": "hello from dart java.version=26-internal java.vm.name=OpenJDK 64-Bit Zero VM java.vm.info=interpreted mode, static os.name=Darwin os.arch=aarch64 java.home=<app container>/Library/Application Support/source_runtime/java-home-<stamp>",
+    "firstCallMs": 11.6085,
+    "calibration": {
+      "spinIterationsPerMs": 74522,
+      "hostRoundsPerMs": 1766,
+      "regexN12Ms": 34.761,
+      "regexN": 19
+    },
+    "roundTripMs": {
+      "n": 20,
+      "min": 0.01,
+      "median": 0.01,
+      "max": 0.03
+    },
+    "baselineNoMechanism": {
+      "mechanism": 0,
+      "deadlineMs": 250,
+      "elapsedUs": 1475634.8,
+      "fired": true,
+      "deliveries": 0,
+      "fireErrors": 0,
+      "firedAfterUs": 260029.3,
+      "stopLatencyUs": 1215605.5,
+      "result": "iterations=111782497 elapsedNs=1475584709 x=106",
+      "exception": null,
+      "error": null
+    },
+    "unrewrittenLoop": {
+      "mechanism": 2,
+      "deadlineMs": 250,
+      "elapsedUs": 252379.8,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 252300.5,
+      "stopLatencyUs": 79.3,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    },
+    "gcDuringLoopPollOnPlain": {
+      "gcMs": 1.571625,
+      "loopMs": 2970.9941
+    },
+    "gcDuringLoopPollOffPlain": {
+      "gcMs": 2641.732125,
+      "loopMs": 2944.6226
+    },
+    "globalRefs": {
+      "baseline": 3,
+      "final": 3
+    },
+    "samples": {
+      "callFreeLoop": {
+        "mechanism": 2,
+        "deadlineMs": 250,
+        "elapsedUs": 260057.2,
+        "fired": true,
+        "deliveries": 1,
+        "fireErrors": 0,
+        "firedAfterUs": 260027.0,
+        "stopLatencyUs": 30.1,
+        "result": null,
+        "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+        "error": null
+      },
+      "hostLibraryLoop": {
+        "mechanism": 2,
+        "deadlineMs": 250,
+        "elapsedUs": 259101.0,
+        "fired": true,
+        "deliveries": 1,
+        "fireErrors": 0,
+        "firedAfterUs": 259064.1,
+        "stopLatencyUs": 36.9,
+        "result": null,
+        "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+        "error": null
+      },
+      "regexBacktrack": {
+        "mechanism": 2,
+        "deadlineMs": 250,
+        "elapsedUs": 258526.0,
+        "fired": true,
+        "deliveries": 1,
+        "fireErrors": 0,
+        "firedAfterUs": 258459.6,
+        "stopLatencyUs": 66.5,
+        "result": null,
+        "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+        "error": null
+      },
+      "catchThrowableAndContinue": {
+        "mechanism": 2,
+        "deadlineMs": 250,
+        "elapsedUs": 3418469.5,
+        "fired": true,
+        "deliveries": 1100,
+        "fireErrors": 0,
+        "firedAfterUs": 259452.8,
+        "stopLatencyUs": 3159016.8,
+        "result": null,
+        "exception": "java.lang.BootstrapMethodError: bootstrap method initialization exception",
+        "error": null
+      },
+      "blockedNativeWait": {
+        "mechanism": 2,
+        "deadlineMs": 250,
+        "elapsedUs": 260110.5,
+        "fired": true,
+        "deliveries": 1,
+        "fireErrors": 0,
+        "firedAfterUs": 260023.1,
+        "stopLatencyUs": 87.4,
+        "result": null,
+        "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+        "error": null
+      }
+    },
+    "interruption": {
+      "callFreeLoop": {
+        "outcomes": [
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline"
+        ],
+        "exceptions": [
+          "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+        ],
+        "deliveries": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "stopLatencyMs": {
+          "n": 5,
+          "min": 0.03,
+          "median": 0.03,
+          "max": 0.04
+        },
+        "dartTimerTickRatio": 0.99
+      },
+      "hostLibraryLoop": {
+        "outcomes": [
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline"
+        ],
+        "exceptions": [
+          "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+        ],
+        "deliveries": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "stopLatencyMs": {
+          "n": 5,
+          "min": 0.03,
+          "median": 0.03,
+          "max": 0.04
+        },
+        "dartTimerTickRatio": 0.99
+      },
+      "regexBacktrack": {
+        "outcomes": [
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline"
+        ],
+        "exceptions": [
+          "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+        ],
+        "deliveries": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "stopLatencyMs": {
+          "n": 5,
+          "min": 0.03,
+          "median": 0.03,
+          "max": 0.07
+        },
+        "dartTimerTickRatio": 0.99
+      },
+      "catchThrowableAndContinue": {
+        "outcomes": [
+          "javaException",
+          "javaException",
+          "javaException",
+          "javaException",
+          "javaException"
+        ],
+        "exceptions": [
+          "java.lang.BootstrapMethodError: bootstrap method initialization exception"
+        ],
+        "deliveries": [
+          1100,
+          1085,
+          1092,
+          1104,
+          1088
+        ],
+        "stopLatencyMs": {
+          "n": 0
+        },
+        "dartTimerTickRatio": 1.0
+      },
+      "blockedNativeWait": {
+        "outcomes": [
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline",
+          "deadline"
+        ],
+        "exceptions": [
+          "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+        ],
+        "deliveries": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "stopLatencyMs": {
+          "n": 5,
+          "min": 0.08,
+          "median": 0.09,
+          "max": 0.3
+        },
+        "dartTimerTickRatio": 0.99
+      }
+    },
+    "wkwebview": {
+      "pageReport": {
+        "interfaceBeforePageScripts": true,
+        "documentStartRan": true,
+        "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+        "clientHints": false,
+        "origin": "https://mangafire.to",
+        "href": "https://mangafire.to/",
+        "cookie": "fixture_clearance=ok",
+        "token": -166158868
+      },
+      "messageFrameIsMain": true,
+      "messageOrigin": "https://mangafire.to",
+      "cookies": [
+        "fixture_clearance=ok; mangafire.to"
+      ],
+      "storePersistent": false,
+      "elapsedMs": 1573.801,
+      "requestObservation": "unsupported (no WKWebView interception for https)"
+    }
+  }
+}

@@ -1,0 +1,3 @@
+build/
+# The root .gitignore ignores *.env*; the manifest is a recorded build input.
+!manifest.env

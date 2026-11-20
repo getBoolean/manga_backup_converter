@@ -1,0 +1,32 @@
+Subject: [PATCH] zero: poll for safepoints on backward branches
+
+Source:  manga_backup_converter source runners (U16), original work
+Licence: GPLv2 (same as the patched OpenJDK file)
+
+Restores a back-edge safepoint/handshake poll in the Zero bytecode
+interpreter (JDK 11 Zero polled on back-edges; current Zero leaves
+DO_BACKEDGE_CHECKS empty). Without it a call-free Java loop blocks GC and
+handshakes for all threads, and JVMTI StopThread (delivered by handshake)
+cannot reach the looping thread. KTD11 interruption mechanism B.
+---
+--- a/src/hotspot/share/interpreter/zero/bytecodeInterpreter.cpp	2026-11-20 09:28:05
++++ b/src/hotspot/share/interpreter/zero/bytecodeInterpreter.cpp	2026-11-20 09:28:05
+@@ -302,7 +302,17 @@
+ 
+ #define METHOD istate->method()
+ #define GET_METHOD_COUNTERS(res)
+-#define DO_BACKEDGE_CHECKS(skip, branch_pc)
++// source-runner patch: poll for safepoints and handshakes on backward
++// branches. Upstream Zero polls only at method return, so a call-free loop
++// stalls GC and handshakes (including JVMTI StopThread delivery) for every
++// other thread. The embedder may clear this switch to measure the unpatched
++// behaviour; production builds leave it set.
++extern "C" JNIEXPORT volatile int source_runner_zero_backedge_poll = 1;
++#define DO_BACKEDGE_CHECKS(skip, branch_pc)                                  \
++    if ((skip) <= 0 && source_runner_zero_backedge_poll != 0 &&              \
++        SafepointMechanism::should_process(THREAD)) {                        \
++      CALL_VM(at_safepoint(THREAD), handle_exception);                       \
++    }
+ 
+ /*
+  * For those opcodes that need to have a GC point on a backwards branch

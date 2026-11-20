@@ -22,6 +22,8 @@ dependencies:
     path: packages/scraper
   source_runtime_android:
     path: packages/source_runtime_android
+  source_runtime_ios:
+    path: packages/source_runtime_ios
   swiftsoup:
     path: packages/swiftsoup
   quickjs:
