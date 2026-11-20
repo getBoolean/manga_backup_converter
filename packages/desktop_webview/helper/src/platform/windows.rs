@@ -16,6 +16,7 @@ use std::{
 use tao::{event_loop::EventLoopProxy, window::Window};
 use webview2_com::{
   take_pwstr, AddScriptToExecuteOnDocumentCreatedCompletedHandler, ClearBrowsingDataCompletedHandler,
+  FrameCreatedEventHandler, FrameWebMessageReceivedEventHandler,
   Microsoft::Web::WebView2::Win32::*, NavigationCompletedEventHandler, NavigationStartingEventHandler,
   WebResourceRequestedEventHandler, WebResourceResponseReceivedEventHandler,
 };
@@ -30,7 +31,9 @@ use crate::{policy, InterceptMode, Shared, UserEvent};
 
 pub const ENGINE: &str = "webview2";
 
-/// Whether the IPC request URI identifies the posting frame. Only the top-level document reaches the WebView's message event (child frames post to per-frame events the helper does not subscribe to), and wry reports that document's URL.
+/// Whether the IPC request URI identifies the posting frame: wry reports the
+/// top-level document's URL, and the helper forwards child-frame messages
+/// with the frame's own URL.
 pub const IPC_URI_IS_POSTING_FRAME: bool = true;
 
 pub static CAPS: Caps = Caps {
@@ -55,8 +58,27 @@ fn profile_name(sid: &str) -> String {
   format!("dwv-{clean}")
 }
 
-pub fn configure_builder<'a>(b: WebViewBuilder<'a>, sid: &str, _proxy: EventLoopProxy<UserEvent>) -> WebViewBuilder<'a> {
-  b.with_profile_name(profile_name(sid))
+/// wry's default WebView2 arguments; passing our own replaces them.
+const WRY_DEFAULT_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+
+pub fn configure_builder<'a>(
+  b: WebViewBuilder<'a>,
+  sid: &str,
+  _proxy: EventLoopProxy<UserEvent>,
+  offline: bool,
+) -> WebViewBuilder<'a> {
+  let b = b.with_profile_name(profile_name(sid));
+  if offline {
+    // Backstop for traffic WebResourceRequested never sees (WebSockets,
+    // some service-worker fetches): no host other than loopback resolves.
+    // Every session of a helper uses the same arguments, as WebView2
+    // requires for a shared data directory.
+    b.with_additional_browser_args(format!(
+      "{WRY_DEFAULT_ARGS} --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost\""
+    ))
+  } else {
+    b
+  }
 }
 
 pub fn build(b: WebViewBuilder<'_>, window: &Window) -> wry::Result<WebView> {
@@ -228,9 +250,49 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
 
     // Every request: loadData substitution, observe/replace tiers, and
     // offline replay's deny-by-default.
-    core
-      .AddWebResourceRequestedFilter(&HSTRING::from("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)
-      .map_err(e)?;
+    // All request source kinds where the runtime supports them, so
+    // requests from cross-origin iframes and workers are seen as well.
+    match core.cast::<ICoreWebView2_22>() {
+      Ok(core22) => core22
+        .AddWebResourceRequestedFilterWithRequestSourceKinds(
+          &HSTRING::from("*"),
+          COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL,
+          COREWEBVIEW2_WEB_RESOURCE_REQUEST_SOURCE_KINDS_ALL,
+        )
+        .map_err(e)?,
+      Err(_) => core
+        .AddWebResourceRequestedFilter(&HSTRING::from("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)
+        .map_err(e)?,
+    }
+
+    // Child frames post to per-frame message events, not the WebView's.
+    // Forward them with the frame's document URL; the origin rule then
+    // keeps only same-origin frames (nested frames are not subscribed).
+    if let Ok(core4) = core.cast::<ICoreWebView2_4>() {
+      let (p, s) = (proxy.clone(), sid.clone());
+      core4
+        .add_FrameCreated(
+          &FrameCreatedEventHandler::create(Box::new(move |_, args| {
+            let Some(args) = args else { return Ok(()) };
+            let Ok(frame2) = args.Frame().and_then(|f| f.cast::<ICoreWebView2Frame2>()) else { return Ok(()) };
+            let (p, s) = (p.clone(), s.clone());
+            let mut frame_token = 0i64;
+            frame2.add_WebMessageReceived(
+              &FrameWebMessageReceivedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let uri = pwstr(|u| args.Source(u));
+                let body = pwstr(|b| args.TryGetWebMessageAsString(b));
+                let _ = p.send_event(UserEvent::Ipc { session: s.clone(), uri, body });
+                Ok(())
+              })),
+              &mut frame_token,
+            )?;
+            Ok(())
+          })),
+          &mut token,
+        )
+        .map_err(e)?;
+    }
     let (p, s, sh, env2) = (proxy.clone(), sid.clone(), shared.clone(), env.clone());
     core
       .add_WebResourceRequested(

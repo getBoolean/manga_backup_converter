@@ -40,7 +40,12 @@ pub fn web_context(_dir: Option<&Path>) -> Option<WebContext> {
   None
 }
 
-pub fn configure_builder<'a>(b: WebViewBuilder<'a>, sid: &str, proxy: EventLoopProxy<UserEvent>) -> WebViewBuilder<'a> {
+pub fn configure_builder<'a>(
+  b: WebViewBuilder<'a>,
+  sid: &str,
+  proxy: EventLoopProxy<UserEvent>,
+  _offline: bool,
+) -> WebViewBuilder<'a> {
   super::generic_navigation_hooks(b, sid, proxy)
 }
 

@@ -142,20 +142,20 @@ records the SHA-256 the client verifies before launch. Protocol: `packages/deskt
 
 Status key: **pass** = ran and passed here; **compiled** = type-checks for the target, never run; **not run** =
 neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,
-`flutter test packages/desktop_webview/test --concurrency 1`: 42 passed). No macOS or Linux cell is an expected
-value.
+`flutter test packages/desktop_webview/test`: 46 passed both with `--concurrency 1` and in parallel). No macOS or
+Linux cell is an expected value.
 
 | Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
 |---|---|---|---|
 | Build | pass (debug and `--release`; 715 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, LLVM clang for one objc2 build script); x64 not checked | not run (no WebKitGTK dev files or Rust in WSL) |
 | BrowserPort contract suite (feat/source-runners) | pass, 23/23 | not run | not run |
-| BrowserPort contract suite (proto 1.1, `aaaf2b2`) | pass, 34/34 (temporary local copy of the suite, not committed) | not run | not run |
+| BrowserPort contract suite (proto 1.1, `aaaf2b2`) | pass, 34/34 against the committed helper (temporary local copy of the suite, not committed) | not run | not run |
 | Load page, evaluate (promises awaited), JSON results | pass | not run | not run |
 | Message channel `window.<name>.postMessage(string)` | pass: document start of every later document, plus the current page on registration; non-strings dropped | not run | not run |
-| Origin rule (cross-origin frame, `about:blank` dropped) | pass. Child frames never reach the WebView's message event, so even same-origin child-frame messages are not delivered (gap; the suite does not test it) | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
+| Origin rule (cross-origin frame, `about:blank` dropped) | pass. The page script reports the frame's origin and `top.location.origin`, which a cross-origin frame cannot read; on WebView2 the engine's document URL must agree too. Same-origin direct child frames get the channel and are delivered (frame message events are forwarded); nested frames are not subscribed | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
 | Cookies read/write; domain and path derived from the URL | pass | not run | not run |
 | Two sessions' cookie and web-storage isolation | pass (InPrivate profile per session) | not run (non-persistent `WKWebsiteDataStore` per WebView) | not run (ephemeral `WebContext` per WebView) |
-| Non-persistent store / start-up wipe | pass: InPrivate, browsing data cleared and confirmed on close; stale `h-*` data directories wiped at start-up | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
+| Non-persistent store / start-up wipe | pass. InPrivate; browsing data cleared and confirmed on close. A one-off probe hard-killed the helper mid-session: 0 rows in the profile's Cookies database (a script-set cookie and a server cookie with `Max-Age`), and no localStorage or IndexedDB on disk. Tests cover the start-up wipe (planted stale directory; a killed helper's directory removed by the next helper). A directory is renamed before deletion, so a live helper's locked directory is left alone. WebView2's browser processes often outlive the helper, so its own exit-time removal usually fails; the next start-up wipe removes the directory | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
 | Visible window, interaction timeout, user close | pass (window shown; timeout hides it; close completes; session close cancels) | not run | not run |
 | Scheme policy in the helper (load, `loadData` base, cookies, redirects, new windows denied) | pass. A 302 to `file:` surfaces only as Chromium `REDIRECT_FAILED`, which the helper maps to the named policy failure (a redirect loop maps the same way) | not run (wry navigation handler) | not run (wry navigation handler) |
 | User-agent override at runtime | pass | not run (`setCustomUserAgent`) | not run (`WebSettings`) |
@@ -166,7 +166,7 @@ value.
 | Synchronous script-interface returns | unsupported | unsupported | unsupported |
 | HTTP status code of a load | pass | unavailable (`null`) | unavailable (`null`) |
 | Failed-navigation detection | pass | gap: only scheme refusals end a load; other failures end only through cancellation | `load-failed` wired, not run |
-| Offline replay (helper blocks unanswered non-loopback requests) | pass | refuses to start with `--offline` (`offline-unsupported`) | refuses to start with `--offline` (`offline-unsupported`) |
+| Offline replay (helper blocks unanswered non-loopback requests) | pass: interception over all request source kinds (a cross-origin iframe request is seen and blocked). A `--host-resolver-rules` DNS backstop for traffic interception misses (WebSockets) is configured but not verified by a test | refuses to start with `--offline` (`offline-unsupported`) | refuses to start with `--offline` (`offline-unsupported`) |
 | Typed failures: missing WebView runtime, no display | pass via `--simulate-fatal`, mapped to capability-unavailable; a real missing runtime is not reproduced | not run | `no-display` check written, not run |
 | MangaFire browser-behaviour replay | pass (below) | not run | not run |
 

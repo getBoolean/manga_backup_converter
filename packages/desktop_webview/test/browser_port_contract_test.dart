@@ -1,6 +1,8 @@
 // Runs the reusable BrowserPort contract suite (source_runtime_testing)
 // against the real desktop helper on this host's engine.
 @TestOn('vm')
+// Each test starts real WebView2 processes; parallel test files slow them.
+@Timeout.factor(4)
 library;
 
 import 'dart:io';

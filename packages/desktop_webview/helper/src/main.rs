@@ -233,7 +233,23 @@ fn wipe_stale(root: &Path, own: Option<&Path>) -> (u32, u32) {
       if Some(p.as_path()) == own || !e.file_name().to_string_lossy().starts_with("h-") {
         continue;
       }
-      match std::fs::remove_dir_all(&p) {
+      // Rename first: a live helper's browser process holds files open, so
+      // its directory cannot be renamed (Windows) and is left untouched
+      // instead of being partly deleted. Only renamed directories are removed.
+      let name = e.file_name().to_string_lossy().into_owned();
+      if name.ends_with(".wipe") {
+        match std::fs::remove_dir_all(&p) {
+          Ok(()) => removed += 1,
+          Err(_) => failed += 1,
+        }
+        continue;
+      }
+      let doomed = root.join(format!("{name}.wipe"));
+      if std::fs::rename(&p, &doomed).is_err() {
+        failed += 1;
+        continue;
+      }
+      match std::fs::remove_dir_all(&doomed) {
         Ok(()) => removed += 1,
         Err(_) => failed += 1,
       }
@@ -370,7 +386,7 @@ impl App {
     if let Some(ua) = str_field(cmd, "userAgent") {
       builder = builder.with_user_agent(ua);
     }
-    builder = platform::configure_builder(builder, &sid, proxy.clone());
+    builder = platform::configure_builder(builder, &sid, proxy.clone(), self.opts.offline);
     let webview = match platform::build(builder, &window) {
       Ok(w) => w,
       Err(e) => return self.out.err(id, "capability-unavailable", format!("cannot create the WebView: {e}"), Some(("operation", json!("openSession")))),

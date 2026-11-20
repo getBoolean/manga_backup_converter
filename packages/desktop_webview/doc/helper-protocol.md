@@ -12,8 +12,8 @@
 
 | Argument | Meaning |
 |---|---|
-| `--data-root <dir>` | Parent of per-process data directories (`h-<pid>`). Stale `h-*` directories are removed at start-up before any session opens (KTD20 start-up wipe); the helper's own directory is removed at exit. Only WebView2 uses it. |
-| `--offline` | Replay mode. Every non-loopback request that no `respond` answers is blocked with a 502 (`X-Desktop-Webview-Blocked: 1`). Engines that cannot block requests refuse to start (`fatal` `offline-unsupported`) instead of falling through to the network. |
+| `--data-root <dir>` | Parent of per-process data directories (`h-<pid>`). Stale `h-*` directories are removed at start-up before any session opens (KTD20 start-up wipe). Each is renamed first, so a directory a live helper's browser still holds is skipped rather than partly deleted. The helper tries to remove its own directory at exit, but WebView2's browser processes often outlive it; the next start-up wipe removes what is left. Only WebView2 uses it. |
+| `--offline` | Replay mode. Every non-loopback request that no `respond` answers is blocked with a 502 (`X-Desktop-Webview-Blocked: 1`). On WebView2, interception covers all request source kinds, and `--host-resolver-rules` keeps every host except loopback from resolving, as a backstop for traffic interception misses (WebSockets). Engines that cannot block requests refuse to start (`fatal` `offline-unsupported`) instead of falling through to the network. |
 | `--test-hooks` | Enables `debugRequestClose`. |
 | `--simulate-fatal <code>` | Test hook: report `fatal` with this code at start-up. |
 | `--version` | Prints the helper and protocol versions. |
@@ -64,7 +64,11 @@ Scheme policy (KTD20) is enforced in the helper as well as in the client. `load`
 
 ## Page bridge
 
-Page-to-host traffic uses wry's `window.ipc.postMessage`. Every frame carries a random per-session key, and frames without it are dropped. Channels are defined as `window.<name> = {postMessage(string)}`, the shape of Android's `addJavascriptInterface` that the Tachi shim expects. Each channel is installed as a document-start script and also defined in the current document. The key keeps other pages' frames from being accepted. It does not stop the session's own page from forging results, because the page can wrap `JSON.stringify` before an evaluation runs.
+Page-to-host traffic uses wry's `window.ipc.postMessage`. Every frame carries a random per-session key, and frames without it are dropped. Channels are defined as `window.<name> = {postMessage(string)}`, the shape of Android's `addJavascriptInterface` that the Tachi shim expects. Each channel is installed as a document-start script in every frame, and also defined in the current document when it is registered. Removing a channel deletes the object from the current document; later documents still get it, but their messages are dropped.
+
+The origin rule (protocol 1.1) delivers a message only when the posting frame's origin equals the top-level document's origin and both are http(s). The injected script reports the frame's `location.origin` and `top.location.origin`, which a cross-origin frame cannot read. Where the engine identifies the posting document, its URL must agree: WebView2 reports the top document, or the frame's own URL for forwarded child-frame messages; WKWebView reports the frame's request URL. Non-string arguments are dropped in the page. On WebView2, direct child frames are forwarded and nested frames are not.
+
+The key keeps other pages' frames from being accepted. It does not stop the session's own page from forging results, because the page can wrap `JSON.stringify` before an evaluation runs.
 
 ## Not supported
 

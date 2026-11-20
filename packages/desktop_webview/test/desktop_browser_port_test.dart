@@ -3,6 +3,8 @@
 // failures, helper-side scheme enforcement, the artifact manifest and the
 // frame bound.
 @TestOn('vm')
+// Each test starts real WebView2 processes; parallel test files slow them.
+@Timeout.factor(4)
 library;
 
 import 'dart:async';
@@ -167,6 +169,23 @@ Future<void> main() async {
       check(await s.setMessageHandler('not a name', messages.add)).isA<BrowserCapabilityUnavailable<void>>();
     });
 
+    test('same-origin child frames get the channel and are delivered', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final messages = <String>[];
+      check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+      check(await s.loadUrl(server.url('/same-framed'))).isA<BrowserCompleted<BrowserPage>>();
+      const frame = 'document.querySelector("iframe").contentWindow';
+      check((await s.evaluate('typeof $frame.bridge')).valueOrNull).equals('"object"');
+      // The frame's own script context posts (eval in the frame's realm).
+      await s.evaluate('$frame.eval(\'bridge.postMessage("from child")\')');
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (messages.isEmpty && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      check(messages).deepEquals(<String>['from child']);
+    });
+
     test('channels exist at document start of later pages', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
@@ -214,6 +233,20 @@ Future<void> main() async {
       check((await s.evaluate('fetch("/page").then(function (r) { return r.status; })')).valueOrNull).equals('200');
     });
 
+    test('offline mode sees and blocks a cross-origin iframe request', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final seen = <BrowserRequest>[];
+      check(await s.observeRequests(seen.add)).isA<BrowserCompleted<void>>();
+      check(
+        await s.loadData(
+          '<html><body><iframe src="https://frame-probe.invalid/x"></iframe></body></html>',
+          baseUrl: Uri.parse('https://offline-probe.invalid/'),
+        ),
+      ).isA<BrowserCompleted<BrowserPage>>();
+      check(seen.map((BrowserRequest r) => r.url.host)).contains('frame-probe.invalid');
+    });
+
     test('offline mode blocks non-loopback requests nobody answers', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
@@ -249,6 +282,54 @@ Future<void> main() async {
       await Future<void>.delayed(const Duration(milliseconds: 300));
       check(await s.close()).isA<BrowserCompleted<void>>();
       check(await shown).isA<BrowserCancelled<void>>();
+    });
+  });
+
+  group('start-up wipe', () {
+    test('removes a stale data directory before any session opens', () async {
+      final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
+      addTearDown(() async {
+        try {
+          await root.delete(recursive: true);
+        } on FileSystemException {
+          // Browser process still releasing the directory.
+        }
+      });
+      final stale = Directory(p.join(root.path, 'h-999999'));
+      await File(p.join(stale.path, 'EBWebView', 'leftover')).create(recursive: true);
+      final port = DesktopBrowserPort(testConfig(helper, root));
+      addTearDown(port.dispose);
+      check(await port.wipeAllSourceData()).isA<BrowserCompleted<void>>();
+      check(port.helperInfo!.wipeRemoved).equals(1);
+      check(stale.existsSync()).isFalse();
+    });
+
+    test('the next helper removes a killed helper directory', () async {
+      final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
+      addTearDown(() async {
+        try {
+          await root.delete(recursive: true);
+        } on FileSystemException {
+          // Browser process still releasing the directory.
+        }
+      });
+      final port = DesktopBrowserPort(testConfig(helper, root));
+      addTearDown(port.dispose);
+      final DesktopBrowserSession s = await open(port, 'a');
+      check(await s.evaluate('localStorage.setItem("k", "v")')).isA<BrowserCompleted<String>>();
+      final killed = Directory(p.join(root.path, 'h-${port.helperInfo!.pid}'));
+      check(killed.existsSync()).isTrue();
+      await port.debugKillHelper();
+      await open(port, 'a'); // starts a fresh helper
+      // The dead helper's browser processes may hold files for a moment.
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 20));
+      BrowserOutcome<void> wiped = await port.wipeAllSourceData();
+      while (killed.existsSync() && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        wiped = await port.wipeAllSourceData();
+      }
+      check(killed.existsSync()).isFalse();
+      check(wiped).isA<BrowserCompleted<void>>();
     });
   });
 

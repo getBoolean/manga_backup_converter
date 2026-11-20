@@ -5,6 +5,8 @@
 // loadData with base URL https://mangafire.to/@waf/solver). Site responses
 // come from a synthetic committed fixture; offline mode blocks anything else.
 @TestOn('vm')
+// Each test starts real WebView2 processes; parallel test files slow them.
+@Timeout.factor(4)
 library;
 
 import 'dart:async';

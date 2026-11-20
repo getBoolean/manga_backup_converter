@@ -192,12 +192,6 @@ class DesktopBrowserPort implements BrowserPort {
   Future<BrowserOutcome<void>> wipeAllSourceData() async {
     final (HelperProcess? helper, BrowserOutcome<void>? failed) = await _ensureHelper<void>('wipeAllSourceData');
     if (helper == null) return failed!;
-    if (helper.info.wipeFailed > 0) {
-      return BrowserCapabilityUnavailable<void>(
-        'wipeAllSourceData',
-        '${helper.info.wipeFailed} stale browser data directories could not be removed',
-      );
-    }
     return switch (await helper.request('wipe')) {
       HelperOk() => const BrowserCompleted<void>(null),
       HelperError(:final String message) => BrowserCapabilityUnavailable<void>('wipeAllSourceData', message),
@@ -233,9 +227,12 @@ class DesktopBrowserPort implements BrowserPort {
         _sessions[id] = session;
         return BrowserCompleted<BrowserSession>(session);
       case HelperError(:final String code, :final String message, :final String? operation):
-        return code == 'interaction-required'
-            ? BrowserInteractionRequired<BrowserSession>(message)
-            : BrowserCapabilityUnavailable<BrowserSession>(operation ?? 'openSession', message);
+        return switch (code) {
+          'interaction-required' => BrowserInteractionRequired<BrowserSession>(message),
+          // The helper is shutting down (port disposal) or the open was dropped.
+          'cancelled' || 'session-closed' => BrowserCancelled<BrowserSession>(message),
+          _ => BrowserCapabilityUnavailable<BrowserSession>(operation ?? 'openSession', message),
+        };
       case HelperGone(:final String reason):
         return BrowserCancelled<BrowserSession>(reason);
     }
@@ -253,14 +250,24 @@ class DesktopBrowserPort implements BrowserPort {
     ]);
   }
 
-  /// Closes every session and shuts the helper down (conversion end).
+  /// Closes every session and shuts the helper down (conversion end). An
+  /// unresponsive helper is killed once [DesktopWebViewConfig.shutdownGrace]
+  /// has passed, whether it hangs in a session close or in shutdown.
   Future<void> dispose() async {
     _disposed = true;
-    final List<DesktopBrowserSession> open = _sessions.values.toList();
-    await Future.wait(<Future<void>>[for (final DesktopBrowserSession s in open) s.close()]);
     final HelperProcess? helper = _helper;
+    final List<DesktopBrowserSession> open = _sessions.values.toList();
+    final bool closed = await Future.wait(<Future<void>>[for (final DesktopBrowserSession s in open) s.close()])
+        .then((_) => true)
+        .timeout(config.shutdownGrace, onTimeout: () => false);
     _helper = null;
-    await helper?.shutdown(grace: config.shutdownGrace);
+    if (helper == null) return;
+    if (closed) {
+      await helper.shutdown(grace: config.shutdownGrace);
+    } else {
+      config.onLog?.call('[desktop_webview] sessions did not close within ${config.shutdownGrace}; killing the helper');
+      await helper.kill();
+    }
   }
 
   /// Kills the helper without closing sessions (crash simulation).

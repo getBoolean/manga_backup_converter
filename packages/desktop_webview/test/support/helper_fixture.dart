@@ -149,6 +149,9 @@ addEventListener('message', function (e) {
             '<html><head><title>framed</title></head><body>'
             '<iframe src="${otherOriginUrl('/frame')}"></iframe></body></html>',
           );
+        case '/same-framed':
+          r.headers.contentType = ContentType.html;
+          r.write('<html><head><title>same</title></head><body><iframe src="/page"></iframe></body></html>');
         case '/set-cookie':
           r.headers.add(HttpHeaders.setCookieHeader, 'server=1; Path=/');
           r.headers.contentType = ContentType.html;
