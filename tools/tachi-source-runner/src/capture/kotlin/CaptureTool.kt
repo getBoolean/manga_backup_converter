@@ -3,6 +3,7 @@ package mangabackup.tachi.capture
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -233,7 +234,6 @@ fun main(args: Array<String>) {
     val limits = mapOf("poolSize" to 1L, "operationDeadlineMs" to 300_000L, "cancelGraceMs" to 5_000L, "interactionTimeoutMs" to 60_000L, "shutdownGraceMs" to 5_000L)
     val options = WorkerOptions(
         sizing = SizingReport.resolve(limits, rule = null)!!,
-        trustedSigners = setOf(KEIYOUSHI_SIGNER),
         transport = transport,
         networkMode = "record",
         stateRoot = Files.createTempDirectory("tachi-capture-").toFile(),
@@ -271,6 +271,7 @@ fun runFlow(client: WorkerClient, target: Target, artifact: File, kind: String, 
         put("artifact", ArtifactBinding(Digests.sha256(artifact), kind, target.version).toJson())
         put("inputPath", artifact.absolutePath)
         put("outputPath", staged.absolutePath)
+        put("trustedSigners", buildJsonArray { add(JsonPrimitive(KEIYOUSHI_SIGNER)) })
     })
     val binding = ArtifactBinding.from(prepared["artifact"]!!.jsonObject)
     val settings = buildJsonObject {

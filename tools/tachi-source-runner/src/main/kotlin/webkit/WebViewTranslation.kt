@@ -36,8 +36,12 @@ import java.util.concurrent.Executors
  *
  * Supported: load URL / load data with an http(s) base URL, evaluate script,
  * user agent, cookies (synced with the package jar around each load), and
- * `addJavascriptInterface` objects reached through page messages on the
- * channel of the same name. Observe-only interception sees main-frame
+ * `addJavascriptInterface` objects reached through the protocol 1.1 browser
+ * message channel: the platform installs `window.<name>.postMessage(string)`
+ * in every same-origin http(s) page, so only the object's
+ * `@JavascriptInterface void postMessage(String)` is reachable, and `<name>`
+ * must be a plain JavaScript identifier. The platform drops other-origin,
+ * opaque-origin and non-string messages. Observe-only interception sees main-frame
  * navigations; a non-null interception response, a synchronous
  * `@JavascriptInterface` return value and non-http(s) schemes are named
  * capability errors.
@@ -223,6 +227,13 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     }
 
     override fun addJavascriptInterface(target: Any, name: String) {
+        if (!CHANNEL_NAME.matches(name)) {
+            // The channel contract only carries identifier names; anything else is refused by every BrowserPort.
+            environment.currentOperation?.recordHostFailure(
+                CapabilityUnavailableException("JavascriptInterface name '$name' is not a plain JavaScript identifier", "android.webkit.JavascriptInterface"),
+            )
+            return
+        }
         interfaces[name] = target
         enqueue {
             session?.let { setHandler(it, name, true) }
@@ -281,7 +292,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         val target = interfaces[name] ?: return
         val method = messageMethod(target) ?: run {
             environment.currentOperation?.recordHostFailure(
-                CapabilityUnavailableException("JavascriptInterface '$name' has no void @JavascriptInterface method taking one String", "android.webkit.JavascriptInterface"),
+                CapabilityUnavailableException("JavascriptInterface '$name' has no @JavascriptInterface postMessage(String) method", "android.webkit.JavascriptInterface"),
             )
             return
         }
@@ -300,11 +311,10 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         }
     }
 
-    private fun messageMethod(target: Any): Method? {
-        val candidates = target.javaClass.methods.filter {
-            it.isAnnotationPresent(JavascriptInterface::class.java) && it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
-        }
-        return candidates.firstOrNull { it.name == "postMessage" } ?: candidates.singleOrNull()
+    /** The channel's page API is `postMessage(string)`, so that is the only method a page message can reach. */
+    private fun messageMethod(target: Any): Method? = target.javaClass.methods.firstOrNull {
+        it.name == "postMessage" && it.isAnnotationPresent(JavascriptInterface::class.java) &&
+            it.parameterCount == 1 && it.parameterTypes[0] == String::class.java
     }
 
     private fun onFailure(failure: Throwable) {
@@ -361,5 +371,8 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         const val SUBRESOURCE_WARNING =
             "degraded: subresource observation unavailable (shouldInterceptRequest sees main-frame loadUrl navigations only)"
         private val EXECUTOR = Executors.newCachedThreadPool { r -> Thread(r, "tachi-browser").apply { isDaemon = true } }
+
+        /** Channel names the browser message channel accepts (protocol 1.1, `BrowserMessageChannel`). */
+        val CHANNEL_NAME = Regex("^[A-Za-z_$][A-Za-z0-9_$]*$")
     }
 }

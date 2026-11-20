@@ -1,41 +1,42 @@
 package mangabackup.tachi.host
 
 /**
- * A package's settings snapshot as the supervisor sent it (SettingsPayload).
+ * A package's settings snapshot as the supervisor sent it (SettingsPayload,
+ * protocol 1.1).
  *
- * Keys address extension SharedPreferences stores: a plain key seeds every
- * store the package opens; `storeName/key` (for example `source_123/lang`)
- * seeds only that store. Secrets are seeded the same way and live only in
- * memory (KTD9).
+ * [values] and [secrets] apply to every source of the package and seed every
+ * SharedPreferences store it opens. [sources] holds per-source overrides keyed
+ * by source ID; they seed only that source's store, `source_<id>` by Tachi
+ * convention, on top of the package-wide entries. Keys are plain preference
+ * keys: no key carries a store or source prefix. Secrets live only in memory
+ * (KTD9).
  */
 data class HostSettings(
     val values: Map<String, Any>,
     val secrets: Map<String, String>,
     val revision: String,
+    val sources: Map<String, SourceScope> = emptyMap(),
 ) {
-    /** Entries applying to [storeName], namespaced keys stripped. */
+    /** One source's own values and secrets. */
+    data class SourceScope(val values: Map<String, Any> = emptyMap(), val secrets: Map<String, String> = emptyMap())
+
+    /** The entries store [storeName] starts from: package-wide, overlaid with its source's scope. */
     fun seedFor(storeName: String): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
-        fun add(entries: Map<String, Any>) {
-            for ((key, value) in entries) {
-                val slash = key.indexOf('/')
-                if (slash < 0) {
-                    out.putIfAbsent(key, value)
-                } else if (key.substring(0, slash) == storeName) {
-                    out[key.substring(slash + 1)] = value
-                }
-            }
+        out += values
+        out += secrets
+        val scope = storeName.removePrefix(SOURCE_STORE_PREFIX).takeIf { storeName.startsWith(SOURCE_STORE_PREFIX) }?.let { sources[it] }
+        if (scope != null) {
+            out += scope.values
+            out += scope.secrets
         }
-        // Store-specific entries override plain ones regardless of order.
-        val namespaced = (values + secrets).filterKeys { it.contains('/') }
-        val plain = (values + secrets).filterKeys { !it.contains('/') }
-        add(namespaced)
-        add(plain)
         return out
     }
 
     companion object {
+        /** Tachi's name for a source's preference store: `source_<id>` (ConfigurableSource.preferenceKey). */
+        const val SOURCE_STORE_PREFIX = "source_"
+
         val EMPTY = HostSettings(emptyMap(), emptyMap(), "")
     }
 }
-

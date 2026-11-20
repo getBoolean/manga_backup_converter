@@ -20,7 +20,7 @@ fun jreMeetsFloor(version: Runtime.Version = Runtime.version()): Boolean = versi
 private fun usage(message: String): Nothing {
     System.err.println("tachi-source-runner: $message")
     System.err.println(
-        "usage: tachi-source-runner [--trusted-signer HEX]... [--trust-file FILE] [--replay CAPTURE_DIR]... " +
+        "usage: tachi-source-runner [--replay CAPTURE_DIR]... " +
             "[--state-dir DIR] [--limit NAME=VALUE]... [--no-browser]",
     )
     exitProcess(64)
@@ -36,7 +36,6 @@ fun main(args: Array<String>) {
         exitProcess(3)
     }
 
-    val trusted = LinkedHashSet<String>()
     val replay = ArrayList<File>()
     val limits = LinkedHashMap<String, Long>()
     var stateDir: File? = null
@@ -45,8 +44,6 @@ fun main(args: Array<String>) {
     fun value(): String = args.getOrNull(++i) ?: usage("${args[i - 1]} needs a value")
     while (i < args.size) {
         when (val a = args[i]) {
-            "--trusted-signer" -> trusted += value().lowercase()
-            "--trust-file" -> File(value()).readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.forEach { trusted += it.lowercase() }
             "--replay" -> replay += File(value())
             "--state-dir" -> stateDir = File(value())
             "--limit" -> {
@@ -64,7 +61,6 @@ fun main(args: Array<String>) {
     val root = stateDir ?: Files.createTempDirectory("tachi-worker-").toFile()
     val options = WorkerOptions(
         sizing = sizing,
-        trustedSigners = trusted,
         transport = transport,
         networkMode = if (replay.isEmpty()) "live" else "replay",
         stateRoot = root,

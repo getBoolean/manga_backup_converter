@@ -86,7 +86,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
     private val replayArgs = QUALIFICATION.flatMap { listOf("--replay", File(fixtures, it.dir).absolutePath) }
 
     private fun spawn(pool: Int, generation: Long = 1): Pair<WorkerClient, Process> {
-        val args = benchLimits(pool).flatMap { (k, v) -> listOf("--limit", "$k=$v") } + listOf("--trusted-signer", KEIYOUSHI_SIGNER) + replayArgs
+        val args = benchLimits(pool).flatMap { (k, v) -> listOf("--limit", "$k=$v") } + replayArgs
         return WorkerClient.subprocess(javaHome, classpath, args, generation, extraJvmArgs = listOf("-Xmx1g"))
     }
 
@@ -112,6 +112,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
             put("artifact", ArtifactBinding(Digests.sha256(jar), "jar", q.version).toJson())
             put("inputPath", jar.absolutePath)
             put("outputPath", out.absolutePath)
+            put("trustedSigners", buildJsonArray { add(JsonPrimitive(KEIYOUSHI_SIGNER)) })
         })
         return Staged(q, ArtifactBinding.from(ok["artifact"]!!.jsonObject), out)
     }
@@ -333,7 +334,6 @@ class Bench(private val repo: File, private val quick: Boolean) {
         val transport = ReplayTransport.start(QUALIFICATION.map { File(fixtures, it.dir) })
         val options = WorkerOptions(
             sizing = SizingReport.resolve(benchLimits(1), rule = null)!!,
-            trustedSigners = setOf(KEIYOUSHI_SIGNER),
             transport = transport,
             networkMode = "replay",
             stateRoot = Files.createTempDirectory("bench-heap-").toFile(),

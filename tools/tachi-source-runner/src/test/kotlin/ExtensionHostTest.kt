@@ -1,5 +1,6 @@
 package mangabackup.tachi
 
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -46,6 +47,7 @@ class ExtensionHostTest {
                     put("artifact", ArtifactBinding("00".repeat(32), "jar", q.version).toJson())
                     put("inputPath", TestSupport.jar(q).absolutePath)
                     put("outputPath", out.absolutePath)
+                    put("trustedSigners", kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive(TestSupport.KEIYOUSHI_SIGNER))))
                 })
             }
             assertEquals(ErrorCode.ARTIFACT_INCOMPATIBLE, e.code)
@@ -54,6 +56,25 @@ class ExtensionHostTest {
             TestSigning.resign(TestSupport.jar(q), resigned)
             val e2 = assertThrows<WorkerError> { h.prepare(q.packageId, resigned, "jar", q.version) }
             assertEquals(ErrorCode.ARTIFACT_INCOMPATIBLE, e2.code)
+        }
+    }
+
+    @Test
+    fun `prepare trusts only the request's signers - absent, empty or other signers are refused with no fallback`() {
+        WorkerHarness().use { h ->
+            val q = TestSupport.WEEBCENTRAL
+            for ((kind, input) in listOf("jar" to TestSupport.jar(q), "apk" to TestSupport.apk(q))) {
+                for (signers in listOf(null, emptyList(), listOf("ab".repeat(32)))) {
+                    val out = File(TestSupport.tempDir("trust"), "out.jar")
+                    val e = assertThrows<WorkerError>("$kind with $signers") {
+                        h.client.call("artifact.prepare", q.packageId, h.prepareRequest(input, kind, q.version, out, signers))
+                    }
+                    assertEquals(ErrorCode.ARTIFACT_INCOMPATIBLE, e.code, "$kind with $signers")
+                    assertFalse(out.exists())
+                }
+            }
+            // The same artifact passes with the pinned signer, in upper case or not.
+            h.prepare(q.packageId, TestSupport.jar(q), "jar", q.version, listOf(TestSupport.KEIYOUSHI_SIGNER.uppercase()))
         }
     }
 
@@ -132,16 +153,66 @@ class ExtensionHostTest {
 
     @Test
     fun `settings snapshots seed per-store preferences with typed values`() {
-        val settings = HostSettings(mapOf("lang" to "en", "source_1/lang" to "fr", "count" to 3L, "nsfw" to false), mapOf("token" to "t"), "r")
+        val settings = HostSettings(
+            mapOf("lang" to "en", "count" to 3L, "nsfw" to false),
+            mapOf("token" to "t"),
+            "r",
+            sources = mapOf("1" to HostSettings.SourceScope(mapOf("lang" to "fr"), mapOf("token" to "one"))),
+        )
         val one = InMemorySharedPreferences(settings.seedFor("source_1"))
         val two = InMemorySharedPreferences(settings.seedFor("source_2"))
+        val other = InMemorySharedPreferences(settings.seedFor("1"))
         assertEquals("fr", one.getString("lang", null))
+        assertEquals("one", one.getString("token", null))
         assertEquals("en", two.getString("lang", null))
+        assertEquals("en", other.getString("lang", null), "a scope seeds only its source_<id> store")
         assertEquals(3, one.getInt("count", 0))
         assertEquals(3L, one.getLong("count", 0))
         assertFalse(one.getBoolean("nsfw", true))
         assertEquals("t", two.getString("token", null))
         assertThrows<ClassCastException> { one.getBoolean("lang", false) }
+    }
+
+    @Test
+    fun `settings payloads decode string sets and source scopes, and slash keys are plain keys`() {
+        val decoded = mangabackup.tachi.protocol.SettingsCodec.from(
+            kotlinx.serialization.json.Json.parseToJsonElement(
+                """{"values":{"tags":["b","a","b"],"source_1/lang":"literal","lang":"en"},"secrets":{},
+                  |"sources":{"1":{"values":{"tags":["z"]},"secrets":{"password":"p"}},"2":{}},"revision":"r"}""".trimMargin(),
+            ).jsonObject,
+        )
+        val one = InMemorySharedPreferences(decoded.seedFor("source_1"))
+        val two = InMemorySharedPreferences(decoded.seedFor("source_2"))
+        assertEquals(setOf("z"), one.getStringSet("tags", null))
+        assertEquals("p", one.getString("password", null))
+        assertEquals(listOf("a", "b"), two.getStringSet("tags", null)!!.toList())
+        assertEquals(null, two.getString("password", null))
+        assertEquals("en", one.getString("lang", null), "the retired storeName/key convention no longer scopes")
+        assertEquals("literal", two.getString("source_1/lang", null))
+        assertThrows<ClassCastException> { two.getString("tags", null) }
+        for (bad in listOf("""[1]""", """["a",null]""", """[["a"]]""")) {
+            assertThrows<mangabackup.tachi.protocol.ProtocolViolation>(bad) {
+                mangabackup.tachi.protocol.SettingsCodec.from(
+                    kotlinx.serialization.json.Json.parseToJsonElement("""{"values":{"k":$bad},"secrets":{},"revision":"r"}""").jsonObject,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `package load and settings update seed each source_id store from its effective settings, string sets included`() {
+        WorkerHarness().use { h ->
+            fun titles(pkg: WorkerHarness.Loaded) = listOf("101", "102").map { h.hits(h.search(pkg, "q", sourceId = it))[0]["title"]!!.jsonPrimitive.content }
+            val pkg = h.loadFixture("prefs", settings = h.settings(
+                values = mapOf("lang" to "en", "tags" to listOf("b", "a")),
+                sources = mapOf("102" to (mapOf<String, Any>("lang" to "ja", "tags" to listOf("z")) to mapOf("password" to "pw"))),
+            ))
+            assertEquals(listOf("lang=en;tags=a,b;password=unset", "lang=ja;tags=z;password=set"), titles(pkg))
+            h.client.call("settings.update", pkg.packageId, buildJsonObject {
+                put("settings", h.settings(values = mapOf("lang" to "fr"), sources = mapOf("101" to (mapOf<String, Any>("tags" to listOf("c")) to emptyMap())), revision = "rev-2"))
+            })
+            assertEquals(listOf("lang=fr;tags=c;password=unset", "lang=fr;tags=;password=unset"), titles(pkg.copy(revision = "rev-2")))
+        }
     }
 
     @Test
@@ -152,7 +223,7 @@ class ExtensionHostTest {
             assertTrue(h.hits(h.search(pkg, "x"))[0]["title"]!!.jsonPrimitive.content.contains("[a/one]"))
             val sourceId = pkg.sources.first()["sourceId"]!!.jsonPrimitive.content
             h.client.call("settings.update", pkg.packageId, buildJsonObject {
-                put("settings", h.settings(values = mapOf("source_$sourceId/mark" to "seeded"), revision = "rev-2"))
+                put("settings", h.settings(sources = mapOf(sourceId to (mapOf<String, Any>("mark" to "seeded") to emptyMap())), revision = "rev-2"))
             })
             val updated = pkg.copy(revision = "rev-2")
             assertTrue(h.hits(h.search(updated, "x"))[0]["title"]!!.jsonPrimitive.content.contains("[a/seeded]"), "snapshot replaced extension writes")

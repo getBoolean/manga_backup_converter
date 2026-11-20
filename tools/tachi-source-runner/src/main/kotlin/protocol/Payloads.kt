@@ -49,12 +49,21 @@ data class NativeMangaRef(val source: SourceIdentity, val mangaId: String, val s
     }
 }
 
+/** Decodes a `SettingsPayload`, including 1.1 string sets and per-source scopes (`sources`). */
 object SettingsCodec {
     fun from(o: JsonObject): HostSettings {
-        val values = o.obj("values").mapValues { (k, v) -> v.settingsValue(k) }
-        val secrets = o.obj("secrets").mapValues { (k, v) -> v.asStringStrict("secret '$k'") }
-        return HostSettings(values, secrets, o.str("revision"))
+        val sources = o.optObj("sources")?.mapValues { (id, scope) ->
+            val s = scope as? JsonObject ?: throw ProtocolViolation("settings scope '$id' must be an object")
+            HostSettings.SourceScope(values(s.optObj("values"), "sources.$id."), secrets(s.optObj("secrets"), "sources.$id."))
+        } ?: emptyMap()
+        return HostSettings(values(o.obj("values"), ""), secrets(o.obj("secrets"), ""), o.str("revision"), sources)
     }
+
+    private fun values(o: JsonObject?, prefix: String): Map<String, Any> =
+        o?.mapValues { (k, v) -> v.settingsValue("$prefix$k") } ?: emptyMap()
+
+    private fun secrets(o: JsonObject?, prefix: String): Map<String, String> =
+        o?.mapValues { (k, v) -> v.asStringStrict("secret '$prefix$k'") } ?: emptyMap()
 }
 
 fun stringArray(values: Iterable<String>): JsonArray = buildJsonArray { values.forEach { add(JsonPrimitive(it)) } }

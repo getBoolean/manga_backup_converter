@@ -37,7 +37,7 @@ class WorkerLifecycleTest {
     fun `a busy loop does not settle after cancel, so a restart reloads every package and rehydrates refs`() {
         val javaHome = File(System.getProperty("tachi.javaHome"))
         val classpath = System.getProperty("tachi.workerClasspath")
-        val args = TEST_LIMITS.flatMap { (k, v) -> listOf("--limit", "$k=$v") } + listOf("--trusted-signer", TestSupport.KEIYOUSHI_SIGNER)
+        val args = TEST_LIMITS.flatMap { (k, v) -> listOf("--limit", "$k=$v") }
         val busyJar = File(TestSupport.fixtureJars, "fixture-busy.jar")
         val multiJar = File(TestSupport.fixtureJars, "fixture-multi.jar")
         fun loadAll(client: WorkerClient): Map<String, WorkerHarness.Loaded> =

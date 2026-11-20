@@ -37,7 +37,6 @@ class WorkerHarness(
 ) : AutoCloseable {
     val options = WorkerOptions(
         sizing = SizingReport.resolve(limits, rule = null)!!,
-        trustedSigners = setOf(TestSupport.KEIYOUSHI_SIGNER),
         transport = transport,
         networkMode = "test",
         stateRoot = stateRoot,
@@ -55,29 +54,55 @@ class WorkerHarness(
 
     data class Loaded(val packageId: String, val artifact: ArtifactBinding, val sources: List<JsonObject>, val revision: String)
 
-    fun settings(values: Map<String, Any> = emptyMap(), secrets: Map<String, String> = emptyMap(), revision: String = "rev-1") = buildJsonObject {
-        put("values", JsonObject(values.mapValues { (_, v) ->
-            when (v) {
-                is String -> JsonPrimitive(v)
-                is Boolean -> JsonPrimitive(v)
-                is Number -> JsonPrimitive(v)
-                else -> error("bad settings value $v")
-            }
-        }))
+    /** A `SettingsPayload`; [sources] maps a source ID to its own (values, secrets) overrides (1.1). */
+    fun settings(
+        values: Map<String, Any> = emptyMap(),
+        secrets: Map<String, String> = emptyMap(),
+        revision: String = "rev-1",
+        sources: Map<String, Pair<Map<String, Any>, Map<String, String>>> = emptyMap(),
+    ) = buildJsonObject {
+        put("values", settingsValues(values))
         put("secrets", JsonObject(secrets.mapValues { JsonPrimitive(it.value) }))
+        if (sources.isNotEmpty()) {
+            put("sources", JsonObject(sources.mapValues { (_, scope) ->
+                buildJsonObject {
+                    put("values", settingsValues(scope.first))
+                    put("secrets", JsonObject(scope.second.mapValues { JsonPrimitive(it.value) }))
+                }
+            }))
+        }
         put("revision", revision)
     }
 
-    fun prepare(packageId: String, input: File, kind: String, version: String): Pair<ArtifactBinding, File> {
+    private fun settingsValues(values: Map<String, Any>) = JsonObject(values.mapValues { (_, v) ->
+        when (v) {
+            is String -> JsonPrimitive(v)
+            is Boolean -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v)
+            is Collection<*> -> JsonArray(v.map { JsonPrimitive(it as String) })
+            else -> error("bad settings value $v")
+        }
+    })
+
+    fun prepare(
+        packageId: String,
+        input: File,
+        kind: String,
+        version: String,
+        trustedSigners: List<String> = listOf(TestSupport.KEIYOUSHI_SIGNER),
+    ): Pair<ArtifactBinding, File> {
         val out = File(TestSupport.tempDir("staged"), "staged.jar")
-        val ok = client.call("artifact.prepare", packageId, buildJsonObject {
-            put("artifact", ArtifactBinding(Digests.sha256(input), kind, version).toJson())
-            put("inputPath", input.absolutePath)
-            put("outputPath", out.absolutePath)
-        })
+        val ok = client.call("artifact.prepare", packageId, prepareRequest(input, kind, version, out, trustedSigners))
         val binding = ArtifactBinding.from(ok["artifact"]!!.jsonObject)
         check(Digests.sha256(out) == binding.sha256) { "reported digest does not match the staged output" }
         return binding to out
+    }
+
+    fun prepareRequest(input: File, kind: String, version: String, out: File, trustedSigners: List<String>?) = buildJsonObject {
+        put("artifact", ArtifactBinding(Digests.sha256(input), kind, version).toJson())
+        put("inputPath", input.absolutePath)
+        put("outputPath", out.absolutePath)
+        if (trustedSigners != null) put("trustedSigners", JsonArray(trustedSigners.map { JsonPrimitive(it) }))
     }
 
     fun load(packageId: String, staged: File, binding: ArtifactBinding = ArtifactBinding(Digests.sha256(staged), "jar", "1"), settings: JsonObject = settings()): Loaded {

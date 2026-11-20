@@ -6,7 +6,6 @@ import java.io.File
 
 data class WorkerOptions(
     val sizing: SizingReport,
-    val trustedSigners: Set<String>,
     val transport: HostTransport = HostTransport.LIVE,
     val networkMode: String = "live",
     val stateRoot: File,
