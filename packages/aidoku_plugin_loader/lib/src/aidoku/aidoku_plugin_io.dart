@@ -37,6 +37,7 @@ class AidokuPlugin {
     required this.sourceInfo,
     required this.settings,
     required this.filterDefinitions,
+    required this._httpClient,
   });
 
   final SendPort _wasmCmdPort;
@@ -73,17 +74,25 @@ class AidokuPlugin {
     return result;
   }
 
-  // Shared HTTP client reused for the plugin's lifetime.
-  static final http.Client _httpClient = http.Client();
+  // Shared HTTP client reused for every plugin that is not given its own.
+  static final http.Client _sharedHttpClient = http.Client();
+
+  // HTTP client used for this plugin's `net::send` requests.
+  final http.Client _httpClient;
 
   // ---------------------------------------------------------------------------
   // Factory
   // ---------------------------------------------------------------------------
 
   /// Load a plugin from raw .aix file bytes.
+  ///
+  /// [httpClient] replaces the shared client used for the plugin's network
+  /// requests (for example a capture-replay client in tests). The caller owns
+  /// it; [dispose] does not close it.
   static Future<AidokuPlugin> fromAix(
     Uint8List aixBytes, {
     Map<String, dynamic>? defaults,
+    http.Client? httpClient,
   }) async {
     final AixBundle bundle = AixParser.parse(aixBytes);
 
@@ -166,6 +175,7 @@ class AidokuPlugin {
       sourceInfo: bundle.sourceInfo,
       settings: settings,
       filterDefinitions: filterDefinitions,
+      httpClient: httpClient ?? _sharedHttpClient,
     );
 
     asyncPort.listen((Object? msg) async {

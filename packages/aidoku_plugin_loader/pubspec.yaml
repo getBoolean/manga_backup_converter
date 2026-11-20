@@ -20,6 +20,8 @@ dependencies:
   quickjs:
     git:
       url: https://github.com/BooleanExtra/quickjs-dart
+  source_runtime:
+    path: ../source_runtime
   universal_ffi: ^1.4.0
   wasm3:
     path: ../wasm3

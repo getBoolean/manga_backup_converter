@@ -59,6 +59,8 @@ dependencies:
   riverpod_annotation: ^4.0.0
   shared_preferences: ^2.3.3
   skeletonizer: ^2.1.3
+  source_runtime:
+    path: packages/source_runtime
   super_clipboard: ^0.9.1
   universal_html: ^2.2.4
   url_launcher: ^6.2.6
