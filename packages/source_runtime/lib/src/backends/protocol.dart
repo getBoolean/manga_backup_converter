@@ -1,4 +1,4 @@
-/// Worker protocol version 1 (KTD4): UTF-8 JSON lines on stdin/stdout.
+/// Worker protocol version 1.1 (KTD4): UTF-8 JSON lines on stdin/stdout.
 ///
 /// Every frame is one JSON object followed by `\n`:
 ///
@@ -33,8 +33,13 @@ import 'package:source_runtime/src/backends/protocol_payloads.dart';
 
 export 'package:source_runtime/src/backends/protocol_payloads.dart';
 
-/// Protocol version spoken by this supervisor.
+/// Protocol major version spoken by this supervisor: the envelope's `v`.
 const int protocolVersion = 1;
+
+/// Highest minor version of [protocolVersion] this supervisor speaks,
+/// negotiated in the handshake (`protocolMinor`). Minor versions only add
+/// optional fields, so the envelope's `v` stays [protocolVersion].
+const int protocolMinorVersion = 1;
 
 /// Maximum encoded frame size, newline excluded (KTD4: 16 MiB). This is a
 /// protocol rule, not a benchmarked limit; tests may pass a smaller value.

@@ -7,6 +7,8 @@
 /// (`runBrowserPortContractSuite`).
 library;
 
+import 'dart:convert';
+
 import 'package:meta/meta.dart';
 import 'package:source_runtime/src/contracts/cancellation.dart';
 import 'package:source_runtime/src/contracts/identity.dart';
@@ -113,6 +115,59 @@ abstract final class BrowserUrlPolicy {
   static bool _isWeb(Uri url) => _webSchemes.contains(url.scheme) && url.host.isNotEmpty;
 }
 
+/// The page side of [BrowserSession.setMessageHandler] (KTD20).
+///
+/// While a handler is registered for channel `name`, every frame of the
+/// session's pages sees a global object `window.<name>` with one method,
+/// `postMessage(message)`, where `message` is a string. The Tachi shim's
+/// `addJavascriptInterface` fallback (an object with `void postMessage`)
+/// and Paperback's `executeInWebView` both rely on exactly this shape, so
+/// a page script written for Android's `JavascriptInterface` runs unchanged.
+///
+/// - **Availability:** the object exists in the current page as soon as the
+///   handler is registered, and is injected at document start in every page
+///   loaded afterwards, until the handler is removed.
+/// - **Origin rule:** a message is delivered only when the frame that posted
+///   it has the same origin (scheme, host, port) as the session's current
+///   top-level document, and that document was loaded from http(s) (by
+///   [BrowserSession.loadUrl] after redirects, or by
+///   [BrowserSession.loadData] with its http(s) base URL). Messages from
+///   cross-origin frames, and from `about:blank` or other opaque-origin
+///   documents, are dropped silently: the page learns nothing and the
+///   handler is not called.
+/// - **Payload:** a non-string argument is dropped. Delivery is
+///   asynchronous and in posting order for one frame.
+/// - **No return value:** `postMessage` returns `undefined`; synchronous
+///   `@JavascriptInterface` return values are not emulated (KTD20).
+abstract final class BrowserMessageChannel {
+  static final RegExp _identifier = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
+
+  /// Whether [name] can be a channel: a plain JavaScript identifier, so
+  /// `window.<name>` needs no quoting.
+  static bool isValidName(String name) => _identifier.hasMatch(name);
+
+  /// Failure for an invalid channel [name], or `null` if valid.
+  static BrowserCapabilityUnavailable<T>? checkName<T>(String name) => isValidName(name)
+      ? null
+      : BrowserCapabilityUnavailable<T>(
+          'setMessageHandler',
+          'Channel name "$name" is not a JavaScript identifier',
+        );
+
+  /// The script a page runs to post [message] on channel [name]; the form
+  /// the contract suite and worker shims use.
+  static String postScript(String name, String message) => 'window.$name.postMessage(${jsonEncode(message)})';
+
+  /// Whether a message posted by a frame at [frameOrigin] may reach the
+  /// handler of a session whose top-level document is [documentUrl].
+  static bool accepts({required Uri documentUrl, required Uri frameOrigin}) {
+    if (!BrowserUrlPolicy.isAllowedBaseUrl(documentUrl) || !BrowserUrlPolicy.isAllowedBaseUrl(frameOrigin)) {
+      return false;
+    }
+    return documentUrl.origin == frameOrigin.origin;
+  }
+}
+
 /// Request to open a source-scoped browser session.
 @immutable
 final class BrowserSessionRequest {
@@ -217,7 +272,10 @@ abstract interface class BrowserSession {
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel});
 
   /// Registers (or with `null` removes) a handler for messages the page
-  /// posts on channel [name].
+  /// posts on channel [name]. See [BrowserMessageChannel] for the page-side
+  /// API (`window.<name>.postMessage(string)`) and the origin rule every
+  /// implementation enforces. An invalid [name] fails with
+  /// [BrowserCapabilityUnavailable].
   Future<BrowserOutcome<void>> setMessageHandler(String name, void Function(String message)? handler);
 
   Future<BrowserOutcome<List<BrowserCookie>>> getCookies(Uri url, {CancellationToken? cancel});

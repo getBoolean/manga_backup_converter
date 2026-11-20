@@ -1,4 +1,4 @@
-/// Typed request and response payloads of worker protocol v1 (KTD4).
+/// Typed request and response payloads of worker protocol 1.1 (KTD4).
 ///
 /// These classes are the source of truth for every `payload` (request) and
 /// `ok` (response) object; `doc/protocol-v1.md` describes the same shapes for
@@ -8,10 +8,17 @@
 /// Decoding is strict: a missing required field or a field of the wrong JSON
 /// type throws [FormatException]. Unknown fields are ignored, so a worker may
 /// add diagnostics without breaking the supervisor.
+///
+/// Minor 1 added `HandshakeRequest.protocolMinor` and the reply's
+/// `protocolMinor`, `limits` and `sizing`; `ArtifactPrepareRequest
+/// .trustedSigners`; string-set setting values; and source-scoped settings
+/// (`SettingsPayload.sources`). Fields added in a minor version decode as
+/// absent from a 1.0 peer.
 library;
 
 import 'package:source_runtime/src/contracts/browser_port.dart';
 import 'package:source_runtime/src/contracts/identity.dart';
+import 'package:source_runtime/src/contracts/outcome.dart';
 import 'package:source_runtime/src/contracts/source.dart';
 
 /// A JSON object payload.
@@ -36,23 +43,32 @@ final class EmptyPayload implements ProtocolPayload {
 
 /// Operations the supervisor sends in `req` frames.
 enum WorkerOperation {
-  handshake('handshake', perPackage: false),
-  artifactPrepare('artifact.prepare'),
-  packageLoad('package.load'),
-  packageUnload('package.unload'),
+  handshake('handshake', perPackage: false, requiresLoadedPackage: false),
+  artifactPrepare('artifact.prepare', requiresLoadedPackage: false),
+  packageLoad('package.load', requiresLoadedPackage: false),
+  packageUnload('package.unload', requiresLoadedPackage: false),
   settingsUpdate('settings.update'),
   search('search'),
   details('details'),
   dispose('dispose'),
-  shutdown('shutdown', perPackage: false);
+  shutdown('shutdown', perPackage: false, requiresLoadedPackage: false);
 
-  const WorkerOperation(this.wire, {this.perPackage = true});
+  const WorkerOperation(this.wire, {this.perPackage = true, this.requiresLoadedPackage = true});
 
   /// The frame's `op` value.
   final String wire;
 
   /// Whether the frame carries `pkg` and runs in that package's queue.
   final bool perPackage;
+
+  /// Whether a worker must already hold the package to serve the operation.
+  ///
+  /// `artifact.prepare` runs before the package exists (it produces the
+  /// bytes `package.load` loads), `package.load` creates it, and
+  /// `package.unload` of an absent package is a no-op. Only
+  /// `settings.update`, `search`, `details` and `dispose` need a loaded
+  /// package.
+  final bool requiresLoadedPackage;
 
   static WorkerOperation? fromWire(String? wire) {
     for (final WorkerOperation o in values) {
@@ -84,20 +100,44 @@ sealed class WorkerRequest<R extends ProtocolPayload> implements ProtocolPayload
         WorkerOperation.dispose => DisposeRequest.fromJson(payload),
         WorkerOperation.shutdown => ShutdownRequest.fromJson(payload),
       };
+
+  /// Worker-side admission shared by Dart workers: the failure to reply with
+  /// before dispatching this request, or `null` to serve it.
+  ///
+  /// A per-package operation without `pkg` is a protocol violation; an
+  /// operation that [WorkerOperation.requiresLoadedPackage] fails with
+  /// `runtime-unavailable` when [isLoaded] says the package is absent. Every
+  /// other request, including `artifact.prepare`, is admitted without a
+  /// loaded package.
+  SourceFailure? admissionFailure({required String? packageId, required bool Function(String packageId) isLoaded}) {
+    if (!operation.perPackage) return null;
+    if (packageId == null) return ProtocolViolationFailure('${operation.wire} requires pkg');
+    if (operation.requiresLoadedPackage && !isLoaded(packageId)) {
+      return RuntimeUnavailableFailure('Package $packageId is not loaded');
+    }
+    return null;
+  }
 }
 
 /// `handshake` request: the protocol versions and frame limit the supervisor
 /// speaks.
 final class HandshakeRequest extends WorkerRequest<HandshakeResponse> {
-  const HandshakeRequest({required this.protocolVersions, required this.maxFrameBytes});
+  const HandshakeRequest({required this.protocolVersions, required this.maxFrameBytes, this.protocolMinor = 0});
 
   factory HandshakeRequest.fromJson(Map<String, Object?> json) => HandshakeRequest(
     protocolVersions: _list(json, 'protocolVersions', _asInt),
     maxFrameBytes: _int(json, 'maxFrameBytes'),
+    protocolMinor: _optNonNegativeInt(json, 'protocolMinor') ?? 0,
   );
 
+  /// Major versions the supervisor accepts; the envelope's `v`.
   final List<int> protocolVersions;
   final int maxFrameBytes;
+
+  /// Highest minor version of the chosen major the supervisor speaks; absent
+  /// (a 1.0 supervisor) decodes as `0`. The worker replies with the lower of
+  /// this and its own highest minor.
+  final int protocolMinor;
 
   @override
   WorkerOperation get operation => WorkerOperation.handshake;
@@ -108,6 +148,7 @@ final class HandshakeRequest extends WorkerRequest<HandshakeResponse> {
   @override
   Map<String, Object?> toJson() => <String, Object?>{
     'protocolVersions': protocolVersions,
+    'protocolMinor': protocolMinor,
     'maxFrameBytes': maxFrameBytes,
   };
 }
@@ -118,20 +159,30 @@ final class HandshakeResponse implements ProtocolPayload {
     required this.protocolVersion,
     required this.worker,
     required this.capabilities,
+    this.protocolMinor = 0,
     this.workerVersion,
     this.pid,
+    this.limits,
+    this.sizing,
   });
 
   factory HandshakeResponse.fromJson(Map<String, Object?> json) => HandshakeResponse(
     protocolVersion: _int(json, 'protocolVersion'),
+    protocolMinor: _optNonNegativeInt(json, 'protocolMinor') ?? 0,
     worker: _string(json, 'worker'),
     workerVersion: _optString(json, 'workerVersion'),
     pid: _optInt(json, 'pid'),
     capabilities: WorkerCapabilities.fromJson(_object(json, 'capabilities')),
+    limits: json['limits'] == null ? null : WorkerReportedLimits.fromJson(_object(json, 'limits')),
+    sizing: json['sizing'] == null ? null : WorkerSizing.fromJson(_object(json, 'sizing')),
   );
 
   /// One of [HandshakeRequest.protocolVersions].
   final int protocolVersion;
+
+  /// The negotiated minor version: at most [HandshakeRequest.protocolMinor].
+  /// Absent (a 1.0 worker) decodes as `0`.
+  final int protocolMinor;
 
   /// Worker implementation name, for example `tachi-jvm` or `paperback`.
   final String worker;
@@ -141,13 +192,129 @@ final class HandshakeResponse implements ProtocolPayload {
   final int? pid;
   final WorkerCapabilities capabilities;
 
+  /// The runtime limits in effect in the worker (KTD25), when it reports
+  /// them. A supervisor that opts in adopts the ones it understands.
+  final WorkerReportedLimits? limits;
+
+  /// How the worker derived [limits] (KTD25), when it reports it.
+  final WorkerSizing? sizing;
+
   @override
   Map<String, Object?> toJson() => <String, Object?>{
     'protocolVersion': protocolVersion,
+    'protocolMinor': protocolMinor,
     'worker': worker,
     'workerVersion': workerVersion,
     'pid': pid,
     'capabilities': capabilities.toJson(),
+    if (limits case final WorkerReportedLimits l) 'limits': l.toJson(),
+    if (sizing case final WorkerSizing z) 'sizing': z.toJson(),
+  };
+}
+
+/// The handshake's `limits` object: the runtime limits the worker runs with,
+/// derived from its sizing rule on this device or from explicit overrides
+/// (KTD25).
+///
+/// The supervisor-relevant limits have fixed names, each optional and a
+/// positive integer when present: `poolSize` (packages that may run at
+/// once), `operationDeadlineMs`, `cancelGraceMs`, `interactionTimeoutMs` and
+/// `shutdownGraceMs`. Runtime-specific limits (for example Paperback's
+/// QuickJS `memoryLimitBytes`) travel alongside and are kept in [fields]
+/// without interpretation.
+final class WorkerReportedLimits implements ProtocolPayload {
+  WorkerReportedLimits({
+    this.poolSize,
+    this.operationDeadline,
+    this.cancelGrace,
+    this.interactionTimeout,
+    this.shutdownGrace,
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) : fields = Map<String, Object?>.unmodifiable(<String, Object?>{
+         ...fields,
+         if (poolSize != null) 'poolSize': poolSize,
+         if (operationDeadline != null) 'operationDeadlineMs': operationDeadline.inMilliseconds,
+         if (cancelGrace != null) 'cancelGraceMs': cancelGrace.inMilliseconds,
+         if (interactionTimeout != null) 'interactionTimeoutMs': interactionTimeout.inMilliseconds,
+         if (shutdownGrace != null) 'shutdownGraceMs': shutdownGrace.inMilliseconds,
+       });
+
+  factory WorkerReportedLimits.fromJson(Map<String, Object?> json) => WorkerReportedLimits(
+    poolSize: _optPositiveInt(json, 'poolSize'),
+    operationDeadline: _optMillis(json, 'operationDeadlineMs'),
+    cancelGrace: _optMillis(json, 'cancelGraceMs'),
+    interactionTimeout: _optMillis(json, 'interactionTimeoutMs'),
+    shutdownGrace: _optMillis(json, 'shutdownGraceMs'),
+    fields: json,
+  );
+
+  /// Packages the worker may execute concurrently.
+  final int? poolSize;
+  final Duration? operationDeadline;
+  final Duration? cancelGrace;
+  final Duration? interactionTimeout;
+  final Duration? shutdownGrace;
+
+  /// Every reported field, including runtime-specific ones.
+  final Map<String, Object?> fields;
+
+  static Duration? _optMillis(Map<String, Object?> json, String key) {
+    final int? ms = _optPositiveInt(json, key);
+    return ms == null ? null : Duration(milliseconds: ms);
+  }
+
+  @override
+  Map<String, Object?> toJson() => fields;
+}
+
+/// The handshake's `sizing` object: the KTD25 sizing rule, the device
+/// inputs it was applied to, the limits it derived, and which limits were
+/// explicitly overridden. Every field is optional; the rule's own shape is
+/// runtime-specific and kept as reported.
+final class WorkerSizing implements ProtocolPayload {
+  WorkerSizing({
+    Map<String, Object?>? rule,
+    Map<String, Object?> inputs = const <String, Object?>{},
+    this.derived,
+    Set<String> overridden = const <String>{},
+    Map<String, Object?> fields = const <String, Object?>{},
+  }) : rule = rule == null ? null : Map<String, Object?>.unmodifiable(rule),
+       inputs = Map<String, Object?>.unmodifiable(inputs),
+       overridden = Set<String>.unmodifiable(overridden),
+       fields = Map<String, Object?>.unmodifiable(fields);
+
+  factory WorkerSizing.fromJson(Map<String, Object?> json) => WorkerSizing(
+    rule: json['rule'] == null ? null : _object(json, 'rule'),
+    inputs: json['inputs'] == null ? const <String, Object?>{} : _object(json, 'inputs'),
+    derived: json['derived'] == null ? null : WorkerReportedLimits.fromJson(_object(json, 'derived')),
+    overridden: json['overridden'] == null ? const <String>{} : _list(json, 'overridden', _asString).toSet(),
+    fields: json,
+  );
+
+  /// The committed sizing rule (coefficients and the benchmark it came
+  /// from), or `null` when explicit overrides cover every limit.
+  final Map<String, Object?>? rule;
+
+  /// The measured device capability the rule was applied to, for example
+  /// `cores` and `maxHeapMiB`.
+  final Map<String, Object?> inputs;
+
+  /// The limits the rule produced before overrides.
+  final WorkerReportedLimits? derived;
+
+  /// Names of limits set by explicit overrides rather than the rule.
+  final Set<String> overridden;
+
+  /// Every reported field, as received.
+  final Map<String, Object?> fields;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{
+    ...fields,
+    'rule': rule,
+    'inputs': inputs,
+    'derived': derived?.toJson(),
+    'overridden': overridden.toList()..sort(),
   };
 }
 
@@ -180,20 +347,36 @@ final class WorkerCapabilities implements ProtocolPayload {
 /// signature verification), writing the result to [outputPath].
 ///
 /// The worker re-verifies [inputPath] against [artifact] before reading it,
-/// and writes only to [outputPath], which the supervisor chose inside its
-/// private staging area.
+/// verifies the artifact's signature against [trustedSigners], and writes
+/// only to [outputPath], which the supervisor chose inside its private
+/// staging area. The package need not be loaded.
 final class ArtifactPrepareRequest extends WorkerRequest<ArtifactPrepareResponse> {
-  const ArtifactPrepareRequest({required this.artifact, required this.inputPath, required this.outputPath});
+  ArtifactPrepareRequest({
+    required this.artifact,
+    required this.inputPath,
+    required this.outputPath,
+    required Iterable<String> trustedSigners,
+  }) : trustedSigners = List<String>.unmodifiable(
+         trustedSigners.map(ArtifactTrustAnchor.normalizeFingerprint).toSet().toList()..sort(),
+       );
 
   factory ArtifactPrepareRequest.fromJson(Map<String, Object?> json) => ArtifactPrepareRequest(
     artifact: _binding(json, 'artifact'),
     inputPath: _string(json, 'inputPath'),
     outputPath: _string(json, 'outputPath'),
+    trustedSigners: json['trustedSigners'] == null ? const <String>[] : _list(json, 'trustedSigners', _asString),
   );
 
   final ArtifactBinding artifact;
   final String inputPath;
   final String outputPath;
+
+  /// Certificate SHA-256 fingerprints (64 lowercase hex digits, sorted) from
+  /// the stored trust anchor (KTD5). The artifact must be signed by one of
+  /// them. A 1.0 supervisor omits the field, which decodes as empty; a
+  /// worker must then refuse anything that needs a signer rather than trust
+  /// one read beside the artifact.
+  final List<String> trustedSigners;
 
   @override
   WorkerOperation get operation => WorkerOperation.artifactPrepare;
@@ -206,6 +389,7 @@ final class ArtifactPrepareRequest extends WorkerRequest<ArtifactPrepareResponse
     'artifact': artifact.toJson(),
     'inputPath': inputPath,
     'outputPath': outputPath,
+    'trustedSigners': trustedSigners,
   };
 }
 
@@ -235,33 +419,79 @@ final class ArtifactPrepareResponse implements ProtocolPayload {
   };
 }
 
-/// Settings as sent to a worker: typed non-secret values, secret values, and
-/// the durable revision. Secrets cross the pipe to the worker only; the
-/// supervisor registers them with its redactor first (KTD9).
+/// Settings as sent to a worker: typed non-secret values, secret values,
+/// per-source overrides, and the durable revision. Secrets cross the pipe to
+/// the worker only; the supervisor registers them with its redactor first
+/// (KTD9).
+///
+/// [values] and [secrets] apply to every source of the package. [sources]
+/// overrides them for one source, keyed by the source ID from
+/// `package.load`: the effective settings of source `S` are [values] with
+/// `sources[S].values` laid over them (likewise for secrets). Keys are
+/// plain setting keys; they carry no source prefix.
 final class SettingsPayload implements ProtocolPayload {
   SettingsPayload({
     required Map<String, Object> values,
     required Map<String, String> secrets,
     required this.revision,
+    Map<String, SourceScopedSettings> sources = const <String, SourceScopedSettings>{},
   }) : values = Map<String, Object>.unmodifiable(values),
-       secrets = Map<String, String>.unmodifiable(secrets);
+       secrets = Map<String, String>.unmodifiable(secrets),
+       sources = Map<String, SourceScopedSettings>.unmodifiable(sources);
 
-  factory SettingsPayload.fromSnapshot(SettingsSnapshot snapshot) =>
-      SettingsPayload(values: snapshot.values, secrets: snapshot.secrets, revision: snapshot.revision);
+  factory SettingsPayload.fromSnapshot(SettingsSnapshot snapshot) => SettingsPayload(
+    values: snapshot.values,
+    secrets: snapshot.secrets,
+    sources: snapshot.sources,
+    revision: snapshot.revision,
+  );
 
   factory SettingsPayload.fromJson(Map<String, Object?> json) => SettingsPayload(
     values: SettingsSnapshot.valuesFromJson(_object(json, 'values')),
     secrets: _stringMap(json, 'secrets'),
     revision: _string(json, 'revision'),
+    sources: json['sources'] == null
+        ? const <String, SourceScopedSettings>{}
+        : <String, SourceScopedSettings>{
+            for (final MapEntry<String, Object?> e in _object(json, 'sources').entries)
+              e.key: _scope('sources.${e.key}', e.value),
+          },
   );
 
-  /// Each a `String`, `bool` or `int`.
+  /// Each a `String`, `bool`, `int` or sorted, deduplicated `List<String>`.
   final Map<String, Object> values;
   final Map<String, String> secrets;
+
+  /// Per-source overrides keyed by source ID; absent from a 1.0 supervisor.
+  final Map<String, SourceScopedSettings> sources;
   final String revision;
 
+  /// Whether a 1.0 worker could not read this payload (string sets or
+  /// source scopes).
+  bool get needsProtocol11 => sources.isNotEmpty || values.values.any((Object v) => v is List<String>);
+
   @override
-  Map<String, Object?> toJson() => <String, Object?>{'values': values, 'secrets': secrets, 'revision': revision};
+  Map<String, Object?> toJson() => <String, Object?>{
+    'values': values,
+    'secrets': secrets,
+    if (sources.isNotEmpty)
+      'sources': <String, Object?>{
+        for (final MapEntry<String, SourceScopedSettings> e in sources.entries)
+          e.key: <String, Object?>{'values': e.value.values, 'secrets': e.value.secrets},
+      },
+    'revision': revision,
+  };
+}
+
+SourceScopedSettings _scope(String key, Object? json) {
+  if (json is! Map<Object?, Object?>) _bad(key, 'an object', json);
+  final Map<String, Object?> scope = json.cast<String, Object?>();
+  return SourceScopedSettings(
+    values: scope['values'] == null
+        ? const <String, Object>{}
+        : SettingsSnapshot.valuesFromJson(_object(scope, 'values')),
+    secrets: scope['secrets'] == null ? const <String, String>{} : _stringMap(scope, 'secrets'),
+  );
 }
 
 /// `package.load` request: load the verified artifact at [path] into its own
@@ -934,6 +1164,18 @@ int? _optInt(Map<String, Object?> json, String key) => switch (json[key]) {
   null => null,
   final int i => i,
   final Object v => _bad(key, 'an integer or null', v),
+};
+
+int? _optPositiveInt(Map<String, Object?> json, String key) => switch (json[key]) {
+  null => null,
+  final int i when i > 0 => i,
+  final Object v => _bad(key, 'a positive integer or null', v),
+};
+
+int? _optNonNegativeInt(Map<String, Object?> json, String key) => switch (json[key]) {
+  null => null,
+  final int i when i >= 0 => i,
+  final Object v => _bad(key, 'a non-negative integer or null', v),
 };
 
 bool _bool(Map<String, Object?> json, String key) => switch (json[key]) {

@@ -34,14 +34,17 @@ class BrowserReverseBridge {
   BrowserReverseBridge({
     required this.port,
     required this.resolveSource,
-    required this.interactionTimeout,
+    this.interactionTimeout,
     this.emitEvent,
     this.onLog,
   });
 
   final BrowserPort port;
   final BrowserSourceResolver resolveSource;
-  final Duration interactionTimeout;
+
+  /// Bound on `host.browser.show` when the request does not carry the
+  /// supervisor's own bound ([ReverseRequest.interactionTimeout] wins).
+  final Duration? interactionTimeout;
   WorkerEventSink? emitEvent;
 
   /// Receives a line for every session this bridge closed on its own (on a
@@ -145,10 +148,12 @@ class BrowserReverseBridge {
         await s.setUserAgent(userAgent, cancel: request.cancel),
         _empty,
       ),
-      HostBrowserShow() => _map(
-        await s.showForInteraction(timeout: interactionTimeout, cancel: request.cancel),
-        _empty,
-      ),
+      HostBrowserShow() => switch (request.interactionTimeout ?? interactionTimeout) {
+        null => SourceFailed<ProtocolPayload>(
+          CapabilityUnavailableFailure(request.op, 'No interaction timeout is configured'),
+        ),
+        final Duration timeout => _map(await s.showForInteraction(timeout: timeout, cancel: request.cancel), _empty),
+      },
       HostBrowserClose() => _map(await _closeSession(s.id, s), _empty),
     };
   }

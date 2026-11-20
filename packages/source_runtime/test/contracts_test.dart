@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:checks/checks.dart';
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
 import 'package:test/scaffolding.dart';
@@ -122,9 +123,158 @@ void main() {
       check(() => SettingsSnapshot.valuesFromJson(const <String, Object?>{'x': null})).throws<FormatException>();
       check(
         () => SettingsSnapshot.valuesFromJson(const <String, Object?>{
-          'x': <String>['a'],
+          'x': <Object?>['a', 1],
         }),
       ).throws<FormatException>();
+      check(
+        () => SettingsSnapshot.valuesFromJson(const <String, Object?>{
+          'x': <String, Object?>{'a': 'b'},
+        }),
+      ).throws<FormatException>();
+    });
+
+    test('string sets are sorted and deduplicated, so equal sets share a revision', () {
+      final a = SettingsSnapshot(
+        values: const <String, Object>{
+          'genres': <String>['romance', 'action', 'romance'],
+        },
+      );
+      final b = SettingsSnapshot(
+        values: const <String, Object>{
+          'genres': <String>['action', 'romance'],
+        },
+      );
+      final decoded = SettingsSnapshot(
+        values: SettingsSnapshot.valuesFromJson(
+          (jsonDecode(jsonEncode(a.toJson())) as Map<String, Object?>)['values']! as Map<String, Object?>,
+        ),
+      );
+      check(a.values['genres']).isA<List<String>>().deepEquals(<String>['action', 'romance']);
+      check(b.revision).equals(a.revision);
+      check(decoded.revision).equals(a.revision);
+      // A set is not the same setting as a string or a different set.
+      check(
+        SettingsSnapshot(values: const <String, Object>{'genres': 'action'}).revision,
+      ).not((Subject<String> it) => it.equals(a.revision));
+      check(
+        SettingsSnapshot(
+          values: const <String, Object>{
+            'genres': <String>['action'],
+          },
+        ).revision,
+      ).not((Subject<String> it) => it.equals(a.revision));
+      check(a.needsProtocol11).isTrue();
+      check(SettingsSnapshot(values: const <String, Object>{'lang': 'en'}).needsProtocol11).isFalse();
+    });
+
+    test('a string set digest is pinned', () {
+      // Pinned when string sets were added; a change here reopens every
+      // confirmation made under them.
+      final snapshot = SettingsSnapshot(
+        values: const <String, Object>{
+          'lang': 'en',
+          'genres': <String>['b', 'a'],
+        },
+      );
+      check(snapshot.revision).equals(
+        sha256
+            .convert(
+              utf8.encode(
+                '{"values":[["genres",["a","b"]],["lang","en"]],"secretKeys":[]}',
+              ),
+            )
+            .toString(),
+      );
+    });
+
+    test('source scopes address one source of a multi-source package', () {
+      final scoped = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'nsfw': false},
+        secrets: const <String, String>{'token': 'pkg'},
+        sources: <String, SourceScopedSettings>{
+          '123': SourceScopedSettings(
+            values: const <String, Object>{'lang': 'ja'},
+            secrets: const <String, String>{'token': 'src'},
+          ),
+          '456': SourceScopedSettings(),
+        },
+      );
+      check(scoped.sources.keys).deepEquals(<String>['123']);
+      check(scoped.valuesFor('123')).deepEquals(<String, Object>{'lang': 'ja', 'nsfw': false});
+      check(scoped.valuesFor('999')).deepEquals(<String, Object>{'lang': 'en', 'nsfw': false});
+      check(scoped.secretsFor('123')).deepEquals(<String, String>{'token': 'src'});
+      check(scoped.allSecretValues.toSet()).deepEquals(<String>{'pkg', 'src'});
+      check(scoped.needsProtocol11).isTrue();
+      final String json = jsonEncode(scoped.toJson());
+      check(json).not((Subject<String> it) => it.contains('src'));
+      check(json).not((Subject<String> it) => it.contains('pkg'));
+
+      final unscoped = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'nsfw': false},
+        secrets: const <String, String>{'token': 'pkg'},
+      );
+      check(scoped.revision).not((Subject<String> it) => it.equals(unscoped.revision));
+      // An empty scope changes nothing, so the digest of unscoped settings is
+      // the one they had before scopes existed.
+      check(
+        SettingsSnapshot(
+          values: const <String, Object>{'lang': 'en', 'nsfw': false},
+          secrets: const <String, String>{'token': 'pkg'},
+          sources: <String, SourceScopedSettings>{'456': SourceScopedSettings()},
+        ).revision,
+      ).equals(unscoped.revision);
+      // Scope order does not matter; re-entered scoped secrets keep the revision.
+      final reordered = SettingsSnapshot(
+        values: const <String, Object>{'nsfw': false, 'lang': 'en'},
+        secrets: const <String, String>{'token': 'other'},
+        sources: <String, SourceScopedSettings>{
+          '123': SourceScopedSettings(
+            values: const <String, Object>{'lang': 'ja'},
+            secrets: const <String, String>{'token': 'changed'},
+          ),
+        },
+      );
+      check(reordered.revision).equals(scoped.revision);
+      // The same value scoped to another source is a different revision.
+      final otherSource = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'nsfw': false},
+        secrets: const <String, String>{'token': 'pkg'},
+        sources: <String, SourceScopedSettings>{
+          '124': SourceScopedSettings(
+            values: const <String, Object>{'lang': 'ja'},
+            secrets: const <String, String>{'token': 'src'},
+          ),
+        },
+      );
+      check(otherSource.revision).not((Subject<String> it) => it.equals(scoped.revision));
+    });
+
+    test('the revision allowlist applies inside source scopes', () {
+      SettingsSnapshot build(String volatile) => SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en'},
+        sources: <String, SourceScopedSettings>{
+          '1': SourceScopedSettings(values: <String, Object>{'lang': 'ja', 'lastSync': volatile}),
+        },
+        revisionAllowlist: const <String>{'lang'},
+      );
+      check(build('a').revision).equals(build('b').revision);
+    });
+  });
+
+  group('ArtifactTrustAnchor', () {
+    test('normalises certificate fingerprints and rejects anything else', () {
+      final anchor = ArtifactTrustAnchor(
+        signerFingerprints: const <String>[
+          '9A:DD:65:5A:78:E9:6C:4E:C7:A5:3E:F8:9D:CC:B5:57:CB:5D:76:74:89:FA:C5:E7:85:D6:71:A5:A7:5D:4D:A2',
+          '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2',
+        ],
+      );
+      check(anchor.signerFingerprints).deepEquals(<String>{
+        '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2',
+      });
+      for (final bad in <String>['', 'abc', '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4dzz']) {
+        check(() => ArtifactTrustAnchor(signerFingerprints: <String>[bad])).throws<FormatException>();
+      }
     });
   });
 

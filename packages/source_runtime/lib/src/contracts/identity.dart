@@ -134,76 +134,196 @@ final class SourceIdentity {
   }
 }
 
+/// Settings that apply to one source of a multi-source package (a Tachi
+/// factory hosts many sources in one package).
+///
+/// Package-wide values in [SettingsSnapshot.values] apply to every source; a
+/// source's scoped entry overrides the package-wide entry with the same key.
+/// Values follow the same typing rules as [SettingsSnapshot.values].
+@immutable
+final class SourceScopedSettings {
+  SourceScopedSettings({
+    Map<String, Object> values = const <String, Object>{},
+    Map<String, String> secrets = const <String, String>{},
+  }) : values = SettingsSnapshot._normalizeValues(values),
+       secrets = Map<String, String>.unmodifiable(secrets);
+
+  /// Non-secret values: each a [String], [bool], [int] or string set.
+  final Map<String, Object> values;
+
+  /// Secret values; session memory only (KTD9).
+  final Map<String, String> secrets;
+
+  bool get isEmpty => values.isEmpty && secrets.isEmpty;
+}
+
 /// Settings chosen for a source session.
 ///
-/// Non-secret values are typed: each is a [String], [bool] or [int], and
-/// crosses JSON as that JSON type (an `int` must stay within JavaScript's
-/// exact integer range, ±(2^53 − 1)). Secret values (passwords, tokens,
-/// cookies) are strings and session-only (KTD9): they never appear in
-/// [toJson] or in [revision].
+/// Non-secret values are typed: each is a [String], [bool], [int], or a
+/// string set (`List<String>`), and crosses JSON as that JSON type (an `int`
+/// must stay within JavaScript's exact integer range, ±(2^53 − 1)). A string
+/// set backs APIs like `SharedPreferences.getStringSet`: order and
+/// duplicates carry no meaning, so it is stored sorted and deduplicated and
+/// equal sets always produce the same [revision]. Secret values (passwords,
+/// tokens, cookies) are strings and session-only (KTD9): they never appear
+/// in [toJson] or in [revision].
+///
+/// [values] and [secrets] apply to every source of the package. [sources]
+/// overrides them for individual sources, keyed by source ID (the string
+/// form from `package.load`), so one source of a multi-source package can be
+/// configured without a key-naming convention.
 @immutable
 final class SettingsSnapshot {
   SettingsSnapshot({
     Map<String, Object> values = const <String, Object>{},
     Map<String, String> secrets = const <String, String>{},
+    Map<String, SourceScopedSettings> sources = const <String, SourceScopedSettings>{},
     Set<String>? revisionAllowlist,
-  }) : values = Map<String, Object>.unmodifiable(_checkValues(values)),
+  }) : values = _normalizeValues(values),
        secrets = Map<String, String>.unmodifiable(secrets),
+       sources = Map<String, SourceScopedSettings>.unmodifiable(<String, SourceScopedSettings>{
+         for (final MapEntry<String, SourceScopedSettings> e in sources.entries)
+           if (!e.value.isEmpty) e.key: e.value,
+       }),
        revisionAllowlist = revisionAllowlist == null ? null : Set<String>.unmodifiable(revisionAllowlist);
 
-  /// Decodes the typed values of a wire `settings` object.
-  static Map<String, Object> valuesFromJson(Map<String, Object?> json) => _checkValues(<String, Object>{
+  /// Decodes the typed values of a wire `settings` object. A JSON array must
+  /// hold only strings and becomes a string set.
+  static Map<String, Object> valuesFromJson(Map<String, Object?> json) => _normalizeValues(<String, Object>{
     for (final MapEntry<String, Object?> e in json.entries)
-      e.key: e.value ?? (throw FormatException('Setting "${e.key}" is null')),
+      e.key: switch (e.value) {
+        null => throw FormatException('Setting "${e.key}" is null'),
+        final Object v => v,
+      },
   });
 
   static const int _maxSafeInt = 9007199254740991;
 
-  static Map<String, Object> _checkValues(Map<String, Object> values) {
-    for (final MapEntry<String, Object> e in values.entries) {
-      final Object v = e.value;
-      if (v is int && (v > _maxSafeInt || v < -_maxSafeInt)) {
-        throw FormatException('Setting "${e.key}" is outside the exact JSON integer range: $v');
-      }
-      if (v is! String && v is! bool && v is! int) {
-        throw FormatException('Setting "${e.key}" must be a String, bool or int, got ${v.runtimeType}');
-      }
+  static Map<String, Object> _normalizeValues(Map<String, Object> values) =>
+      Map<String, Object>.unmodifiable(<String, Object>{
+        for (final MapEntry<String, Object> e in values.entries) e.key: _normalizeValue(e.key, e.value),
+      });
+
+  static Object _normalizeValue(String key, Object v) {
+    if (v is int && (v > _maxSafeInt || v < -_maxSafeInt)) {
+      throw FormatException('Setting "$key" is outside the exact JSON integer range: $v');
     }
-    return values;
+    if (v is List<Object?>) {
+      if (v.any((Object? item) => item is! String)) {
+        throw FormatException('Setting "$key" may only hold strings in a list');
+      }
+      return List<String>.unmodifiable(v.cast<String>().toSet().toList()..sort());
+    }
+    if (v is! String && v is! bool && v is! int) {
+      throw FormatException('Setting "$key" must be a String, bool, int or List<String>, got ${v.runtimeType}');
+    }
+    return v;
   }
 
-  /// Non-secret setting values: each a [String], [bool] or [int].
+  /// Package-wide non-secret values: each a [String], [bool], [int] or a
+  /// sorted, deduplicated `List<String>`.
   final Map<String, Object> values;
 
-  /// Secret setting values; session memory only.
+  /// Package-wide secret values; session memory only.
   final Map<String, String> secrets;
 
+  /// Per-source overrides keyed by source ID. Empty scopes are dropped.
+  final Map<String, SourceScopedSettings> sources;
+
   /// Non-secret keys that take part in [revision]; `null` means all of them.
+  /// It applies to package-wide and source-scoped keys alike.
   final Set<String>? revisionAllowlist;
 
+  /// Every secret value, package-wide and source-scoped, for redaction.
+  Iterable<String> get allSecretValues sync* {
+    yield* secrets.values;
+    for (final SourceScopedSettings scope in sources.values) {
+      yield* scope.secrets.values;
+    }
+  }
+
+  /// Whether any value is a string set or any source has scoped settings.
+  /// Both need worker protocol 1.1; a 1.0 worker would reject them.
+  bool get needsProtocol11 => sources.isNotEmpty || values.values.any((Object v) => v is List<String>);
+
+  /// The effective non-secret values for [sourceId]: package-wide values
+  /// overridden by that source's scope.
+  Map<String, Object> valuesFor(String sourceId) => <String, Object>{...values, ...?sources[sourceId]?.values};
+
+  /// The effective secrets for [sourceId]: package-wide secrets overridden
+  /// by that source's scope.
+  Map<String, String> secretsFor(String sourceId) => <String, String>{...secrets, ...?sources[sourceId]?.secrets};
+
   /// Durable, secret-free revision: a digest over the allowlisted non-secret
-  /// values plus the names (never the values) of the supplied secrets.
-  /// Re-entering secrets for the same keys keeps the revision.
+  /// values plus the names (never the values) of the supplied secrets, for
+  /// the package and every source scope. Re-entering secrets for the same
+  /// keys keeps the revision.
   String get revision {
-    final List<String> keys = values.keys.where((String k) => revisionAllowlist?.contains(k) ?? true).toList()..sort();
-    final List<String> secretKeys = secrets.keys.toList()..sort();
     // Each value keeps its JSON type, so `true` and `'true'` differ while a
     // string-only snapshot keeps the digest it had before values were typed.
-    final String canonical = jsonEncode(<String, Object?>{
+    // `sources` is added only when present, so a snapshot without scopes
+    // keeps the digest it had before scopes existed.
+    final Map<String, Object?> canonical = _canonicalScope(values, secrets);
+    if (sources.isNotEmpty) {
+      final List<String> ids = sources.keys.toList()..sort();
+      canonical['sources'] = <List<Object>>[
+        for (final id in ids) <Object>[id, _canonicalScope(sources[id]!.values, sources[id]!.secrets)],
+      ];
+    }
+    return sha256.convert(utf8.encode(jsonEncode(canonical))).toString();
+  }
+
+  Map<String, Object?> _canonicalScope(Map<String, Object> values, Map<String, String> secrets) {
+    final List<String> keys = values.keys.where((String k) => revisionAllowlist?.contains(k) ?? true).toList()..sort();
+    final List<String> secretKeys = secrets.keys.toList()..sort();
+    return <String, Object?>{
       'values': <List<Object>>[
         for (final k in keys) <Object>[k, values[k]!],
       ],
       'secretKeys': secretKeys,
-    });
-    return sha256.convert(utf8.encode(canonical)).toString();
+    };
   }
 
   /// Secret-free serialised form.
   Map<String, Object?> toJson() => <String, Object?>{
     'values': values,
     'secretKeys': secrets.keys.toList()..sort(),
+    if (sources.isNotEmpty)
+      'sources': <String, Object?>{
+        for (final MapEntry<String, SourceScopedSettings> e in sources.entries)
+          e.key: <String, Object?>{'values': e.value.values, 'secretKeys': e.value.secrets.keys.toList()..sort()},
+      },
     'revision': revision,
   };
+}
+
+/// The signing identities a repository's artifacts must carry (KTD5).
+///
+/// Built from the local trust store: the fingerprint the user approved when
+/// the repository was added, or one pinned by a qualification manifest. A
+/// fingerprint read beside the artifacts proves consistency, not provenance,
+/// so it never belongs here unless it matches the stored one.
+@immutable
+final class ArtifactTrustAnchor {
+  /// [signerFingerprints] are certificate SHA-256 fingerprints, as 64 hex
+  /// digits; colons and upper case are accepted and normalised.
+  ArtifactTrustAnchor({required Iterable<String> signerFingerprints})
+    : signerFingerprints = Set<String>.unmodifiable(signerFingerprints.map(normalizeFingerprint));
+
+  /// Lowercase, colon-free certificate SHA-256 fingerprints.
+  final Set<String> signerFingerprints;
+
+  static final RegExp _hex64 = RegExp(r'^[0-9a-f]{64}$');
+
+  /// Canonical form of a certificate SHA-256 fingerprint: 64 lowercase hex
+  /// digits. Throws [FormatException] for anything else.
+  static String normalizeFingerprint(String fingerprint) {
+    final String canonical = fingerprint.replaceAll(':', '').toLowerCase();
+    if (!_hex64.hasMatch(canonical)) {
+      throw FormatException('Not a certificate SHA-256 fingerprint: "$fingerprint"');
+    }
+    return canonical;
+  }
 }
 
 /// Ephemeral worker-side handle for a live object. Valid only within the

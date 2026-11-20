@@ -104,6 +104,15 @@ class ArtifactCache {
     return _lease(path, binding);
   }
 
+  /// Creates a new private directory under the cache root for a worker to
+  /// write prepared bytes into (`artifact.prepare`). The caller deletes it
+  /// after admitting the result.
+  Future<Directory> createScratchDirectory() async {
+    final scratch = Directory(p.join(root.path, 'prepare'));
+    await scratch.create(recursive: true);
+    return scratch.createTemp('p');
+  }
+
   /// Number of live leases on the entry for [binding] under [profile].
   int leaseCount(ArtifactBinding binding, ArtifactProfile profile) =>
       _leaseCounts[_objectPath(profile, binding.sha256)] ?? 0;
