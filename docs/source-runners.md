@@ -132,3 +132,59 @@ Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.js
 5. **Page-to-host message surface.** The BrowserPort contract does not say how page script posts to a
    named channel. The shim needs `window.<name>.postMessage(string)` (Android's
    `addJavascriptInterface` shape) for each enabled channel; U2's helper should expose that.
+
+## Desktop WebView capability matrix (`packages/desktop_webview`, U2)
+
+One standalone helper (`desktop_webview_helper`, Rust over `wry` 0.57.3 / `tao` 0.37.3, pinned by
+`helper/Cargo.lock`) per conversion, one WebView per source session. It is built by
+`tool/build_helper.dart` (`cargo build --locked`) and located through `build/helper/runtime-artifacts.json`, which
+records the SHA-256 the client verifies before launch. Protocol: `packages/desktop_webview/doc/helper-protocol.md`.
+
+Status key: **pass** = ran and passed here; **compiled** = type-checks for the target, never run; **not run** =
+neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,
+`flutter test packages/desktop_webview/test --concurrency 1`: 42 passed). No macOS or Linux cell is an expected
+value.
+
+| Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
+|---|---|---|---|
+| Build | pass (debug and `--release`; 715 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, LLVM clang for one objc2 build script); x64 not checked | not run (no WebKitGTK dev files or Rust in WSL) |
+| BrowserPort contract suite (feat/source-runners) | pass, 23/23 | not run | not run |
+| BrowserPort contract suite (proto 1.1, `aaaf2b2`) | pass, 34/34 (temporary local copy of the suite, not committed) | not run | not run |
+| Load page, evaluate (promises awaited), JSON results | pass | not run | not run |
+| Message channel `window.<name>.postMessage(string)` | pass: document start of every later document, plus the current page on registration; non-strings dropped | not run | not run |
+| Origin rule (cross-origin frame, `about:blank` dropped) | pass. Child frames never reach the WebView's message event, so even same-origin child-frame messages are not delivered (gap; the suite does not test it) | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
+| Cookies read/write; domain and path derived from the URL | pass | not run | not run |
+| Two sessions' cookie and web-storage isolation | pass (InPrivate profile per session) | not run (non-persistent `WKWebsiteDataStore` per WebView) | not run (ephemeral `WebContext` per WebView) |
+| Non-persistent store / start-up wipe | pass: InPrivate, browsing data cleared and confirmed on close; stale `h-*` data directories wiped at start-up | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
+| Visible window, interaction timeout, user close | pass (window shown; timeout hides it; close completes; session close cancels) | not run | not run |
+| Scheme policy in the helper (load, `loadData` base, cookies, redirects, new windows denied) | pass. A 302 to `file:` surfaces only as Chromium `REDIRECT_FAILED`, which the helper maps to the named policy failure (a redirect loop maps the same way) | not run (wry navigation handler) | not run (wry navigation handler) |
+| User-agent override at runtime | pass | not run (`setCustomUserAgent`) | not run (`WebSettings`) |
+| `loadData` with base URL (document URL and origin = base) | pass: navigate to the base URL and substitute the main-document response | not run (`loadHTMLString:baseURL:`) | not run (`load_html(html, base)`) |
+| Page-start script injection | pass (`AddScriptToExecuteOnDocumentCreated`; runs at `readyState == "loading"`) | not run (`WKUserScript` at document start) | not run (`UserScript` at start) |
+| Request observation with headers | pass: every request; `sec-ch-ua*` visible in `WebResourceRequested` and at the server | unavailable (reported) | unavailable (reported; `resource-load-started` could add it) |
+| Request replacement (KTD20 replace tier) | pass | capability-unavailable | capability-unavailable |
+| Synchronous script-interface returns | unsupported | unsupported | unsupported |
+| HTTP status code of a load | pass | unavailable (`null`) | unavailable (`null`) |
+| Failed-navigation detection | pass | gap: only scheme refusals end a load; other failures end only through cancellation | `load-failed` wired, not run |
+| Offline replay (helper blocks unanswered non-loopback requests) | pass | refuses to start with `--offline` (`offline-unsupported`) | refuses to start with `--offline` (`offline-unsupported`) |
+| Typed failures: missing WebView runtime, no display | pass via `--simulate-fatal`, mapped to capability-unavailable; a real missing runtime is not reproduced | not run | `no-display` check written, not run |
+| MangaFire browser-behaviour replay | pass (below) | not run | not run |
+
+**MangaFire replay (Windows).** `mangafire_solver_replay_test.dart` loads the real `assets/solver.html` from the
+committed `all.mangafire` 1.6.38 JAR with base URL `https://mangafire.to/@waf/solver`. It does what keiyoushi's
+fallback does: Android Chrome user agent, a cookie pushed before load, a page-start script, and channel `bridge`.
+Site responses come from a synthetic fixture (`test/fixtures/mangafire_solver/`): a stub `opencv.js`, and a
+`generate` response with three shapes that makes every solve throw. The page completes with
+`bridge.postMessage("false")`. Relative `fetch("generate")` resolves against the base URL and is served offline;
+the `generate` requests carry `sec-ch-ua*`. This exercises the browser path only. The captcha success path needs
+real OpenCV and a live challenge, and is unverified. On WebView2 the user-agent override does not change
+`sec-ch-ua*`: the brand stays "Microsoft Edge WebView2" and the platform stays "Windows" while the user agent says
+Android Chrome. Whether MangaFire rejects that mismatch, or a Chrome user agent with no client hints on WebKit, is
+unverified until a live capture.
+
+**Still needed before U8.** Build and run everything on a Mac (arm64 and x64) and on Linux with WebKitGTK 4.1.
+Enforce offline replay on WebKit: candidates are a blackhole proxy with a loopback exclusion, or WebKitGTK
+`resource-load-started` plus a URI-scheme handler; none is decided. Detect failed navigations on WKWebView, which
+needs a navigation-delegate hook wry does not expose. Re-check MangaFire on both WebKit engines. The WSL Ubuntu on
+the Windows host has WSLg (`DISPLAY=:0`) but no `webkit2gtk-4.1`/`gtk+-3.0` development packages and no Rust;
+nothing was installed.
