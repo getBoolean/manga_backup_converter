@@ -71,6 +71,26 @@ external void qjsd_runtime_set_memory_limit(
   int bytes,
 );
 
+@ffi.Native<ffi.Int64 Function(ffi.Pointer<QjsdRuntime>)>()
+external int qjsd_runtime_allocated(
+  ffi.Pointer<QjsdRuntime> rt,
+);
+
+@ffi.Native<ffi.Int64 Function(ffi.Pointer<QjsdRuntime>)>()
+external int qjsd_runtime_peak_allocated(
+  ffi.Pointer<QjsdRuntime> rt,
+);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<QjsdRuntime>)>()
+external void qjsd_runtime_reset_peak(
+  ffi.Pointer<QjsdRuntime> rt,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<QjsdRuntime>)>()
+external int qjsd_runtime_memory_limit_hit(
+  ffi.Pointer<QjsdRuntime> rt,
+);
+
 @ffi.Native<ffi.Void Function(ffi.Pointer<QjsdRuntime>, ffi.Int64)>()
 external void qjsd_runtime_set_max_stack_size(
   ffi.Pointer<QjsdRuntime> rt,
@@ -109,12 +129,7 @@ external int qjsd_runtime_is_job_pending(
   ffi.Pointer<QjsdRuntime> rt,
 );
 
-@ffi.Native<
-  ffi.Int32 Function(
-    ffi.Pointer<QjsdRuntime>,
-    ffi.Pointer<ffi.Pointer<JSContext>>,
-  )
->()
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<QjsdRuntime>, ffi.Pointer<ffi.Pointer<JSContext>>)>()
 external int qjsd_runtime_execute_pending_job(
   ffi.Pointer<QjsdRuntime> rt,
   ffi.Pointer<ffi.Pointer<JSContext>> out_ctx,
@@ -168,12 +183,7 @@ external void qjsd_value_free(
   ffi.Pointer<QjsdValue> v,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>)>()
 external ffi.Pointer<QjsdValue> qjsd_value_dup(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
@@ -213,13 +223,7 @@ external ffi.Pointer<QjsdValue> qjsd_new_int64(
   int value,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Char>,
-    ffi.Size,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Char>, ffi.Size)>()
 external ffi.Pointer<QjsdValue> qjsd_new_string(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Char> utf8,
@@ -236,52 +240,28 @@ external ffi.Pointer<QjsdValue> qjsd_new_array(
   ffi.Pointer<JSContext> ctx,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Uint8>,
-    ffi.Size,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Uint8>, ffi.Size)>()
 external ffi.Pointer<QjsdValue> qjsd_new_array_buffer_copy(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Uint8> data,
   int len,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Uint8>,
-    ffi.Size,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Uint8>, ffi.Size)>()
 external ffi.Pointer<QjsdValue> qjsd_new_uint8_array_copy(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Uint8> data,
   int len,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Char>,
-    ffi.Pointer<ffi.Char>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>()
 external ffi.Pointer<QjsdValue> qjsd_new_error(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Char> name,
   ffi.Pointer<ffi.Char> message,
 );
 
-@ffi.Native<
-  ffi.Pointer<ffi.Char> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Pointer<ffi.Size>,
-  )
->()
+@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Pointer<ffi.Size>)>()
 external ffi.Pointer<ffi.Char> qjsd_to_cstring(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
@@ -294,13 +274,7 @@ external void qjsd_free_cstring(
   ffi.Pointer<ffi.Char> s,
 );
 
-@ffi.Native<
-  ffi.Int32 Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Pointer<ffi.Double>,
-  )
->()
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Pointer<ffi.Double>)>()
 external int qjsd_to_float64(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
@@ -313,39 +287,21 @@ external int qjsd_to_bool(
   ffi.Pointer<QjsdValue> v,
 );
 
-@ffi.Native<
-  ffi.Pointer<ffi.Uint8> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Pointer<ffi.Size>,
-  )
->()
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Pointer<ffi.Size>)>()
 external ffi.Pointer<ffi.Uint8> qjsd_get_bytes(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
   ffi.Pointer<ffi.Size> out_len,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Pointer<ffi.Char>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Pointer<ffi.Char>)>()
 external ffi.Pointer<QjsdValue> qjsd_get_property(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> obj,
   ffi.Pointer<ffi.Char> name,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Uint32,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Uint32)>()
 external ffi.Pointer<QjsdValue> qjsd_get_index(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> obj,
@@ -353,12 +309,7 @@ external ffi.Pointer<QjsdValue> qjsd_get_index(
 );
 
 @ffi.Native<
-  ffi.Int32 Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Pointer<ffi.Char>,
-    ffi.Pointer<QjsdValue>,
-  )
+  ffi.Int32 Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Pointer<ffi.Char>, ffi.Pointer<QjsdValue>)
 >()
 external int qjsd_set_property(
   ffi.Pointer<JSContext> ctx,
@@ -367,14 +318,7 @@ external int qjsd_set_property(
   ffi.Pointer<QjsdValue> value,
 );
 
-@ffi.Native<
-  ffi.Int32 Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-    ffi.Uint32,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>, ffi.Uint32, ffi.Pointer<QjsdValue>)>()
 external int qjsd_set_index(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> obj,
@@ -388,12 +332,7 @@ external int qjsd_get_length(
   ffi.Pointer<QjsdValue> obj,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>)>()
 external ffi.Pointer<QjsdValue> qjsd_object_keys(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> obj,
@@ -416,25 +355,14 @@ external ffi.Pointer<QjsdValue> qjsd_call(
   ffi.Pointer<ffi.Pointer<QjsdValue>> argv,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Char>,
-    ffi.Size,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Char>, ffi.Size)>()
 external ffi.Pointer<QjsdValue> qjsd_json_parse(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Char> utf8,
   int len,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>)>()
 external ffi.Pointer<QjsdValue> qjsd_json_stringify(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
@@ -459,25 +387,13 @@ external int qjsd_promise_state(
   ffi.Pointer<QjsdValue> v,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>)>()
 external ffi.Pointer<QjsdValue> qjsd_promise_result(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> v,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<ffi.Char>,
-    ffi.Int32,
-    ffi.Int32,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<ffi.Char>, ffi.Int32, ffi.Int32)>()
 external ffi.Pointer<QjsdValue> qjsd_new_host_function(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<ffi.Char> name,
@@ -491,12 +407,7 @@ external ffi.Pointer<QjsdValue> qjsd_argv_at(
   int index,
 );
 
-@ffi.Native<
-  ffi.Pointer<QjsdValue> Function(
-    ffi.Pointer<JSContext>,
-    ffi.Pointer<QjsdValue>,
-  )
->()
+@ffi.Native<ffi.Pointer<QjsdValue> Function(ffi.Pointer<JSContext>, ffi.Pointer<QjsdValue>)>()
 external ffi.Pointer<QjsdValue> qjsd_throw(
   ffi.Pointer<JSContext> ctx,
   ffi.Pointer<QjsdValue> value,

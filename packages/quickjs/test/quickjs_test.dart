@@ -207,14 +207,31 @@ void main() {
       final runtime = JsRuntime()..maxStackSize = safeStackLimit();
       addTearDown(runtime.dispose);
       final JsContext context = runtime.newContext();
-      final int baseline = runtime.memoryUsage().mallocSize;
+      final int baseline = runtime.allocatedBytes;
       final int limit = baseline + 2 * 1024 * 1024;
       runtime.memoryLimit = limit;
       check(() => context.eval('const a = []; for (;;) a.push(new Array(1000).fill(1));'))
           .throws<JsException>()
           .has((JsException e) => e.kind, 'kind')
           .equals(JsErrorKind.outOfMemory);
+      check(runtime.memoryLimitHit).isTrue();
+      check(runtime.peakAllocatedBytes).isLessOrEqual(limit);
       check(runtime.memoryUsage().mallocLimit).equals(limit);
+      runtime.clearInterrupt();
+      check(runtime.memoryLimitHit).isFalse();
+    });
+
+    test('memory exhausted inside a promise job is still reported as such', () {
+      final runtime = JsRuntime()..maxStackSize = safeStackLimit();
+      addTearDown(runtime.dispose);
+      final JsContext context = runtime.newContext();
+      runtime.memoryLimit = runtime.allocatedBytes + 1024 * 1024;
+      // Each step chains a new promise; the engine eventually cannot even
+      // allocate its error and rejects with `null`.
+      final JsValue p = context.eval('(function spin(n) { return Promise.resolve(n + 1).then(spin); })(0)');
+      while (runtime.executePendingJobs(maxJobs: 1000).morePending) {}
+      check(context.promiseState(p)).equals(JsPromiseState.rejected);
+      check(runtime.memoryLimitHit).isTrue();
     });
 
     test('limits are rejected when not positive', () {

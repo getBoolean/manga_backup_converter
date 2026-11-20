@@ -36,10 +36,94 @@ struct QjsdRuntime {
   qjsd_host_dispatch dispatch;
   int64_t deadline_ns;
   int32_t reason;
+  /* Allocator accounting: the memory limit is enforced here rather than by
+     the engine so a refused allocation is always observable. When the engine
+     cannot even allocate its "out of memory" error it throws `null`, which
+     inside a promise job is indistinguishable from `reject(null)`. */
+  size_t allocated;
+  size_t peak;
+  size_t limit; /* 0 = none */
+  int32_t memory_limit_hit;
   /* Nesting depth of engine entries; the stack top is captured only at the
      outermost entry so nested host callbacks cannot extend the JS stack. */
   int32_t depth;
 };
+
+/* --- Allocator ----------------------------------------------------------- */
+
+/* Each block carries its requested size in a header that keeps malloc's
+   alignment. */
+#define QJSD_HEADER 16
+
+static void *alloc_account(QjsdRuntime *r, unsigned char *block, size_t size) {
+  if (block == NULL) {
+    r->memory_limit_hit = 1;
+    return NULL;
+  }
+  *(size_t *)block = size;
+  r->allocated += size;
+  if (r->allocated > r->peak) r->peak = r->allocated;
+  return block + QJSD_HEADER;
+}
+
+static int over_limit(QjsdRuntime *r, size_t extra) {
+  if (r->limit != 0 && (extra > r->limit || r->allocated > r->limit - extra)) {
+    r->memory_limit_hit = 1;
+    return 1;
+  }
+  return 0;
+}
+
+static void *qa_malloc(void *opaque, size_t size) {
+  QjsdRuntime *r = (QjsdRuntime *)opaque;
+  if (size > SIZE_MAX - QJSD_HEADER || over_limit(r, size)) return NULL;
+  return alloc_account(r, (unsigned char *)malloc(size + QJSD_HEADER), size);
+}
+
+static void *qa_calloc(void *opaque, size_t count, size_t size) {
+  QjsdRuntime *r = (QjsdRuntime *)opaque;
+  if (size != 0 && count > (SIZE_MAX - QJSD_HEADER) / size) return NULL;
+  size_t total = count * size;
+  if (over_limit(r, total)) return NULL;
+  return alloc_account(r, (unsigned char *)calloc(1, total + QJSD_HEADER),
+                       total);
+}
+
+static void qa_free(void *opaque, void *ptr) {
+  if (ptr == NULL) return;
+  QjsdRuntime *r = (QjsdRuntime *)opaque;
+  unsigned char *block = (unsigned char *)ptr - QJSD_HEADER;
+  r->allocated -= *(size_t *)block;
+  free(block);
+}
+
+static void *qa_realloc(void *opaque, void *ptr, size_t size) {
+  QjsdRuntime *r = (QjsdRuntime *)opaque;
+  if (ptr == NULL) return qa_malloc(opaque, size);
+  if (size == 0) {
+    qa_free(opaque, ptr);
+    return NULL;
+  }
+  unsigned char *block = (unsigned char *)ptr - QJSD_HEADER;
+  size_t old = *(size_t *)block;
+  if (size > SIZE_MAX - QJSD_HEADER) return NULL;
+  if (size > old && over_limit(r, size - old)) return NULL;
+  unsigned char *grown = (unsigned char *)realloc(block, size + QJSD_HEADER);
+  if (grown == NULL) {
+    r->memory_limit_hit = 1;
+    return NULL;
+  }
+  r->allocated -= old;
+  return alloc_account(r, grown, size);
+}
+
+static size_t qa_usable_size(const void *ptr) {
+  if (ptr == NULL) return 0;
+  return *(const size_t *)((const unsigned char *)ptr - QJSD_HEADER);
+}
+
+static const JSMallocFunctions qjsd_malloc_funcs = {
+    qa_calloc, qa_malloc, qa_free, qa_realloc, qa_usable_size};
 
 /* --- Helpers ------------------------------------------------------------ */
 
@@ -189,7 +273,7 @@ static int interrupt_handler(JSContext *ctx, void *opaque) {
 QjsdRuntime *qjsd_runtime_new(QjsdToken *token, qjsd_host_dispatch dispatch) {
   QjsdRuntime *r = (QjsdRuntime *)calloc(1, sizeof(QjsdRuntime));
   if (r == NULL) return NULL;
-  r->rt = JS_NewRuntime();
+  r->rt = JS_NewRuntime2(&qjsd_malloc_funcs, r);
   if (r->rt == NULL) {
     free(r);
     return NULL;
@@ -213,8 +297,18 @@ void qjsd_runtime_free(QjsdRuntime *rt) {
 }
 
 void qjsd_runtime_set_memory_limit(QjsdRuntime *rt, int64_t bytes) {
-  /* QuickJS-ng treats 0 as unlimited. */
-  JS_SetMemoryLimit(rt->rt, bytes < 0 ? 0 : (size_t)bytes);
+  /* Enforced by the allocator above; the engine's own limit stays off. */
+  rt->limit = bytes <= 0 ? 0 : (size_t)bytes;
+}
+
+int64_t qjsd_runtime_allocated(QjsdRuntime *rt) { return (int64_t)rt->allocated; }
+
+int64_t qjsd_runtime_peak_allocated(QjsdRuntime *rt) { return (int64_t)rt->peak; }
+
+void qjsd_runtime_reset_peak(QjsdRuntime *rt) { rt->peak = rt->allocated; }
+
+int32_t qjsd_runtime_memory_limit_hit(QjsdRuntime *rt) {
+  return rt->memory_limit_hit;
 }
 
 void qjsd_runtime_set_max_stack_size(QjsdRuntime *rt, int64_t bytes) {
@@ -229,6 +323,7 @@ int32_t qjsd_runtime_interrupt_reason(QjsdRuntime *rt) { return rt->reason; }
 
 void qjsd_runtime_clear_interrupt(QjsdRuntime *rt) {
   rt->reason = QJSD_INTERRUPT_NONE;
+  rt->memory_limit_hit = 0;
 }
 
 void qjsd_runtime_run_gc(QjsdRuntime *rt) { JS_RunGC(rt->rt); }
@@ -237,7 +332,7 @@ void qjsd_runtime_memory_usage(QjsdRuntime *rt, int64_t *out) {
   JSMemoryUsage usage;
   JS_ComputeMemoryUsage(rt->rt, &usage);
   out[0] = usage.malloc_size;
-  out[1] = usage.malloc_limit;
+  out[1] = (int64_t)rt->limit;
   out[2] = usage.memory_used_size;
   out[3] = usage.malloc_count;
 }

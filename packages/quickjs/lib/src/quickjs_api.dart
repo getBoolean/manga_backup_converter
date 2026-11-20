@@ -158,8 +158,8 @@ final class JsRuntime {
 
   bool get isDisposed => _ptr == nullptr;
 
-  /// Engine heap limit in bytes, or `null` for none. Allocations past it
-  /// throw an uncatchable out-of-memory error.
+  /// Limit on [allocatedBytes], or `null` for none. Allocations past it fail
+  /// with an out-of-memory error and set [memoryLimitHit].
   int? get memoryLimit => _memoryLimit;
   set memoryLimit(int? bytes) {
     if (bytes != null && bytes <= 0) throw ArgumentError.value(bytes, 'bytes', 'must be positive');
@@ -186,7 +186,22 @@ final class JsRuntime {
   /// Why the last interrupt fired; sticky until [clearInterrupt].
   JsInterruptReason get interruptReason => JsInterruptReason.values[b.qjsd_runtime_interrupt_reason(_checked)];
 
+  /// Whether an allocation was refused by [memoryLimit] since the last
+  /// [clearInterrupt]. Authoritative even when the engine could not allocate
+  /// an error and threw `null` instead.
+  bool get memoryLimitHit => b.qjsd_runtime_memory_limit_hit(_checked) != 0;
+
+  /// Clears [interruptReason] and [memoryLimitHit].
   void clearInterrupt() => b.qjsd_runtime_clear_interrupt(_checked);
+
+  /// Bytes the engine currently holds from the system allocator (O(1)). This
+  /// is what [memoryLimit] bounds.
+  int get allocatedBytes => b.qjsd_runtime_allocated(_checked);
+
+  /// Highest [allocatedBytes] since creation or [resetPeakAllocated].
+  int get peakAllocatedBytes => b.qjsd_runtime_peak_allocated(_checked);
+
+  void resetPeakAllocated() => b.qjsd_runtime_reset_peak(_checked);
 
   bool get isJobPending => b.qjsd_runtime_is_job_pending(_checked) != 0;
 
@@ -430,9 +445,9 @@ final class JsContext {
   /// Converts a JS value to JSON-like Dart data. `undefined` and `null` map
   /// to `null`, `ArrayBuffer` and typed arrays to a [Uint8List] copy, errors
   /// to `{name, message, stack}`. Functions, symbols and promises throw
-  /// [ArgumentError]. Nesting deeper than [maxDepth] throws [StateError].
+  /// [JsConversionException], as does nesting deeper than [maxDepth].
   Object? toDart(JsValue value, {int maxDepth = 64}) {
-    if (maxDepth < 0) throw StateError('JS value nests too deeply to convert');
+    if (maxDepth < 0) throw const JsConversionException('JS value nests too deeply to convert');
     switch (value.kind) {
       case JsValueKind.undefined || JsValueKind.nullValue:
         return null;
@@ -474,7 +489,7 @@ final class JsContext {
           JsValueKind.promise ||
           JsValueKind.exception ||
           JsValueKind.other:
-        throw ArgumentError('A JS ${value.kind.name} cannot be converted to Dart');
+        throw JsConversionException('A JS ${value.kind.name} cannot be converted to Dart');
     }
   }
 
@@ -548,6 +563,7 @@ final class JsContext {
       return JsException(name: 'InternalError', message: 'out of memory', kind: JsErrorKind.outOfMemory);
     }
     final JsInterruptReason reason = runtime.interruptReason;
+    final bool memoryLimitHit = runtime.memoryLimitHit;
     final uncatchable = b.qjsd_is_uncatchable(raw) != 0;
     // Describing the error allocates and may run getters: lift the memory
     // limit and deadline for the duration, then restore them.
@@ -557,7 +573,13 @@ final class JsContext {
     b.qjsd_runtime_set_deadline(runtime._ptr, 0);
     final exception = JsValue._owned(this, raw);
     try {
-      return JsException.describe(this, exception, interruptReason: reason, uncatchable: uncatchable);
+      return JsException.describe(
+        this,
+        exception,
+        interruptReason: reason,
+        uncatchable: uncatchable,
+        memoryLimitHit: memoryLimitHit,
+      );
     } finally {
       exception.dispose();
       b.qjsd_runtime_set_memory_limit(runtime._ptr, limit ?? -1);
@@ -771,6 +793,7 @@ final class JsException implements Exception {
     JsValue error, {
     required JsInterruptReason interruptReason,
     required bool uncatchable,
+    bool memoryLimitHit = false,
   }) {
     var name = 'Error';
     String message;
@@ -794,6 +817,7 @@ final class JsException implements Exception {
     }
     final JsErrorKind kind = switch ((name, message)) {
       _ when uncatchable && interruptReason != JsInterruptReason.none => JsErrorKind.interrupted,
+      _ when memoryLimitHit => JsErrorKind.outOfMemory,
       (_, 'interrupted') when interruptReason != JsInterruptReason.none => JsErrorKind.interrupted,
       (_, 'out of memory') => JsErrorKind.outOfMemory,
       ('RangeError', 'Maximum call stack size exceeded') => JsErrorKind.stackOverflow,
@@ -830,4 +854,14 @@ final class JsAllocationError implements Exception {
 
   @override
   String toString() => 'JsAllocationError: could not allocate a QuickJS $what';
+}
+
+/// A JS value has no Dart data representation.
+final class JsConversionException implements Exception {
+  const JsConversionException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'JsConversionException: $message';
 }

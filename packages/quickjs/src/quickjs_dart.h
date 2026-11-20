@@ -116,19 +116,32 @@ QJSD_API QjsdRuntime *qjsd_runtime_new(QjsdToken *token,
                                        qjsd_host_dispatch dispatch);
 /* Frees the runtime. All contexts and values must be freed first. */
 QJSD_API void qjsd_runtime_free(QjsdRuntime *rt);
-/* Memory limit in bytes; a negative value removes the limit. */
+/*
+ * Memory limit in bytes on what the engine holds from the system allocator
+ * (headers included); 0 or negative removes it. Enforced by the wrapper's
+ * allocator so a refusal is always recorded (qjsd_runtime_memory_limit_hit).
+ */
 QJSD_API void qjsd_runtime_set_memory_limit(QjsdRuntime *rt, int64_t bytes);
+/* Bytes currently held by the engine, O(1). */
+QJSD_API int64_t qjsd_runtime_allocated(QjsdRuntime *rt);
+/* Highest qjsd_runtime_allocated since creation or the last reset. */
+QJSD_API int64_t qjsd_runtime_peak_allocated(QjsdRuntime *rt);
+QJSD_API void qjsd_runtime_reset_peak(QjsdRuntime *rt);
+/* 1 if an allocation was refused since the last clear; cleared with the
+   interrupt reason. */
+QJSD_API int32_t qjsd_runtime_memory_limit_hit(QjsdRuntime *rt);
 /* JS stack limit in bytes; 0 disables the check. */
 QJSD_API void qjsd_runtime_set_max_stack_size(QjsdRuntime *rt, int64_t bytes);
 /* Absolute qjsd_now_ns() deadline; 0 removes it. */
 QJSD_API void qjsd_runtime_set_deadline(QjsdRuntime *rt, int64_t deadline_ns);
 /* Why the last interrupt fired (QJSD_INTERRUPT_*); sticky until cleared. */
 QJSD_API int32_t qjsd_runtime_interrupt_reason(QjsdRuntime *rt);
+/* Clears the interrupt reason and the memory-limit flag. */
 QJSD_API void qjsd_runtime_clear_interrupt(QjsdRuntime *rt);
 QJSD_API void qjsd_runtime_run_gc(QjsdRuntime *rt);
 /*
- * Writes 4 values to `out`: malloc_size, malloc_limit, memory_used_size,
- * malloc_count.
+ * Writes 4 values to `out`: the engine's malloc_size, the configured limit,
+ * memory_used_size and malloc_count (JS_ComputeMemoryUsage; walks the heap).
  */
 QJSD_API void qjsd_runtime_memory_usage(QjsdRuntime *rt, int64_t *out);
 QJSD_API int32_t qjsd_runtime_is_job_pending(QjsdRuntime *rt);
