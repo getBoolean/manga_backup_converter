@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:checks/checks.dart';
 import 'package:code_assets/code_assets.dart';
-import 'package:quickjs/src/build/quickjs_build_spec.dart';
+import 'package:quickjs/src/quickjs_build_spec.dart';
 import 'package:test/scaffolding.dart';
 
 Directory packageDir() {
@@ -63,6 +63,12 @@ void main() {
       ]) {
         check(hook.contains(banned)).isFalse();
       }
+    });
+
+    test('the submodule is checked out at the pinned commit', () {
+      final String? commit = readSubmoduleCommit(Directory('${packageDir().path}/vendor/quickjs'));
+      check(commit).equals(quickJsPinnedCommit);
+      check(read('hook/build.dart')).contains('quickJsPinnedCommit');
     });
 
     test('the hook fails clearly when the submodule is missing', () {

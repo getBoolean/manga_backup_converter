@@ -80,6 +80,8 @@ A cap that lands below the measured need is reported in `QuickJsSizing.warnings`
   - `/O1`: 3.8 KB per frame, but calibration 65% slower.
   - `/Os`: 15.4 KB per frame and 3× slower.
 
-  The hook keeps `/O2`. If real bundles need deeper recursion on Windows, U6 should evaluate a clang-cl build, or running QuickJS on a native thread with a larger stack. The second option needs a synchronous host-call channel, because isolate-local FFI callbacks cannot run on a foreign thread.
+  - `/O2 /Ob1`: no change (109 frames), so inlining is not the cause.
+
+  The same ceiling holds under `dart run` (1,042,880 bytes of thread stack, 108 frames at half), not only under `flutter_tester`. AOT executables were not measured. For comparison, the former `BooleanExtra/quickjs-dart` engine (Bellard QuickJS, MinGW build, engine-default stack limit) completed 600-deep recursion in the same probe and threw `InternalError: stack overflow` at 800. So Aidoku JS evaluation, which now runs with half the thread stack as its limit, supports roughly a sixth of the former recursion depth on Windows. The hook keeps `/O2`. On Windows, `native_toolchain_c` 0.17.4 resolves only `cl.exe` unless the launcher supplies a compiler, so a clang-cl build would need the hook to drive the compiler itself. If real bundles need deeper recursion on Windows, U6 should evaluate a clang-cl build, or running QuickJS on a native thread with a larger stack. The second option needs a synchronous host-call channel, because isolate-local FFI callbacks cannot run on a foreign thread.
 - **Host awaits cost about 95 µs each,** one event-loop turn per await. The `await-loop` workload is the slowest operation for that reason. It sets the deadline basis until real bundles replace it.
 - Clang targets (Android, Apple, Linux) have not been measured. Their frame size and thread stacks differ, which is exactly why the rule measures them at startup.

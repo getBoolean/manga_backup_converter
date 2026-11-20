@@ -148,6 +148,7 @@ final class SourceJsRuntime {
     final int deadlineNs = QuickJs.nowNanoseconds() + limits.operationDeadline.inMicroseconds * 1000;
     _token.reset();
     _runtime.clearInterrupt();
+    bridge.endOperation();
     // Cancellation while this isolate waits interrupts JS on resumption.
     final StreamSubscription<void> onCancel = token.whenCancelled.asStream().listen((_) => requestInterrupt());
     try {
@@ -177,6 +178,7 @@ final class SourceJsRuntime {
       if (e.reason == PaperbackFailureReason.memoryLimit) _close('memory limit exceeded');
       rethrow;
     } finally {
+      if (!_closed) bridge.endOperation();
       await onCancel.cancel();
       _busy = false;
     }

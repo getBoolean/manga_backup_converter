@@ -93,6 +93,28 @@ void main() {
     check(took).isLessThan(deadline + overshoot);
   });
 
+  test('host calls left by a timed-out operation do not leak into the next one', () async {
+    final client = ControlledHttp();
+    installHttpHost(runtime, client);
+    final (PaperbackRuntimeException first, _) = await expectFailure(
+      () => runtime.evaluate(
+        '__paperbackHost.request({ url: "https://example.test/hang" }).then(() => { globalThis.leaked = true; })',
+      ),
+    );
+    check(first.reason).equals(PaperbackFailureReason.deadline);
+    check(runtime.bridge.pendingHostCalls).equals(0);
+    client.completeAll('late');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    // The next operation sees no stale host call: a promise that can never
+    // settle fails at once instead of waiting out the deadline.
+    final (PaperbackRuntimeException second, Duration took) = await expectFailure(
+      () => runtime.evaluate('new Promise(() => {})'),
+    );
+    check(second.reason).equals(PaperbackFailureReason.neverSettles);
+    check(took).isLessThan(deadline);
+    check(await runtime.evaluate('typeof leaked')).equals('undefined');
+  });
+
   test('unbounded recursion stops at the stack limit', () async {
     final (PaperbackRuntimeException e, _) = await expectFailure(
       () => runtime.evaluate('function r(n) { return r(n + 1) + 1; } r(0)'),

@@ -197,6 +197,20 @@ final class PromiseBridge {
   /// not let I/O run.
   static Future<void> _timerTurn() => Future<void>.delayed(Duration.zero);
 
+  /// Ends the current operation: drops its pending host calls (their late
+  /// results are ignored) and any unreported fatal failure, so nothing leaks
+  /// into the next operation. Source code cannot keep background work alive
+  /// between operations.
+  @internal
+  void endOperation() {
+    for (final _PendingHostCall call in _pending.values) {
+      call.dispose();
+    }
+    _pending.clear();
+    _fatal = null;
+    _signal();
+  }
+
   /// Drops every pending call and wakes any waiter. Called by the runtime
   /// before it frees its JS values.
   @internal

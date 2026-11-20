@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:aidoku_plugin_loader/src/aidoku/libs/host_store.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/libs/import_context.dart';
 import 'package:quickjs/quickjs.dart';
@@ -16,11 +18,15 @@ Map<String, Function> buildJsImports(ImportContext ctx) {
         final JsRuntime rt = runtime ??= _newRuntime();
         final JsContext context = rt.newContext();
         _installConsole(context, ctx);
+        final Set<Timer> timers = _installSetTimeout(context, ctx);
         liveContexts++;
         return ctx.store.add(
           JsContextResource(
             context: context,
             onDispose: () {
+              for (final t in timers) {
+                t.cancel();
+              }
               context.dispose();
               liveContexts--;
               // Dispose the runtime when all contexts are gone.
@@ -130,6 +136,44 @@ void _installConsole(JsContext context, ImportContext ctx) {
   } finally {
     global.dispose();
   }
+}
+
+/// Installs `setTimeout(fn, delayMs)`, as the former engine did: `fn` runs
+/// later on this isolate's event loop and the call returns `undefined`.
+/// Unlike the former engine, pending timers are cancelled when the context
+/// is disposed, so a callback never runs against a freed context.
+Set<Timer> _installSetTimeout(JsContext context, ImportContext ctx) {
+  final timers = <Timer>{};
+  final JsValue global = context.global;
+  try {
+    global.setProperty(
+      'setTimeout',
+      context.newHostFunction('setTimeout', (JsContext c, JsValue self, List<JsValue> args) {
+        if (args.isEmpty || args.first.kind != JsValueKind.function) {
+          throw ArgumentError('not a function');
+        }
+        final JsValue callback = args.first.dup();
+        final int delay = args.length > 1 ? args[1].toDouble().toInt() : 0;
+        late final Timer timer;
+        timer = Timer(Duration(milliseconds: delay < 0 ? 0 : delay), () {
+          timers.remove(timer);
+          if (c.isDisposed) return;
+          try {
+            c.call(callback).dispose();
+          } on JsException catch (e) {
+            ctx.onLog?.call('[CB] js setTimeout callback failed: $e');
+          } finally {
+            callback.dispose();
+          }
+        });
+        timers.add(timer);
+        return null;
+      }, length: 2),
+    );
+  } finally {
+    global.dispose();
+  }
+  return timers;
 }
 
 String _safeString(JsValue value) {

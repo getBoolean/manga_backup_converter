@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
-import 'package:quickjs/src/build/quickjs_build_spec.dart';
+import 'package:quickjs/src/quickjs_build_spec.dart';
 
 /// Compiles the vendored QuickJS-ng submodule and the Dart FFI wrapper into
 /// one bundled dynamic library (KTD24). Nothing is downloaded.
@@ -21,6 +21,22 @@ void main(List<String> args) async {
         'Run `git submodule update --init --recursive`.',
       );
     }
+
+    // Build provenance is the pinned submodule commit (KTD24).
+    final String? commit = readSubmoduleCommit(Directory.fromUri(input.packageRoot.resolve('vendor/quickjs/')));
+    if (commit != null && commit != quickJsPinnedCommit) {
+      throw StateError(
+        'vendor/quickjs is checked out at $commit, but the package is pinned to '
+        '$quickJsPinnedCommit. Run `git submodule update --init --recursive`, or update '
+        'quickJsPinnedCommit together with the submodule gitlink.',
+      );
+    }
+    // Hook stdout is the build log; this line is the provenance record.
+    // ignore: avoid_print
+    print(
+      'quickjs: compiling QuickJS-ng from submodule commit ${commit ?? '$quickJsPinnedCommit (no git metadata)'} '
+      'for ${codeConfig.targetOS}/${codeConfig.targetArchitecture}',
+    );
 
     final cbuilder = CBuilder.library(
       name: 'quickjs',
