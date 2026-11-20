@@ -46,9 +46,10 @@ that every external class, method and field the six qualification artifacts refe
   so two conversions can differ in bytes but not in entries or behaviour. The supervisor re-hashes the
   staged output, so byte identity is not relied on.
 - **Trust identity.** keiyoushi's JAR and APK certificates both equal the published fingerprint
-  `9add655a…4da2`, so they share one trust identity. The trusted signer currently reaches the worker
-  through `--trusted-signer` / `--trust-file` or an optional `trustedSigners` array in the
-  `artifact.prepare` payload (see protocol gaps).
+  `9add655a…4da2`, so they share one trust identity. The trusted signer reaches the worker only in
+  the `trustedSigners` array of the `artifact.prepare` request (protocol 1.1): the certificate SHA-256
+  fingerprints from the supervisor's stored trust anchor. A request without it is refused for kinds
+  `jar` and `apk`; the worker has no command-line or file trust input.
 
 ### Class loading
 
@@ -72,8 +73,11 @@ classes in different packages do not collide, and unloading a package releases i
 | `JavaScriptEngine` | **unsupported**: fails with `capability-unavailable` (`host.api:eu.kanade.tachiyomi.network.JavaScriptEngine.evaluate`). None of the qualification extensions call it. |
 | Cloudflare | challenge pages are detected and reported `interaction-required` (`host.browser.show`); solving them through the browser port joins at U8 |
 
-Settings keys: a plain key seeds every preference store the package opens; `storeName/key` (for example
-`source_2499283573021220255/lang`) seeds one store. Values keep their JSON types (string, bool, int).
+Settings: `SettingsPayload.values`/`secrets` seed every preference store the package opens.
+`SettingsPayload.sources` (protocol 1.1) maps a `sourceId` to that source's own `values`/`secrets`, which
+override the package-wide keys in the store the source opens (`source_<id>`). Keys are plain; no key
+carries a store or source prefix. Values keep their JSON types (string, bool, int, and an array of
+strings for a string set read through `getStringSet`).
 
 Unsupported Android APIs throw a named `UnsupportedHostApi`, reported as `capability-unavailable` with
 `operation = host.api:<Class.member>`. A missing host class is `capability-unavailable` with
@@ -116,19 +120,15 @@ Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.js
 - No CI job runs these JVM tests or the benchmark smoke yet.
 - Live transcripts of the one-time captures: `docs/validation/source-runners/desktop/captures/`.
 
-### Protocol gaps (changes needed in `packages/source_runtime`, not made here)
+### Protocol 1.1 (resolved gaps)
 
-1. **Trusted signer for `artifact.prepare`.** Add `trustedSigners: [string]` (lowercase hex certificate
-   SHA-256, required for kinds `jar` and `apk`) to `ArtifactPrepareRequest`. Interim: worker
-   `--trusted-signer`/`--trust-file`; the worker already reads the field when present.
-2. **String-set preferences.** Extensions read `SharedPreferences.getStringSet`; `SettingsPayload.values`
-   allows only string, bool and int. Proposal: allow an array of strings as a value type. Interim: string
-   sets come only from extension defaults and writes.
-3. **Per-source settings in multi-source packages.** No wire convention addresses one source of a
-   package. Interim convention: `storeName/key` keys (above); proposal: document it in protocol-v1.md.
-4. **Handshake limits.** The worker adds `limits`, `sizing`, `networkMode`, `javaVersion`,
-   `hostCompatibility` to the handshake reply. `HandshakeResponse` ignores them; the supervisor still
-   uses its own limits. Proposal: decode `limits` and adopt them (KTD25).
-5. **Page-to-host message surface.** The BrowserPort contract does not say how page script posts to a
-   named channel. The shim needs `window.<name>.postMessage(string)` (Android's
-   `addJavascriptInterface` shape) for each enabled channel; U2's helper should expose that.
+The worker negotiates protocol minor 1.1 (`packages/source_runtime/doc/protocol-v1.md`), which closed
+the gaps this inventory used to list:
+
+1. **Trusted signer.** `artifact.prepare` carries `trustedSigners: [string]` (lowercase hex certificate
+   SHA-256); it is the only trust input.
+2. **String-set preferences.** A `SettingsPayload` value can be an array of strings (a set).
+3. **Per-source settings.** `SettingsPayload.sources` addresses one source of a multi-source package.
+4. **Handshake limits.** The worker's `limits` and `sizing` are decoded by the supervisor (KTD25).
+5. **Page-to-host messages.** The browser message channel contract defines
+   `window.<name>.postMessage(string)` for each enabled channel.
