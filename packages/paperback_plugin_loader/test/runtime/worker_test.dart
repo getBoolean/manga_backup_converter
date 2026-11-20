@@ -12,6 +12,7 @@ import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 
 import '../../bin/paperback_source_worker.dart' show parseLimitArguments;
+import '../e2e/settings_echo_worker.dart' show SettingsEchoAdapter;
 import 'test_support.dart';
 
 /// A stand-in adapter (U6 supplies the real 0.8/0.9 adapters): it evaluates
@@ -137,19 +138,55 @@ void main() {
     return file.path;
   }
 
-  test('handshake reports protocol 1, no API families yet, and the limits in effect', () async {
+  test('handshake reports protocol 1.1, no API families yet, and the limits in effect', () async {
     final harness = WorkerHarness();
     final ProtocolFrame reply = await harness.request(
       'handshake',
-      payload: const HandshakeRequest(protocolVersions: <int>[1], maxFrameBytes: protocolMaxFrameBytes).toJson(),
+      payload: const HandshakeRequest(
+        protocolVersions: <int>[1],
+        protocolMinor: 1,
+        maxFrameBytes: protocolMaxFrameBytes,
+      ).toJson(),
     );
     final response = HandshakeResponse.fromJson(reply.ok!);
     check(response.protocolVersion).equals(1);
+    check(response.protocolMinor).equals(1);
     check(response.worker).equals('paperback');
     check(response.pid).equals(4242);
     check(response.capabilities.apiFamilies).isEmpty();
-    check(reply.ok!['limits']).isA<Map<String, Object?>>().containsKey('memoryLimitBytes');
+    final WorkerReportedLimits limits = response.limits!;
+    check(limits.fields).containsKey('memoryLimitBytes');
+    check(limits.operationDeadline).equals(const Duration(milliseconds: 500));
+    // No benchmark evidence for these, so they are not reported.
+    check(limits.poolSize).isNull();
+    check(limits.cancelGrace).isNull();
+    check(limits.interactionTimeout).isNull();
+    check(limits.shutdownGrace).isNull();
     await harness.close();
+  });
+
+  test('handshake answers the lower of the offered minor and 1', () async {
+    for (final (int offer, int expected) in const <(int, int)>[(0, 0), (1, 1), (5, 1)]) {
+      final harness = WorkerHarness();
+      final ProtocolFrame reply = await harness.request(
+        'handshake',
+        payload: HandshakeRequest(
+          protocolVersions: const <int>[1],
+          protocolMinor: offer,
+          maxFrameBytes: protocolMaxFrameBytes,
+        ).toJson(),
+      );
+      check(HandshakeResponse.fromJson(reply.ok!).protocolMinor).equals(expected);
+      await harness.close();
+    }
+  });
+
+  test('the reported operation deadline rounds up to whole milliseconds', () {
+    final WorkerReportedLimits limits = reportedLimits(
+      testLimits(operationDeadline: const Duration(microseconds: 1200001)),
+    );
+    check(limits.operationDeadline).equals(const Duration(milliseconds: 1201));
+    check(limits.fields['operationDeadlineMicros']).equals(1200001);
   });
 
   test('a handshake without protocol 1 is refused', () async {
@@ -213,6 +250,112 @@ void main() {
     final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
     final ProtocolFrame reply = await harness.request('search', pkg: 'pkg.none', payload: searchPayload('x'));
     check(reply.error!['code']).equals('runtime-unavailable');
+    await harness.close();
+  });
+
+  test('unloading an absent package is runtime-unavailable; unloading a loaded one succeeds once', () async {
+    final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
+    final ProtocolFrame absent = await harness.request('package.unload', pkg: 'pkg.none');
+    check(absent.error!['code']).equals('runtime-unavailable');
+    await harness.request(
+      'package.load',
+      pkg: 'pkg.test',
+      payload: loadPayload(script('function search(q) { return q; }')),
+    );
+    check((await harness.request('package.unload', pkg: 'pkg.test')).ok).isNotNull().isEmpty();
+    check((await harness.request('package.unload', pkg: 'pkg.test')).error!['code']).equals('runtime-unavailable');
+    await harness.close();
+  });
+
+  test('a per-package operation without pkg is a protocol violation', () async {
+    final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
+    final ProtocolFrame reply = await harness.request('search', payload: searchPayload('x'));
+    check(reply.error!['code']).equals('protocol-violation');
+    await harness.close();
+  });
+
+  test('artifact.prepare needs no loaded package and is unsupported-api for Paperback', () async {
+    final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
+    final ProtocolFrame reply = await harness.request(
+      'artifact.prepare',
+      pkg: 'pkg.none',
+      payload: ArtifactPrepareRequest(
+        artifact: const ArtifactBinding(sha256: 'ab12', kind: 'paperback-bundle', version: '1.0.0'),
+        inputPath: 'in',
+        outputPath: 'out',
+        trustedSigners: <String>['ab' * 32],
+      ).toJson(),
+    );
+    check(reply.error!['code']).equals('unsupported-api');
+    await harness.close();
+  });
+
+  test('string-set and source-scoped settings reach the adapter on load and settings.update', () async {
+    final harness = WorkerHarness(adapter: SettingsEchoAdapter());
+    Future<List<String>> echo(String sourceId) async {
+      final ProtocolFrame reply = await harness.request(
+        'search',
+        pkg: 'pkg.test',
+        payload: WorkerSearchRequest(
+          source: SourceIdentity(
+            ecosystem: 'paperback',
+            packageId: 'pkg.test',
+            sourceId: sourceId,
+            artifact: const ArtifactBinding(sha256: 'ab12', kind: 'paperback-bundle', version: '1.0.0'),
+          ),
+          settingsRevision: 'r1',
+          request: const SearchRequest(query: 'q'),
+        ).toJson(),
+      );
+      return WorkerSearchResponse.fromJson(reply.ok!).warnings;
+    }
+
+    final settings = SettingsSnapshot(
+      values: const <String, Object>{
+        'lang': 'en',
+        'tags': <String>['b', 'a', 'b'],
+      },
+      sources: <String, SourceScopedSettings>{
+        'two': SourceScopedSettings(
+          values: const <String, Object>{
+            'tags': <String>['z'],
+          },
+          secrets: const <String, String>{'token': 't'},
+        ),
+      },
+    );
+    final ProtocolFrame load = await harness.request(
+      'package.load',
+      pkg: 'pkg.test',
+      payload: PackageLoadRequest(
+        artifact: const ArtifactBinding(sha256: 'ab12', kind: 'paperback-bundle', version: '1.0.0'),
+        path: 'unused',
+        settings: SettingsPayload.fromSnapshot(settings),
+      ).toJson(),
+    );
+    check(load.error).isNull();
+    check(await echo('one')).deepEquals(<String>['values={"lang":"en","tags":["a","b"]}', 'secrets=']);
+    check(await echo('two')).deepEquals(<String>['values={"lang":"en","tags":["z"]}', 'secrets=token']);
+    final ProtocolFrame update = await harness.request(
+      'settings.update',
+      pkg: 'pkg.test',
+      payload: SettingsUpdateRequest(
+        settings: SettingsPayload.fromSnapshot(
+          SettingsSnapshot(
+            sources: <String, SourceScopedSettings>{
+              'one': SourceScopedSettings(
+                values: const <String, Object>{
+                  'tags': <String>['c'],
+                },
+              ),
+            },
+          ),
+        ),
+      ).toJson(),
+    );
+    check(update.ok).isNotNull().isEmpty();
+    check(await echo('one')).deepEquals(<String>['values={"tags":["c"]}', 'secrets=']);
+    check(await echo('two')).deepEquals(<String>['values={}', 'secrets=']);
     await harness.close();
   });
 

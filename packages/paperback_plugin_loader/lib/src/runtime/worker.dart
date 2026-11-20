@@ -25,7 +25,28 @@ abstract interface class PaperbackPackageAdapter {
   );
 }
 
-/// The Paperback worker: speaks protocol v1 over `input`/`output` (KTD4) and
+/// Highest minor version of protocol 1 this worker implements: 1.1 adds
+/// string-set settings and source scopes (`SettingsPayload.sources`), which
+/// this worker passes to its adapter, and handshake `limits`. Kept local so a
+/// newer `source_runtime` cannot make the worker claim a minor it does not
+/// implement.
+const int paperbackProtocolMinor = 1;
+
+/// The limits this worker reports in its handshake (protocol 1.1, KTD25):
+/// the QuickJS limits as runtime-specific fields, plus the standard limit
+/// names the QuickJS benchmark backs.
+///
+/// Only `operationDeadlineMs` is backed: it is the sizing rule's operation
+/// deadline (`deriveQuickJsLimits`), rounded up to whole milliseconds. The
+/// benchmark measures nothing for `poolSize`, `cancelGraceMs`,
+/// `interactionTimeoutMs` or `shutdownGraceMs`, so they are left out rather
+/// than invented.
+WorkerReportedLimits reportedLimits(PaperbackRuntimeLimits limits) => WorkerReportedLimits(
+  operationDeadline: Duration(milliseconds: (limits.operationDeadline.inMicroseconds + 999) ~/ 1000),
+  fields: limits.toJson(),
+);
+
+/// The Paperback worker: speaks protocol 1.1 over `input`/`output` (KTD4) and
 /// owns one QuickJS runtime per loaded package on this isolate (KTD2).
 ///
 /// Cancellation: a `cancel` frame cancels the operation and requests the
@@ -114,16 +135,20 @@ final class PaperbackSourceWorker {
           _reply(frame, error: const ProtocolViolationFailure('Worker speaks protocol $protocolVersion only').toWire());
           return;
         }
-        final Map<String, Object?> ok = HandshakeResponse(
-          protocolVersion: protocolVersion,
-          worker: 'paperback',
-          workerVersion: workerVersion,
-          pid: pid,
-          capabilities: WorkerCapabilities(apiFamilies: adapter?.apiFamilies ?? const <String>{}),
-        ).toJson();
-        // Readers ignore unknown fields; record the limits in effect (KTD25).
-        ok['limits'] = limits.toJson();
-        _reply(frame, ok: ok);
+        _reply(
+          frame,
+          ok: HandshakeResponse(
+            protocolVersion: protocolVersion,
+            protocolMinor: request.protocolMinor < paperbackProtocolMinor
+                ? request.protocolMinor
+                : paperbackProtocolMinor,
+            worker: 'paperback',
+            workerVersion: workerVersion,
+            pid: pid,
+            capabilities: WorkerCapabilities(apiFamilies: adapter?.apiFamilies ?? const <String>{}),
+            limits: reportedLimits(limits),
+          ).toJson(),
+        );
       case ShutdownRequest():
         _reply(frame, ok: const EmptyPayload().toJson());
         unawaited(_finish());
@@ -133,11 +158,12 @@ final class PaperbackSourceWorker {
   }
 
   Future<void> _servePackageOperation(ProtocolFrame frame, WorkerRequest<ProtocolPayload> request) async {
-    final String? packageId = frame.packageId;
-    if (packageId == null) {
-      _reply(frame, error: ProtocolViolationFailure('${frame.op} requires pkg').toWire());
+    final SourceFailure? refused = request.admissionFailure(packageId: frame.packageId, isLoaded: _isLoaded);
+    if (refused != null) {
+      _reply(frame, error: refused.toWire());
       return;
     }
+    final String packageId = frame.packageId!;
     final cancel = CancellationSource();
     final op = _InFlight(cancel, _packages[packageId]);
     _inFlight[frame.id] = op;
@@ -174,6 +200,10 @@ final class PaperbackSourceWorker {
           runtime.dispose();
           rethrow;
         }
+      case ArtifactPrepareRequest():
+        // Paperback bundles are verified by the adapter at load; there is no
+        // prepare step (KTD5 covers Tachi artifacts).
+        throw const _WorkerFailure(UnsupportedApiFailure('The Paperback worker has no artifact.prepare step'));
       case PackageUnloadRequest():
         _packages.remove(packageId)?.dispose();
         return const EmptyPayload();
@@ -181,14 +211,18 @@ final class PaperbackSourceWorker {
         if (adapter == null) {
           throw const _WorkerFailure(UnsupportedApiFailure('This worker has no Paperback API adapter yet'));
         }
-        final SourceJsRuntime? runtime = _packages[packageId];
-        if (runtime == null || runtime.isClosed) {
-          _packages.remove(packageId);
-          throw _WorkerFailure(RuntimeUnavailableFailure('Package $packageId is not loaded'));
-        }
+        // Admission already refused a package that is absent or closed.
+        final SourceJsRuntime runtime = _packages[packageId]!;
         op.runtime = runtime;
         return adapter.handle(runtime, request, op.cancel.token);
     }
+  }
+
+  /// Whether [packageId] holds a live runtime; a closed one is dropped.
+  bool _isLoaded(String packageId) {
+    final SourceJsRuntime? runtime = _packages[packageId];
+    if (runtime != null && runtime.isClosed) _packages.remove(packageId);
+    return runtime != null && !runtime.isClosed;
   }
 
   void _reply(ProtocolFrame request, {Map<String, Object?>? ok, Map<String, Object?>? error}) {

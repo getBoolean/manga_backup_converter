@@ -1,0 +1,206 @@
+/// End-to-end: the `source_runtime` supervisor speaking protocol 1.1 to the
+/// Paperback worker as a real subprocess.
+///
+/// `setUpAll` builds each entrypoint once with `dart build cli` (the QuickJS
+/// build hook compiles with the full environment), and the supervisor
+/// launches the built executable with its scrubbed environment, so the
+/// supervised PID is the worker itself.
+///
+/// The shipped worker (`bin/paperback_source_worker.dart`) has no Paperback
+/// API adapter yet (U6), so its `package.load` answers `unsupported-api`.
+/// Settings are therefore exercised through `settings_echo_worker.dart`: the
+/// same `PaperbackSourceWorker` over stdio, wired to a test adapter that
+/// echoes each source's effective settings.
+@TestOn('vm')
+@Timeout(Duration(minutes: 12))
+library;
+
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:checks/checks.dart';
+import 'package:source_runtime/source_runtime.dart';
+import 'package:test/scaffolding.dart';
+
+import 'e2e_support.dart';
+
+const List<String> _limitArgs = <String>[
+  '--memory-limit-bytes=33554432',
+  '--max-stack-bytes=262144',
+  '--operation-deadline-ms=4000',
+  '--job-slice-ms=5',
+];
+
+const ArtifactBinding _bundle = ArtifactBinding(sha256: '', kind: 'paperback-bundle', version: '1.0.0');
+
+/// Builds [entrypoint] (relative to the package) into [out] and returns the
+/// executable.
+Future<String> _build(String entrypoint, Directory out) async {
+  final package = '${repoRoot().path}/packages/paperback_plugin_loader';
+  final ProcessResult result = await Process.run(dartExecutable(), <String>[
+    'build',
+    'cli',
+    '-t',
+    entrypoint,
+    '-o',
+    out.path,
+    '--verbosity=error',
+  ], workingDirectory: package);
+  if (result.exitCode != 0) {
+    throw StateError('dart build cli $entrypoint failed:\n${result.stdout}\n${result.stderr}');
+  }
+  final List<File> exes = Directory('${out.path}/bundle/bin').listSync().whereType<File>().toList();
+  if (exes.length != 1) throw StateError('Expected one executable in ${out.path}/bundle/bin, found $exes');
+  return exes.single.path;
+}
+
+WorkerSupervisor _supervisor(String executable) {
+  return WorkerSupervisor(
+    spec: WorkerSpec(
+      label: 'paperback',
+      executable: executable,
+      arguments: _limitArgs,
+      environment: scrubbedEnvironment(),
+    ),
+    // The worker reports only operationDeadlineMs; the caller supplies the rest.
+    limits: const AdoptWorkerLimits(
+      handshakeDeadline: Duration(seconds: 30),
+      maxConcurrentPackages: 1,
+      cancelGrace: Duration(seconds: 2),
+      interactionTimeout: Duration(seconds: 10),
+      shutdownGrace: Duration(seconds: 5),
+    ),
+    onLog: (String line) => stderr.writeln('[paperback-e2e] $line'),
+  );
+}
+
+void main() {
+  late Directory builds;
+  late String shippedWorker;
+  late String echoWorker;
+  late Directory temp;
+  late ArtifactCache cache;
+
+  setUpAll(() async {
+    builds = Directory.systemTemp.createTempSync('pb_e2e_build_');
+    shippedWorker = await _build('bin/paperback_source_worker.dart', Directory('${builds.path}/shipped'));
+    echoWorker = await _build('test/e2e/settings_echo_worker.dart', Directory('${builds.path}/echo'));
+  });
+  tearDownAll(() => builds.deleteSync(recursive: true));
+
+  setUp(() {
+    temp = Directory.systemTemp.createTempSync('pb_e2e_');
+    cache = ArtifactCache(Directory('${temp.path}/cache'));
+  });
+  tearDown(() => temp.deleteSync(recursive: true));
+
+  Future<ArtifactLease> bundleLease() async {
+    final bytes = Uint8List.fromList(utf8.encode('// echo bundle'));
+    final binding = ArtifactBinding(
+      sha256: sha256Hex(bytes),
+      kind: _bundle.kind,
+      version: _bundle.version,
+    );
+    return cache.admit(
+      bytes,
+      binding: binding,
+      profile: const ArtifactProfile(producer: 'test', converterVersion: '1', hostCompatibility: 'test'),
+      verifier: (Uint8List b, ArtifactBinding a) {},
+    );
+  }
+
+  test('the shipped worker negotiates 1.1, reports its benchmarked limit, and refuses an absent package', () async {
+    final WorkerSupervisor supervisor = _supervisor(shippedWorker);
+    try {
+      final SourceOutcome<HandshakeResponse> started = await supervisor.start();
+      final HandshakeResponse handshake = (started as SourceSuccess<HandshakeResponse>).value;
+      check(handshake.worker).equals('paperback');
+      check(handshake.protocolMinor).equals(1);
+      check(supervisor.protocolMinor).equals(1);
+      check(handshake.limits!.operationDeadline).equals(const Duration(seconds: 4));
+      check(handshake.limits!.fields['memoryLimitBytes']).equals(33554432);
+      check(handshake.limits!.poolSize).isNull();
+      // Adopted from the worker: the caller supplied no operation deadline.
+      check(supervisor.limits!.operationDeadline).equals(const Duration(seconds: 4));
+
+      final SourceOutcome<EmptyPayload> unload = await supervisor.send('pkg.none', const PackageUnloadRequest());
+      check((unload as SourceFailed<EmptyPayload>).failure).isA<RuntimeUnavailableFailure>();
+
+      final SourceOutcome<PackageLoadResponse> load = await supervisor.loadPackage(
+        WorkerPackage(packageId: 'pkg.test', artifact: await bundleLease(), settings: SettingsSnapshot()),
+      );
+      check((load as SourceFailed<PackageLoadResponse>).failure).isA<UnsupportedApiFailure>();
+    } finally {
+      await supervisor.close();
+    }
+  });
+
+  test('string-set and source-scoped settings reach the worker on load and settings.update', () async {
+    final WorkerSupervisor supervisor = _supervisor(echoWorker);
+    try {
+      final settings = SettingsSnapshot(
+        values: const <String, Object>{
+          'lang': 'en',
+          'tags': <String>['b', 'a', 'b'],
+        },
+        sources: <String, SourceScopedSettings>{
+          'two': SourceScopedSettings(
+            values: const <String, Object>{
+              'tags': <String>['z'],
+            },
+            secrets: const <String, String>{'token': 'secret-token'},
+          ),
+        },
+      );
+      final ArtifactLease lease = await bundleLease();
+      final SourceOutcome<PackageLoadResponse> load = await supervisor.loadPackage(
+        WorkerPackage(packageId: 'pkg.test', artifact: lease, settings: settings),
+      );
+      check(load).isA<SourceSuccess<PackageLoadResponse>>();
+
+      Future<List<String>> echo(String sourceId, String revision) async {
+        final SourceOutcome<WorkerSearchResponse> reply = await supervisor.send(
+          'pkg.test',
+          WorkerSearchRequest(
+            source: SourceIdentity(
+              ecosystem: 'paperback',
+              packageId: 'pkg.test',
+              sourceId: sourceId,
+              artifact: lease.binding,
+            ),
+            settingsRevision: revision,
+            request: const SearchRequest(query: 'q'),
+          ),
+        );
+        return (reply as SourceSuccess<WorkerSearchResponse>).value.warnings;
+      }
+
+      check(await echo('one', settings.revision)).deepEquals(<String>[
+        'values={"lang":"en","tags":["a","b"]}',
+        'secrets=',
+      ]);
+      check(await echo('two', settings.revision)).deepEquals(<String>[
+        'values={"lang":"en","tags":["z"]}',
+        'secrets=token',
+      ]);
+
+      final updated = SettingsSnapshot(
+        values: const <String, Object>{
+          'tags': <String>['y', 'x'],
+        },
+        sources: <String, SourceScopedSettings>{
+          'one': SourceScopedSettings(values: const <String, Object>{'lang': 'ja'}),
+        },
+      );
+      check(await supervisor.updateSettings('pkg.test', updated)).isA<SourceSuccess<EmptyPayload>>();
+      check(await echo('one', updated.revision)).deepEquals(<String>[
+        'values={"tags":["x","y"],"lang":"ja"}',
+        'secrets=',
+      ]);
+      check(await echo('two', updated.revision)).deepEquals(<String>['values={"tags":["x","y"]}', 'secrets=']);
+    } finally {
+      await supervisor.close();
+    }
+  });
+}
