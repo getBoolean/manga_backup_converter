@@ -25,8 +25,7 @@ dependencies:
   swiftsoup:
     path: packages/swiftsoup
   quickjs:
-    git:
-      url: https://github.com/BooleanExtra/quickjs-dart
+    path: packages/quickjs
   wasm3:
     path: packages/wasm3
   awesome_flutter_extensions: ^1.2.0
