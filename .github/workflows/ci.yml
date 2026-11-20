@@ -157,6 +157,18 @@ jobs:
         if: runner.os != 'Linux'
         run: melos run flutter_test && melos run dart_test_no_coverage
 
+      - name: Setup Java JDK (Tachi worker)
+        if: runner.os == 'Linux'
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Run Tachi worker tests
+        if: runner.os == 'Linux'
+        working-directory: tools/tachi-source-runner
+        run: ./gradlew test --no-daemon
+
       - name: Upload Coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && !startsWith(github.event.ref, 'refs/tags/v')
         uses: codecov/codecov-action@v3
@@ -267,11 +279,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -477,11 +495,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -635,11 +659,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -745,11 +775,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -844,11 +880,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -971,11 +1013,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -1068,11 +1116,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -1180,11 +1234,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
         uses: actions/cache@v4
@@ -1291,11 +1351,17 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
         uses: actions/cache@v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Bootstrap Melos
         run: melos bootstrap
@@ -1378,13 +1444,6 @@ jobs:
       - name: Activate Melos
         if: github.actor != 'dependabot[bot]'
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
-
-      - name: Cache QuickJS dylibs
-        if: github.actor != 'dependabot[bot]'
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
       - name: Bootstrap Melos
         if: github.actor != 'dependabot[bot]'
