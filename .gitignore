@@ -143,6 +143,7 @@ unlinked_spec.ds
 **/android/**/GeneratedPluginRegistrant.java
 **/android/key.properties
 *.jks
+**/android/.kotlin/
 
 # iOS/XCode related
 **/ios/**/*.mode1v3
@@ -181,6 +182,10 @@ unlinked_spec.ds
 **/macos/Flutter/GeneratedPluginRegistrant.swift
 **/macos/Flutter/ephemeral
 **/xcuserdata/
+
+# Source runner build output (U16 iOS runtime; staged payload is ignored by
+# packages/source_runtime_ios/runtime/.gitignore)
+/tools/tachi-source-runner/ios/build*/
 
 # Windows
 **/windows/flutter/generated_plugin_registrant.cc
