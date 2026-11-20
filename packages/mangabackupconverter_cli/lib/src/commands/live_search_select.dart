@@ -278,7 +278,7 @@ class LiveSearchSelect {
               final bool confirmed = await detailsScreen.run(
                 context: context,
                 result: result,
-                fetchDetails: () => onFetchDetails(result.ref),
+                fetchDetails: () async => result.fetchedOutcome ?? await onFetchDetails(result.ref),
               );
 
               if (confirmed) {

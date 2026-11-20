@@ -550,23 +550,28 @@ void main() {
 
       // Second process: new sources, secrets re-entered for the same keys.
       final FakePluginSource resumed = destination(settings());
+      final searchedAgain = <String>[];
+      var resumedWith = 0;
       final ConversionDraft draft = await _run(
         _pipeline(
           loader: FakePluginLoader(sources: <PluginSource>[resumed]),
           journalStore: store,
           selection: CallbackSelectionPort(
-            onSelectExtensions: (_) => throw StateError('selection must be resumed'),
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
             onConfirmMatches: (names, manga, onSearch, onFetch) {
-              confirmCalls++;
+              searchedAgain.addAll(manga.map((SourceMangaData m) => m.details.title));
               return confirmExactTitle(names, manga, onSearch, onFetch);
             },
             acceptPartial: true,
           ),
-        ),
+        ).copyWithResume((int n) => resumedWith = n),
         FakeBackup(<SourceMangaData>[...input.entries, sourceManga('Nowhere')]),
         inputIdentity: 'input-digest',
       );
       check(confirmCalls).equals(1);
+      // Only the manga without a confirmed match is searched again.
+      check(searchedAgain).deepEquals(<String>['Nowhere']);
+      check(resumedWith).equals(2);
       check(resumed.fetches).equals(0);
       check((draft.backup as AidokuBackup).manga!.map((AidokuBackupManga m) => m.id).toSet()).deepEquals(<String>{
         'a',
@@ -609,9 +614,88 @@ void main() {
         FakeBackup(<SourceMangaData>[...input.entries, sourceManga('Nowhere')]),
         inputIdentity: 'input-digest',
       );
-      // Matched manga reopen; the unresolved decision does not depend on the source.
-      check(reopened).deepEquals(<String>['Alpha', 'Beta']);
+      // Matched manga reopen; unmatched manga were never journaled as decisions.
+      check(reopened).deepEquals(<String>['Alpha', 'Beta', 'Nowhere']);
       check(changed.fetches).equals(2);
+    });
+
+    test('a killed-and-resumed conversion reproduces an uninterrupted one', () async {
+      FakePluginSource source() => FakePluginSource(
+        'dest',
+        settings: settings(),
+        manga: <FakeManga>[
+          FakeManga(
+            'a',
+            'Alpha',
+            coverUrl: 'https://img.invalid/a.jpg',
+            authors: const <String>['Search Author'],
+            chapters: <NativeChapter>[nativeChapter('d1', 1)],
+          ),
+        ],
+      );
+      FakePluginSource flaky() => FakePluginSource('flaky', searchFailure: const InteractionRequiredFailure('captcha'));
+      final backup = FakeBackup(<SourceMangaData>[...input.entries, sourceManga('Nowhere')]);
+
+      final ConversionDraft straight = await _run(
+        _pipeline(
+          loader: FakePluginLoader(sources: <PluginSource>[source(), flaky()]),
+          acceptPartial: true,
+        ),
+        backup,
+      );
+
+      final store = InMemoryJournalStore();
+      await _run(
+        _pipeline(
+          loader: FakePluginLoader(sources: <PluginSource>[source(), flaky()]),
+          journalStore: store,
+          selection: CallbackSelectionPort(
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onConfirmMatches: confirmExactTitle,
+            onAcceptPartial: (_) => throw StateError('process killed'),
+          ),
+        ),
+        backup,
+        inputIdentity: 'in',
+      ).then((_) {}, onError: (Object _) {});
+      final ConversionDraft resumed = await _run(
+        _pipeline(
+          loader: FakePluginLoader(sources: <PluginSource>[source(), flaky()]),
+          journalStore: store,
+          acceptPartial: true,
+        ),
+        backup,
+        inputIdentity: 'in',
+      );
+
+      check(resumed.report.digest).equals(straight.report.digest);
+      final AidokuBackupManga a = (straight.backup as AidokuBackup).manga!.single;
+      final AidokuBackupManga b = (resumed.backup as AidokuBackup).manga!.single;
+      check(b.cover).equals(a.cover);
+      check(b.author).equals(a.author);
+      check(a.cover).equals('https://img.invalid/a.jpg');
+    });
+
+    test('a journaled partial acceptance is not asked again', () async {
+      final store = InMemoryJournalStore();
+      final backup = FakeBackup(<SourceMangaData>[...input.entries, sourceManga('Nowhere')]);
+      var asked = 0;
+      MigrationPipeline pipeline() => _pipeline(
+        loader: FakePluginLoader(sources: <PluginSource>[destination(settings())]),
+        journalStore: store,
+        selection: CallbackSelectionPort(
+          onSelectExtensions: (List<ExtensionEntry> e) async => e,
+          onConfirmMatches: confirmExactTitle,
+          onAcceptPartial: (_) async {
+            asked++;
+            return true;
+          },
+        ),
+      );
+      await _run(pipeline(), backup, inputIdentity: 'in');
+      final ConversionDraft again = await _run(pipeline(), backup, inputIdentity: 'in');
+      check(asked).equals(1);
+      check(again.partialAccepted).isTrue();
     });
 
     test('a journal for different input is ignored', () async {
@@ -661,4 +745,21 @@ void main() {
       check(draft.report.failures.single.message).contains('[REDACTED]');
     });
   });
+}
+
+extension on MigrationPipeline {
+  /// A copy with an [MigrationPipeline.onResume] callback.
+  MigrationPipeline copyWithResume(void Function(int decisions) onResume) => MigrationPipeline(
+    repoUrls: repoUrls,
+    selection: selection,
+    onProgress: onProgress,
+    pluginLoader: pluginLoader,
+    directConverter: directConverter,
+    onOwnerOpened: onOwnerOpened,
+    journalStore: journalStore,
+    onResume: onResume,
+    ratingPolicy: ratingPolicy,
+    trustStore: trustStore,
+    redact: redact,
+  );
 }

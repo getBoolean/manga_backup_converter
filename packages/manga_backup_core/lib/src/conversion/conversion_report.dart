@@ -74,6 +74,14 @@ final class ReportEntry {
   };
 }
 
+/// [failure] with its message passed through [redact]; the code and, for a
+/// capability failure, the named operation are kept.
+SourceFailure redactFailure(SourceFailure failure, String Function(String) redact) => SourceFailure.fromWire(
+  failure.code,
+  redact(failure.message),
+  operation: failure is CapabilityUnavailableFailure ? failure.operation : null,
+);
+
 /// Where in the conversion a source failure happened.
 enum FailureStage { load, search, details }
 

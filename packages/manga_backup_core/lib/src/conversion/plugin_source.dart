@@ -37,6 +37,7 @@ class PluginSearchResult {
     this.authors = const <String>[],
     this.details,
     this.chapters = const <PluginChapter>[],
+    this.fetched,
   });
 
   final NativeMangaRef ref;
@@ -46,6 +47,17 @@ class PluginSearchResult {
   final List<String> authors;
   final PluginMangaDetails? details;
   final List<PluginChapter> chapters;
+
+  /// The destination snapshot [details] and [chapters] came from, when this
+  /// result was enriched; views reuse it instead of fetching again.
+  final FetchedManga? fetched;
+
+  /// The enriched snapshot as a [DetailsOutcome], or `null` when not fetched.
+  DetailsOutcome? get fetchedOutcome {
+    final FetchedManga? f = fetched;
+    if (f == null) return null;
+    return f.chapters.isEmpty ? DetailsEmpty(f) : DetailsFetched(f);
+  }
 
   /// Runtime source ID of [ref].
   String get pluginSourceId => ref.source.sourceId;
@@ -63,6 +75,7 @@ class PluginSearchResult {
     authors: fetched.details.authors.isNotEmpty ? fetched.details.authors : authors,
     details: fetched.details,
     chapters: fetched.chapters,
+    fetched: fetched,
   );
 }
 

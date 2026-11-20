@@ -90,6 +90,11 @@ class ConvertCommand extends Command<void> {
             'Accept a partial conversion (unresolved or unrepresentable records) without asking. '
             'Without it, an unattended partial conversion writes nothing.',
       )
+      ..addFlag(
+        'fresh',
+        negatable: false,
+        help: 'Discard any conversion journal for this output and start over.',
+      )
       ..addOption(
         'journal',
         help:
@@ -451,6 +456,7 @@ class ConvertCommand extends Command<void> {
 
           final pluginCache = PluginCache();
           final journalStore = FileJournalStore(journalPath);
+          if (results.flag('fresh')) await journalStore.clear();
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: CachingPluginLoader(
@@ -461,7 +467,10 @@ class ConvertCommand extends Command<void> {
             directConverter: legacyDirectConvert,
             journalStore: journalStore,
             ratingPolicy: ratingPolicy,
-            trustStore: FileTrustStore(p.join(pluginCache.cacheDir.parent.path, 'trusted_repositories.json')),
+            trustStore: FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
+            onResume: (int decisions) => Zone.root.print(
+              'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
+            ),
             redact: redactor.redact,
             onProgress: (int current, int total, String message) {
               if (verbose) print('[$current/$total] $message');

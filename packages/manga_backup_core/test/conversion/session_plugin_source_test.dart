@@ -147,4 +147,16 @@ void main() {
       check(order.last).equals('late');
     });
   });
+
+  test('redactFailure keeps the code and the operation of a capability failure', () {
+    final SourceFailure out = redactFailure(
+      const CapabilityUnavailableFailure('browser', 'needs token=abc'),
+      (String m) => m.replaceAll('abc', '[REDACTED]'),
+    );
+    check(out)
+        .isA<CapabilityUnavailableFailure>()
+        .has((CapabilityUnavailableFailure f) => f.operation, 'op')
+        .equals('browser');
+    check(out.message).equals('needs token=[REDACTED]');
+  });
 }

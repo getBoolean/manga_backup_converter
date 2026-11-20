@@ -57,6 +57,7 @@ class MigrationPipeline {
     this.directConverter,
     this.onOwnerOpened,
     this.journalStore,
+    this.onResume,
     this.ratingPolicy = const SourceRatingPolicy(),
     TrustStore? trustStore,
     this.redact = _identity,
@@ -75,6 +76,10 @@ class MigrationPipeline {
 
   /// Persists the conversion journal; `null` disables journaling.
   final JournalStore? journalStore;
+
+  /// Called when a journal for the same input is resumed, with the number of
+  /// journaled manga decisions (hosts tell the user and offer a fresh start).
+  final void Function(int decisions)? onResume;
   final SourceRatingPolicy ratingPolicy;
   final TrustStore trustStore;
 
@@ -124,6 +129,7 @@ class MigrationPipeline {
         sourceFormat: sourceFormat.alias,
         targetFormat: targetFormat.alias,
       );
+      if (journal.resumedDecisions > 0) onResume?.call(journal.resumedDecisions);
       return await _migrate(owner, journal, sourceBackup, sourceFormat, targetFormat);
     } finally {
       await owner.close();
@@ -152,11 +158,10 @@ class MigrationPipeline {
     }
 
     final ({int hidden, List<ExtensionEntry> visible}) rated = ratingPolicy.apply(availableExtensions);
+    // Sources are always chosen afresh (a resumed run may pick other flags);
+    // journaled confirmations rehydrate only against matching sessions.
     final List<ExtensionEntry> selected =
-        (journal.resumedSelection(rated.visible) ??
-                await selection.selectSources(
-                  SourceSelectionRequest(available: rated.visible, hiddenByRating: rated.hidden),
-                ))
+        (await selection.selectSources(SourceSelectionRequest(available: rated.visible, hiddenByRating: rated.hidden)))
             // The rating policy holds even if a selection UI returns a hidden source.
             .where((ExtensionEntry e) => ratingPolicy.allows(e.contentRating))
             .toList();
@@ -246,7 +251,7 @@ class MigrationPipeline {
             final DetailsOutcome outcome = await fetchDetails(c.confirmedMatch!.ref);
             switch (outcome) {
               case DetailsFailed(:final SourceFailure failure):
-                final redacted = SourceFailure.fromWire(failure.code, redact(failure.message));
+                final SourceFailure redacted = redactFailure(failure, redact);
                 confirmations[i] = c.withDetailsFailure(redacted);
                 report.failures.add(
                   SourceFailureRecord.fromFailure(
@@ -355,7 +360,7 @@ class MigrationPipeline {
       failure: PluginSearchFailure(
         pluginId: plugin.sourceId,
         pluginName: plugin.sourceName,
-        failure: SourceFailure.fromWire(failure.code, redact(failure.message)),
+        failure: redactFailure(failure, redact),
       ),
     );
 
@@ -424,7 +429,7 @@ final class _Journal {
       resumable
           ? existing
           : ConversionJournal(inputIdentity: inputIdentity, sourceFormat: sourceFormat, targetFormat: targetFormat),
-    );
+    ).._resumed = resumable ? existing.confirmations.length : 0;
   }
 
   final JournalStore? _store;
@@ -433,27 +438,15 @@ final class _Journal {
 
   String? get acceptedDigest => _journal?.acceptedReportDigest;
 
+  /// Journaled manga decisions found when the journal was opened.
+  int get resumedDecisions => _resumed;
+  int _resumed = 0;
+
   Future<void> _persist() {
     final JournalStore? store = _store;
     final ConversionJournal? journal = _journal;
     if (store == null || journal == null) return Future<void>.value();
     return _writes = _writes.then((_) => store.write(journal.toJson()));
-  }
-
-  /// The journaled selection, when every journaled source is still offered
-  /// at the same version.
-  List<ExtensionEntry>? resumedSelection(List<ExtensionEntry> visible) {
-    final List<JournaledSource>? sources = _journal?.sources;
-    if (sources == null || sources.isEmpty) return null;
-    final result = <ExtensionEntry>[];
-    for (final JournaledSource s in sources) {
-      final ExtensionEntry? e = visible
-          .where((ExtensionEntry v) => v.id == s.extensionId && v.cacheKey == s.cacheKey)
-          .firstOrNull;
-      if (e == null) return null;
-      result.add(e);
-    }
-    return result;
   }
 
   Future<void> recordSelection(List<ExtensionEntry> selected) {
@@ -491,15 +484,10 @@ final class _Journal {
     final ConversionJournal? j = _journal;
     final JournaledConfirmation? c = j?.confirmations[key];
     if (j == null || c == null) return null;
-    final failures = <PluginSearchFailure>[
-      for (final SourceFailureRecord f in c.searchFailures)
-        PluginSearchFailure(pluginId: f.sourceId, failure: SourceFailure.fromWire(f.code, f.message)),
-    ];
+    final List<PluginSearchFailure> failures = c.searchFailures;
     switch (c.decision) {
       case MangaDecisionKind.excluded:
         return MangaMatchConfirmation(sourceManga: manga, excluded: true, searchFailures: failures);
-      case MangaDecisionKind.unresolved:
-        return MangaMatchConfirmation(sourceManga: manga, searchFailures: failures);
       case MangaDecisionKind.matched:
         final NativeMangaRef? ref = c.ref;
         if (ref == null || !isLoaded(ref)) {
@@ -515,6 +503,8 @@ final class _Journal {
             ref: ref,
             title: c.title ?? ref.mangaId,
             pluginSourceName: c.pluginSourceName,
+            coverUrl: c.coverUrl,
+            authors: c.authors,
           ),
           searchFailures: failures,
         );
@@ -527,18 +517,25 @@ final class _Journal {
     final ConversionJournal? j = _journal;
     if (j == null) return Future<void>.value();
     final PluginSearchResult? match = c.confirmedMatch;
+    if (!c.excluded && match == null) {
+      // Not a decision: the manga is searched again on resume.
+      if (j.confirmations.remove(key) == null) return Future<void>.value();
+      return _persist();
+    }
     j.confirmations[key] = JournaledConfirmation(
-      decision: c.excluded
-          ? MangaDecisionKind.excluded
-          : match == null
-          ? MangaDecisionKind.unresolved
-          : MangaDecisionKind.matched,
+      decision: c.excluded ? MangaDecisionKind.excluded : MangaDecisionKind.matched,
       ref: c.excluded ? null : match?.ref,
       title: match?.title,
       pluginSourceName: match?.pluginSourceName,
-      searchFailures: <SourceFailureRecord>[
+      coverUrl: match?.coverUrl,
+      authors: match?.authors ?? const <String>[],
+      searchFailures: <PluginSearchFailure>[
         for (final PluginSearchFailure f in c.searchFailures)
-          SourceFailureRecord.fromFailure(FailureStage.search, f.pluginId, f.failure, redact: redact),
+          PluginSearchFailure(
+            pluginId: f.pluginId,
+            pluginName: f.pluginName,
+            failure: redactFailure(f.failure, redact),
+          ),
       ],
     );
     return _persist();

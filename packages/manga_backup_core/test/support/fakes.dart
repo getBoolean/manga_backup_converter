@@ -31,10 +31,21 @@ class FakeBackup implements ConvertableBackup {
 
 /// A destination manga a fake source knows.
 class FakeManga {
-  FakeManga(this.key, this.title, {this.chapters = const <NativeChapter>[], this.failure});
+  FakeManga(
+    this.key,
+    this.title, {
+    this.chapters = const <NativeChapter>[],
+    this.failure,
+    this.coverUrl,
+    this.authors = const <String>[],
+  });
 
   final String key;
   final String title;
+
+  /// Search-level fields (details carry only the title).
+  final String? coverUrl;
+  final List<String> authors;
   final List<NativeChapter> chapters;
 
   /// When set, fetching details fails with it.
@@ -86,7 +97,13 @@ class FakePluginSource implements PluginSource {
         results: <PluginSearchResult>[
           for (final FakeManga m in manga)
             if (m.title.toLowerCase() == query.toLowerCase())
-              PluginSearchResult(ref: refFor(m.key), title: m.title, pluginSourceName: sourceName),
+              PluginSearchResult(
+                ref: refFor(m.key),
+                title: m.title,
+                pluginSourceName: sourceName,
+                coverUrl: m.coverUrl,
+                authors: m.authors,
+              ),
         ],
       ),
     );

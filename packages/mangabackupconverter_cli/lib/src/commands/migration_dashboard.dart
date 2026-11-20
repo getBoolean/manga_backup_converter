@@ -216,7 +216,8 @@ class MigrationDashboard {
             await detailsScreen.run(
               context: context,
               result: tabEntry.match!,
-              fetchDetails: () => onFetchDetails(tabEntry.match!.ref),
+              // Reuse enriched details when present; otherwise fetch.
+              fetchDetails: () async => tabEntry.match!.fetchedOutcome ?? await onFetchDetails(tabEntry.match!.ref),
             );
 
             keySub = context.keyInput.stream.listen(

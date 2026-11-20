@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/details_outcome.dart';
+import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/reconciliation/chapter_decisions.dart';
 import 'package:source_runtime/source_contracts.dart';
 
-/// How a manga's match was decided.
+/// How a manga's match was decided. Only decisions are journaled; a manga
+/// without a confirmed match is searched again on resume.
 enum MangaDecisionKind {
   /// Confirmed against a destination; [JournaledConfirmation.snapshot] holds
   /// the confirmed destination snapshot once fetched.
@@ -13,9 +14,6 @@ enum MangaDecisionKind {
 
   /// The user excluded it.
   excluded,
-
-  /// No match was confirmed.
-  unresolved,
 }
 
 /// A source the user selected, by extension identity and version.
@@ -61,8 +59,10 @@ final class JournaledConfirmation {
     this.ref,
     this.title,
     this.pluginSourceName,
+    this.coverUrl,
+    this.authors = const <String>[],
     this.snapshot,
-    this.searchFailures = const <SourceFailureRecord>[],
+    this.searchFailures = const <PluginSearchFailure>[],
   });
 
   factory JournaledConfirmation.fromJson(Map<String, Object?> json) => JournaledConfirmation(
@@ -70,27 +70,52 @@ final class JournaledConfirmation {
     ref: json['ref'] == null ? null : NativeMangaRef.fromJson(json['ref']! as Map<String, Object?>),
     title: json['title'] as String?,
     pluginSourceName: json['pluginSourceName'] as String?,
+    coverUrl: json['coverUrl'] as String?,
+    authors: <String>[for (final Object? a in json['authors'] as List<Object?>? ?? const <Object?>[]) a! as String],
     snapshot: json['snapshot'] == null ? null : FetchedManga.fromJson(json['snapshot']! as Map<String, Object?>),
-    searchFailures: <SourceFailureRecord>[
+    searchFailures: <PluginSearchFailure>[
       for (final Object? f in json['searchFailures'] as List<Object?>? ?? const <Object?>[])
-        SourceFailureRecord.fromJson(f! as Map<String, Object?>),
+        _failureFromJson(f! as Map<String, Object?>),
     ],
   );
+
+  static PluginSearchFailure _failureFromJson(Map<String, Object?> json) => PluginSearchFailure(
+    pluginId: json['pluginId']! as String,
+    pluginName: json['pluginName'] as String?,
+    failure: SourceFailure.fromWire(
+      json['code']! as String,
+      json['message']! as String,
+      operation: json['operation'] as String?,
+    ),
+  );
+
+  static Map<String, Object?> _failureToJson(PluginSearchFailure f) => <String, Object?>{
+    'pluginId': f.pluginId,
+    'pluginName': f.pluginName,
+    ...f.failure.toWire(),
+  };
 
   final MangaDecisionKind decision;
   final NativeMangaRef? ref;
 
-  /// Search-result title of the confirmed match.
+  /// Search-result fields of the confirmed match, so a resumed build has the
+  /// same fallbacks as an uninterrupted one.
   final String? title;
   final String? pluginSourceName;
+  final String? coverUrl;
+  final List<String> authors;
   final FetchedManga? snapshot;
-  final List<SourceFailureRecord> searchFailures;
+
+  /// Search failures seen while matching (messages already redacted).
+  final List<PluginSearchFailure> searchFailures;
 
   JournaledConfirmation withSnapshot(FetchedManga snapshot) => JournaledConfirmation(
     decision: decision,
     ref: ref,
     title: title,
     pluginSourceName: pluginSourceName,
+    coverUrl: coverUrl,
+    authors: authors,
     snapshot: snapshot,
     searchFailures: searchFailures,
   );
@@ -100,8 +125,10 @@ final class JournaledConfirmation {
     'ref': ref?.toJson(),
     'title': title,
     'pluginSourceName': pluginSourceName,
+    'coverUrl': coverUrl,
+    'authors': authors,
     'snapshot': snapshot?.toJson(),
-    'searchFailures': <Map<String, Object?>>[for (final SourceFailureRecord f in searchFailures) f.toJson()],
+    'searchFailures': <Map<String, Object?>>[for (final PluginSearchFailure f in searchFailures) _failureToJson(f)],
   };
 }
 

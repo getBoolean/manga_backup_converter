@@ -47,6 +47,18 @@ final class FileJournalStore implements JournalStore {
   }
 }
 
+/// The user's configuration directory for this tool (not the shared temp
+/// directory, which other users can write and cleaners empty).
+String userConfigDirectory() {
+  final Map<String, String> env = Platform.environment;
+  final String base = Platform.isWindows
+      ? env['APPDATA'] ?? p.join(env['USERPROFILE'] ?? '.', 'AppData', 'Roaming')
+      : Platform.isMacOS
+      ? p.join(env['HOME'] ?? '.', 'Library', 'Application Support')
+      : env['XDG_CONFIG_HOME'] ?? p.join(env['HOME'] ?? '.', '.config');
+  return p.join(base, 'manga_backup_converter');
+}
+
 /// Remembered repository signing fingerprints, in one JSON file.
 final class FileTrustStore implements TrustStore {
   FileTrustStore(this.path);
