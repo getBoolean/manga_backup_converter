@@ -1,0 +1,182 @@
+{
+    "recordedAt": "2026-11-20T17:39:10.517983800Z",
+    "quick": false,
+    "machine": {
+        "os": "Windows 11 10.0 amd64",
+        "cpu": "Intel64 Family 6 Model 165 Stepping 5, GenuineIntel",
+        "logicalCores": 16,
+        "benchmarkJvmMaxHeapMiB": 30688,
+        "workerJvmMaxHeapMiB": 1024,
+        "java": "Amazon.com Inc. 21.0.13.1+2-LTS"
+    },
+    "network": "replay of committed captures (fixtures/source_captures/tachi); no network",
+    "latency": {
+        "all.mangadex": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 37.8,
+                "p95Ms": 180.3,
+                "p99Ms": 180.3,
+                "maxMs": 180.3
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 58.5,
+                "p95Ms": 148.0,
+                "p99Ms": 148.0,
+                "maxMs": 148.0
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 136.6,
+                "p95Ms": 856.1,
+                "p99Ms": 858.2,
+                "maxMs": 858.2
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 1001.3,
+                "p95Ms": 1003.0,
+                "p99Ms": 1003.3,
+                "maxMs": 1003.3
+            }
+        },
+        "en.weebcentral": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 18.6,
+                "p95Ms": 19.0,
+                "p99Ms": 19.0,
+                "maxMs": 19.0
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 10.9,
+                "p95Ms": 13.3,
+                "p99Ms": 13.3,
+                "maxMs": 13.3
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 1993.6,
+                "p95Ms": 1997.8,
+                "p99Ms": 1997.8,
+                "maxMs": 1997.8
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 4006.7,
+                "p95Ms": 4015.0,
+                "p99Ms": 4021.1,
+                "maxMs": 4021.1
+            }
+        },
+        "all.mangafire": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 26.6,
+                "p95Ms": 30.8,
+                "p99Ms": 30.8,
+                "maxMs": 30.8
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 16.9,
+                "p95Ms": 19.4,
+                "p99Ms": 19.4,
+                "maxMs": 19.4
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 18.0,
+                "p95Ms": 984.9,
+                "p99Ms": 985.7,
+                "maxMs": 985.7
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 1001.3,
+                "p95Ms": 1002.5,
+                "p99Ms": 1002.5,
+                "maxMs": 1002.5
+            }
+        }
+    },
+    "cancelSettleFixture": {
+        "n": 20,
+        "p50Ms": 0.7,
+        "p95Ms": 1.0,
+        "p99Ms": 5.9,
+        "maxMs": 5.9
+    },
+    "cancelSettleRealSources": {
+        "n": 15,
+        "p50Ms": 1.2,
+        "p95Ms": 5.5,
+        "p99Ms": 5.5,
+        "maxMs": 5.5
+    },
+    "cpuUtilisationPerRunningOperation": 0.027600000000000003,
+    "throughputKneePoolSize": 1,
+    "restartAndRehydrate": {
+        "n": 8,
+        "p50Ms": 4755.5,
+        "p95Ms": 5739.4,
+        "p99Ms": 5739.4,
+        "maxMs": 5739.4
+    },
+    "shutdown": {
+        "n": 8,
+        "p50Ms": 47.7,
+        "p95Ms": 55.0,
+        "p99Ms": 55.0,
+        "maxMs": 55.0
+    },
+    "throughput": {
+        "pool1": {
+            "poolSize": 1,
+            "operations": 18,
+            "opsPerSecond": 0.8
+        },
+        "pool2": {
+            "poolSize": 2,
+            "operations": 18,
+            "opsPerSecond": 0.8
+        },
+        "pool3": {
+            "poolSize": 3,
+            "operations": 18,
+            "opsPerSecond": 0.8
+        }
+    },
+    "heap": {
+        "baseHeapMiB": 66.7,
+        "perPackageHeapMiB": 1.4
+    },
+    "rule": {
+        "source": "docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-20T17:39:10.517983800Z)",
+        "coresFactor": 36.2,
+        "baseHeapMiB": 67.0,
+        "perPackageHeapMiB": 3.0,
+        "p99OperationMs": 4021.1,
+        "deadlineFactor": 50.0,
+        "maxCancelSettleMs": 5.9,
+        "maxShutdownMs": 55.0,
+        "graceFactor": 3.0,
+        "interactionTimeoutMs": 300000,
+        "maxPoolSize": 3
+    },
+    "derivedForThisMachine": {
+        "inputs": {
+            "cores": 16,
+            "maxHeapMiB": 30688
+        },
+        "limits": {
+            "poolSize": 3,
+            "operationDeadlineMs": 201055,
+            "cancelGraceMs": 165,
+            "interactionTimeoutMs": 300000,
+            "shutdownGraceMs": 165
+        }
+    }
+}

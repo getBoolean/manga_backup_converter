@@ -1,0 +1,13 @@
+{
+    "source": "docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-20T17:39:10.517983800Z)",
+    "coresFactor": 36.2,
+    "baseHeapMiB": 67.0,
+    "perPackageHeapMiB": 3.0,
+    "p99OperationMs": 4021.1,
+    "deadlineFactor": 50.0,
+    "maxCancelSettleMs": 5.9,
+    "maxShutdownMs": 55.0,
+    "graceFactor": 3.0,
+    "interactionTimeoutMs": 300000,
+    "maxPoolSize": 3
+}

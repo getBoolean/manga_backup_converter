@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "all.mangafire",
+  "recordedAt": "2026-11-20T17:18:30.020233900Z",
+  "recordedBy": "tools/tachi-source-runner capture",
+  "notes": "Recorded by tools/tachi-source-runner capture (JAR path, query 'Onimai'); replayed by the tachi-source-runner JVM tests. Only content-type/location/retry-after response headers and no request headers are stored. No body edits were needed (no request-, client- or location-identifying values found).",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles?genres_mode=and&keyword=Onimai&languages%5B%5D=en&limit=50&order%5Brelevance%5D=desc&page=1&theme_mode=and&vrf=8sK3xtqdFZcCRT11BJBKh-X6a2zK_pw6HuwZwVG9WZ4Tux_uMqS0MrAI7xcjS-WC0LbMBwR0STKJ7Y9ShO9XicRCwjqdWg6PNODwIrNk-Yy_B_lddPekTovHgGd2lykzq1ZURASUv5Rzn9g",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/ed0de4b27499a6d0ea2cc4536f5be80e51e914d0342f5575963060dbd8c3b386.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles?genres_mode=and&keyword=Onimai&languages%5B%5D=en&limit=50&order%5Brelevance%5D=desc&page=1&theme_mode=and&vrf=8sK3xtqdFZcCRT11BJBKh-X6a2zK_pw6HuwZwVG9WZ4Tux_uMqS0MrAI7xcjS-WC0LbMBwR0STKJ7Y9ShO9XicRCwjqdWg6PNODwIrNk-Yy_B_lddPekTovHgGd2lykzq1ZURASUv5Rzn9g",
+        "sha256": "ed0de4b27499a6d0ea2cc4536f5be80e51e914d0342f5575963060dbd8c3b386",
+        "size": 26039,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles/72k68?vrf=8sK3xtqdFdvqEJTLKQ",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/7b039352a34b6b268c8c4872116548c0bcfac0821913d5f12a0a949f9b274c37.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles/72k68?vrf=8sK3xtqdFdvqEJTLKQ",
+        "sha256": "7b039352a34b6b268c8c4872116548c0bcfac0821913d5f12a0a949f9b274c37",
+        "size": 1291,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles/72k68/chapters?language=en&limit=200&order=desc&page=1&sort=number&vrf=8sK3xtqdFdvqEJTLKRgUXANN9LmmhlOGdkR2JpKFBH148cL3-z_jBxkLh5-w2C2vxtPMWmQU-OLW-jpyJ8zTp1InrUWqrpostSs",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/d1833a576730729862b7837e6d03ac909732ece193a0cf73b717a3dd53eef2a9.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles/72k68/chapters?language=en&limit=200&order=desc&page=1&sort=number&vrf=8sK3xtqdFdvqEJTLKRgUXANN9LmmhlOGdkR2JpKFBH148cL3-z_jBxkLh5-w2C2vxtPMWmQU-OLW-jpyJ8zTp1InrUWqrpostSs",
+        "sha256": "d1833a576730729862b7837e6d03ac909732ece193a0cf73b717a3dd53eef2a9",
+        "size": 10014,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}

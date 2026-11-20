@@ -1,0 +1,57 @@
+{
+  "name": "MangaFire",
+  "packageName": "eu.kanade.tachiyomi.extension.all.mangafire",
+  "resources": {
+    "apkUrl": "https://github.com/keiyoushi/extensions/releases/download/02402ef/tachiyomi-all.mangafire-v1.6.38.apk",
+    "iconUrl": "https://cdn.jsdelivr.net/gh/keiyoushi/extensions-source@main/src/all/mangafire/res/mipmap-xhdpi/ic_launcher.png",
+    "jarUrl": "https://github.com/keiyoushi/extensions/releases/download/02402ef/tachiyomi-all.mangafire-v1.6.38.jar"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "106038",
+  "versionName": "1.6.38",
+  "contentWarning": "CONTENT_WARNING_MIXED",
+  "sources": [
+    {
+      "id": "6084907896154116083",
+      "name": "MangaFire",
+      "language": "en",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "8098539940032331958",
+      "name": "MangaFire",
+      "language": "es",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "3849324770075062403",
+      "name": "MangaFire",
+      "language": "es-419",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "6228021941803932286",
+      "name": "MangaFire",
+      "language": "fr",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "524110931382140732",
+      "name": "MangaFire",
+      "language": "ja",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "758400875161895515",
+      "name": "MangaFire",
+      "language": "pt",
+      "homeUrl": "https://mangafire.to"
+    },
+    {
+      "id": "7842137233968841729",
+      "name": "MangaFire",
+      "language": "pt-BR",
+      "homeUrl": "https://mangafire.to"
+    }
+  ]
+}
