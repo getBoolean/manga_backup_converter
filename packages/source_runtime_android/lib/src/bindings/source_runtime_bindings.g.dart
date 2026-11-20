@@ -48,9 +48,7 @@ class SourceRuntimeClient extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/SourceRuntimeClient',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/SourceRuntimeClient');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<SourceRuntimeClient?> nullableType = $SourceRuntimeClient$NullableType$();
@@ -121,10 +119,7 @@ class SourceRuntimeClient extends jni$_.JObject {
 
   /// from: `public final int getBoundPid()`
   int getBoundPid() {
-    return _getBoundPid(
-      reference.pointer,
-      _id_getBoundPid as jni$_.JMethodIDPtr,
-    ).integer;
+    return _getBoundPid(reference.pointer, _id_getBoundPid as jni$_.JMethodIDPtr).integer;
   }
 
   static final _id_getCurrentGeneration = _class.instanceMethodId(
@@ -150,10 +145,7 @@ class SourceRuntimeClient extends jni$_.JObject {
 
   /// from: `public final long getCurrentGeneration()`
   int getCurrentGeneration() {
-    return _getCurrentGeneration(
-      reference.pointer,
-      _id_getCurrentGeneration as jni$_.JMethodIDPtr,
-    ).long;
+    return _getCurrentGeneration(reference.pointer, _id_getCurrentGeneration as jni$_.JMethodIDPtr).long;
   }
 
   static final _id_bind = _class.instanceMethodId(
@@ -213,12 +205,7 @@ class SourceRuntimeClient extends jni$_.JObject {
   ) {
     final _$string = string.reference;
     final _$string1 = string1.reference;
-    return _dispatch(
-      reference.pointer,
-      _id_dispatch as jni$_.JMethodIDPtr,
-      _$string.pointer,
-      _$string1.pointer,
-    ).long;
+    return _dispatch(reference.pointer, _id_dispatch as jni$_.JMethodIDPtr, _$string.pointer, _$string1.pointer).long;
   }
 
   static final _id_kill = _class.instanceMethodId(
@@ -382,9 +369,7 @@ class SourceRuntimeListener extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/SourceRuntimeListener',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/SourceRuntimeListener');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<SourceRuntimeListener?> nullableType = $SourceRuntimeListener$NullableType$();
@@ -406,15 +391,7 @@ class SourceRuntimeListener extends jni$_.JObject {
               )
             >
           >('globalEnv_CallVoidMethod')
-          .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              int,
-              int,
-              int,
-            )
-          >();
+          .asFunction<jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, int, int, int)>();
 
   /// from: `public fun onBound(generation: kotlin.Long, pid: kotlin.Int, sdkInt: kotlin.Int): kotlin.Unit`
   void onBound(
@@ -422,13 +399,7 @@ class SourceRuntimeListener extends jni$_.JObject {
     int i,
     int i1,
   ) {
-    _onBound(
-      reference.pointer,
-      _id_onBound as jni$_.JMethodIDPtr,
-      j,
-      i,
-      i1,
-    ).check();
+    _onBound(reference.pointer, _id_onBound as jni$_.JMethodIDPtr, j, i, i1).check();
   }
 
   static final _id_onBindFailed = _class.instanceMethodId(
@@ -447,12 +418,7 @@ class SourceRuntimeListener extends jni$_.JObject {
             >
           >('globalEnv_CallVoidMethod')
           .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              int,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, int, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun onBindFailed(generation: kotlin.Long, message: kotlin.String): kotlin.Unit`
@@ -461,12 +427,7 @@ class SourceRuntimeListener extends jni$_.JObject {
     jni$_.JString string,
   ) {
     final _$string = string.reference;
-    _onBindFailed(
-      reference.pointer,
-      _id_onBindFailed as jni$_.JMethodIDPtr,
-      j,
-      _$string.pointer,
-    ).check();
+    _onBindFailed(reference.pointer, _id_onBindFailed as jni$_.JMethodIDPtr, j, _$string.pointer).check();
   }
 
   static final _id_onReply = _class.instanceMethodId(
@@ -480,14 +441,7 @@ class SourceRuntimeListener extends jni$_.JObject {
               jni$_.JThrowablePtr Function(
                 jni$_.Pointer<jni$_.Void>,
                 jni$_.JMethodIDPtr,
-                jni$_.VarArgs<
-                  (
-                    jni$_.Int64,
-                    jni$_.Int64,
-                    jni$_.Int32,
-                    jni$_.Pointer<jni$_.Void>,
-                  )
-                >,
+                jni$_.VarArgs<(jni$_.Int64, jni$_.Int64, jni$_.Int32, jni$_.Pointer<jni$_.Void>)>,
               )
             >
           >('globalEnv_CallVoidMethod')
@@ -510,14 +464,7 @@ class SourceRuntimeListener extends jni$_.JObject {
     jni$_.JString string,
   ) {
     final _$string = string.reference;
-    _onReply(
-      reference.pointer,
-      _id_onReply as jni$_.JMethodIDPtr,
-      j,
-      j1,
-      z ? 1 : 0,
-      _$string.pointer,
-    ).check();
+    _onReply(reference.pointer, _id_onReply as jni$_.JMethodIDPtr, j, j1, z ? 1 : 0, _$string.pointer).check();
   }
 
   static final _id_onDeath = _class.instanceMethodId(
@@ -535,26 +482,14 @@ class SourceRuntimeListener extends jni$_.JObject {
               )
             >
           >('globalEnv_CallVoidMethod')
-          .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              int,
-              int,
-            )
-          >();
+          .asFunction<jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, int, int)>();
 
   /// from: `public fun onDeath(generation: kotlin.Long, pid: kotlin.Int): kotlin.Unit`
   void onDeath(
     int j,
     int i,
   ) {
-    _onDeath(
-      reference.pointer,
-      _id_onDeath as jni$_.JMethodIDPtr,
-      j,
-      i,
-    ).check();
+    _onDeath(reference.pointer, _id_onDeath as jni$_.JMethodIDPtr, j, i).check();
   }
 
   /// Maps a specific port to the implemented interface.
@@ -809,9 +744,7 @@ class ArtifactStaging extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/ArtifactStaging',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/ArtifactStaging');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<ArtifactStaging?> nullableType = $ArtifactStaging$NullableType$();
@@ -843,11 +776,7 @@ class ArtifactStaging extends jni$_.JObject {
             >
           >('globalEnv_CallObjectMethod')
           .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun stagingDirectory(context: android.content.Context): kotlin.String`
@@ -874,13 +803,7 @@ class ArtifactStaging extends jni$_.JObject {
               jni$_.JniResult Function(
                 jni$_.Pointer<jni$_.Void>,
                 jni$_.JMethodIDPtr,
-                jni$_.VarArgs<
-                  (
-                    jni$_.Pointer<jni$_.Void>,
-                    jni$_.Pointer<jni$_.Void>,
-                    jni$_.Pointer<jni$_.Void>,
-                  )
-                >,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
               )
             >
           >('globalEnv_CallObjectMethod')
@@ -924,13 +847,7 @@ class ArtifactStaging extends jni$_.JObject {
               jni$_.JniResult Function(
                 jni$_.Pointer<jni$_.Void>,
                 jni$_.JMethodIDPtr,
-                jni$_.VarArgs<
-                  (
-                    jni$_.Pointer<jni$_.Void>,
-                    jni$_.Pointer<jni$_.Void>,
-                    jni$_.Pointer<jni$_.Void>,
-                  )
-                >,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
               )
             >
           >('globalEnv_CallObjectMethod')
@@ -979,11 +896,7 @@ class ArtifactStaging extends jni$_.JObject {
             >
           >('globalEnv_CallBooleanMethod')
           .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun delete(path: kotlin.String): kotlin.Boolean`
@@ -991,11 +904,7 @@ class ArtifactStaging extends jni$_.JObject {
     jni$_.JString string,
   ) {
     final _$string = string.reference;
-    return _delete(
-      reference.pointer,
-      _id_delete as jni$_.JMethodIDPtr,
-      _$string.pointer,
-    ).boolean;
+    return _delete(reference.pointer, _id_delete as jni$_.JMethodIDPtr, _$string.pointer).boolean;
   }
 }
 
@@ -1081,9 +990,7 @@ class AppWebViewProbe extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/AppWebViewProbe',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/AppWebViewProbe');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<AppWebViewProbe?> nullableType = $AppWebViewProbe$NullableType$();
@@ -1105,11 +1012,7 @@ class AppWebViewProbe extends jni$_.JObject {
             >
           >('globalEnv_NewObject')
           .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public void <init>(android.content.Context context)`
@@ -1119,11 +1022,7 @@ class AppWebViewProbe extends jni$_.JObject {
   ) {
     final _$context = context.reference;
     return AppWebViewProbe.fromReference(
-      _new$(
-        _class.reference.pointer,
-        _id_new$ as jni$_.JMethodIDPtr,
-        _$context.pointer,
-      ).reference,
+      _new$(_class.reference.pointer, _id_new$ as jni$_.JMethodIDPtr, _$context.pointer).reference,
     );
   }
 
@@ -1143,11 +1042,7 @@ class AppWebViewProbe extends jni$_.JObject {
             >
           >('globalEnv_CallVoidMethod')
           .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun probe(listener: dev.getboolean.sourceruntime.ProbeListener): kotlin.Unit`
@@ -1155,11 +1050,7 @@ class AppWebViewProbe extends jni$_.JObject {
     ProbeListener probeListener,
   ) {
     final _$probeListener = probeListener.reference;
-    _probe(
-      reference.pointer,
-      _id_probe as jni$_.JMethodIDPtr,
-      _$probeListener.pointer,
-    ).check();
+    _probe(reference.pointer, _id_probe as jni$_.JMethodIDPtr, _$probeListener.pointer).check();
   }
 
   static final _id_destroyAll = _class.instanceMethodId(
@@ -1178,11 +1069,7 @@ class AppWebViewProbe extends jni$_.JObject {
             >
           >('globalEnv_CallVoidMethod')
           .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun destroyAll(listener: dev.getboolean.sourceruntime.ProbeListener): kotlin.Unit`
@@ -1190,11 +1077,7 @@ class AppWebViewProbe extends jni$_.JObject {
     ProbeListener probeListener,
   ) {
     final _$probeListener = probeListener.reference;
-    _destroyAll(
-      reference.pointer,
-      _id_destroyAll as jni$_.JMethodIDPtr,
-      _$probeListener.pointer,
-    ).check();
+    _destroyAll(reference.pointer, _id_destroyAll as jni$_.JMethodIDPtr, _$probeListener.pointer).check();
   }
 }
 
@@ -1280,9 +1163,7 @@ class ProbeListener extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/ProbeListener',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/ProbeListener');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<ProbeListener?> nullableType = $ProbeListener$NullableType$();
@@ -1305,12 +1186,7 @@ class ProbeListener extends jni$_.JObject {
             >
           >('globalEnv_CallVoidMethod')
           .asFunction<
-            jni$_.JThrowablePtr Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              int,
-              jni$_.Pointer<jni$_.Void>,
-            )
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, int, jni$_.Pointer<jni$_.Void>)
           >();
 
   /// from: `public fun onResult(ok: kotlin.Boolean, payload: kotlin.String): kotlin.Unit`
@@ -1319,12 +1195,7 @@ class ProbeListener extends jni$_.JObject {
     jni$_.JString string,
   ) {
     final _$string = string.reference;
-    _onResult(
-      reference.pointer,
-      _id_onResult as jni$_.JMethodIDPtr,
-      z ? 1 : 0,
-      _$string.pointer,
-    ).check();
+    _onResult(reference.pointer, _id_onResult as jni$_.JMethodIDPtr, z ? 1 : 0, _$string.pointer).check();
   }
 
   /// Maps a specific port to the implemented interface.
@@ -1513,9 +1384,7 @@ class RuntimeDiagnostics extends jni$_.JObject {
   ) : $type = type,
       super.fromReference(reference);
 
-  static final _class = jni$_.JClass.forName(
-    r'dev/getboolean/sourceruntime/RuntimeDiagnostics',
-  );
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/RuntimeDiagnostics');
 
   /// The type which includes information such as the signature of this class.
   static const jni$_.JType<RuntimeDiagnostics?> nullableType = $RuntimeDiagnostics$NullableType$();
@@ -1584,10 +1453,7 @@ class RuntimeDiagnostics extends jni$_.JObject {
 
   /// from: `public fun collectJavaGarbage(): kotlin.Unit`
   void collectJavaGarbage() {
-    _collectJavaGarbage(
-      reference.pointer,
-      _id_collectJavaGarbage as jni$_.JMethodIDPtr,
-    ).check();
+    _collectJavaGarbage(reference.pointer, _id_collectJavaGarbage as jni$_.JMethodIDPtr).check();
   }
 }
 

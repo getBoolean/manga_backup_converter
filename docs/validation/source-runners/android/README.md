@@ -101,6 +101,15 @@ Method: ART's JNI global reference table, printed by `Debug.dumpReferenceTables(
 - API 28 exactly (the lowest level after the decision), emulator or device.
 - Source construction and ID comparison with a real host (U11).
 
+## Host app effects
+
+These come from the plugin's build script and the root dependency; `android/` is untouched and the app's minSdk is still 24.
+- JitPack (`https://jitpack.io`, limited to group `com.github.mihonapp`) is added to every Gradle project's repositories. The commit-hash `injekt:91edab2317` artifact is built on demand there.
+- The repackaged stub source API plus OkHttp 5.4.0, RxJava 1.3.8, rxandroid 1.2.1, jsoup 1.22.2, injekt and kotlinx-serialization 1.7.3 now ship in every app variant.
+- Debug builds bundle everything under `fixtures/source_captures/tachi/` as assets, including captures other units add there later. Release builds carry none: `flutter build apk --release` succeeds and the release APK has no `assets/all.mangadex/` entry, while the debug APK has three.
+- `jni` is now registered as a Windows and Linux plugin of the host app. `flutter build windows --debug` succeeds and bundles `dartjni.dll`. Linux was not built.
+- R8 keeps only `dev.getboolean.sourceruntime.**` and `eu.kanade.tachiyomi.**` (`consumer-rules.pro`). Release builds still rename or strip the rest of the surface extension DEX needs (OkHttp, Okio, Kotlin, kotlinx, jsoup, injekt, androidx.preference). The gate ran only on debug builds; U11 needs keep rules for that surface.
+
 ## Not done here
 
 - KTD23's melos regeneration script and CI drift check for the generated bindings are outside this unit's ownership. `tool/jnigen.dart` regenerates and formats the bindings, but needs a prior app build so the compiled Kotlin classes exist.
