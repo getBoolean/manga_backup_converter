@@ -341,9 +341,11 @@ class ConvertCommand extends Command<void> {
             outputFormat.pluginLoader,
             cache: pluginCache,
           );
+          ConversionSummary? conversionSummary;
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: cachingLoader,
+            onSummary: (ConversionSummary summary) => conversionSummary = summary,
             onSelectExtensions: (List<ExtensionEntry> allExtensions) async {
               final List<ExtensionEntry> extensions = allExtensions
                   .where((ExtensionEntry e) => e.contentRating <= maxRating)
@@ -442,6 +444,7 @@ class ConvertCommand extends Command<void> {
           outputFile.writeAsBytesSync(fileData);
           // Write outside zone — user-facing status message
           Zone.root.print('Converted backup written to ${outputFile.path}');
+          conversionSummary?.describe().forEach(Zone.root.print);
         },
         zoneSpecification: logSink != null
             ? ZoneSpecification(

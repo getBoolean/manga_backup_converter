@@ -193,9 +193,12 @@ void main() {
         pluginNames: ['pluginA', 'pluginB'],
       );
 
-      check(results.first.confirmedMatch).isNotNull().has((PluginSearchResult r) => r.pluginSourceId, 'plugin').equals(
-        'pluginB',
-      );
+      check(results.first.confirmedMatch)
+          .isNotNull()
+          .has((PluginSearchResult r) => r.pluginSourceId, 'plugin')
+          .equals(
+            'pluginB',
+          );
     });
 
     test('takes only first result per plugin', () async {

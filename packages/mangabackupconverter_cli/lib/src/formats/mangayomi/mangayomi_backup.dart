@@ -104,10 +104,12 @@ class MangayomiBackup with MangayomiBackupMappable implements ConvertableBackup 
       return SourceMangaData(
         details: manga.toMangaSearchDetails(),
         sourceId: manga.source,
+        sourceMangaKey: manga.link,
         categories: categoryNames,
         chapters: mangaChapters.map((MangayomiBackupChapter c) {
           return SourceChapter(
             title: c.name ?? '',
+            chapterKey: c.id?.toString(),
             isRead: c.isRead ?? false,
             isBookmarked: c.isBookmarked ?? false,
             lastPageRead: int.tryParse(c.lastPageRead ?? '') ?? 0,
@@ -123,6 +125,7 @@ class MangayomiBackup with MangayomiBackupMappable implements ConvertableBackup 
               .firstOrNull;
           return SourceHistoryEntry(
             chapterTitle: ch?.name ?? 'Chapter ${h.chapterId}',
+            chapterKey: h.chapterId?.toString(),
             dateRead: _tryParseDate(h.date),
             completed: ch?.isRead ?? false,
           );

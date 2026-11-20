@@ -6,6 +6,7 @@ import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/backup_format.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/conversion_strategy.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/conversion_summary.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
@@ -66,6 +67,7 @@ class MigrationPipeline {
     required this.onConfirmMatches,
     required this.onProgress,
     this.pluginLoader,
+    this.onSummary,
   });
 
   final List<String> repoUrls;
@@ -73,6 +75,10 @@ class MigrationPipeline {
   final OnConfirmMatches onConfirmMatches;
   final void Function(int current, int total, String message) onProgress;
   final PluginLoader? pluginLoader;
+
+  /// Receives what the migration could not carry over (unresolved manga and
+  /// withheld chapter state), after the target backup is built.
+  final void Function(ConversionSummary summary)? onSummary;
 
   Future<ConvertableBackup> run({
     required ConvertableBackup sourceBackup,
@@ -260,7 +266,14 @@ class MigrationPipeline {
     BackupFormat targetFormat,
     List<MangaMatchConfirmation> confirmations,
   ) {
-    return targetFormat.backupBuilder.build(confirmations, sourceFormatAlias: sourceFormat.alias);
+    final summary = ConversionSummary();
+    final ConvertableBackup backup = targetFormat.backupBuilder.build(
+      confirmations,
+      sourceFormatAlias: sourceFormat.alias,
+      summary: summary,
+    );
+    onSummary?.call(summary);
+    return backup;
   }
 }
 

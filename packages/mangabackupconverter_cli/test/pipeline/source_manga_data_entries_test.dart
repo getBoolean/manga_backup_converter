@@ -160,6 +160,7 @@ void main() {
       check(entryA.chapters).length.equals(1);
       check(entryA.chapters[0].title).equals('Ch 1');
       check(entryA.history).length.equals(1);
+      check(entryA.history[0].chapterKey).isNotNull().equals(entryA.chapters[0].chapterKey!);
       check(entryA.categories).deepEquals(<String>['Favorites']);
 
       final SourceMangaData entryB = entries[1];
@@ -289,6 +290,7 @@ void main() {
       check(entry.chapters[0].isRead).isTrue();
       check(entry.history).length.equals(1);
       check(entry.history[0].chapterTitle).equals('Chapter 1');
+      check(entry.history[0].chapterKey).isNotNull().equals(entry.chapters[0].chapterKey!);
       check(entry.tracking).length.equals(1);
       check(entry.tracking[0].syncId).equals(1);
     });
@@ -406,6 +408,8 @@ void main() {
       check(entry1.chapters).length.equals(1);
       check(entry1.history).length.equals(1);
       check(entry1.history[0].completed).isTrue();
+      check(entry1.history[0].chapterKey).isNotNull().equals(entry1.chapters[0].chapterKey!);
+      check(entry1.sourceMangaKey).isNotNull();
       check(entry1.categories).deepEquals(<String>['Favorites']);
 
       final SourceMangaData entry2 = entries.firstWhere((SourceMangaData e) => e.details.title == 'Other Manga');
@@ -494,6 +498,7 @@ void main() {
       check(e1.sourceId).equals('src');
       check(e1.chapters).length.equals(1);
       check(e1.history).length.equals(1);
+      check(e1.history[0].chapterKey).isNotNull().equals(e1.chapters[0].chapterKey!);
       check(e1.tracking).length.equals(1);
       check(e1.categories).length.equals(2);
       check(e1.categories).contains('Favorites');

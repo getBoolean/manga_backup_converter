@@ -420,8 +420,7 @@ void main() {
       check((chapters['ch-A1'] as Map<String, dynamic>)['time'] as num).equals(fx.fixtureUploadAppleSeconds);
 
       final library =
-          jsonDecode(utf8.decode(archive.findFile('__LIBRARY_MANGA_V4')!.content as List<int>))
-              as Map<String, dynamic>;
+          jsonDecode(utf8.decode(archive.findFile('__LIBRARY_MANGA_V4')!.content as List<int>)) as Map<String, dynamic>;
       check((library['lib-uuid-1'] as Map<String, dynamic>)['lastRead'] as num).equals(fx.fixtureReadAppleSeconds);
     });
 
@@ -465,7 +464,9 @@ void main() {
 
     test('missing-date sentinels are not reported as real dates', () {
       final Uint8List bytes = fx.buildPaperbackArchive(<String, Map<String, dynamic>>{
-        '__MANGA_INFO_V4': <String, dynamic>{'info-A': fx.mangaInfoJson('info-A', titles: <String>['A'])},
+        '__MANGA_INFO_V4': <String, dynamic>{
+          'info-A': fx.mangaInfoJson('info-A', titles: <String>['A']),
+        },
         '__SOURCE_MANGA_V4': <String, dynamic>{'sm-A': fx.sourceMangaJson('sm-A', mangaInfoId: 'info-A')},
         '__CHAPTER_V4': <String, dynamic>{
           'c1': fx.chapterJson('c1', sourceMangaId: 'sm-A', chapNum: 1, time: fx.appleDistantPastSeconds),
@@ -479,7 +480,7 @@ void main() {
       });
 
       final SourceMangaData entry = PaperbackBackup.fromData(bytes).sourceMangaDataEntries.single;
-      final Map<double?, DateTime?> uploaded = <double?, DateTime?>{
+      final uploaded = <double?, DateTime?>{
         for (final SourceChapter c in entry.chapters) c.chapterNumber: c.dateUploaded,
       };
       check(uploaded[1]).isNull();
@@ -521,7 +522,9 @@ void main() {
 
     test('secondary-source chapters are kept separately with provenance', () {
       final Uint8List bytes = fx.buildPaperbackArchive(<String, Map<String, dynamic>>{
-        '__MANGA_INFO_V4': <String, dynamic>{'info-A': fx.mangaInfoJson('info-A', titles: <String>['A'])},
+        '__MANGA_INFO_V4': <String, dynamic>{
+          'info-A': fx.mangaInfoJson('info-A', titles: <String>['A']),
+        },
         '__SOURCE_MANGA_V4': <String, dynamic>{
           'sm-P': fx.sourceMangaJson('sm-P', mangaInfoId: 'info-A', sourceId: 'PrimarySrc'),
           'sm-S': fx.sourceMangaJson('sm-S', mangaInfoId: 'info-A', sourceId: 'SecondarySrc'),
