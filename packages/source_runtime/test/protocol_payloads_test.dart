@@ -265,7 +265,7 @@ void main() {
       check(prepare.admissionFailure(packageId: 'eu.kanade.x', isLoaded: nothingLoaded)).isNull();
       check(
         const PackageUnloadRequest().admissionFailure(packageId: 'eu.kanade.x', isLoaded: nothingLoaded),
-      ).isNull();
+      ).isA<RuntimeUnavailableFailure>();
       check(
         PackageLoadRequest(
           artifact: artifact,

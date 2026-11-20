@@ -46,7 +46,7 @@ enum WorkerOperation {
   handshake('handshake', perPackage: false, requiresLoadedPackage: false),
   artifactPrepare('artifact.prepare', requiresLoadedPackage: false),
   packageLoad('package.load', requiresLoadedPackage: false),
-  packageUnload('package.unload', requiresLoadedPackage: false),
+  packageUnload('package.unload'),
   settingsUpdate('settings.update'),
   search('search'),
   details('details'),
@@ -64,10 +64,8 @@ enum WorkerOperation {
   /// Whether a worker must already hold the package to serve the operation.
   ///
   /// `artifact.prepare` runs before the package exists (it produces the
-  /// bytes `package.load` loads), `package.load` creates it, and
-  /// `package.unload` of an absent package is a no-op. Only
-  /// `settings.update`, `search`, `details` and `dispose` need a loaded
-  /// package.
+  /// bytes `package.load` loads) and `package.load` creates it; every other
+  /// per-package operation, `package.unload` included, needs it loaded.
   final bool requiresLoadedPackage;
 
   static WorkerOperation? fromWire(String? wire) {

@@ -239,6 +239,18 @@ void runBrowserPortContractSuite(String name, BrowserPortHarness Function() crea
         check(messages).deepEquals(<String>['hello']);
       });
 
+      test('delivers messages from loadData content with an http(s) base URL', () async {
+        final BrowserSession s = await open(sourceA);
+        final messages = <String>[];
+        check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+        check(
+          await s.loadData('<html><title>challenge</title></html>', baseUrl: Uri.parse('https://example.org/')),
+        ).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'solved'));
+        await _waitFor(messages, 'solved');
+        check(messages).deepEquals(<String>['solved']);
+      });
+
       test('a channel registered before a load is present in the loaded page', () async {
         final BrowserSession s = await open(sourceA);
         final messages = <String>[];

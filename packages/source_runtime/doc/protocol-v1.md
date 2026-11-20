@@ -15,7 +15,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 | Minor | Adds |
 |---|---|
 | 1.0 | The protocol as first shipped. |
-| 1.1 | Handshake `protocolMinor`, `limits` and `sizing`; `artifact.prepare` `trustedSigners`, and the rule that it needs no loaded package; string-set setting values; source-scoped settings (`SettingsPayload.sources`); the browser message channel contract. |
+| 1.1 | Handshake `protocolMinor`, `limits` and `sizing`; `artifact.prepare` `trustedSigners`, and the explicit rule that it needs no loaded package; string-set setting values; source-scoped settings (`SettingsPayload.sources`); the browser message channel contract. |
 
 ## Transport
 
@@ -61,7 +61,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 - **Reverse requests:** an `rreq` is valid only while its originating request (`of`) is in flight. An orphaned `rreq` fails the session. After a restart, the supervisor never delivers a late `rres` from an older generation.
 - **Cancellation:** after a `cancel`, stop the operation and reply with `err.code = "cancelled"`. The supervisor discards that reply if the caller has already gone. If the operation does not settle within the cancel grace period, the supervisor kills and restarts the worker.
 - **Concurrency:** the supervisor sends at most one per-package operation at a time for each package. Different packages may run concurrently, up to the pool size. `handshake` and `shutdown` are not package operations. Restart reloads also bypass the package queue.
-- **Loaded packages:** `artifact.prepare`, `package.load` and `package.unload` carry `pkg` but must not require the package to be loaded: `artifact.prepare` produces the bytes `package.load` will load, and unloading an absent package is a no-op. Only `settings.update`, `search`, `details` and `dispose` need a loaded package, and answer `runtime-unavailable` without one. Dart workers use `WorkerRequest.admissionFailure` (backed by `WorkerOperation.requiresLoadedPackage`) for this check.
+- **Loaded packages:** `artifact.prepare` and `package.load` carry `pkg` but must not require the package to be loaded: `artifact.prepare` produces the bytes `package.load` will load. Every other per-package operation (`package.unload`, `settings.update`, `search`, `details`, `dispose`) needs a loaded package and answers `runtime-unavailable` without one. Dart workers use `WorkerRequest.admissionFailure` (backed by `WorkerOperation.requiresLoadedPackage`) for this check.
 - **Deadlines:** each operation's deadline is measured from dispatch, so time spent waiting in the queue does not count. Time spent in `host.browser.show` is excluded from the deadline and bounded separately.
 - **Restart:** a restart fences every older generation, starts a new process, completes the handshake, and reloads every loaded package from its re-verified artifact with its current settings. The operation that hit its deadline fails with `timeout`. Other interrupted operations are re-sent once; a second interruption fails them with `worker-restarted`.
 
@@ -205,7 +205,7 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 - **Availability:** the object exists in the current page as soon as the handler is enabled, and is injected at document start into every later page, until the handler is disabled.
 - **Origin rule:** a message is delivered only when the frame that posted it has the same origin (scheme, host, port) as the session's current top-level document, and that document came from http(s): a `load` after redirects, or `loadData` with its http(s) base URL. Messages from cross-origin frames, and from `about:blank` or other opaque-origin documents, are dropped silently.
 - **Payload:** a non-string argument is dropped. Messages from one frame arrive in posting order.
-- **Conformance:** `runBrowserPortContractSuite` in `package:source_runtime_testing` checks delivery, registration before a load, removal, the cross-origin and `about:blank` drops, and name validation. Every platform implementation must pass it.
+- **Conformance:** `runBrowserPortContractSuite` in `package:source_runtime_testing` checks delivery (on a loaded page and on `loadData` content with an http(s) base URL), registration before a load, removal, the cross-origin and `about:blank` drops, and name validation. Every platform implementation must pass it.
 
 ## Example exchange
 
