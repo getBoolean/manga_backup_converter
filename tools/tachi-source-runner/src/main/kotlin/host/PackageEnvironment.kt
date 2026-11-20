@@ -40,6 +40,9 @@ interface OperationContext {
     fun recordHostFailure(failure: Throwable)
 
     val isCancelled: Boolean
+
+    /** Source the operation addresses, if any (browser sessions are scoped to it). */
+    val sourceId: String? get() = null
 }
 
 /**
@@ -176,7 +179,8 @@ class HostApplication internal constructor(val environment: PackageEnvironment) 
  */
 object PackageScope {
     private val walker: StackWalker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-    private val bound = ThreadLocal<PackageEnvironment?>()
+    @PublishedApi
+    internal val bound = ThreadLocal<PackageEnvironment?>()
 
     fun current(): PackageEnvironment? {
         val fromStack = walker.walk { frames ->
@@ -191,7 +195,7 @@ object PackageScope {
     fun require(what: String): PackageEnvironment =
         current() ?: throw IllegalStateException("$what requested outside any loaded package")
 
-    fun <T> bind(environment: PackageEnvironment, block: () -> T): T {
+    inline fun <T> bind(environment: PackageEnvironment, block: () -> T): T {
         val previous = bound.get()
         bound.set(environment)
         try {

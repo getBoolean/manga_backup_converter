@@ -29,6 +29,12 @@ kotlin {
 // like a real extension (compileOnly), then packaged into separate JARs.
 val fixtureExt: SourceSet by sourceSets.creating {
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+    kotlin.srcDir("src/fixtureCommon/kotlin")
+}
+// Second fixture compilation: fixture-b reuses class names from fixture-a.
+val fixtureExtB: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+    kotlin.srcDir("src/fixtureCommon/kotlin")
 }
 
 // Manual capture tool: records live site responses once. Never run by tests.
@@ -84,8 +90,13 @@ val fixtureJarTasks = fixturePackages.map { name ->
     tasks.register<Jar>("fixtureJar_$name") {
         archiveFileName = "fixture-$name.jar"
         destinationDirectory = fixtureJarsDir
-        from(fixtureExt.output) {
+        val shared = name == "a" || name == "b"
+        from(if (name == "b") fixtureExtB.output else fixtureExt.output) {
             include("fixture/$name/**")
+            if (shared) {
+                include("fixture/shared/**")
+                include("fixture/common/**")
+            }
         }
         from(file("src/fixtureExt/manifests/$name")) {
             include("AndroidManifest.xml")

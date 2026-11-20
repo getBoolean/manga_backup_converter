@@ -1,0 +1,93 @@
+package fixture.webview
+
+import android.app.Application
+import android.os.Handler
+import android.os.Looper
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import eu.kanade.tachiyomi.source.online.HttpSource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+class Factory : eu.kanade.tachiyomi.source.SourceFactory {
+    override fun createSources() = listOf(WebViewSource())
+}
+
+/**
+ * The `runWebViewBlocking` shape: post to the main looper, build a WebView
+ * there, block the calling thread on a latch until the page answers through a
+ * JavascriptInterface. The query picks the base URL (`file` → a file: URL the
+ * shim must refuse). The result title reports the Chromium-glue probe.
+ */
+class WebViewSource : HttpSource() {
+    override val name = "WebView"
+    override val lang = "en"
+    override val baseUrl = "https://webview.test"
+    override val supportsLatest = false
+
+    override suspend fun getPopularManga(page: Int) = MangasPage(emptyList(), false)
+    override suspend fun getLatestUpdates(page: Int) = MangasPage(emptyList(), false)
+
+    override suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
+        val probe = try {
+            WebView.getWebViewClassLoader().loadClass("org.chromium.support_lib_glue.SupportLibReflectionUtil")
+            "glue"
+        } catch (_: ClassNotFoundException) {
+            "no-glue"
+        }
+        val latch = CountDownLatch(1)
+        var result: String? = null
+        var error: String? = null
+        var webView: WebView? = null
+        val main = Handler(Looper.getMainLooper())
+        main.post {
+            check(Looper.myLooper() == Looper.getMainLooper())
+            val view = WebView(Injekt.get<Application>())
+            webView = view
+            view.settings.javaScriptEnabled = true
+            view.settings.userAgentString = "FixtureAgent/1"
+            view.addJavascriptInterface(
+                object {
+                    @JavascriptInterface
+                    fun postMessage(message: String) {
+                        result = message
+                        latch.countDown()
+                    }
+                },
+                "bridge",
+            )
+            view.webViewClient = object : WebViewClient() {
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error2: WebResourceError) {
+                    error = error2.description.toString()
+                    latch.countDown()
+                }
+            }
+            val base = if (query == "file") "file:///etc/passwd" else "https://webview.test/"
+            view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)
+        }
+        if (!latch.await(30, TimeUnit.SECONDS)) throw IOException("WebView timed out")
+        main.post { webView?.destroy() }
+        error?.let { throw IOException("WebView failed: $it") }
+        return MangasPage(listOf(SManga.create().apply { url = "/w"; title = "$probe:$result" }), false)
+    }
+
+    override suspend fun getMangaUpdate(manga: SManga, chapters: List<SChapter>, fetchDetails: Boolean, fetchChapters: Boolean) =
+        SMangaUpdate(manga, emptyList())
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> = emptyList()
+    override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
+    override fun getChapterUrl(chapter: SChapter) = baseUrl + chapter.url
+}
+
