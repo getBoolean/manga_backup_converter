@@ -10,7 +10,7 @@ part of 'repository_providers.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(weatherRepository)
-const weatherRepositoryProvider = WeatherRepositoryProvider._();
+final weatherRepositoryProvider = WeatherRepositoryProvider._();
 
 final class WeatherRepositoryProvider
     extends
@@ -20,7 +20,7 @@ final class WeatherRepositoryProvider
           HttpWeatherRepository
         >
     with $Provider<HttpWeatherRepository> {
-  const WeatherRepositoryProvider._()
+  WeatherRepositoryProvider._()
     : super(
         from: null,
         argument: null,

@@ -1,9 +1,9 @@
 include: package:app_lints/analysis_options.yaml
 
-custom_lint:
-  rules:
-    - avoid_late_keyword: false
-    - avoid_using_api:
+solid_lints:
+  diagnostics:
+    avoid_late_keyword: false
+    avoid_using_api:
       entries:
         - class_name: EdgeInsets
           source: package:flutter
@@ -21,3 +21,12 @@ custom_lint:
         - class_name: BorderRadius
           source: package:flutter
           reason: Use `BorderRadiusDirectional` instead.
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

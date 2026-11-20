@@ -10,7 +10,7 @@ permissions:
 
 env:
   FLUTTER_CHANNEL: "stable"
-  FLUTTER_VERSION: "3.41.1"
+  FLUTTER_VERSION: "3.50.0"
   PROTOC_PLUGGIN_VERSION: "^21.1.2"
 
 jobs:

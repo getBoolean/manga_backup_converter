@@ -52,7 +52,7 @@ melos run cli                    # Run CLI directly (args forwarded automaticall
 melos run jnigen                 # Generate JNI bindings for jsoup (uses system JDK for javadoc)
 melos run jni_setup              # Build dartjni.dll (uses bundled JDK, handles MSYS2)
 melos run web_test               # Run all web-compatible tests in Chrome (flutter + dart)
-melos run lint                   # Run dart analyze + custom_lint
+melos run lint                   # Run dart analyze (solid_lints + riverpod_lint run as analyzer plugins)
 melos run format                 # Format all packages
 melos run fix                    # Auto-fix lint issues
 ```
@@ -213,7 +213,7 @@ Always run `melos run generate` after modifying annotated model classes. The env
 
 ## CI
 
-GitHub Actions runs on all branches: format verification, analysis, tests with coverage (Codecov), then platform builds (iOS, Android, Web, Windows, Linux). Flutter 3.41.1 stable.
+GitHub Actions runs on all branches: format verification, analysis, tests with coverage (Codecov), then platform builds (iOS, Android, Web, Windows, Linux). Flutter 3.50.0 stable (Dart 3.14).
 - All `actions/checkout@v4` steps require `submodules: true` — wasm3 vendored source is a git submodule at `packages/wasm3/vendor/wasm3`
 - `test_with_coverage` defaults to VM service port 8181; concurrent `melos exec` causes port conflicts and hangs — test scripts use `concurrency: 1`
 - CI `test` job installs Rust toolchain (`dtolnay/rust-toolchain@stable`) on Windows/Linux before tests — scraper build hook needs `cargo`; without it, the hook downloads rustup from scratch and hangs

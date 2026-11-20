@@ -1,6 +1,6 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '13.0'
-# 13 required by patrol
+platform :ios, '15.0'
+# 15.0 is the minimum supported by Flutter 3.50 (patrol needs 13+)
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
