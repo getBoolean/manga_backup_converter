@@ -47,7 +47,7 @@ void main() {
 
   WorkerSupervisor supervisor({
     List<String> arguments = const <String>[],
-    SupervisorLimits? limits,
+    SupervisorLimitsPolicy? limits,
     ReverseRequestHandler? onReverseRequest,
     FutureOr<void> Function(int generation)? onGenerationFenced,
   }) {
@@ -1056,6 +1056,276 @@ void main() {
       );
       check(late.failureOrNull).isA<CancelledFailure>();
       check(port.openSessions).equals(0);
+    });
+  });
+
+  group('protocol 1.1', () {
+    const signer = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
+    final trust = ArtifactTrustAnchor(signerFingerprints: const <String>[signer]);
+    final String tachiLimits = jsonEncode(<String, Object?>{
+      'poolSize': 3,
+      'operationDeadlineMs': 7000,
+      'cancelGraceMs': 900,
+      'interactionTimeoutMs': 60000,
+      'shutdownGraceMs': 1500,
+    });
+    final String tachiSizing = jsonEncode(<String, Object?>{
+      'rule': <String, Object?>{'source': 'docs/validation/source-runners/desktop/bench.md'},
+      'inputs': <String, Object?>{'cores': 8, 'maxHeapMiB': 1024},
+      'derived': <String, Object?>{'poolSize': 3},
+      'overridden': <String>[],
+    });
+
+    test('negotiates minor 1 and records worker limits and sizing', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--limits=$tachiLimits', '--sizing=$tachiSizing']);
+      final HandshakeResponse hello = (await s.start()).valueOrNull!;
+      check(hello.protocolMinor).equals(1);
+      check(s.protocolMinor).equals(1);
+      check(hello.limits!.poolSize).equals(3);
+      check(hello.sizing!.inputs['cores']).equals(8);
+      // Fixed caller limits are never replaced by reported ones.
+      check(s.limits!.maxConcurrentPackages).equals(testLimits().maxConcurrentPackages);
+    });
+
+    test('a 1.0 worker (no protocolMinor) is accepted as minor 0', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--omit-minor']);
+      check((await s.start()).valueOrNull!.protocolMinor).equals(0);
+      check(await s.loadPackage(await package('plain'))).isA<SourceSuccess<PackageLoadResponse>>();
+    });
+
+    test('a worker that owns a higher minor replies with the offered one', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--minor=7']);
+      check((await s.start()).valueOrNull!.protocolMinor).equals(protocolMinorVersion);
+    });
+
+    test('a worker that answers with a higher minor than offered fails the session', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--force-minor=2']);
+      check(
+        (await s.start()).failureOrNull,
+      ).isA<ProtocolViolationFailure>().has((f) => f.message, 'message').contains('1.2');
+      check(s.state).equals(WorkerState.failed);
+    });
+
+    test('adopts worker-reported limits when the caller opts in', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--limits=$tachiLimits'],
+        limits: const AdoptWorkerLimits(handshakeDeadline: Duration(seconds: 10)),
+      );
+      check(s.limits).isNull();
+      check(await s.start()).isA<SourceSuccess<HandshakeResponse>>();
+      final SupervisorLimits limits = s.limits!;
+      check(limits.maxConcurrentPackages).equals(3);
+      check(limits.operationDeadline).equals(const Duration(seconds: 7));
+      check(limits.cancelGrace).equals(const Duration(milliseconds: 900));
+      check(limits.interactionTimeout).equals(const Duration(minutes: 1));
+      check(limits.shutdownGrace).equals(const Duration(milliseconds: 1500));
+      check(await s.loadPackage(await package('adopted'))).isA<SourceSuccess<PackageLoadResponse>>();
+    });
+
+    test('caller-supplied limits take precedence over worker-reported ones', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--limits=$tachiLimits'],
+        limits: const AdoptWorkerLimits(
+          handshakeDeadline: Duration(seconds: 10),
+          maxConcurrentPackages: 1,
+          cancelGrace: Duration(milliseconds: 250),
+        ),
+      );
+      await s.start();
+      check(s.limits!.maxConcurrentPackages).equals(1);
+      check(s.limits!.cancelGrace).equals(const Duration(milliseconds: 250));
+      check(s.limits!.operationDeadline).equals(const Duration(seconds: 7));
+    });
+
+    test('a limit neither side supplies fails the start; nothing is invented', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>[
+          '--limits=${jsonEncode(<String, Object?>{'poolSize': 2, 'memoryLimitBytes': 1024})}',
+        ],
+        limits: const AdoptWorkerLimits(handshakeDeadline: Duration(seconds: 10), cancelGrace: Duration(seconds: 1)),
+      );
+      final SourceFailure? failure = (await s.start()).failureOrNull;
+      check(failure).isA<RuntimeUnavailableFailure>().has((f) => f.message, 'message')
+        ..contains('operationDeadlineMs')
+        ..contains('interactionTimeoutMs')
+        ..contains('shutdownGraceMs')
+        ..not((Subject<String> it) => it.contains('poolSize'))
+        ..not((Subject<String> it) => it.contains('cancelGraceMs'));
+      check(s.state).equals(WorkerState.failed);
+    });
+
+    test('a worker reporting no limits cannot start under adoption without caller values', () async {
+      final WorkerSupervisor s = supervisor(
+        limits: const AdoptWorkerLimits(handshakeDeadline: Duration(seconds: 10)),
+      );
+      check((await s.start()).failureOrNull).isA<RuntimeUnavailableFailure>();
+    });
+
+    test('AdoptWorkerLimits resolves each limit from the caller first', () {
+      final reported = WorkerReportedLimits(
+        poolSize: 4,
+        operationDeadline: const Duration(seconds: 3),
+        cancelGrace: const Duration(seconds: 1),
+        interactionTimeout: const Duration(seconds: 30),
+        shutdownGrace: const Duration(seconds: 2),
+      );
+      const policy = AdoptWorkerLimits(
+        handshakeDeadline: Duration(seconds: 5),
+        operationDeadline: Duration(seconds: 9),
+      );
+      final SupervisorLimits resolved = policy.resolve(reported);
+      check(resolved.operationDeadline).equals(const Duration(seconds: 9));
+      check(resolved.maxConcurrentPackages).equals(4);
+      check(policy.missing(null)).length.equals(4);
+      check(() => policy.resolve(null)).throws<ArgumentError>();
+    });
+
+    test('string-set and source-scoped settings reach a 1.1 worker', () async {
+      final WorkerSupervisor s = supervisor();
+      final settings = SettingsSnapshot(
+        values: const <String, Object>{
+          'genres': <String>['b', 'a'],
+        },
+        sources: <String, SourceScopedSettings>{
+          '9223372036854775807': SourceScopedSettings(
+            values: const <String, Object>{'lang': 'ja'},
+            secrets: const <String, String>{'password': 'scoped-SECRET'},
+          ),
+        },
+      );
+      check(await s.loadPackage(await package('multi', settings: settings))).isA<SourceSuccess<PackageLoadResponse>>();
+      final sent = (await stats(s))['settings']! as Map<String, Object?>;
+      final multi = sent['multi']! as Map<String, Object?>;
+      check((multi['values']! as Map<String, Object?>)['genres']).isA<List<Object?>>().deepEquals(<String>['a', 'b']);
+      check(
+        ((multi['sources']! as Map<String, Object?>)['9223372036854775807']! as Map<String, Object?>)['secrets'],
+      ).isA<Map<String, Object?>>().deepEquals(<String, Object?>{'password': 'scoped-SECRET'});
+      check(s.redactor.redact('leak scoped-SECRET')).not((Subject<String> it) => it.contains('scoped-SECRET'));
+    });
+
+    test('a 1.0 worker is refused string-set and source-scoped settings before anything is sent', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--omit-minor']);
+      final scoped = SettingsSnapshot(
+        sources: <String, SourceScopedSettings>{
+          '1': SourceScopedSettings(values: const <String, Object>{'lang': 'ja'}),
+        },
+      );
+      check((await s.loadPackage(await package('scoped', settings: scoped))).failureOrNull)
+          .isA<UnsupportedApiFailure>();
+      check(await s.loadPackage(await package('plain'))).isA<SourceSuccess<PackageLoadResponse>>();
+      final withSet = SettingsSnapshot(
+        values: const <String, Object>{
+          'genres': <String>['a'],
+        },
+      );
+      check((await s.updateSettings('plain', withSet)).failureOrNull).isA<UnsupportedApiFailure>();
+      check((await stats(s))['loaded']! as Map<String, Object?>).not((it) => it.containsKey('scoped'));
+    });
+
+    test('prepareArtifact sends the stored trust anchor without a loaded package and admits the output', () async {
+      final WorkerSupervisor s = supervisor();
+      final WorkerPackage input = await package('eu.kanade.prepare');
+      final SourceOutcome<ArtifactLease> prepared = await s.prepareArtifact(
+        packageId: 'eu.kanade.prepare',
+        input: input.artifact,
+        trust: trust,
+        cache: cache,
+        hostCompatibility: 'host-1',
+      );
+      final ArtifactLease lease = prepared.valueOrNull!;
+      check(lease.binding.sha256).equals(input.artifact.binding.sha256);
+      check(lease.binding.kind).equals('jar');
+      check(await lease.readVerified()).deepEquals(await input.artifact.readVerified());
+      check(
+        cache.leaseCount(
+          lease.binding,
+          const ArtifactProfile(producer: 'fake-prepare', converterVersion: 'fake.1', hostCompatibility: 'host-1'),
+        ),
+      ).equals(1);
+      final prepareCalls = (await stats(s))['prepared']! as List<Object?>;
+      check(prepareCalls).length.equals(1);
+      final call = prepareCalls.single! as Map<String, Object?>;
+      check(call['loaded']).equals(false);
+      check(call['trustedSigners']).isA<List<Object?>>().deepEquals(<String>[signer]);
+      check(s.packageIds).isEmpty();
+      check(Directory(p.join(cache.root.path, 'prepare')).listSync()).isEmpty();
+    });
+
+    test('prepareArtifact rejects an output whose digest differs from the report', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--prepare-lie']);
+      final WorkerPackage input = await package('eu.kanade.lie');
+      final SourceFailure? failure = (await s.prepareArtifact(
+        packageId: 'eu.kanade.lie',
+        input: input.artifact,
+        trust: trust,
+        cache: cache,
+        hostCompatibility: 'host-1',
+      )).failureOrNull;
+      check(failure).isA<ArtifactIncompatibleFailure>().has((f) => f.message, 'message').contains('does not match');
+      check(Directory(p.join(cache.root.path, 'prepare')).listSync()).isEmpty();
+    });
+
+    test('prepareArtifact refuses an empty trust anchor and a 1.0 worker without sending', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--omit-minor']);
+      final WorkerPackage input = await package('eu.kanade.refused');
+      check(
+        (await s.prepareArtifact(
+          packageId: 'eu.kanade.refused',
+          input: input.artifact,
+          trust: ArtifactTrustAnchor(signerFingerprints: const <String>[]),
+          cache: cache,
+          hostCompatibility: 'host-1',
+        )).failureOrNull,
+      ).isA<ArtifactIncompatibleFailure>();
+      check(
+        (await s.prepareArtifact(
+          packageId: 'eu.kanade.refused',
+          input: input.artifact,
+          trust: trust,
+          cache: cache,
+          hostCompatibility: 'host-1',
+        )).failureOrNull,
+      ).isA<UnsupportedApiFailure>();
+      check((await stats(s))['prepared']! as List<Object?>).isEmpty();
+    });
+
+    test('the bridge bounds host.browser.show with the supervisor interaction timeout', () async {
+      final port = FakeBrowserPort();
+      final bridge = BrowserReverseBridge(
+        port: port,
+        resolveSource: (String? pkg, String sourceId) => SourceIdentity(
+          ecosystem: 'test',
+          packageId: pkg!,
+          sourceId: sourceId,
+          artifact: const ArtifactBinding(sha256: 'ab', kind: 'test', version: '1'),
+        ),
+      );
+      ReverseRequest request(String op, Map<String, Object?> payload, {Duration? interactionTimeout}) => ReverseRequest(
+        op: op,
+        payload: payload,
+        packageId: 'pkg',
+        generation: 1,
+        cancel: CancellationToken.none,
+        interactionTimeout: interactionTimeout,
+      );
+      final session =
+          (await bridge.handle(
+                request('host.browser.open', const <String, Object?>{'sourceId': 's'}),
+              )).valueOrNull!['session']!
+              as String;
+      // Without any bound the show is refused rather than unbounded.
+      check(
+        (await bridge.handle(request('host.browser.show', <String, Object?>{'session': session}))).failureOrNull,
+      ).isA<CapabilityUnavailableFailure>();
+      // With the supervisor's bound the platform answer comes through.
+      check(
+        (await bridge.handle(
+          request('host.browser.show', <String, Object?>{
+            'session': session,
+          }, interactionTimeout: const Duration(seconds: 1)),
+        )).failureOrNull,
+      ).isA<InteractionRequiredFailure>();
+      await bridge.close();
     });
   });
 }

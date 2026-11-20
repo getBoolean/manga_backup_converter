@@ -8,9 +8,12 @@ library;
 
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as p;
 import 'package:source_runtime/src/backends/artifact_cache.dart';
 import 'package:source_runtime/src/backends/browser_reverse_bridge.dart';
 import 'package:source_runtime/src/backends/protocol.dart';
@@ -21,13 +24,28 @@ import 'package:source_runtime/src/contracts/cancellation.dart';
 import 'package:source_runtime/src/contracts/identity.dart';
 import 'package:source_runtime/src/contracts/outcome.dart';
 
+/// Where a supervisor's runtime limits come from (KTD25).
+///
+/// - [SupervisorLimits]: the caller supplies every limit; worker-reported
+///   limits are recorded in the handshake but not used.
+/// - [AdoptWorkerLimits]: the caller opts in to the limits the worker reports
+///   in its handshake (derived from its benchmarked sizing rule on this
+///   device). Any limit the caller supplies takes precedence. A limit neither
+///   side supplies fails the start: nothing is invented.
+sealed class SupervisorLimitsPolicy {
+  const SupervisorLimitsPolicy();
+
+  /// The KTD4 frame limit; a protocol rule, not a worker-reported value.
+  int get maxFrameBytes;
+}
+
 /// Runtime limits for a supervised worker (KTD25).
 ///
 /// Every value is required: no default ships without benchmark evidence.
 /// Contract tests pass small overrides. [maxFrameBytes] is the KTD4 protocol
 /// rule and is overridable only so tests can exercise the limit cheaply.
 @immutable
-final class SupervisorLimits {
+final class SupervisorLimits extends SupervisorLimitsPolicy {
   const SupervisorLimits({
     required this.maxConcurrentPackages,
     required this.operationDeadline,
@@ -53,7 +71,66 @@ final class SupervisorLimits {
   /// Bound on graceful shutdown before the process is killed.
   final Duration shutdownGrace;
 
+  @override
   final int maxFrameBytes;
+}
+
+/// Adopts the limits a worker reports in its handshake (`limits`, KTD25),
+/// with every caller-supplied limit taking precedence.
+///
+/// [handshakeDeadline] bounds the handshake itself, before the worker has
+/// reported anything; the caller must choose it. After each handshake
+/// (including restarts) the supervisor resolves its [SupervisorLimits] from
+/// the caller's values and the worker's `poolSize`, `operationDeadlineMs`,
+/// `cancelGraceMs`, `interactionTimeoutMs` and `shutdownGraceMs`. A limit
+/// missing from both fails the start with [RuntimeUnavailableFailure].
+@immutable
+final class AdoptWorkerLimits extends SupervisorLimitsPolicy {
+  const AdoptWorkerLimits({
+    required this.handshakeDeadline,
+    this.maxConcurrentPackages,
+    this.operationDeadline,
+    this.cancelGrace,
+    this.interactionTimeout,
+    this.shutdownGrace,
+    this.maxFrameBytes = protocolMaxFrameBytes,
+  });
+
+  /// Deadline for the handshake reply.
+  final Duration handshakeDeadline;
+  final int? maxConcurrentPackages;
+  final Duration? operationDeadline;
+  final Duration? cancelGrace;
+  final Duration? interactionTimeout;
+  final Duration? shutdownGrace;
+
+  @override
+  final int maxFrameBytes;
+
+  /// Names of the limits neither the caller nor [reported] supplies, using
+  /// the handshake's wire names.
+  List<String> missing(WorkerReportedLimits? reported) => <String>[
+    if ((maxConcurrentPackages ?? reported?.poolSize) == null) 'poolSize',
+    if ((operationDeadline ?? reported?.operationDeadline) == null) 'operationDeadlineMs',
+    if ((cancelGrace ?? reported?.cancelGrace) == null) 'cancelGraceMs',
+    if ((interactionTimeout ?? reported?.interactionTimeout) == null) 'interactionTimeoutMs',
+    if ((shutdownGrace ?? reported?.shutdownGrace) == null) 'shutdownGraceMs',
+  ];
+
+  /// The effective limits: each caller value, else the worker's. Throws
+  /// [ArgumentError] when [missing] is not empty.
+  SupervisorLimits resolve(WorkerReportedLimits? reported) {
+    final List<String> absent = missing(reported);
+    if (absent.isNotEmpty) throw ArgumentError('No value for ${absent.join(', ')}');
+    return SupervisorLimits(
+      maxConcurrentPackages: maxConcurrentPackages ?? reported!.poolSize!,
+      operationDeadline: operationDeadline ?? reported!.operationDeadline!,
+      cancelGrace: cancelGrace ?? reported!.cancelGrace!,
+      interactionTimeout: interactionTimeout ?? reported!.interactionTimeout!,
+      shutdownGrace: shutdownGrace ?? reported!.shutdownGrace!,
+      maxFrameBytes: maxFrameBytes,
+    );
+  }
 }
 
 /// A package hosted by the worker, retained so a restart can reload it from
@@ -82,6 +159,7 @@ final class ReverseRequest {
     required this.packageId,
     required this.generation,
     required this.cancel,
+    this.interactionTimeout,
   });
 
   final String op;
@@ -94,6 +172,10 @@ final class ReverseRequest {
   /// Cancelled when the originating operation's deadline expires or the
   /// worker generation changes.
   final CancellationToken cancel;
+
+  /// The supervisor's bound on a visible interaction, from its effective
+  /// limits; a handler uses it for `host.browser.show`.
+  final Duration? interactionTimeout;
 
   /// Whether the request is a visible interaction, whose time is excluded
   /// from the operation deadline.
@@ -163,8 +245,8 @@ class _Call {
     required this.packageId,
     required this.op,
     required this.payload,
-    required this.deadline,
     required this.cancel,
+    this.deadline,
     this.coalesceKey,
     this.control = false,
   });
@@ -172,7 +254,9 @@ class _Call {
   final String? packageId;
   final String op;
   final Map<String, Object?> payload;
-  final Duration deadline;
+
+  /// `null` means the supervisor's operation deadline, resolved at dispatch.
+  final Duration? deadline;
   final CancellationToken cancel;
   final String? coalesceKey;
 
@@ -203,7 +287,7 @@ class _Call {
     if (!completer.isCompleted) completer.complete(outcome);
   }
 
-  void startDeadline(void Function() onExpire) {
+  void startDeadline(Duration deadline, void Function() onExpire) {
     _onExpire = onExpire;
     _remaining = deadline;
     _resumeDeadline();
@@ -273,18 +357,28 @@ class _Call {
 class WorkerSupervisor {
   WorkerSupervisor({
     required this.spec,
-    required this.limits,
+    required SupervisorLimitsPolicy limits,
     WorkerLauncher? launcher,
     this.onReverseRequest,
     void Function(String line)? onLog,
     Redactor? redactor,
     this.onGenerationFenced,
-  }) : _launcher = launcher ?? launchWorkerProcess,
+  }) : limitsPolicy = limits,
+       _limits = limits is SupervisorLimits ? limits : null,
+       _launcher = launcher ?? launchWorkerProcess,
        _onLog = onLog ?? _discardLog,
        redactor = redactor ?? Redactor();
 
   final WorkerSpec spec;
-  final SupervisorLimits limits;
+
+  /// Where the limits come from: fixed by the caller, or adopted from the
+  /// worker's handshake with caller precedence.
+  final SupervisorLimitsPolicy limitsPolicy;
+  SupervisorLimits? _limits;
+
+  /// The effective limits. Fixed limits are available at once; adopted
+  /// limits once a handshake has completed (re-resolved on every restart).
+  SupervisorLimits? get limits => _limits;
   final WorkerLauncher _launcher;
   final ReverseRequestHandler? onReverseRequest;
   final void Function(String line) _onLog;
@@ -369,6 +463,8 @@ class WorkerSupervisor {
     if (started case SourceFailed<HandshakeResponse>(:final SourceFailure failure)) {
       return SourceFailed<PackageLoadResponse>(failure);
     }
+    final SourceFailure? unsupported = _settingsUnsupported(package.settings);
+    if (unsupported != null) return SourceFailed<PackageLoadResponse>(unsupported);
     final PackageLoadRequest request;
     try {
       request = await _loadRequest(package);
@@ -403,7 +499,9 @@ class WorkerSupervisor {
     if (!_packages.containsKey(packageId)) {
       return SourceFailed<EmptyPayload>(StaleReferenceFailure('Package $packageId is not loaded'));
     }
-    settings.secrets.values.forEach(redactor.addSecret);
+    final SourceFailure? unsupported = _settingsUnsupported(settings);
+    if (unsupported != null) return SourceFailed<EmptyPayload>(unsupported);
+    settings.allSecretValues.forEach(redactor.addSecret);
     final SourceOutcome<EmptyPayload> outcome = await send(
       packageId,
       SettingsUpdateRequest(settings: SettingsPayload.fromSnapshot(settings)),
@@ -416,8 +514,137 @@ class WorkerSupervisor {
     return outcome;
   }
 
+  /// Negotiated minor version of the current worker; `0` before a handshake.
+  int get protocolMinor => _handshake?.protocolMinor ?? 0;
+
+  /// String sets and source-scoped settings need protocol 1.1: a 1.0 worker
+  /// would reject the payload or misread it.
+  SourceFailure? _settingsUnsupported(SettingsSnapshot settings) => settings.needsProtocol11 && protocolMinor < 1
+      ? UnsupportedApiFailure(
+          '${spec.label} worker speaks protocol $protocolVersion.$protocolMinor; '
+          'string-set or source-scoped settings need $protocolVersion.1',
+        )
+      : null;
+
+  /// Prepares [input] for loading (`artifact.prepare`, KTD5) and admits the
+  /// result to [cache].
+  ///
+  /// The worker verifies the artifact's signature against [trust], the
+  /// stored trust anchor, and writes the converted or verified bytes to a
+  /// private staging path this method chooses. The package need not be
+  /// loaded. The output is then re-hashed here: a digest that differs from
+  /// the worker's report fails as [ArtifactIncompatibleFailure], and the
+  /// bytes are admitted under an [ArtifactProfile] built from the reply's
+  /// producer and converter version plus [hostCompatibility]. [verifier]
+  /// runs on the admitted bytes like any other cache admission.
+  ///
+  /// Fails without contacting the worker when [trust] holds no signer, and
+  /// before sending when the worker speaks protocol 1.0 (it would ignore
+  /// `trustedSigners`).
+  Future<SourceOutcome<ArtifactLease>> prepareArtifact({
+    required String packageId,
+    required ArtifactLease input,
+    required ArtifactTrustAnchor trust,
+    required ArtifactCache cache,
+    required String hostCompatibility,
+    ArtifactVerifier? verifier,
+    CancellationToken? cancel,
+  }) async {
+    if (trust.signerFingerprints.isEmpty) {
+      return SourceFailed<ArtifactLease>(
+        ArtifactIncompatibleFailure('No trusted signer is stored for $packageId; approve its repository first'),
+      );
+    }
+    final SourceOutcome<HandshakeResponse> started = await start();
+    if (started case SourceFailed<HandshakeResponse>(:final SourceFailure failure)) {
+      return SourceFailed<ArtifactLease>(failure);
+    }
+    if (protocolMinor < 1) {
+      return SourceFailed<ArtifactLease>(
+        UnsupportedApiFailure(
+          '${spec.label} worker speaks protocol $protocolVersion.$protocolMinor; '
+          'artifact.prepare with trustedSigners needs $protocolVersion.1',
+        ),
+      );
+    }
+    final String inputPath;
+    try {
+      inputPath = await input.verifiedPath();
+    } on ArtifactIntegrityException catch (e) {
+      return SourceFailed<ArtifactLease>(ArtifactIncompatibleFailure(e.message));
+    }
+    final Directory staging = await cache.createScratchDirectory();
+    try {
+      final String outputPath = p.join(staging.path, 'prepared.bin');
+      final SourceOutcome<ArtifactPrepareResponse> prepared = await send(
+        packageId,
+        ArtifactPrepareRequest(
+          artifact: input.binding,
+          inputPath: inputPath,
+          outputPath: outputPath,
+          trustedSigners: trust.signerFingerprints,
+        ),
+        cancel: cancel,
+      );
+      switch (prepared) {
+        case SourceFailed<ArtifactPrepareResponse>(:final SourceFailure failure):
+          return SourceFailed<ArtifactLease>(failure);
+        case SourceSuccess<ArtifactPrepareResponse>(:final ArtifactPrepareResponse value):
+          return await _admitPrepared(File(outputPath), value, cache, hostCompatibility, verifier);
+      }
+    } finally {
+      try {
+        await staging.delete(recursive: true);
+      } on Object catch (e) {
+        _log('[${spec.label}] could not delete prepare staging ${staging.path}: $e');
+      }
+    }
+  }
+
+  Future<SourceOutcome<ArtifactLease>> _admitPrepared(
+    File output,
+    ArtifactPrepareResponse reply,
+    ArtifactCache cache,
+    String hostCompatibility,
+    ArtifactVerifier? verifier,
+  ) async {
+    if (!output.existsSync()) {
+      return SourceFailed<ArtifactLease>(
+        ArtifactIncompatibleFailure('${spec.label} worker reported success but wrote no prepared artifact'),
+      );
+    }
+    final Uint8List bytes = await output.readAsBytes();
+    final digest = sha256.convert(bytes).toString();
+    if (digest != reply.artifact.sha256) {
+      return SourceFailed<ArtifactLease>(
+        ArtifactIncompatibleFailure(
+          'Prepared artifact digest $digest does not match the reported ${reply.artifact.sha256}',
+        ),
+      );
+    }
+    try {
+      return SourceSuccess<ArtifactLease>(
+        await cache.admit(
+          bytes,
+          binding: ArtifactBinding(sha256: digest, kind: reply.artifact.kind, version: reply.artifact.version),
+          profile: ArtifactProfile(
+            producer: reply.producer,
+            converterVersion: reply.converterVersion,
+            hostCompatibility: hostCompatibility,
+          ),
+          verifier: verifier ?? _acceptVerified,
+        ),
+      );
+    } on ArtifactIntegrityException catch (e) {
+      return SourceFailed<ArtifactLease>(ArtifactIncompatibleFailure(e.message));
+    }
+  }
+
+  /// The worker already verified the signature against the trust anchor.
+  static void _acceptVerified(Uint8List bytes, ArtifactBinding binding) {}
+
   Future<PackageLoadRequest> _loadRequest(WorkerPackage package) async {
-    package.settings.secrets.values.forEach(redactor.addSecret);
+    package.settings.allSecretValues.forEach(redactor.addSecret);
     final String path = await package.artifact.verifiedPath();
     return PackageLoadRequest(
       artifact: package.artifact.binding,
@@ -490,7 +717,7 @@ class WorkerSupervisor {
       packageId: packageId,
       op: op,
       payload: payload,
-      deadline: deadline ?? limits.operationDeadline,
+      deadline: deadline,
       cancel: cancel ?? CancellationToken.none,
       coalesceKey: coalesceKey,
     );
@@ -565,7 +792,7 @@ class WorkerSupervisor {
 
   void _pump() {
     if (_state != WorkerState.ready) return;
-    while (_busy.length < limits.maxConcurrentPackages) {
+    while (_busy.length < _limits!.maxConcurrentPackages) {
       final _Call? next = _nextQueued();
       if (next == null) return;
       _dispatch(next);
@@ -605,13 +832,13 @@ class WorkerSupervisor {
       scheduleMicrotask(_pump);
       return;
     }
-    c.startDeadline(() => _onDeadline(c));
+    c.startDeadline(c.deadline ?? _limits!.operationDeadline, () => _onDeadline(c));
   }
 
   void _send(ProtocolFrame frame) {
     final WorkerProcess? process = _process;
     if (process == null) return;
-    final Uint8List bytes = encodeFrame(frame, maxFrameBytes: limits.maxFrameBytes);
+    final Uint8List bytes = encodeFrame(frame, maxFrameBytes: limitsPolicy.maxFrameBytes);
     try {
       process.stdin.add(bytes);
     } on Object catch (e) {
@@ -642,7 +869,7 @@ class WorkerSupervisor {
       r.cancel('operation deadline exceeded');
     }
     _sendCancel(c);
-    c.graceTimer = Timer(limits.cancelGrace, () {
+    c.graceTimer = Timer(_limits!.cancelGrace, () {
       if (_inFlight.containsKey(c.requestId)) {
         _scheduleRestart('${c.op} for ${c.packageId} did not settle after cooperative cancel', timedOut: c);
       }
@@ -673,13 +900,17 @@ class WorkerSupervisor {
     _attach(process);
     final request = HandshakeRequest(
       protocolVersions: const <int>[protocolVersion],
-      maxFrameBytes: limits.maxFrameBytes,
+      protocolMinor: protocolMinorVersion,
+      maxFrameBytes: limitsPolicy.maxFrameBytes,
     );
     final c = _Call(
       packageId: null,
       op: request.operation.wire,
       payload: request.toJson(),
-      deadline: limits.operationDeadline,
+      deadline: switch (limitsPolicy) {
+        final SupervisorLimits l => l.operationDeadline,
+        final AdoptWorkerLimits a => a.handshakeDeadline,
+      },
       cancel: CancellationToken.none,
       control: true,
     );
@@ -695,6 +926,25 @@ class WorkerSupervisor {
           ProtocolViolationFailure('Worker negotiated protocol version ${value.protocolVersion}'),
         );
       }
+      if (value.protocolMinor > protocolMinorVersion) {
+        return SourceFailed<HandshakeResponse>(
+          ProtocolViolationFailure(
+            'Worker negotiated protocol $protocolVersion.${value.protocolMinor}; '
+            'the supervisor offered at most $protocolVersion.$protocolMinorVersion',
+          ),
+        );
+      }
+      if (limitsPolicy case final AdoptWorkerLimits adopt) {
+        final List<String> missing = adopt.missing(value.limits);
+        if (missing.isNotEmpty) {
+          return SourceFailed<HandshakeResponse>(
+            RuntimeUnavailableFailure(
+              '${spec.label} worker reported no ${missing.join(', ')} and the caller supplied none (KTD25)',
+            ),
+          );
+        }
+        _limits = adopt.resolve(value.limits);
+      }
       _handshake = value;
       _events.add(WorkerStartedEvent(_generation, process.pid));
     }
@@ -704,7 +954,7 @@ class WorkerSupervisor {
   void _attach(WorkerProcess process) {
     _process = process;
     _frames = process.stdout
-        .transform(FrameDecoder(maxFrameBytes: limits.maxFrameBytes))
+        .transform(FrameDecoder(maxFrameBytes: limitsPolicy.maxFrameBytes))
         .listen(
           (ProtocolFrame frame) => _onFrame(process, frame),
           onError: (Object error) {
@@ -803,12 +1053,13 @@ class WorkerSupervisor {
       packageId: origin.packageId,
       generation: generation,
       cancel: cancel.token,
+      interactionTimeout: _limits?.interactionTimeout,
     );
     if (request.isInteraction) {
       origin
         ..interactions += 1
         ..pauseDeadline();
-      origin.interactionTimer ??= Timer(limits.interactionTimeout, () => _onDeadline(origin));
+      origin.interactionTimer ??= Timer(_limits!.interactionTimeout, () => _onDeadline(origin));
     }
     SourceOutcome<Map<String, Object?>> outcome;
     try {
@@ -997,7 +1248,6 @@ class WorkerSupervisor {
       packageId: package.packageId,
       op: request.operation.wire,
       payload: request.toJson(),
-      deadline: limits.operationDeadline,
       cancel: CancellationToken.none,
       control: true,
     );
@@ -1058,13 +1308,13 @@ class WorkerSupervisor {
         packageId: null,
         op: request.operation.wire,
         payload: request.toJson(),
-        deadline: limits.shutdownGrace,
+        deadline: _limits!.shutdownGrace,
         cancel: CancellationToken.none,
         control: true,
       );
       _dispatch(c);
       await Future.any(<Future<void>>[c.completer.future, process.exitCode]);
-      await process.exitCode.timeout(limits.shutdownGrace, onTimeout: () => -1);
+      await process.exitCode.timeout(_limits!.shutdownGrace, onTimeout: () => -1);
     }
     _detach();
     for (final _Call c in _inFlight.values) {
@@ -1127,7 +1377,9 @@ class ConversionRuntimeScope {
 
   /// Worker specs by kind; a kind without a spec is unavailable.
   final Map<WorkerKind, WorkerSpec> workers;
-  final SupervisorLimits limits;
+
+  /// Limits for every worker: fixed, or adopted from each worker's handshake.
+  final SupervisorLimitsPolicy limits;
   final WorkerLauncher? launcher;
 
   /// Browser access for workers; `null` answers every `host.browser.*`
@@ -1183,7 +1435,10 @@ class ConversionRuntimeScope {
         ? null
         : _bridges[kind] = BrowserReverseBridge(
             port: port,
-            interactionTimeout: limits.interactionTimeout,
+            interactionTimeout: switch (limits) {
+              final SupervisorLimits l => l.interactionTimeout,
+              AdoptWorkerLimits(:final Duration? interactionTimeout) => interactionTimeout,
+            },
             resolveSource: (String? packageId, String sourceId) =>
                 resolveBrowserSource?.call(kind, packageId, sourceId),
             onLog: (String line) => onLog?.call(redactor.redact('[${spec.label}] $line')),

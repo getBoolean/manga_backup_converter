@@ -1,12 +1,12 @@
 package mangabackup.tachi.webkit
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import mangabackup.tachi.host.CapabilityUnavailableException
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -55,10 +55,12 @@ class BrowserBridge(private val worker: Worker) {
         bySession.remove(session)
     }
 
+    /** A `host.browser.message` event. A malformed one (for example a non-string message) is dropped, never fatal. */
     fun onMessage(payload: JsonObject) {
-        val session = payload.optStr("session") ?: return
-        val name = payload.optStr("name") ?: return
-        val message = payload.optStr("message") ?: return
+        fun str(key: String) = (payload[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val session = str("session") ?: return
+        val name = str("name") ?: return
+        val message = str("message") ?: return
         bySession[session]?.deliverMessage(name, message)
     }
 

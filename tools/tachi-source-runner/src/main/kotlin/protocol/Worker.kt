@@ -210,6 +210,12 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         if (Wire.VERSION.toLong() !in versions) {
             return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "supervisor offers $versions; worker speaks ${Wire.VERSION}"))
         }
+        // 1.1: answer with the lower of the offered minor and ours; absent (a 1.0 supervisor) is 0.
+        val offeredMinor = when (val m = p["protocolMinor"]) {
+            null, kotlinx.serialization.json.JsonNull -> 0L
+            else -> (m as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull()?.takeIf { it >= 0 }
+                ?: return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "protocolMinor must be a non-negative integer"))
+        }
         generation = frame.gen
         maxFrameBytes = try {
             minOf(p.int("maxFrameBytes"), Wire.MAX_FRAME_BYTES.toLong()).toInt()
@@ -220,6 +226,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             frame,
             ok = buildJsonObject {
                 put("protocolVersion", Wire.VERSION)
+                put("protocolMinor", minOf(offeredMinor, Wire.MINOR_VERSION.toLong()))
                 put("worker", WorkerOptions.WORKER_NAME)
                 put("workerVersion", WorkerOptions.WORKER_VERSION)
                 put("pid", ProcessHandle.current().pid())
@@ -227,7 +234,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                     put("apiFamilies", buildJsonArray { ExtensionLoader.apiFamilies.sorted().forEach { add(JsonPrimitive(it)) } })
                     put("browser", options.browser)
                 })
-                // Additive fields (readers ignore unknown fields): KTD25 sizing and the runtime identity.
+                // KTD25 limits and sizing (1.1), then additive runtime identity fields readers ignore.
                 put("limits", options.sizing.limits.toJson())
                 put("sizing", options.sizing.toJson())
                 put("networkMode", options.networkMode)
@@ -337,8 +344,10 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         val artifact = ArtifactBinding.from(p.obj("artifact"))
         val input = File(p.str("inputPath"))
         val output = File(p.str("outputPath"))
-        val trusted = (p.optArr("trustedSigners")?.map { it.asStringStrict("trustedSigners[]").lowercase() }?.toSet() ?: emptySet()) +
-            options.trustedSigners
+        // KTD5: the request's trust anchor is the only source of trusted signers. An absent or empty list (a 1.0
+        // supervisor, or no stored anchor) is refused by the verifier as artifact-incompatible; nothing else is trusted.
+        val trusted = p.optArr("trustedSigners")?.map { it.asStringStrict("trustedSigners[]").lowercase() }?.toSet() ?: emptySet()
+        if (trusted.isEmpty()) throw ArtifactException("artifact.prepare carries no trustedSigners; refusing to verify ${artifact.kind} without a stored trust anchor")
         try {
             output.parentFile?.mkdirs()
             val staging = Files.createTempDirectory(output.parentFile?.toPath() ?: File(".").toPath(), ".prepare-").toFile()

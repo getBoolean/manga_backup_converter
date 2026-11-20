@@ -58,16 +58,16 @@ class WebViewSource : HttpSource() {
             webView = view
             view.settings.javaScriptEnabled = true
             view.settings.userAgentString = "FixtureAgent/1"
-            view.addJavascriptInterface(
-                object {
-                    @JavascriptInterface
-                    fun postMessage(message: String) {
-                        result = message
-                        latch.countDown()
-                    }
-                },
-                "bridge",
-            )
+            val bridge = object {
+                @JavascriptInterface
+                fun postMessage(message: String) {
+                    result = message
+                    latch.countDown()
+                }
+            }
+            // `badname`: a channel name that is not a JavaScript identifier, which the shim must refuse.
+            if (query == "badname") view.addJavascriptInterface(bridge, "bad-name")
+            view.addJavascriptInterface(bridge, "bridge")
             view.webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? =
                     if (query == "intercept") android.webkit.WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(ByteArray(0))) else null

@@ -26,6 +26,7 @@ class ProtocolTest {
                 put("maxFrameBytes", 16777216)
             })
             assertEquals(1, ok["protocolVersion"]!!.jsonPrimitive.content.toInt())
+            assertEquals(0, ok["protocolMinor"]!!.jsonPrimitive.content.toInt(), "a 1.0 supervisor (no protocolMinor) gets 1.0")
             assertEquals("tachi-jvm", ok["worker"]!!.jsonPrimitive.content)
             val caps = ok["capabilities"]!!.jsonObject
             assertEquals(listOf("tachi-1.4", "tachi-1.5", "tachi-1.6"), caps["apiFamilies"]!!.jsonArray.map { it.jsonPrimitive.content })
@@ -33,6 +34,22 @@ class ProtocolTest {
             val sizing = ok["sizing"]!!.jsonObject
             assertTrue(sizing["inputs"]!!.jsonObject.containsKey("cores"))
             assertEquals("2", ok["limits"]!!.jsonObject["poolSize"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `handshake negotiates the lower of the offered minor and 1, and rejects a malformed minor`() {
+        WorkerHarness().use { h ->
+            fun offer(minor: kotlinx.serialization.json.JsonElement) = h.client.call("handshake", payload = buildJsonObject {
+                put("protocolVersions", kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive(1))))
+                put("protocolMinor", minor)
+                put("maxFrameBytes", 16777216)
+            })
+            assertEquals(1, offer(JsonPrimitive(1))["protocolMinor"]!!.jsonPrimitive.content.toInt())
+            assertEquals(1, offer(JsonPrimitive(7))["protocolMinor"]!!.jsonPrimitive.content.toInt())
+            assertEquals(0, offer(JsonPrimitive(0))["protocolMinor"]!!.jsonPrimitive.content.toInt())
+            assertEquals(ErrorCode.PROTOCOL_VIOLATION, assertThrows<WorkerError> { offer(JsonPrimitive(-1)) }.code)
+            assertEquals(ErrorCode.PROTOCOL_VIOLATION, assertThrows<WorkerError> { offer(JsonPrimitive("1")) }.code)
         }
     }
 

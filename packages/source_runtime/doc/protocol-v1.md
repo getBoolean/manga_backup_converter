@@ -1,8 +1,21 @@
-# Source worker protocol, version 1
+# Source worker protocol, version 1 (minor 1.1)
 
 This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:source_runtime`) to a source worker process: the shared Tachi JVM worker (U3) or the Paperback Dart worker (U6). It implements KTD4 of the source runners plan. KTD20 adds the browser reverse requests.
 
 **The Dart types are the source of truth.** Every shape below is a class in [`lib/src/backends/protocol_payloads.dart`](../lib/src/backends/protocol_payloads.dart), and framing is in [`lib/src/backends/protocol.dart`](../lib/src/backends/protocol.dart). If this document and the code disagree, the code wins; fix this document. `test/protocol_payloads_test.dart` round-trips every payload through real frame bytes. A Dart worker should use the same classes: each has `fromJson` and `toJson`.
+
+## Versions
+
+The protocol has a major and a minor version. The major version is the envelope's `v`, and is always `1`. Minor versions only add optional fields, so a frame from any 1.x peer parses, and `v` never changes for a minor bump.
+
+- **Negotiation:** the supervisor's `handshake` request offers `protocolVersions: [1]` and `protocolMinor`, its highest minor (currently `1`). The worker replies with `protocolVersion: 1` and `protocolMinor`: the lower of the offer and its own highest minor. A worker that omits `protocolMinor` is a 1.0 worker; a request without it comes from a 1.0 supervisor. Either decodes as `0`.
+- **Violations:** a reply with another major version, or with a `protocolMinor` above the offer, fails the session as `protocol-violation`.
+- **Gating:** the supervisor sends a 1.1 feature only to a worker that negotiated 1.1. Against a 1.0 worker, string-set or source-scoped settings and `artifact.prepare` (which relies on `trustedSigners`) fail locally with `unsupported-api` before anything is sent.
+
+| Minor | Adds |
+|---|---|
+| 1.0 | The protocol as first shipped. |
+| 1.1 | Handshake `protocolMinor`, `limits` and `sizing`; `artifact.prepare` `trustedSigners`, and the explicit rule that it needs no loaded package; string-set setting values; source-scoped settings (`SettingsPayload.sources`); the browser message channel contract. |
 
 ## Transport
 
@@ -20,7 +33,7 @@ This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:so
 
 | Field | Type | Meaning |
 |---|---|---|
-| `v` | int | Protocol version; always `1`. Any other value is a violation. |
+| `v` | int | Protocol major version; always `1` (minor versions are negotiated in the handshake). Any other value is a violation. |
 | `t` | string | Frame type (table below). |
 | `id` | string | Request ID. The supervisor writes `"<gen>-<n>"`; workers choose their own reverse request IDs. Treat IDs as opaque. |
 | `gen` | int | Session generation. It increments on every worker (re)start; the handshake carries the new value. |
@@ -48,6 +61,7 @@ This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:so
 - **Reverse requests:** an `rreq` is valid only while its originating request (`of`) is in flight. An orphaned `rreq` fails the session. After a restart, the supervisor never delivers a late `rres` from an older generation.
 - **Cancellation:** after a `cancel`, stop the operation and reply with `err.code = "cancelled"`. The supervisor discards that reply if the caller has already gone. If the operation does not settle within the cancel grace period, the supervisor kills and restarts the worker.
 - **Concurrency:** the supervisor sends at most one per-package operation at a time for each package. Different packages may run concurrently, up to the pool size. `handshake` and `shutdown` are not package operations. Restart reloads also bypass the package queue.
+- **Loaded packages:** `artifact.prepare` and `package.load` carry `pkg` but must not require the package to be loaded: `artifact.prepare` produces the bytes `package.load` will load. Every other per-package operation (`package.unload`, `settings.update`, `search`, `details`, `dispose`) needs a loaded package and answers `runtime-unavailable` without one. Dart workers use `WorkerRequest.admissionFailure` (backed by `WorkerOperation.requiresLoadedPackage`) for this check.
 - **Deadlines:** each operation's deadline is measured from dispatch, so time spent waiting in the queue does not count. Time spent in `host.browser.show` is excluded from the deadline and bounded separately.
 - **Restart:** a restart fences every older generation, starts a new process, completes the handshake, and reloads every loaded package from its re-verified artifact with its current settings. The operation that hit its deadline fails with `timeout`. Other interrupted operations are re-sent once; a second interruption fails them with `worker-restarted`.
 
@@ -75,21 +89,43 @@ These shapes appear inside several payloads.
 
 - **`ArtifactBinding`** — `{"sha256": hex, "kind": "jar"|"apk"|"aix"|"paperback-bundle"|…, "version": string}`.
 - **`SourceIdentity`** — `{"ecosystem", "packageId", "sourceId", "artifact": ArtifactBinding}`. `sourceId` is always a string. Tachi sends its int64 ID as a decimal string (for example `"9223372036854775807"`); a JSON number is rejected.
-- **`SettingsPayload`** — `{"values": {key: string|bool|int}, "secrets": {key: string}, "revision": string}`. `values` keep their JSON types, and integers must stay within ±(2^53 − 1). `secrets` are session-only: never persist or log them. `revision` is a durable digest over the non-secret values and the secret key names (never the secret values), so it is safe to store.
+- **`SettingsPayload`** — `{"values": {key: string|bool|int|[string]}, "secrets": {key: string}, "sources"?: {sourceId: {"values"?: {…}, "secrets"?: {…}}}, "revision": string}`.
+  - **Types:** `values` keep their JSON types, and integers must stay within ±(2^53 − 1).
+  - **String sets (1.1):** an array value holds only strings and is a set: it backs `SharedPreferences.getStringSet` and multi-select settings. The supervisor sends it sorted and deduplicated, so equal sets always produce the same `revision`. Any other array content is rejected.
+  - **Secrets:** `secrets` are session-only: never persist or log them.
+  - **Source scopes (1.1):** see [Addressing one source](#addressing-one-source-of-a-multi-source-package).
+  - **Revision:** `revision` is a durable digest over the non-secret values and the secret key names (never the secret values), for the package and every source scope, so it is safe to store. Settings without string sets or scopes keep the digest they had in 1.0.
 - **`NativeMangaRef`** — `{"source": SourceIdentity, "mangaId": string, "settingsRevision": string, "context": object}`. `context` holds the source-returned fields that later calls need, such as Tachi's `SManga` fields or Paperback's context.
 - **`SourceCapabilities`** — `{"operations": ["search"|"mangaDetails"|"chapterList"|"settings"|"browser"…], "apiFamilies": [string], "requiresBrowser": bool}`.
 - **`MangaMetadata`** — `{"title", "altTitles", "authors", "artists", "description"?, "tags", "status": "unknown"|"ongoing"|"completed"|"cancelled"|"hiatus", "contentRating": "unknown"|"safe"|"suggestive"|"nsfw", "url"?, "coverUrl"?}`.
 - **`NativeChapter`** — `{"chapterId", "sourceOrder": int, "context", "title"?, "chapterNumber"?: number, "volumeNumber"?: number, "scanlators": [string], "language"?, "dateUploaded"?: ISO-8601 UTC, "url"?}`.
 - **`BrowserCookie`** — `{"name", "value", "domain"?, "path"?, "expires"?: ISO-8601 UTC, "secure": bool, "httpOnly": bool}`.
+- **`WorkerReportedLimits`** (1.1) — `{"poolSize"?: int, "operationDeadlineMs"?: int, "cancelGraceMs"?: int, "interactionTimeoutMs"?: int, "shutdownGraceMs"?: int, …}`. These names are the limits a supervisor can adopt; each is a positive integer when present. Runtime-specific limits (Paperback's QuickJS `memoryLimitBytes`, `maxStackBytes`, `operationDeadlineMicros`, `jobSliceMicros`) travel in the same object and are kept as reported, without interpretation.
+- **`WorkerSizing`** (1.1) — `{"rule"?: object|null, "inputs"?: object, "derived"?: WorkerReportedLimits, "overridden"?: [string], …}`. The KTD25 sizing rule (its coefficients and the benchmark it came from; `null` when explicit overrides cover every limit), the measured device inputs (for example `cores`, `maxHeapMiB`), the limits the rule derived, and the names of limits set by explicit overrides.
 
 A field marked `?` may be omitted or `null`. Workers may add fields; readers ignore fields they do not know.
+
+### Addressing one source of a multi-source package
+
+A package can host many sources (a Tachi factory). Package operations carry the package in `pkg`; a source within it is always addressed by its `sourceId`, the string `package.load` returned:
+
+- **Operations:** `search`, `details` and `dispose` name their source in `source.sourceId` (a full `SourceIdentity`), and `host.browser.open` in `sourceId`. A worker must reject a `sourceId` the package does not host.
+- **Settings (1.1):** `SettingsPayload.values` and `secrets` apply to every source of the package. `SettingsPayload.sources` maps a `sourceId` to that source's own `values` and `secrets`, which override the package-wide entries with the same key. The effective settings of source `S` are therefore `values` overlaid with `sources[S].values`, and likewise for secrets. Keys are plain setting keys; no key carries a source or store prefix.
+- **Tachi mapping:** a Tachi worker seeds the `SharedPreferences` store a source opens (by Tachi convention `source_<id>`) from that source's effective settings, and plain package-wide keys seed every store. The 1.0 convention of `storeName/key` keys is replaced by `sources`; a 1.1 supervisor never sends `/`-prefixed keys for scoping.
+
+```json
+{"values": {"lang": "en", "blockedGenres": ["action", "romance"]},
+ "secrets": {},
+ "sources": {"9223372036854775807": {"values": {"lang": "ja"}, "secrets": {"password": "…"}}},
+ "revision": "9f…"}
+```
 
 ## Operations (supervisor → worker)
 
 | `op` | `pkg` | Request `payload` (Dart class) | Reply `ok` (Dart class) |
 |---|---|---|---|
-| `handshake` | — | `protocolVersions: [int]`, `maxFrameBytes: int` (`HandshakeRequest`) | `protocolVersion: int`, `worker: string`, `workerVersion?`, `pid?: int`, `capabilities: {apiFamilies: [string], browser: bool}` (`HandshakeResponse`, `WorkerCapabilities`) |
-| `artifact.prepare` | yes | `artifact: ArtifactBinding`, `inputPath`, `outputPath` (`ArtifactPrepareRequest`) | `artifact: ArtifactBinding` (of the output), `producer`, `converterVersion` (`ArtifactPrepareResponse`) |
+| `handshake` | — | `protocolVersions: [int]`, `protocolMinor?: int`, `maxFrameBytes: int` (`HandshakeRequest`) | `protocolVersion: int`, `protocolMinor?: int`, `worker: string`, `workerVersion?`, `pid?: int`, `capabilities: {apiFamilies: [string], browser: bool}`, `limits?: WorkerReportedLimits`, `sizing?: WorkerSizing` (`HandshakeResponse`, `WorkerCapabilities`, `WorkerReportedLimits`, `WorkerSizing`) |
+| `artifact.prepare` | yes (need not be loaded) | `artifact: ArtifactBinding`, `inputPath`, `outputPath`, `trustedSigners: [string]` (`ArtifactPrepareRequest`) | `artifact: ArtifactBinding` (of the output), `producer`, `converterVersion` (`ArtifactPrepareResponse`) |
 | `package.load` | yes | `artifact: ArtifactBinding`, `path`, `settings: SettingsPayload` (`PackageLoadRequest`) | `sources: [{sourceId, name, language?, capabilities: SourceCapabilities}]` (`PackageLoadResponse`, `LoadedSource`) |
 | `package.unload` | yes | `{}` (`PackageUnloadRequest`) | `{}` (`EmptyPayload`) |
 | `settings.update` | yes | `settings: SettingsPayload` (`SettingsUpdateRequest`) | `{}` |
@@ -100,12 +136,15 @@ A field marked `?` may be omitted or `null`. Workers may add fields; readers ign
 
 ### Notes
 
-- **`handshake`:** reply with one of `protocolVersions`; this supervisor accepts only `1`. A reply in any other version, or one missing a required field, fails the session as `protocol-violation`. `capabilities.apiFamilies` lists the source API versions the worker can host, for example `tachi-1.5` or `paperback-0.8`. `capabilities.browser` says whether the worker may send `host.browser.*` requests.
+- **`handshake`:** reply with one of `protocolVersions` (this supervisor accepts only `1`) and the negotiated `protocolMinor` (see [Versions](#versions)). A reply in any other version, above the offered minor, or missing a required field fails the session as `protocol-violation`. `capabilities.apiFamilies` lists the source API versions the worker can host, for example `tachi-1.5` or `paperback-0.8`. `capabilities.browser` says whether the worker may send `host.browser.*` requests.
+  - **Limits and sizing (1.1, KTD25):** a worker reports the limits it runs with in `limits` and how it derived them in `sizing`. Report what the benchmarked rule produced on this device; never report a value without evidence. The supervisor exposes both on the typed reply.
+  - **Adoption:** a supervisor built with `AdoptWorkerLimits` takes `poolSize` (as its package concurrency), `operationDeadlineMs`, `cancelGraceMs`, `interactionTimeoutMs` and `shutdownGraceMs` from `limits`. Every limit the caller supplies takes precedence; a limit neither supplies fails the start with `runtime-unavailable`, because no default is invented. The caller always supplies the handshake's own deadline. Limits are re-resolved after every restart. A supervisor built with fixed `SupervisorLimits` records the reported values but does not use them.
 - **`artifact.prepare`:** this operation turns a verified input artifact into the form the worker loads, for example APK → JAR through dex2jar, or JAR signature verification (KTD5).
+  - **Loaded package:** not required. The package is normally not loaded yet, because this operation produces the bytes `package.load` loads.
   - **Input:** before reading `inputPath`, re-verify it against `artifact.sha256`. Reject a mismatch with `artifact-incompatible`.
+  - **Trust (1.1, KTD5):** `trustedSigners` lists certificate SHA-256 fingerprints (64 lowercase hex digits, sorted) taken from the stored trust anchor: the fingerprint the user approved for the repository, or one a qualification manifest pins. Verify the JAR or APK signature against them and reject any other signer with `artifact-incompatible`. A fingerprint read beside the artifact proves consistency, not provenance, so it never substitutes for this list. A request without `trustedSigners` (a 1.0 supervisor) decodes as an empty list; refuse anything that needs a signer rather than trust another source.
   - **Output:** write only to `outputPath`, a private staging path the supervisor chose.
-  - **After the reply:** whoever sends `artifact.prepare` (the Tachi provider in U3; `WorkerSupervisor` only provides `send`) must re-hash the output and admit it to the artifact cache under an `ArtifactProfile(producer, converterVersion, hostCompatibility)`. It must never trust the reported digest alone. No caller does this yet.
-  - **Not yet in the plan:** the plan names this operation but not its fields. This shape is the minimum U3 needs; U3 may extend it.
+  - **After the reply:** the sender re-hashes the output and admits it to the artifact cache under an `ArtifactProfile(producer, converterVersion, hostCompatibility)`, never trusting the reported digest alone. `WorkerSupervisor.prepareArtifact` does all of this: it refuses an empty trust anchor and a 1.0 worker before sending, stages the output in a private directory under the cache root, fails a digest mismatch as `artifact-incompatible`, and deletes the staging directory afterwards.
 - **`package.load`:**
   - **Artifact:** `path` is a privately staged artifact that the supervisor re-verified just before sending. Load it into its own child-first class loader (Tachi) or runtime (Paperback).
   - **Sources:** enumerate the package's sources. A Tachi factory returns every source; Aidoku-style packages return one.
@@ -157,11 +196,22 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 - **Failure codes:** platform failures map to `cancelled`, `interaction-required`, `capability-unavailable` (with the named operation), or `source-error` (navigation failures). A malformed reverse payload is answered `protocol-violation`.
 - **Messages:** page messages arrive as `host.browser.message` events only while the handler is enabled and the session's generation is current.
 
+### Browser message channel (1.1)
+
+`host.browser.setMessageHandler` with `name` and `enabled: true` installs a page-side channel that every `BrowserPort` implementation provides identically (`BrowserMessageChannel` in `lib/src/contracts/browser_port.dart`):
+
+- **Page API:** every frame sees a global object `window.<name>` with one method, `postMessage(message)`, where `message` is a string. This is the shape of an Android `JavascriptInterface` object with `void postMessage(String)`, so the Tachi shim's `addJavascriptInterface` fallback and the desktop helper's injected script use it unchanged. `postMessage` returns `undefined`; synchronous return values are not emulated.
+- **Channel names:** `name` must be a plain JavaScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). Anything else is refused as `capability-unavailable`.
+- **Availability:** the object exists in the current page as soon as the handler is enabled, and is injected at document start into every later page, until the handler is disabled.
+- **Origin rule:** a message is delivered only when the frame that posted it has the same origin (scheme, host, port) as the session's current top-level document, and that document came from http(s): a `load` after redirects, or `loadData` with its http(s) base URL. Messages from cross-origin frames, and from `about:blank` or other opaque-origin documents, are dropped silently.
+- **Payload:** a non-string argument is dropped. Messages from one frame arrive in posting order.
+- **Conformance:** `runBrowserPortContractSuite` in `package:source_runtime_testing` checks delivery (on a loaded page and on `loadData` content with an http(s) base URL), registration before a load, removal, the cross-origin and `about:blank` drops, and name validation. Every platform implementation must pass it.
+
 ## Example exchange
 
 ```text
-→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"maxFrameBytes":16777216}}
-← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true}}}
+→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"protocolMinor":1,"maxFrameBytes":16777216}}
+← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"protocolMinor":1,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true},"limits":{"poolSize":2,"operationDeadlineMs":6000,"cancelGraceMs":1800,"interactionTimeoutMs":300000,"shutdownGraceMs":1800},"sizing":{"rule":{"source":"docs/validation/source-runners/desktop/…"},"inputs":{"cores":8,"maxHeapMiB":512},"derived":{"poolSize":2},"overridden":[]}}}
 → {"v":1,"t":"req","id":"1-2","gen":1,"op":"package.load","pkg":"eu.kanade.x","payload":{"artifact":{"sha256":"ab12…","kind":"jar","version":"1.4.2"},"path":"/…/ab12….bin","settings":{"values":{"lang":"en","nsfw":false},"secrets":{},"revision":"9f…"}}}
 ← {"v":1,"t":"res","id":"1-2","gen":1,"ok":{"sources":[{"sourceId":"9223372036854775807","name":"X (EN)","language":"en","capabilities":{"operations":["search","mangaDetails","chapterList"],"apiFamilies":["tachi-1.5"],"requiresBrowser":true}}]}}
 → {"v":1,"t":"req","id":"1-3","gen":1,"op":"search","pkg":"eu.kanade.x","payload":{"source":{…},"settingsRevision":"9f…","query":"onimai","cursor":null}}

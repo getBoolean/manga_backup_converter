@@ -12,6 +12,17 @@
 //   --ignore-shutdown      never answer or act on shutdown
 //   --bad-handshake        answer the handshake without its capabilities
 //   --malformed-load=ID    answer package.load for ID with a malformed reply
+//   --minor=N              highest protocol minor the worker speaks (default 1);
+//                          the reply carries the lower of N and the request's
+//   --omit-minor           reply without protocolMinor, like a 1.0 worker
+//   --force-minor=N        reply with protocolMinor N whatever was offered
+//   --limits=JSON          report this handshake `limits` object
+//   --sizing=JSON          report this handshake `sizing` object
+//   --prepare-lie          artifact.prepare reports a digest that is not the output's
+//
+// artifact.prepare copies inputPath to outputPath, echoes the input binding
+// (a copy keeps its digest) and records trustedSigners; it never needs the
+// package to be loaded.
 //
 // settings.update fails when the new settings' values contain
 // `"failUpdate": true`.
@@ -31,6 +42,7 @@ final Map<String, int> _maxPerPackage = <String, int>{};
 final Map<String, String> _loaded = <String, String>{};
 final Map<String, Object?> _settings = <String, Object?>{};
 final List<Object?> _disposed = <Object?>[];
+final List<Object?> _prepared = <Object?>[];
 int _active = 0;
 int _maxActive = 0;
 int _handleCounter = 0;
@@ -112,17 +124,50 @@ Future<void> _dispatch(Map<String, Object?> frame) async {
         _write(_res(id, ok: <String, Object?>{'protocolVersion': 1, 'worker': 'fake'}));
         return;
       }
+      final int ownMinor = int.parse(_arg('minor') ?? '1');
+      final int offered = payload['protocolMinor'] as int? ?? 0;
+      final String? limits = _arg('limits');
+      final String? sizing = _arg('sizing');
       _write(
         _res(
           id,
           ok: <String, Object?>{
             'protocolVersion': 1,
+            if (!args.contains('--omit-minor'))
+              'protocolMinor': _arg('force-minor') != null
+                  ? int.parse(_arg('force-minor')!)
+                  : (ownMinor < offered ? ownMinor : offered),
             'worker': 'fake',
             'pid': pid,
             'capabilities': <String, Object?>{
               'apiFamilies': <String>['fake-1'],
               'browser': true,
             },
+            if (limits != null) 'limits': jsonDecode(limits),
+            if (sizing != null) 'sizing': jsonDecode(sizing),
+          },
+        ),
+      );
+      return;
+    case 'artifact.prepare':
+      final artifact = payload['artifact']! as Map<String, Object?>;
+      _prepared.add(<String, Object?>{
+        'pkg': frame['pkg'],
+        'loaded': _loaded.containsKey(frame['pkg']),
+        'trustedSigners': payload['trustedSigners'],
+      });
+      File(payload['outputPath']! as String).writeAsBytesSync(File(payload['inputPath']! as String).readAsBytesSync());
+      _write(
+        _res(
+          id,
+          ok: <String, Object?>{
+            'artifact': <String, Object?>{
+              ...artifact,
+              if (args.contains('--prepare-lie')) 'sha256': '0' * 64,
+              'kind': 'jar',
+            },
+            'producer': 'fake-prepare',
+            'converterVersion': 'fake.1',
           },
         ),
       );
@@ -143,6 +188,7 @@ Future<void> _dispatch(Map<String, Object?> frame) async {
             'loaded': _loaded,
             'settings': _settings,
             'disposed': _disposed,
+            'prepared': _prepared,
           },
         ),
       );

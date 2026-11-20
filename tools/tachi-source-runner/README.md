@@ -20,9 +20,15 @@ update `THIRD_PARTY.md`.
 ## Run
 
 ```text
-tachi-source-runner [--trusted-signer HEX]... [--trust-file FILE] [--replay CAPTURE_DIR]...
-                    [--state-dir DIR] [--limit NAME=VALUE]... [--no-browser]
+tachi-source-runner [--replay CAPTURE_DIR]... [--state-dir DIR] [--limit NAME=VALUE]... [--no-browser]
 ```
+
+- The worker speaks protocol 1.1 (`protocolMinor` = the lower of the supervisor's offer and 1).
+- Trusted signers come only from each `artifact.prepare` request's `trustedSigners` (KTD5): an absent or
+  empty list is refused as `artifact-incompatible`. There is no command-line trust list.
+- Settings: package-wide `values`/`secrets` seed every `SharedPreferences` store; `sources.<id>` overrides
+  them in that source's `source_<id>` store. Array values are string sets (`getStringSet`). Keys are plain;
+  the former `storeName/key` convention is gone.
 
 - Limits come from `src/main/resources/tachi-worker-sizing.json` (the KTD25 rule); `--limit` overrides
   `poolSize`, `operationDeadlineMs`, `cancelGraceMs`, `interactionTimeoutMs`, `shutdownGraceMs`.

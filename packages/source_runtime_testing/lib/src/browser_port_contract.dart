@@ -37,8 +37,27 @@ abstract interface class BrowserPortHarness {
   /// Releases every evaluation started from a [heldScript].
   Future<void> releaseHeld();
 
-  /// A script that posts [message] to the handler registered as [name].
-  String postMessageScript(String name, String message);
+  /// An http(s) page the harness serves that embeds one child frame from a
+  /// different origin (another host or port).
+  Uri get crossOriginFramePageUrl;
+
+  /// A script, evaluated in the top frame of [crossOriginFramePageUrl], that
+  /// makes its cross-origin child frame call
+  /// `window.<name>.postMessage(message)`. It completes once the frame has
+  /// made the call.
+  String crossOriginFramePostScript(String name, String message);
+}
+
+/// Waits until [messages] contains [expected]; fails after a bound so a
+/// platform that never delivers fails the test instead of hanging it.
+Future<void> _waitFor(List<String> messages, String expected) async {
+  final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (!messages.contains(expected)) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw StateError('Message "$expected" was not delivered; got $messages');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }
 
 SourceIdentity _source(String id) => SourceIdentity(
@@ -208,15 +227,88 @@ void runBrowserPortContractSuite(String name, BrowserPortHarness Function() crea
         check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
       });
 
-      test('delivers page messages to the registered handler', () async {
+      test('delivers window.<name>.postMessage(string) to the registered handler', () async {
         final BrowserSession s = await open(sourceA);
         check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
         final messages = <String>[];
         check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
-        check(await s.evaluate(harness.postMessageScript('bridge', 'hello'))).isA<BrowserCompleted<String>>();
-        await Future<void>.delayed(Duration.zero);
+        check(
+          await s.evaluate(BrowserMessageChannel.postScript('bridge', 'hello')),
+        ).isA<BrowserCompleted<String>>();
+        await _waitFor(messages, 'hello');
         check(messages).deepEquals(<String>['hello']);
       });
+
+      test('delivers messages from loadData content with an http(s) base URL', () async {
+        final BrowserSession s = await open(sourceA);
+        final messages = <String>[];
+        check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+        check(
+          await s.loadData('<html><title>challenge</title></html>', baseUrl: Uri.parse('https://example.org/')),
+        ).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'solved'));
+        await _waitFor(messages, 'solved');
+        check(messages).deepEquals(<String>['solved']);
+      });
+
+      test('a channel registered before a load is present in the loaded page', () async {
+        final BrowserSession s = await open(sourceA);
+        final messages = <String>[];
+        check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'after load'));
+        await _waitFor(messages, 'after load');
+        check(messages).deepEquals(<String>['after load']);
+      });
+
+      test('a removed channel delivers nothing', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final removed = <String>[];
+        final kept = <String>[];
+        check(await s.setMessageHandler('gone', removed.add)).isA<BrowserCompleted<void>>();
+        check(await s.setMessageHandler('kept', kept.add)).isA<BrowserCompleted<void>>();
+        check(await s.setMessageHandler('gone', null)).isA<BrowserCompleted<void>>();
+        // The page may throw once the object is gone; only delivery matters.
+        await s.evaluate(BrowserMessageChannel.postScript('gone', 'x'));
+        await s.evaluate(BrowserMessageChannel.postScript('kept', 'marker'));
+        await _waitFor(kept, 'marker');
+        check(removed).isEmpty();
+      });
+
+      test('drops messages from a frame whose origin differs from the loaded page', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.crossOriginFramePageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final messages = <String>[];
+        check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+        check(
+          await s.evaluate(harness.crossOriginFramePostScript('bridge', 'cross-origin')),
+        ).isA<BrowserCompleted<String>>();
+        // Same-origin marker posted afterwards: once it arrives, any delivery
+        // of the cross-origin message would have happened.
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'same-origin'));
+        await _waitFor(messages, 'same-origin');
+        check(messages).deepEquals(<String>['same-origin']);
+      });
+
+      test('drops messages posted from about:blank', () async {
+        final BrowserSession s = await open(sourceA);
+        final blank = <String>[];
+        check(await s.setMessageHandler('bridge', blank.add)).isA<BrowserCompleted<void>>();
+        check(await s.loadUrl(Uri.parse('about:blank'))).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'blank'));
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'page'));
+        await _waitFor(blank, 'page');
+        check(blank).deepEquals(<String>['page']);
+      });
+
+      for (final name in <String>['', '1bridge', 'a.b', 'a-b', 'a b', 'x;alert(1)']) {
+        test('refuses channel name "$name"', () async {
+          final BrowserSession s = await open(sourceA);
+          check(await s.setMessageHandler(name, (_) {})).isA<BrowserCapabilityUnavailable<void>>();
+        });
+      }
 
       test('showForInteraction reports interaction-required without a display', () async {
         final BrowserSession s = await open(sourceA);
@@ -246,11 +338,20 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
   final Uri redirectToFileUrl = Uri.parse('https://contract.test/to-file');
 
   @override
+  final Uri crossOriginFramePageUrl = Uri.parse('https://contract.test/framed');
+
+  /// The cross-origin child frame of [crossOriginFramePageUrl].
+  final Uri crossOriginFrameUrl = Uri.parse('https://other-origin.test/frame');
+
+  @override
   bool get canShowInteraction => false;
 
   FakeWebPage? _resolve(Uri url) {
     if (url == pageUrl) return const FakeWebPage(html: '<html><head><title>contract</title></head></html>');
     if (url == redirectToFileUrl) return FakeWebPage(status: 302, redirectTo: Uri.parse('file:///etc/passwd'));
+    if (url == crossOriginFramePageUrl) {
+      return FakeWebPage(html: '<html><head><title>framed</title></head></html>', frames: <Uri>[crossOriginFrameUrl]);
+    }
     return null;
   }
 
@@ -273,5 +374,6 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
   Future<void> releaseHeld() async => _port?.releaseHeld();
 
   @override
-  String postMessageScript(String name, String message) => FakeBrowserPort.postMessageScript(name, message);
+  String crossOriginFramePostScript(String name, String message) =>
+      FakeBrowserPort.frameScript(crossOriginFrameUrl, BrowserMessageChannel.postScript(name, message));
 }

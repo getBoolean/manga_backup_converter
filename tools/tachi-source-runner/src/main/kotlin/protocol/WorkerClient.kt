@@ -108,6 +108,7 @@ class WorkerClient(
 
     fun handshake(): JsonObject = call("handshake", payload = buildJsonObject {
         put("protocolVersions", buildJsonArray { add(JsonPrimitive(1)) })
+        put("protocolMinor", Wire.MINOR_VERSION)
         put("maxFrameBytes", Wire.MAX_FRAME_BYTES)
     })
 

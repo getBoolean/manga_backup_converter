@@ -5,9 +5,18 @@ import 'package:source_runtime/source_runtime.dart';
 
 /// A page the fake serves.
 final class FakeWebPage {
-  const FakeWebPage({this.html = '<html><head><title>fake</title></head></html>', this.redirectTo, this.status = 200});
+  const FakeWebPage({
+    this.html = '<html><head><title>fake</title></head></html>',
+    this.redirectTo,
+    this.status = 200,
+    this.frames = const <Uri>[],
+  });
 
   final String html;
+
+  /// URLs of the page's child frames; scripts run in them through
+  /// [FakeBrowserPort.frameScript].
+  final List<Uri> frames;
 
   /// When set, loading the page redirects here (checked against the scheme
   /// policy like any navigation).
@@ -64,8 +73,9 @@ final class FakeBrowserStore {
 ///
 /// `evaluate` understands a small JavaScript subset: `1 + 1`, `document.title`,
 /// `document.cookie` (read and `document.cookie = "k=v"`),
-/// `localStorage.setItem("k", "v")` and `localStorage.getItem("k")`, plus the
-/// harness markers produced by [heldScript] and [postMessageScript].
+/// `localStorage.setItem("k", "v")`, `localStorage.getItem("k")` and
+/// `window.<channel>.postMessage("text")` (see [BrowserMessageChannel]), plus
+/// the harness markers produced by [heldScript] and [frameScript].
 class FakeBrowserPort implements BrowserPort {
   FakeBrowserPort({
     FakePageResolver? pages,
@@ -122,8 +132,14 @@ class FakeBrowserPort implements BrowserPort {
   /// [releaseHeld].
   static String heldScript(String resultJson) => '/*held*/$resultJson';
 
-  /// Returns a script that posts [message] on channel [name].
-  static String postMessageScript(String name, String message) => '/*post*/${jsonEncode(<String>[name, message])}';
+  /// Returns a script that posts [message] on channel [name] from the top
+  /// frame, as a page would.
+  static String postMessageScript(String name, String message) => BrowserMessageChannel.postScript(name, message);
+
+  /// Returns a script that runs [script] inside the current page's child
+  /// frame loaded from [frame] (one of [FakeWebPage.frames]), with that
+  /// frame's origin. Only `postMessage` scripts have an effect there.
+  static String frameScript(Uri frame, String script) => '/*frame*/${jsonEncode(<String>[frame.toString(), script])}';
 
   /// Releases every evaluation started with a [heldScript].
   void releaseHeld() {
@@ -259,12 +275,42 @@ class FakeBrowserSession implements BrowserSession {
     if (dead != null) return dead;
     final String s = script.trim();
     if (s.startsWith('/*held*/')) return _held(s.substring(8), cancel);
-    if (s.startsWith('/*post*/')) {
-      final args = jsonDecode(s.substring(8)) as List<Object?>;
-      _handlers[args[0]! as String]?.call(args[1]! as String);
+    if (s.startsWith('/*frame*/')) {
+      final args = jsonDecode(s.substring(9)) as List<Object?>;
+      final Uri frame = Uri.parse(args[0]! as String);
+      if (_page.frames.contains(frame)) _post((args[1]! as String).trim(), origin: frame);
       return const BrowserCompleted<String>('null');
     }
+    if (_post(s, origin: _current)) return const BrowserCompleted<String>('null');
     return BrowserCompleted<String>(_interpret(s));
+  }
+
+  static final RegExp _postPattern = RegExp(r'^(?:window\.)?([A-Za-z_$][A-Za-z0-9_$]*)\.postMessage\((.*)\);?$');
+
+  /// Runs a `postMessage` script posted from a frame at [origin]; returns
+  /// whether [script] was one. Delivery follows [BrowserMessageChannel]:
+  /// asynchronous, and only for a registered channel and an accepted origin.
+  bool _post(String script, {required Uri origin}) {
+    final RegExpMatch? match = _postPattern.firstMatch(script);
+    if (match == null) return false;
+    final void Function(String message)? handler = _handlers[match[1]!];
+    Object? message;
+    try {
+      message = jsonDecode(match[2]!);
+    } on FormatException {
+      message = null;
+    }
+    if (handler != null &&
+        message is String &&
+        BrowserMessageChannel.accepts(documentUrl: _current, frameOrigin: origin)) {
+      final int generationAtPost = generation;
+      scheduleMicrotask(() {
+        if (!_fenced && !_closed && generationAtPost == generation && identical(_handlers[match[1]!], handler)) {
+          handler(message! as String);
+        }
+      });
+    }
+    return true;
   }
 
   Future<BrowserOutcome<String>> _held(String resultJson, CancellationToken? cancel) async {
@@ -327,6 +373,8 @@ class FakeBrowserSession implements BrowserSession {
   Future<BrowserOutcome<void>> setMessageHandler(String name, void Function(String message)? handler) async {
     final BrowserCancelled<void>? dead = _dead(null);
     if (dead != null) return dead;
+    final BrowserCapabilityUnavailable<void>? invalid = BrowserMessageChannel.checkName<void>(name);
+    if (invalid != null) return invalid;
     if (handler == null) {
       _handlers.remove(name);
     } else {

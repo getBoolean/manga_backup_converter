@@ -20,6 +20,9 @@ import kotlinx.serialization.json.put
  */
 object Wire {
     const val VERSION = 1
+
+    /** Highest minor version of [VERSION] this worker speaks (1.1: string sets, source scopes, trustedSigners). */
+    const val MINOR_VERSION = 1
     const val MAX_FRAME_BYTES = 16 * 1024 * 1024
     const val MAX_SAFE_INTEGER = 9007199254740991L
 
@@ -178,13 +181,20 @@ fun JsonElement.asStringStrict(what: String): String {
     return p.content
 }
 
-/** A JSON settings value: string, bool, or integer within ±(2^53 − 1). */
+/**
+ * A JSON settings value: string, bool, integer within ±(2^53 − 1), or (1.1) an
+ * array of strings, which is a string set backing `getStringSet`.
+ */
 fun JsonElement.settingsValue(key: String): Any {
-    val p = this as? JsonPrimitive ?: throw ProtocolViolation("settings value '$key' must be a string, bool or int")
+    if (this is JsonArray) {
+        return map { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content ?: throw ProtocolViolation("settings value '$key' may only hold strings in an array") }
+            .toSortedSet()
+    }
+    val p = this as? JsonPrimitive ?: throw ProtocolViolation("settings value '$key' must be a string, bool, int or string array")
     if (p.isString) return p.content
     p.booleanOrNull?.let { return it }
     val l = p.longOrNull
     if (l != null && l in -Wire.MAX_SAFE_INTEGER..Wire.MAX_SAFE_INTEGER && p.doubleOrNull != null) return l
-    throw ProtocolViolation("settings value '$key' must be a string, bool or int")
+    throw ProtocolViolation("settings value '$key' must be a string, bool, int or string array")
 }
 

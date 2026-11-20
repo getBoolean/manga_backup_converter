@@ -131,14 +131,21 @@ data class SizingRule(
 }
 
 /** What the handshake reports about sizing (KTD25). */
-data class SizingReport(val rule: SizingRule?, val inputs: SizingRule.Inputs, val limits: WorkerLimits, val overridden: Set<String>) {
+data class SizingReport(
+    val rule: SizingRule?,
+    val inputs: SizingRule.Inputs,
+    val limits: WorkerLimits,
+    val overridden: Set<String>,
+    /** What [rule] derived before overrides; null without a rule. */
+    val derived: WorkerLimits? = null,
+) {
     fun toJson() = buildJsonObject {
         put("rule", rule?.toJson() ?: kotlinx.serialization.json.JsonNull)
         put("inputs", buildJsonObject {
             put("cores", inputs.cores)
             put("maxHeapMiB", inputs.maxHeapMiB)
         })
-        put("derived", limits.toJson())
+        put("derived", derived?.toJson() ?: kotlinx.serialization.json.JsonNull)
         put("overridden", kotlinx.serialization.json.JsonArray(overridden.sorted().map { kotlinx.serialization.json.JsonPrimitive(it) }))
     }
 
@@ -155,7 +162,7 @@ data class SizingReport(val rule: SizingRule?, val inputs: SizingRule.Inputs, va
         fun resolve(overrides: Map<String, Long>, rule: SizingRule? = committedOrNull(overrides)): SizingReport? {
             val inputs = SizingRule.measureInputs()
             val base = rule?.derive(inputs) ?: WorkerLimits.fromOverrides(overrides)?.let { return SizingReport(null, inputs, it, overrides.keys) } ?: return null
-            return SizingReport(rule, inputs, base.override(overrides), overrides.keys)
+            return SizingReport(rule, inputs, base.override(overrides), overrides.keys, derived = base)
         }
     }
 }

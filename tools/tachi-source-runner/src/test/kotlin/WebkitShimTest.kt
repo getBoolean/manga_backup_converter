@@ -1,6 +1,7 @@
 package mangabackup.tachi
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -17,9 +18,15 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** KTD20 translation shim against a fake BrowserPort played by the test (as U1's fake does for the supervisor). */
 class WebkitShimTest {
     /** A fake port: opens sessions, answers loads, and has the page post `reply` on every registered channel. */
-    class FakePort(private val h: () -> WorkerHarness, private val reply: String = "solved", private val failOpenWith: String? = null) : (Frame) -> JsonObject {
+    class FakePort(
+        private val h: () -> WorkerHarness,
+        private val reply: String = "solved",
+        private val failOpenWith: String? = null,
+        /** Malformed `message` values posted before [reply] (a well-behaved platform drops them itself). */
+        private val malformed: List<kotlinx.serialization.json.JsonElement> = emptyList(),
+    ) : (Frame) -> JsonObject {
         val ops = CopyOnWriteArrayList<String>()
-        private val channels = CopyOnWriteArrayList<String>()
+        val channels = CopyOnWriteArrayList<String>()
 
         override fun invoke(frame: Frame): JsonObject {
             ops += frame.op!!
@@ -38,6 +45,11 @@ class WebkitShimTest {
                     // The page runs its script after load and posts on the registered channels.
                     Thread {
                         Thread.sleep(50)
+                        for (name in channels) for (bad in malformed) h().client.event("host.browser.message", buildJsonObject {
+                            put("session", "s-1")
+                            put("name", name)
+                            put("message", bad)
+                        })
                         for (name in channels) h().client.event("host.browser.message", buildJsonObject {
                             put("session", "s-1")
                             put("name", name)
@@ -74,6 +86,23 @@ class WebkitShimTest {
             // Every reverse request named the search that caused it.
             val searchIds = h.client.transcript.filter { it.contains("\"op\":\"search\"") }.map { Frame.parse(it.removePrefix(">> ")).id }
             assertTrue(h.client.reverseRequests.all { it.of in searchIds })
+        }
+    }
+
+    @Test
+    fun `addJavascriptInterface follows the message channel contract - identifier names only, malformed messages dropped`() {
+        lateinit var h: WorkerHarness
+        val port = FakePort({ h }, malformed = listOf(JsonPrimitive(5), kotlinx.serialization.json.JsonNull, buildJsonObject { put("x", "y") }))
+        h = WorkerHarness()
+        h.use {
+            h.client.reverseHandler = port
+            val pkg = h.loadFixture("webview")
+            // The non-string messages are dropped without ending the worker's read loop; the string one arrives.
+            assertEquals("no-glue:solved", h.hits(h.search(pkg, "badname"))[0]["title"]!!.jsonPrimitive.content)
+            assertEquals(listOf("bridge"), port.channels.distinct(), "the non-identifier channel is never registered")
+            assertTrue(mangabackup.tachi.webkit.WebViewTranslation.CHANNEL_NAME.matches("_a\$1"))
+            assertTrue(!mangabackup.tachi.webkit.WebViewTranslation.CHANNEL_NAME.matches("1a"))
+            assertTrue(!mangabackup.tachi.webkit.WebViewTranslation.CHANNEL_NAME.matches("a.b"))
         }
     }
 
