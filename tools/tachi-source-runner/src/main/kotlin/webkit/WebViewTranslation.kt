@@ -308,7 +308,12 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             }
             else -> null
         }
-        if (host != null) environment.currentOperation?.recordHostFailure(host)
+        if (host != null) {
+            environment.currentOperation?.recordHostFailure(host)
+            // Fail fast: helpers such as runWebViewBlocking watch their OkHttp call and give up
+            // when it is cancelled, instead of waiting out their own timeout.
+            environment.cancelActiveCalls()
+        }
         val url = currentUrl ?: "about:blank"
         onMain {
             view.webViewClient.onReceivedError(view, SimpleRequest(url, emptyMap(), mainFrame = true), SimpleError(cause.message ?: cause.toString()))

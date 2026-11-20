@@ -112,6 +112,7 @@ tasks.test {
     systemProperty("tachi.fixtureJars", fixtureJarsDir.get().asFile.absolutePath)
     systemProperty("tachi.workerClasspath", sourceSets.main.get().runtimeClasspath.asPath)
     systemProperty("tachi.javaHome", System.getProperty("java.home"))
+    (project.findProperty("transcriptDir") as String?)?.let { systemProperty("tachi.transcriptDir", it) }
     maxHeapSize = "1g"
     testLogging {
         events("failed", "skipped")

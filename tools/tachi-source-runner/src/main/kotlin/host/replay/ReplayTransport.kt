@@ -108,7 +108,7 @@ class ReplayTransport private constructor(val captures: List<CaptureFormat.Captu
 
         fun start(dirs: List<File>): ReplayTransport = ReplayTransport(dirs.map { CaptureFormat.load(it) }, ReplayLog())
 
-        private fun respond(captures: List<CaptureFormat.CaptureSet>, log: ReplayLog, method: String, url: HttpUrl, body: ByteArray): MockResponse {
+        fun respond(captures: List<CaptureFormat.CaptureSet>, log: ReplayLog, method: String, url: HttpUrl, body: ByteArray): MockResponse {
             for (set in captures) {
                 val key = CaptureFormat.key(method, url, body, set.manifest.volatileQueryParameters)
                 val hit = set.lookup(key) ?: continue

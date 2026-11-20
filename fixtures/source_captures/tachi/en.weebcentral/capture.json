@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "en.weebcentral",
+  "recordedAt": "2026-11-20T17:18:04.795399500Z",
+  "recordedBy": "tools/tachi-source-runner capture",
+  "notes": "Recorded by tools/tachi-source-runner capture (JAR path, query 'Onimai'); replayed by the tachi-source-runner JVM tests. Only content-type/location/retry-after response headers and no request headers are stored. Body edits (digests recomputed after editing): Cloudflare challenge-platform parameters (window.__CF$cv$params: r = Ray ID of the recording request, t = timestamp) replaced with zeros (1x).",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/search/data?adult=Any&anime=Any&display_mode=Full+Display&limit=32&official=Any&offset=0&order=Descending&sort=Best+Match&text=Onimai",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/6a4b8fb0d304ad6228d3147d319082ac0bbeb04374a6dde52f2873a4f2a138bc.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/search/data?adult=Any&anime=Any&display_mode=Full+Display&limit=32&official=Any&offset=0&order=Descending&sort=Best+Match&text=Onimai",
+        "sha256": "6a4b8fb0d304ad6228d3147d319082ac0bbeb04374a6dde52f2873a4f2a138bc",
+        "size": 8913,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/ONIMAI-Im-Now-Your-Sister",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/46388913c81fe6c295679bcc0564f54b5393f5556e8976f7ba423a7bd2139a56.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/ONIMAI-Im-Now-Your-Sister",
+        "sha256": "46388913c81fe6c295679bcc0564f54b5393f5556e8976f7ba423a7bd2139a56",
+        "size": 76933,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/full-chapter-list",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/73543c21c2d087dcfb2452fb69f3e4d97feedfce5597b247b015531eae824d9e.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/full-chapter-list",
+        "sha256": "73543c21c2d087dcfb2452fb69f3e4d97feedfce5597b247b015531eae824d9e",
+        "size": 212259,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}
