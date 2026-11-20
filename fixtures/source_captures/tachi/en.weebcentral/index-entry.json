@@ -1,0 +1,21 @@
+{
+  "name": "Weeb Central",
+  "packageName": "eu.kanade.tachiyomi.extension.en.weebcentral",
+  "resources": {
+    "apkUrl": "https://github.com/keiyoushi/extensions/releases/download/3cf15bc/tachiyomi-en.weebcentral-v1.6.27.apk",
+    "iconUrl": "https://cdn.jsdelivr.net/gh/keiyoushi/extensions-source@main/src/en/weebcentral/res/mipmap-xhdpi/ic_launcher.png",
+    "jarUrl": "https://github.com/keiyoushi/extensions/releases/download/3cf15bc/tachiyomi-en.weebcentral-v1.6.27.jar"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "106027",
+  "versionName": "1.6.27",
+  "contentWarning": "CONTENT_WARNING_MIXED",
+  "sources": [
+    {
+      "id": "2131019126180322627",
+      "name": "Weeb Central",
+      "language": "en",
+      "homeUrl": "https://weebcentral.com"
+    }
+  ]
+}
