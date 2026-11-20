@@ -5,12 +5,17 @@ import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_chapte
 import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_history.dart';
 import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_library_manga.dart';
 import 'package:mangabackupconverter_cli/src/formats/aidoku/aidoku_backup_manga.dart';
+import 'package:mangabackupconverter_cli/src/formats/paperback/paperback_backup.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/conversion_summary.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/target_backup_builder.dart';
+import 'package:mangabackupconverter_cli/src/reconciliation/chapter_reconciler.dart';
 import 'package:test/scaffolding.dart';
+
+import '../fixtures/paperback_fixtures.dart' as fx;
 
 void main() {
   group('AidokuBackupBuilder', () {
@@ -265,6 +270,306 @@ void main() {
     test('throws UnimplementedError', () {
       const builder = UnimplementedBackupBuilder();
       check(() => builder.build(const <MangaMatchConfirmation>[])).throws<UnimplementedError>();
+    });
+  });
+
+  group('AidokuBackupBuilder characterization (chapter state)', () {
+    const builder = AidokuBackupBuilder();
+    const match = PluginSearchResult(pluginSourceId: 'dest.src', mangaKey: 'dest-manga', title: 'Fixture Manga');
+
+    AidokuBackup buildOne(
+      List<SourceChapter> chapters,
+      List<PluginChapter> target, {
+      List<SourceHistoryEntry>? history,
+    }) {
+      return builder.build(<MangaMatchConfirmation>[
+            MangaMatchConfirmation(
+              sourceManga: SourceMangaData(
+                details: MangaSearchDetails(title: 'Fixture Manga'),
+                sourceId: 'origin.src',
+                chapters: chapters,
+                history: history ?? const <SourceHistoryEntry>[],
+              ),
+              confirmedMatch: match,
+              targetChapters: target,
+            ),
+          ])
+          as AidokuBackup;
+    }
+
+    Map<String, AidokuBackupHistory> historyById(AidokuBackup backup) => <String, AidokuBackupHistory>{
+      for (final AidokuBackupHistory h in backup.history ?? const <AidokuBackupHistory>{}) h.chapterId: h,
+    };
+
+    void checkHistoryReferencesEmittedChapters(AidokuBackup backup) {
+      final emitted = <String>{
+        for (final AidokuBackupChapter c in backup.chapters ?? const <AidokuBackupChapter>{}) '${c.mangaId}|${c.id}',
+      };
+      for (final AidokuBackupHistory h in backup.history ?? const <AidokuBackupHistory>{}) {
+        check(emitted).contains('${h.mangaId}|${h.chapterId}');
+      }
+    }
+
+    test('AE2: same chapter number in different volumes stays distinct; partial progress is not completion', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[
+          SourceChapter(title: 'Vol.1 Ch.1', chapterNumber: 1, volumeNumber: 1, isRead: true),
+          SourceChapter(title: 'Vol.2 Ch.1', chapterNumber: 1, volumeNumber: 2, lastPageRead: 5, sourceOrder: 1),
+        ],
+        <PluginChapter>[
+          PluginChapter(chapterId: 'd-v1c1', chapterNumber: 1, volumeNumber: 1),
+          PluginChapter(chapterId: 'd-v2c1', chapterNumber: 1, volumeNumber: 2, sourceOrder: 1),
+        ],
+      );
+
+      final Map<String, AidokuBackupHistory> history = historyById(backup);
+      check(history.keys.toSet()).deepEquals(<String>{'d-v1c1', 'd-v2c1'});
+      check(history['d-v1c1']!.completed).isTrue();
+      check(history['d-v2c1']!.completed).isFalse();
+      check(history['d-v2c1']!.progress).equals(5);
+      checkHistoryReferencesEmittedChapters(backup);
+    });
+
+    test('AE3: one read chapter does not fan out across scanlator duplicates', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 5', chapterNumber: 5, scanlator: 'Group A', isRead: true)],
+        <PluginChapter>[
+          PluginChapter(chapterId: 'd-5a', chapterNumber: 5, scanlator: 'Group A'),
+          PluginChapter(chapterId: 'd-5b', chapterNumber: 5, scanlator: 'Group B', sourceOrder: 1),
+        ],
+      );
+
+      check(historyById(backup).keys.toSet()).deepEquals(<String>{'d-5a'});
+    });
+
+    test('AE3: equally plausible destinations leave the chapter unresolved', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 5', chapterNumber: 5, isRead: true)],
+        <PluginChapter>[
+          PluginChapter(chapterId: 'd-5a', chapterNumber: 5, scanlator: 'Group A'),
+          PluginChapter(chapterId: 'd-5b', chapterNumber: 5, scanlator: 'Group B', sourceOrder: 1),
+        ],
+      );
+
+      check(backup.history).isNull();
+    });
+
+    test('AE3: unknown -1 chapter numbers are not shared match keys', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Extra', chapterNumber: -1, isRead: true)],
+        <PluginChapter>[
+          PluginChapter(chapterId: 'd-omake', title: 'Omake', chapterNumber: -1),
+          PluginChapter(chapterId: 'd-special', title: 'Special', chapterNumber: -1, sourceOrder: 1),
+        ],
+      );
+
+      check(backup.history).isNull();
+    });
+
+    test('AE3: a conflicting known language rejects the candidate', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 3', chapterNumber: 3, language: 'en', isRead: true)],
+        <PluginChapter>[PluginChapter(chapterId: 'd-3-es', chapterNumber: 3, language: 'es')],
+      );
+
+      check(backup.history).isNull();
+    });
+
+    test('two source chapters claiming one destination chapter form a collision with no state', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[
+          SourceChapter(title: 'Chapter 7', chapterNumber: 7, scanlator: 'Group A', isRead: true),
+          SourceChapter(title: 'Chapter 7', chapterNumber: 7, scanlator: 'Group B', lastPageRead: 3, sourceOrder: 1),
+        ],
+        <PluginChapter>[PluginChapter(chapterId: 'd-7', chapterNumber: 7)],
+      );
+
+      check(backup.history).isNull();
+    });
+
+    test('partial progress on a uniquely matched chapter is preserved', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 2', chapterNumber: 2, lastPageRead: 12)],
+        <PluginChapter>[PluginChapter(chapterId: 'd-2', chapterNumber: 2)],
+      );
+
+      final AidokuBackupHistory h = historyById(backup)['d-2']!;
+      check(h.completed).isFalse();
+      check(h.progress).equals(12);
+    });
+
+    test('every emitted history record references a fetched destination chapter', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 3', chapterNumber: 3, isRead: true)],
+        <PluginChapter>[PluginChapter(chapterId: 'd-3', chapterNumber: 3)],
+        history: <SourceHistoryEntry>[
+          SourceHistoryEntry(
+            chapterTitle: 'Chapter 3',
+            chapterNumber: 3,
+            completed: true,
+            dateRead: DateTime.utc(2024),
+          ),
+        ],
+      );
+
+      checkHistoryReferencesEmittedChapters(backup);
+    });
+
+    test('no history is emitted when destination chapters were not fetched', () {
+      final AidokuBackup backup = buildOne(
+        <SourceChapter>[SourceChapter(title: 'Chapter 3', chapterNumber: 3, isRead: true)],
+        const <PluginChapter>[],
+        history: <SourceHistoryEntry>[
+          SourceHistoryEntry(
+            chapterTitle: 'Chapter 3',
+            chapterNumber: 3,
+            completed: true,
+            dateRead: DateTime.utc(2024),
+          ),
+        ],
+      );
+
+      check(backup.history).isNull();
+    });
+  });
+
+  group('AidokuBackupBuilder reconciliation output', () {
+    const builder = AidokuBackupBuilder();
+    const match = PluginSearchResult(pluginSourceId: 'dest.src', mangaKey: 'dest-manga', title: 'Fixture Manga');
+
+    test('history linked by source chapter ID reaches the matched destination chapter', () {
+      final backup =
+          builder.build(<MangaMatchConfirmation>[
+                MangaMatchConfirmation(
+                  sourceManga: SourceMangaData(
+                    details: MangaSearchDetails(title: 'Fixture Manga'),
+                    chapters: <SourceChapter>[
+                      SourceChapter(title: 'Old Title 3', chapterKey: 'src-3', chapterNumber: 3),
+                    ],
+                    history: <SourceHistoryEntry>[
+                      SourceHistoryEntry(
+                        chapterTitle: 'Old Title 3',
+                        chapterKey: 'src-3',
+                        progress: 4,
+                        total: 18,
+                        dateRead: DateTime.utc(2024, 5, 6),
+                      ),
+                    ],
+                  ),
+                  confirmedMatch: match,
+                  targetChapters: <PluginChapter>[
+                    PluginChapter(chapterId: 'd-3', title: 'New Title', chapterNumber: 3),
+                  ],
+                ),
+              ])
+              as AidokuBackup;
+
+      final AidokuBackupHistory h = backup.history!.single;
+      check(h.chapterId).equals('d-3');
+      check(h.completed).isFalse();
+      check(h.progress).equals(4);
+      check(h.total).equals(18);
+      check(h.dateRead).equals(DateTime.utc(2024, 5, 6));
+    });
+
+    test('per-chapter read dates are used instead of the manga-level date', () {
+      final backup =
+          builder.build(<MangaMatchConfirmation>[
+                MangaMatchConfirmation(
+                  sourceManga: SourceMangaData(
+                    details: MangaSearchDetails(title: 'Fixture Manga'),
+                    lastRead: DateTime.utc(2025),
+                    chapters: <SourceChapter>[
+                      SourceChapter(title: 'c1', chapterNumber: 1, isRead: true, dateRead: DateTime.utc(2023, 2)),
+                      SourceChapter(title: 'c2', chapterNumber: 2, isRead: true, dateRead: DateTime.utc(2023, 3)),
+                    ],
+                  ),
+                  confirmedMatch: match,
+                  targetChapters: <PluginChapter>[
+                    PluginChapter(chapterId: 'd1', chapterNumber: 1),
+                    PluginChapter(chapterId: 'd2', chapterNumber: 2),
+                  ],
+                ),
+              ])
+              as AidokuBackup;
+
+      final dates = <String, DateTime>{
+        for (final AidokuBackupHistory h in backup.history!) h.chapterId: h.dateRead,
+      };
+      check(dates).deepEquals(<String, DateTime>{'d1': DateTime.utc(2023, 2), 'd2': DateTime.utc(2023, 3)});
+    });
+
+    test('summary lists unresolved manga, ambiguous chapters, collisions, orphan history and bookmarks', () {
+      final summary = ConversionSummary();
+      builder.build(<MangaMatchConfirmation>[
+        MangaMatchConfirmation(
+          sourceManga: SourceMangaData(details: MangaSearchDetails(title: 'Unmatched Manga')),
+        ),
+        MangaMatchConfirmation(
+          sourceManga: SourceMangaData(
+            details: MangaSearchDetails(title: 'Fixture Manga'),
+            chapters: <SourceChapter>[
+              SourceChapter(title: 'c5', chapterNumber: 5, isRead: true),
+              SourceChapter(title: 'c7a', chapterNumber: 7, scanlator: 'A', isRead: true),
+              SourceChapter(title: 'c7b', chapterNumber: 7, scanlator: 'B', isRead: true),
+              SourceChapter(title: 'c9', chapterNumber: 9, isRead: true, isBookmarked: true),
+            ],
+            secondarySourceChapters: <SourceChapter>[
+              SourceChapter(title: 'other', chapterNumber: 1, sourceId: 'OtherSrc', isRead: true),
+            ],
+            history: <SourceHistoryEntry>[SourceHistoryEntry(chapterTitle: 'Gone Chapter', completed: true)],
+          ),
+          confirmedMatch: match,
+          targetChapters: <PluginChapter>[
+            PluginChapter(chapterId: 'd5a', chapterNumber: 5, scanlator: 'X'),
+            PluginChapter(chapterId: 'd5b', chapterNumber: 5, scanlator: 'Y'),
+            PluginChapter(chapterId: 'd7', chapterNumber: 7),
+            PluginChapter(chapterId: 'd9', chapterNumber: 9),
+          ],
+        ),
+      ], summary: summary);
+
+      check(summary.unresolvedManga.map((SourceMangaData m) => m.details.title).toList()).deepEquals(<String>[
+        'Unmatched Manga',
+      ]);
+      final MangaChapterReport report = summary.chapterReports.single;
+      check(report.mangaTitle).equals('Fixture Manga');
+      check(report.unresolvedChapters.whereType<AmbiguousChapter>()).length.equals(1);
+      check(report.unresolvedChapters.whereType<ChapterCollision>().single.destination.chapterId).equals('d7');
+      check(report.orphanHistoryEntries).equals(1);
+      check(report.secondarySourceChaptersWithState).equals(1);
+      check(report.bookmarksNotRepresentable).equals(1);
+
+      final String text = summary.describe().join('\n');
+      check(text).contains('Unmatched Manga');
+      check(text).contains('2 equally plausible destination chapters');
+      check(text).contains('2 source chapters');
+    });
+
+    test('Paperback fixture: progress, read dates and identity flow through to Aidoku history', () {
+      final SourceMangaData source = PaperbackBackup.fromData(fx.libraryLinkageArchive()).sourceMangaDataEntries.single;
+      final backup =
+          builder.build(<MangaMatchConfirmation>[
+                MangaMatchConfirmation(
+                  sourceManga: source,
+                  confirmedMatch: match,
+                  targetChapters: <PluginChapter>[
+                    PluginChapter(chapterId: 'd1', chapterNumber: 1),
+                    PluginChapter(chapterId: 'd2', chapterNumber: 2, sourceOrder: 1),
+                  ],
+                ),
+              ])
+              as AidokuBackup;
+
+      final history = <String, AidokuBackupHistory>{
+        for (final AidokuBackupHistory h in backup.history!) h.chapterId: h,
+      };
+      check(history['d1']!.completed).isTrue();
+      check(history['d1']!.dateRead).equals(fx.fixtureReadInstant);
+      check(history['d2']!.completed).isFalse();
+      check(history['d2']!.progress).equals(7);
+      check(history['d2']!.total).equals(20);
+      check(backup.library!.single.categories).deepEquals(<String>['読書中', 'Zweite Ä']);
     });
   });
 }

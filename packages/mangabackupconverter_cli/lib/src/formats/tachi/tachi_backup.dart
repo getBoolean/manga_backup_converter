@@ -148,10 +148,12 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
       return SourceMangaData(
         details: manga.toMangaSearchDetails(),
         sourceId: sourceName ?? 'Source ${manga.source}',
+        sourceMangaKey: manga.url,
         categories: categoryNames,
         chapters: manga.chapters.map((TachiBackupChapter c) {
           return SourceChapter(
             title: c.name,
+            chapterKey: c.url,
             chapterNumber: c.chapterNumber,
             scanlator: c.scanlator.isEmpty ? null : c.scanlator,
             isRead: c.read,
@@ -169,6 +171,7 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
               .firstOrNull;
           return SourceHistoryEntry(
             chapterTitle: ch?.name ?? h.url,
+            chapterKey: h.url,
             chapterNumber: ch?.chapterNumber,
             dateRead: h.lastRead > 0 ? DateTime.fromMillisecondsSinceEpoch(h.lastRead) : null,
             completed: ch?.read ?? false,

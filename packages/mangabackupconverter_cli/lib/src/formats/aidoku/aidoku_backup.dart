@@ -220,6 +220,7 @@ class AidokuBackup with AidokuBackupMappable implements ConvertableBackup {
       return SourceMangaData(
         details: m.toMangaSearchDetails(),
         sourceId: m.sourceId,
+        sourceMangaKey: m.id,
         categories: libraryEntry?.categories ?? const <String>[],
         chapters: mangaChapters.map((AidokuBackupChapter c) {
           final bool isRead = mangaHistory.any(
@@ -227,6 +228,7 @@ class AidokuBackup with AidokuBackupMappable implements ConvertableBackup {
           );
           return SourceChapter(
             title: c.title ?? '',
+            chapterKey: c.id,
             chapterNumber: c.chapter,
             volumeNumber: c.volume,
             scanlator: c.scanlator,
@@ -244,6 +246,7 @@ class AidokuBackup with AidokuBackupMappable implements ConvertableBackup {
               .firstOrNull;
           return SourceHistoryEntry(
             chapterTitle: ch?.title ?? h.chapterId,
+            chapterKey: h.chapterId,
             chapterNumber: ch?.chapter,
             dateRead: h.dateRead,
             completed: h.completed,

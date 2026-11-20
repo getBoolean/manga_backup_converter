@@ -1,5 +1,6 @@
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
+import 'package:mangabackupconverter_cli/src/common/paperback_date_time_mapper.dart';
 import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
 
 part 'paperback_backup_chapter.mapper.dart';
@@ -13,6 +14,7 @@ class PaperbackBackupChapter with PaperbackBackupChapterMappable {
   final String id;
   final num chapNum;
   final String chapterId;
+  @MappableField(hook: PaperbackDateHook())
   final DateTime time;
   final bool isNew;
   final String name;

@@ -184,15 +184,18 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
       return SourceMangaData(
         details: manga.toMangaSearchDetails(),
         sourceId: sourceId,
+        sourceMangaKey: manga.url,
         categories: categoryNames,
         chapters: mangaChapters.map((TachimangaBackupChapter c) {
           return SourceChapter(
             title: c.name,
+            chapterKey: c.url,
             chapterNumber: c.chapterNumber,
             scanlator: c.scanlator,
             isRead: c.read,
             isBookmarked: c.bookmark,
             lastPageRead: c.lastPageRead,
+            totalPages: c.pageCount > 0 ? c.pageCount : null,
             dateUploaded: c.dateUpload > 0 ? DateTime.fromMillisecondsSinceEpoch(c.dateUpload) : null,
             sourceOrder: c.sourceOrder,
           );
@@ -205,6 +208,7 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
               .firstOrNull;
           return SourceHistoryEntry(
             chapterTitle: ch?.name ?? 'Chapter ${h.lastChapterId}',
+            chapterKey: ch?.url,
             chapterNumber: ch?.chapterNumber,
             dateRead: h.lastReadAt > 0 ? DateTime.fromMillisecondsSinceEpoch(h.lastReadAt) : null,
             completed: ch?.read ?? false,

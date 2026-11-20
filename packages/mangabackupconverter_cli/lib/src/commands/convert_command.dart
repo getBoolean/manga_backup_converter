@@ -15,9 +15,13 @@ import 'package:mangabackupconverter_cli/src/commands/format_select_screen.dart'
 import 'package:mangabackupconverter_cli/src/commands/migration_dashboard.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 class ConvertCommand extends Command<void> {
+  /// Set by the migration pipeline; printed once the terminal is restored.
+  ConversionSummary? _conversionSummary;
+
   @override
   final String name = 'convert';
   @override
@@ -115,11 +119,14 @@ class ConvertCommand extends Command<void> {
     }
 
     try {
-      return await _runWithContext(results, verbose, interactive, backupFile, context);
+      await _runWithContext(results, verbose, interactive, backupFile, context);
     } finally {
       context?.showCursor();
       context?.dispose();
     }
+    // Printed after the terminal leaves raw mode and the loading region is
+    // cleared, so multi-line output is neither erased nor stair-stepped.
+    _conversionSummary?.describe().forEach(print);
   }
 
   Future<void> _runWithContext(
@@ -297,7 +304,7 @@ class ConvertCommand extends Command<void> {
               onFetchDetails: onFetchDetails,
             );
           }
-        : _autoAcceptMatches;
+        : autoAcceptMatches;
 
     try {
       await runZoned(
@@ -343,6 +350,7 @@ class ConvertCommand extends Command<void> {
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: cachingLoader,
+            onSummary: (ConversionSummary summary) => _conversionSummary = summary,
             onSelectExtensions: (List<ExtensionEntry> allExtensions) async {
               final List<ExtensionEntry> extensions = allExtensions
                   .where((ExtensionEntry e) => e.contentRating <= maxRating)
@@ -466,8 +474,10 @@ class ConvertCommand extends Command<void> {
   }
 }
 
-/// Non-interactive fallback: searches for each manga, auto-accepts the best match.
-Future<List<MangaMatchConfirmation>> _autoAcceptMatches(
+/// Non-interactive fallback: searches for each manga and accepts a match only
+/// when exactly one result across all plugins has the exact title (R8).
+@visibleForTesting
+Future<List<MangaMatchConfirmation>> autoAcceptMatches(
   List<String> pluginNames,
   List<SourceMangaData> manga,
   Stream<PluginSearchEvent> Function(String query) onSearch,
@@ -485,18 +495,14 @@ Future<List<MangaMatchConfirmation>> _autoAcceptMatches(
         allResults.addAll(event.results);
       }
     }
-    final String lower = entry.details.title.toLowerCase();
-    PluginSearchResult? best;
-    if (allResults.isNotEmpty) {
-      for (final r in allResults) {
-        if (r.title.toLowerCase() == lower) {
-          best = r;
-          break;
-        }
-      }
-      best ??= allResults.first;
-    }
-    confirmations.add(MangaMatchConfirmation(sourceManga: entry, confirmedMatch: best));
+    // Only a single exact-title match across plugins is accepted; anything
+    // else stays unresolved and is listed in the conversion summary.
+    confirmations.add(
+      MangaMatchConfirmation(
+        sourceManga: entry,
+        confirmedMatch: uniqueExactTitleMatch(entry.details.title, allResults),
+      ),
+    );
   }
   return confirmations;
 }
