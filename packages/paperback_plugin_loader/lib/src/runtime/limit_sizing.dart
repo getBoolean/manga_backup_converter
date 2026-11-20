@@ -191,6 +191,17 @@ final class QuickJsSizingPolicy {
   };
 }
 
+/// The current policy factors. **Provisional** until U6 measures real
+/// bundles; rationale in `benchmark/README.md`.
+const QuickJsSizingPolicy provisionalSizingPolicy = QuickJsSizingPolicy(
+  heapHeadroom: 2,
+  stackHeadroom: 2,
+  deadlineHeadroom: 4,
+  maxMemoryShare: 0.25,
+  maxThreadStackShare: 0.5,
+  slicesPerDeadline: 50,
+);
+
 /// The rule's output: limits plus everything needed to audit them.
 final class QuickJsSizing {
   const QuickJsSizing({
@@ -199,6 +210,7 @@ final class QuickJsSizing {
     required this.profile,
     required this.policy,
     required this.concurrentRuntimes,
+    required this.hostWaitAllowance,
     required this.warnings,
   });
 
@@ -207,6 +219,7 @@ final class QuickJsSizing {
   final QuickJsWorkloadProfile profile;
   final QuickJsSizingPolicy policy;
   final int concurrentRuntimes;
+  final Duration hostWaitAllowance;
 
   /// Inputs that capped a limit below what the workload needs.
   final List<String> warnings;
@@ -218,6 +231,7 @@ final class QuickJsSizing {
     'profile': profile.toJson(),
     'policy': policy.toJson(),
     'concurrentRuntimes': concurrentRuntimes,
+    'hostWaitAllowanceMicros': hostWaitAllowance.inMicroseconds,
     'warnings': warnings,
   };
 }
@@ -229,8 +243,12 @@ final class QuickJsSizing {
 /// - stack = peakStack × stackHeadroom, capped at
 ///   threadStack × maxThreadStackShare;
 /// - deadline = slowestOperation × (device calibration ÷ reference
-///   calibration) × deadlineHeadroom;
-/// - job slice = deadline ÷ slicesPerDeadline.
+///   calibration) × deadlineHeadroom + hostWaitAllowance;
+/// - job slice = the CPU part of the deadline ÷ slicesPerDeadline.
+///
+/// [hostWaitAllowance] is the time an operation may spend waiting on host
+/// I/O (network). It is not a device property of QuickJS; the caller passes
+/// the per-operation allowance from its own deadline policy (KTD4).
 ///
 /// A cap that lands below the workload's measured need is reported in
 /// [QuickJsSizing.warnings] rather than silently accepted.
@@ -239,8 +257,10 @@ QuickJsSizing deriveQuickJsLimits({
   required QuickJsWorkloadProfile profile,
   required QuickJsSizingPolicy policy,
   required int concurrentRuntimes,
+  required Duration hostWaitAllowance,
 }) {
   if (concurrentRuntimes <= 0) throw ArgumentError.value(concurrentRuntimes, 'concurrentRuntimes');
+  if (hostWaitAllowance < Duration.zero) throw ArgumentError.value(hostWaitAllowance, 'hostWaitAllowance');
   final warnings = <String>[];
 
   int memory = (profile.peakHeapBytes * policy.heapHeadroom).ceil();
@@ -268,8 +288,9 @@ QuickJsSizing deriveQuickJsLimits({
   }
 
   final double speed = device.calibration.inMicroseconds / math.max(1, profile.referenceCalibration.inMicroseconds);
-  final int deadlineUs = (profile.slowestOperation.inMicroseconds * speed * policy.deadlineHeadroom).ceil();
-  final int sliceUs = math.max(1, deadlineUs ~/ policy.slicesPerDeadline);
+  final int cpuUs = (profile.slowestOperation.inMicroseconds * speed * policy.deadlineHeadroom).ceil();
+  final int deadlineUs = cpuUs + hostWaitAllowance.inMicroseconds;
+  final int sliceUs = math.max(1, cpuUs ~/ policy.slicesPerDeadline);
 
   return QuickJsSizing(
     limits: PaperbackRuntimeLimits(
@@ -282,6 +303,7 @@ QuickJsSizing deriveQuickJsLimits({
     profile: profile,
     policy: policy,
     concurrentRuntimes: concurrentRuntimes,
+    hostWaitAllowance: hostWaitAllowance,
     warnings: warnings,
   );
 }

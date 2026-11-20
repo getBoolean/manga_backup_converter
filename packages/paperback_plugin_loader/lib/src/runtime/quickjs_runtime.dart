@@ -62,9 +62,20 @@ final class SourceJsRuntime {
     _runtime = JsRuntime(interruptToken: _token)
       ..memoryLimit = limits.memoryLimitBytes
       ..maxStackSize = limits.maxStackBytes;
-    context = _runtime.newContext();
-    bridge = PromiseBridge(this);
-    _installConsole();
+    try {
+      context = _runtime.newContext();
+      bridge = PromiseBridge(this);
+      _installConsole();
+    } on Object catch (e) {
+      // A memory limit too small for the realm itself.
+      _runtime.dispose();
+      _token.release();
+      _closed = true;
+      throw PaperbackRuntimeException(
+        RuntimeUnavailableFailure('$name could not start within its limits: $e'),
+        reason: PaperbackFailureReason.memoryLimit,
+      );
+    }
   }
 
   final PaperbackRuntimeLimits limits;

@@ -157,6 +157,13 @@ void main() {
     check(() => testLimits(jobSlice: Duration.zero)).throws<ArgumentError>();
   });
 
+  test('a memory limit too small for the realm fails cleanly', () {
+    check(() => SourceJsRuntime(limits: testLimits(memoryLimitBytes: 16 * 1024)))
+        .throws<PaperbackRuntimeException>()
+        .has((PaperbackRuntimeException e) => e.reason, 'reason')
+        .equals(PaperbackFailureReason.memoryLimit);
+  });
+
   test('a stack limit at or above the real thread stack is refused', () {
     final int available = QuickJs.threadStackAvailable()!;
     check(() => SourceJsRuntime(limits: testLimits(maxStackBytes: available + 1))).throws<ArgumentError>();
@@ -190,11 +197,12 @@ void main() {
         profile: profile,
         policy: policy,
         concurrentRuntimes: 4,
+        hostWaitAllowance: const Duration(seconds: 10),
       );
       check(sizing.limits.memoryLimitBytes).equals(20 * 1024 * 1024);
       check(sizing.limits.maxStackBytes).equals(200 * 1024);
-      // Twice as slow as the reference device: 200 ms × 2 × 3.
-      check(sizing.limits.operationDeadline).equals(const Duration(milliseconds: 1200));
+      // Twice as slow as the reference device: 200 ms × 2 × 3, plus host waits.
+      check(sizing.limits.operationDeadline).equals(const Duration(milliseconds: 11200));
       check(sizing.limits.jobSlice).equals(const Duration(microseconds: 24000));
       check(sizing.warnings).isEmpty();
       check(sizing.toJson()).containsKey('rule');
@@ -211,6 +219,7 @@ void main() {
         profile: profile,
         policy: policy,
         concurrentRuntimes: 4,
+        hostWaitAllowance: Duration.zero,
       );
       check(sizing.limits.memoryLimitBytes).equals(4 * 1024 * 1024);
       check(sizing.limits.maxStackBytes).equals(64 * 1024);
