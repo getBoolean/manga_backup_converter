@@ -283,18 +283,17 @@ void main() {
       List<SourceHistoryEntry>? history,
     }) {
       return builder.build(<MangaMatchConfirmation>[
-            MangaMatchConfirmation(
-              sourceManga: SourceMangaData(
-                details: MangaSearchDetails(title: 'Fixture Manga'),
-                sourceId: 'origin.src',
-                chapters: chapters,
-                history: history ?? const <SourceHistoryEntry>[],
-              ),
-              confirmedMatch: match,
-              targetChapters: target,
-            ),
-          ])
-          as AidokuBackup;
+        MangaMatchConfirmation(
+          sourceManga: SourceMangaData(
+            details: MangaSearchDetails(title: 'Fixture Manga'),
+            sourceId: 'origin.src',
+            chapters: chapters,
+            history: history ?? const <SourceHistoryEntry>[],
+          ),
+          confirmedMatch: match,
+          targetChapters: target,
+        ),
+      ]) as AidokuBackup;
     }
 
     Map<String, AidokuBackupHistory> historyById(AidokuBackup backup) => <String, AidokuBackupHistory>{
@@ -438,31 +437,29 @@ void main() {
     const match = PluginSearchResult(pluginSourceId: 'dest.src', mangaKey: 'dest-manga', title: 'Fixture Manga');
 
     test('history linked by source chapter ID reaches the matched destination chapter', () {
-      final backup =
-          builder.build(<MangaMatchConfirmation>[
-                MangaMatchConfirmation(
-                  sourceManga: SourceMangaData(
-                    details: MangaSearchDetails(title: 'Fixture Manga'),
-                    chapters: <SourceChapter>[
-                      SourceChapter(title: 'Old Title 3', chapterKey: 'src-3', chapterNumber: 3),
-                    ],
-                    history: <SourceHistoryEntry>[
-                      SourceHistoryEntry(
-                        chapterTitle: 'Old Title 3',
-                        chapterKey: 'src-3',
-                        progress: 4,
-                        total: 18,
-                        dateRead: DateTime.utc(2024, 5, 6),
-                      ),
-                    ],
-                  ),
-                  confirmedMatch: match,
-                  targetChapters: <PluginChapter>[
-                    PluginChapter(chapterId: 'd-3', title: 'New Title', chapterNumber: 3),
-                  ],
-                ),
-              ])
-              as AidokuBackup;
+      final backup = builder.build(<MangaMatchConfirmation>[
+        MangaMatchConfirmation(
+          sourceManga: SourceMangaData(
+            details: MangaSearchDetails(title: 'Fixture Manga'),
+            chapters: <SourceChapter>[
+              SourceChapter(title: 'Old Title 3', chapterKey: 'src-3', chapterNumber: 3),
+            ],
+            history: <SourceHistoryEntry>[
+              SourceHistoryEntry(
+                chapterTitle: 'Old Title 3',
+                chapterKey: 'src-3',
+                progress: 4,
+                total: 18,
+                dateRead: DateTime.utc(2024, 5, 6),
+              ),
+            ],
+          ),
+          confirmedMatch: match,
+          targetChapters: <PluginChapter>[
+            PluginChapter(chapterId: 'd-3', title: 'New Title', chapterNumber: 3),
+          ],
+        ),
+      ]) as AidokuBackup;
 
       final AidokuBackupHistory h = backup.history!.single;
       check(h.chapterId).equals('d-3');
@@ -473,25 +470,23 @@ void main() {
     });
 
     test('per-chapter read dates are used instead of the manga-level date', () {
-      final backup =
-          builder.build(<MangaMatchConfirmation>[
-                MangaMatchConfirmation(
-                  sourceManga: SourceMangaData(
-                    details: MangaSearchDetails(title: 'Fixture Manga'),
-                    lastRead: DateTime.utc(2025),
-                    chapters: <SourceChapter>[
-                      SourceChapter(title: 'c1', chapterNumber: 1, isRead: true, dateRead: DateTime.utc(2023, 2)),
-                      SourceChapter(title: 'c2', chapterNumber: 2, isRead: true, dateRead: DateTime.utc(2023, 3)),
-                    ],
-                  ),
-                  confirmedMatch: match,
-                  targetChapters: <PluginChapter>[
-                    PluginChapter(chapterId: 'd1', chapterNumber: 1),
-                    PluginChapter(chapterId: 'd2', chapterNumber: 2),
-                  ],
-                ),
-              ])
-              as AidokuBackup;
+      final backup = builder.build(<MangaMatchConfirmation>[
+        MangaMatchConfirmation(
+          sourceManga: SourceMangaData(
+            details: MangaSearchDetails(title: 'Fixture Manga'),
+            lastRead: DateTime.utc(2025),
+            chapters: <SourceChapter>[
+              SourceChapter(title: 'c1', chapterNumber: 1, isRead: true, dateRead: DateTime.utc(2023, 2)),
+              SourceChapter(title: 'c2', chapterNumber: 2, isRead: true, dateRead: DateTime.utc(2023, 3)),
+            ],
+          ),
+          confirmedMatch: match,
+          targetChapters: <PluginChapter>[
+            PluginChapter(chapterId: 'd1', chapterNumber: 1),
+            PluginChapter(chapterId: 'd2', chapterNumber: 2),
+          ],
+        ),
+      ]) as AidokuBackup;
 
       final dates = <String, DateTime>{
         for (final AidokuBackupHistory h in backup.history!) h.chapterId: h.dateRead,
@@ -548,18 +543,16 @@ void main() {
 
     test('Paperback fixture: progress, read dates and identity flow through to Aidoku history', () {
       final SourceMangaData source = PaperbackBackup.fromData(fx.libraryLinkageArchive()).sourceMangaDataEntries.single;
-      final backup =
-          builder.build(<MangaMatchConfirmation>[
-                MangaMatchConfirmation(
-                  sourceManga: source,
-                  confirmedMatch: match,
-                  targetChapters: <PluginChapter>[
-                    PluginChapter(chapterId: 'd1', chapterNumber: 1),
-                    PluginChapter(chapterId: 'd2', chapterNumber: 2, sourceOrder: 1),
-                  ],
-                ),
-              ])
-              as AidokuBackup;
+      final backup = builder.build(<MangaMatchConfirmation>[
+        MangaMatchConfirmation(
+          sourceManga: source,
+          confirmedMatch: match,
+          targetChapters: <PluginChapter>[
+            PluginChapter(chapterId: 'd1', chapterNumber: 1),
+            PluginChapter(chapterId: 'd2', chapterNumber: 2, sourceOrder: 1),
+          ],
+        ),
+      ]) as AidokuBackup;
 
       final history = <String, AidokuBackupHistory>{
         for (final AidokuBackupHistory h in backup.history!) h.chapterId: h,

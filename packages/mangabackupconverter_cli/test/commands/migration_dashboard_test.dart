@@ -85,10 +85,12 @@ Future<List<MangaMatchConfirmation>> _runDashboard({
   input.add([0x79]); // 'y'
   await Future<void>.delayed(const Duration(milliseconds: 50));
 
-  final List<MangaMatchConfirmation> confirmations = await future;
-  context.dispose();
-  await input.close();
-  return confirmations;
+  try {
+    return await future;
+  } finally {
+    context.dispose();
+    await input.close();
+  }
 }
 
 void main() {
