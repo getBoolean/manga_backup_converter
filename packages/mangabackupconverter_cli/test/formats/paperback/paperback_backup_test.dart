@@ -372,10 +372,23 @@ void main() {
               sourceManga: sourceMangaRef,
             ),
           ],
+          // Only library manga are migrated; this entry links via primarySource.
+          libraryManga: <PaperbackBackupLibraryManga>[
+            PaperbackBackupLibraryManga(
+              id: 'lib1',
+              libraryTabs: <PaperbackBackupLibraryTab>[],
+              lastRead: null,
+              primarySource: sourceMangaRef,
+              dateBookmarked: null,
+              trackedSources: <PaperbackBackupItemReference>[],
+              secondarySources: <PaperbackBackupItemReference>[],
+            ),
+          ],
         );
 
         final List<SourceMangaData> entries = backup.sourceMangaDataEntries;
         check(entries.first.chapters.first.isRead).isFalse();
+        check(entries.first.chapters.first.hasReadingState).isFalse();
       });
     });
   });
@@ -485,6 +498,60 @@ void main() {
       final chapters =
           jsonDecode(utf8.decode(archive.findFile('__CHAPTER_V4')!.content as List<int>)) as Map<String, dynamic>;
       check((chapters['c1'] as Map<String, dynamic>)['time'] as num).equals(fx.appleDistantPastSeconds);
+    });
+  });
+
+  group('PaperbackBackup chapter identity and progress', () {
+    test('carries chapter identity, partial progress and per-chapter read dates', () {
+      final SourceMangaData entry = PaperbackBackup.fromData(fx.libraryLinkageArchive()).sourceMangaDataEntries.single;
+      check(entry.sourceMangaKey).equals('remote-sm-A');
+
+      final SourceChapter ch1 = entry.chapters.firstWhere((SourceChapter c) => c.chapterKey == 'remote-ch-A1');
+      check(ch1.sourceId).equals('SourceAlpha');
+      check(ch1.isRead).isTrue();
+      check(ch1.dateRead).equals(fx.fixtureReadInstant);
+      check(ch1.dateUploaded).equals(fx.fixtureUploadInstant);
+
+      final SourceChapter ch2 = entry.chapters.firstWhere((SourceChapter c) => c.chapterKey == 'remote-ch-A2');
+      check(ch2.isRead).isFalse();
+      check(ch2.lastPageRead).equals(7);
+      check(ch2.totalPages).equals(20);
+      check(ch2.hasReadingState).isTrue();
+    });
+
+    test('secondary-source chapters are kept separately with provenance', () {
+      final Uint8List bytes = fx.buildPaperbackArchive(<String, Map<String, dynamic>>{
+        '__MANGA_INFO_V4': <String, dynamic>{'info-A': fx.mangaInfoJson('info-A', titles: <String>['A'])},
+        '__SOURCE_MANGA_V4': <String, dynamic>{
+          'sm-P': fx.sourceMangaJson('sm-P', mangaInfoId: 'info-A', sourceId: 'PrimarySrc'),
+          'sm-S': fx.sourceMangaJson('sm-S', mangaInfoId: 'info-A', sourceId: 'SecondarySrc'),
+        },
+        '__CHAPTER_V4': <String, dynamic>{
+          'p1': fx.chapterJson('p1', sourceMangaId: 'sm-P', chapNum: 1),
+          's1': fx.chapterJson('s1', sourceMangaId: 'sm-S', chapNum: 1),
+        },
+        '__CHAPTER_PROGRESS_MARKER_V4-1': <String, dynamic>{
+          'p1': fx.progressMarkerJson('p1', completed: true),
+          's1': fx.progressMarkerJson('s1', completed: true),
+        },
+        '__LIBRARY_MANGA_V4': <String, dynamic>{
+          'lib-1': fx.libraryMangaJson('lib-1', primarySourceId: 'sm-P', secondarySourceIds: <String>['sm-S']),
+        },
+      });
+
+      final SourceMangaData entry = PaperbackBackup.fromData(bytes).sourceMangaDataEntries.single;
+      check(entry.sourceId).equals('PrimarySrc');
+      check(entry.chapters.map((SourceChapter c) => c.chapterKey).toList()).deepEquals(<String?>['remote-p1']);
+      check(entry.secondarySourceChapters).length.equals(1);
+      check(entry.secondarySourceChapters.single.sourceId).equals('SecondarySrc');
+      check(entry.secondarySourceChapters.single.isRead).isTrue();
+    });
+
+    test('non-library manga info is retained separately', () {
+      final backup = PaperbackBackup.fromData(fx.libraryLinkageArchive());
+      final List<SourceMangaData> others = backup.nonLibrarySourceMangaDataEntries;
+      check(others.map((SourceMangaData m) => m.details.title).toList()).deepEquals(<String>['Browsed Title B']);
+      check(others.single.chapters).length.equals(1);
     });
   });
 }

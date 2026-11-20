@@ -50,7 +50,7 @@ class PaperbackBackupChapterProgressMarkerMapper
       Field('lastPage', _$lastPage);
   static DateTime _$time(PaperbackBackupChapterProgressMarker v) => v.time;
   static const Field<PaperbackBackupChapterProgressMarker, DateTime> _f$time =
-      Field('time', _$time);
+      Field('time', _$time, hook: PaperbackDateHook());
   static bool _$hidden(PaperbackBackupChapterProgressMarker v) => v.hidden;
   static const Field<PaperbackBackupChapterProgressMarker, bool> _f$hidden =
       Field('hidden', _$hidden);

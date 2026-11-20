@@ -63,6 +63,7 @@ class PaperbackBackupChapterMapper
   static const Field<PaperbackBackupChapter, DateTime> _f$time = Field(
     'time',
     _$time,
+    hook: PaperbackDateHook(),
   );
   static bool _$isNew(PaperbackBackupChapter v) => v.isNew;
   static const Field<PaperbackBackupChapter, bool> _f$isNew = Field(

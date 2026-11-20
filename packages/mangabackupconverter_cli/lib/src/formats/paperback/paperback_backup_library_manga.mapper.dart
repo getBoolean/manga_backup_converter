@@ -42,6 +42,7 @@ class PaperbackBackupLibraryMangaMapper
   static const Field<PaperbackBackupLibraryManga, DateTime> _f$lastRead = Field(
     'lastRead',
     _$lastRead,
+    hook: PaperbackDateHook(),
   );
   static PaperbackBackupItemReference _$primarySource(
     PaperbackBackupLibraryManga v,
@@ -51,7 +52,7 @@ class PaperbackBackupLibraryMangaMapper
   static DateTime? _$dateBookmarked(PaperbackBackupLibraryManga v) =>
       v.dateBookmarked;
   static const Field<PaperbackBackupLibraryManga, DateTime> _f$dateBookmarked =
-      Field('dateBookmarked', _$dateBookmarked);
+      Field('dateBookmarked', _$dateBookmarked, hook: PaperbackDateHook());
   static List<PaperbackBackupItemReference> _$trackedSources(
     PaperbackBackupLibraryManga v,
   ) => v.trackedSources;
