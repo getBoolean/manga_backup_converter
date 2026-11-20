@@ -63,7 +63,8 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
         await plugin.searchManga('Onimai', 1);
         final Manga? manga = await plugin.getMangaDetails(mangaId);
         await plugin.getMangaDetails(mangaId, includeChapters: true);
-        if (manga != null) await plugin.getPageList(manga, const Chapter(key: chapterId));
+        if (manga != null)
+          await plugin.getPageList(manga, const Chapter(key: chapterId));
         await plugin.getMangaList(1, listing: plugin.sourceInfo.listings[1]);
         await plugin.getListings();
         await plugin.getHome();
@@ -77,11 +78,17 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
     licence: _mangafireTerms,
     volatileQueryParameters: <String>{},
     run: (http.Client client) async {
-      final AidokuPlugin plugin = await AidokuPlugin.fromAix(_aix('multi.mangafire-v8.aix'), httpClient: client);
+      final AidokuPlugin plugin = await AidokuPlugin.fromAix(
+        _aix('multi.mangafire-v8.aix'),
+        httpClient: client,
+      );
       try {
         final MangaPageResult result = await plugin.searchManga('Onimai', 1);
         final String? key = result.manga.firstOrNull?.key;
-        if (key == null) throw StateError('MangaFire search returned no results; nothing to capture');
+        if (key == null)
+          throw StateError(
+            'MangaFire search returned no results; nothing to capture',
+          );
         await plugin.getMangaDetails(key);
         await plugin.getMangaDetails(key, includeChapters: true);
       } finally {
@@ -91,8 +98,16 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
   ),
 };
 
-Uint8List _aix(String name) =>
-    File(p.join('packages', 'aidoku_plugin_loader', 'test', 'aidoku', 'fixtures', name)).readAsBytesSync();
+Uint8List _aix(String name) => File(
+  p.join(
+    'packages',
+    'aidoku_plugin_loader',
+    'test',
+    'aidoku',
+    'fixtures',
+    name,
+  ),
+).readAsBytesSync();
 
 Uint8List _postcardString(String value) {
   final List<int> bytes = value.codeUnits;
@@ -106,9 +121,13 @@ Future<void> main(List<String> args) async {
     }
     return;
   }
-  final List<String> positional = args.where((String a) => !a.startsWith('--')).toList();
+  final List<String> positional = args
+      .where((String a) => !a.startsWith('--'))
+      .toList();
   if (positional.length != 2) {
-    stderr.writeln('usage: dart run tool/capture_source_fixtures.dart <ecosystem> <source> [--min-interval-ms=<n>]');
+    stderr.writeln(
+      'usage: dart run tool/capture_source_fixtures.dart <ecosystem> <source> [--min-interval-ms=<n>]',
+    );
     exitCode = 64;
     return;
   }
@@ -124,7 +143,9 @@ Future<void> main(List<String> args) async {
       .map((String a) => a.split('=').last)
       .firstOrNull;
   if (intervalArg == null) {
-    stderr.writeln('--min-interval-ms=<n> is required: choose a polite spacing for the source.');
+    stderr.writeln(
+      '--min-interval-ms=<n> is required: choose a polite spacing for the source.',
+    );
     exitCode = 64;
     return;
   }
@@ -140,10 +161,20 @@ Future<void> main(List<String> args) async {
   } finally {
     inner.close();
   }
-  final String? outArg = args.where((String a) => a.startsWith('--out=')).map((String a) => a.substring(6)).firstOrNull;
-  final dir = Directory(outArg ?? p.join('fixtures', 'source_captures', positional[0], positional[1]))
-    ..createSync(recursive: true);
-  recorder.writeTo(dir, ecosystem: positional[0], source: positional[1], notes: 'Replayed by ${scenario.description}');
+  final String? outArg = args
+      .where((String a) => a.startsWith('--out='))
+      .map((String a) => a.substring(6))
+      .firstOrNull;
+  final dir = Directory(
+    outArg ??
+        p.join('fixtures', 'source_captures', positional[0], positional[1]),
+  )..createSync(recursive: true);
+  recorder.writeTo(
+    dir,
+    ecosystem: positional[0],
+    source: positional[1],
+    notes: 'Replayed by ${scenario.description}',
+  );
   stdout.writeln('Recorded ${recorder.length} exchanges into ${dir.path}');
   // Plugin isolates may keep the VM alive; exit explicitly.
   exit(0);

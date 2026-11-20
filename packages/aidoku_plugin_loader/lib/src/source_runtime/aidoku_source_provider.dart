@@ -12,8 +12,11 @@ import 'package:source_runtime/source_contracts.dart';
 
 /// Loads an `.aix` plugin; [AidokuPlugin.fromAix] by default. Injected so
 /// tests and composition roots control plugin construction.
-typedef AidokuPluginLoader =
-    Future<AidokuPlugin> Function(Uint8List aixBytes, {Map<String, dynamic>? defaults, http.Client? httpClient});
+typedef AidokuPluginLoader = Future<AidokuPlugin> Function(
+  Uint8List aixBytes, {
+  Map<String, dynamic>? defaults,
+  http.Client? httpClient,
+});
 
 /// Maps a settings snapshot to Aidoku `defaults` (raw keys, no source prefix).
 typedef AidokuDefaultsMapper = Map<String, dynamic> Function(SettingsSnapshot settings);
