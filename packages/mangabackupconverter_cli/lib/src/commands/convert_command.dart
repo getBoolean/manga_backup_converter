@@ -15,6 +15,7 @@ import 'package:mangabackupconverter_cli/src/commands/format_select_screen.dart'
 import 'package:mangabackupconverter_cli/src/commands/migration_dashboard.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 class ConvertCommand extends Command<void> {
@@ -297,7 +298,7 @@ class ConvertCommand extends Command<void> {
               onFetchDetails: onFetchDetails,
             );
           }
-        : _autoAcceptMatches;
+        : autoAcceptMatches;
 
     try {
       await runZoned(
@@ -467,7 +468,8 @@ class ConvertCommand extends Command<void> {
 }
 
 /// Non-interactive fallback: searches for each manga, auto-accepts the best match.
-Future<List<MangaMatchConfirmation>> _autoAcceptMatches(
+@visibleForTesting
+Future<List<MangaMatchConfirmation>> autoAcceptMatches(
   List<String> pluginNames,
   List<SourceMangaData> manga,
   Stream<PluginSearchEvent> Function(String query) onSearch,
