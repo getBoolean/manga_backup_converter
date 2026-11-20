@@ -334,7 +334,8 @@ class MigrationDashboard {
 
           case _EnrichmentDoneEvent(:final entry, :final enrichedCandidates):
             entry.candidates = enrichedCandidates;
-            entry.match = _findBestMatch(entry.candidates);
+            // R8: auto-confirm only an unambiguous exact-title match.
+            entry.match = uniqueExactTitleMatch(entry.source.details.title, entry.candidates);
             entry.searching = false;
             activeEntry = null;
             startNextSearch();
@@ -443,7 +444,11 @@ List<String> _renderEntry(MigrationEntry entry, bool isCursor, Spinner spinner, 
         if (errorHint.isNotEmpty) errorHint,
       ].join(' \u00B7 ');
       lines.add(infoLine.isNotEmpty ? truncate('$indent  ${dim(infoLine)}', width) : indent);
-    } else if (entry.failures.isNotEmpty && entry.candidates.isEmpty) {
+    } else if (entry.candidates.isNotEmpty) {
+      final int n = entry.candidates.length;
+      lines.add('$indent  ${yellow('$n candidate${n == 1 ? '' : 's'}, none confirmed automatically')}');
+      lines.add('$indent  ${dim('Enter to choose')}');
+    } else if (entry.failures.isNotEmpty) {
       lines.add('$indent  ${yellow('\u26A0 ${entry.failures.length} plugin error(s) (see log)')}');
       lines.add(indent);
     } else {
@@ -455,15 +460,21 @@ List<String> _renderEntry(MigrationEntry entry, bool isCursor, Spinner spinner, 
   return lines;
 }
 
-PluginSearchResult? _findBestMatch(List<PluginSearchResult> results) {
-  if (results.isEmpty) return null;
-  PluginSearchResult? best;
-  var bestChapters = -1;
-  for (final r in results) {
-    if (r.chapters.length > bestChapters) {
-      bestChapters = r.chapters.length;
-      best = r;
-    }
-  }
-  return best;
+/// Returns the single candidate, across all plugins, whose title exactly
+/// matches [title] (case-insensitive, whitespace-normalized), or `null` when
+/// there is none or more than one.
+///
+/// This is the only automatic manga confirmation (R8): chapter counts and
+/// result order are not evidence of identity, so anything else is left for
+/// the user to choose (interactive) or unresolved (non-interactive).
+PluginSearchResult? uniqueExactTitleMatch(String title, Iterable<PluginSearchResult> candidates) {
+  final String wanted = _normalizeTitle(title);
+  if (wanted.isEmpty) return null;
+  final List<PluginSearchResult> exact = candidates
+      .where((PluginSearchResult r) => _normalizeTitle(r.title) == wanted)
+      .take(2)
+      .toList();
+  return exact.length == 1 ? exact.single : null;
 }
+
+String _normalizeTitle(String title) => title.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

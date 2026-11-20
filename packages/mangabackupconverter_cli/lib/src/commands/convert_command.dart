@@ -470,7 +470,8 @@ class ConvertCommand extends Command<void> {
   }
 }
 
-/// Non-interactive fallback: searches for each manga, auto-accepts the best match.
+/// Non-interactive fallback: searches for each manga and accepts a match only
+/// when exactly one result across all plugins has the exact title (R8).
 @visibleForTesting
 Future<List<MangaMatchConfirmation>> autoAcceptMatches(
   List<String> pluginNames,
@@ -490,18 +491,14 @@ Future<List<MangaMatchConfirmation>> autoAcceptMatches(
         allResults.addAll(event.results);
       }
     }
-    final String lower = entry.details.title.toLowerCase();
-    PluginSearchResult? best;
-    if (allResults.isNotEmpty) {
-      for (final r in allResults) {
-        if (r.title.toLowerCase() == lower) {
-          best = r;
-          break;
-        }
-      }
-      best ??= allResults.first;
-    }
-    confirmations.add(MangaMatchConfirmation(sourceManga: entry, confirmedMatch: best));
+    // Only a single exact-title match across plugins is accepted; anything
+    // else stays unresolved and is listed in the conversion summary.
+    confirmations.add(
+      MangaMatchConfirmation(
+        sourceManga: entry,
+        confirmedMatch: uniqueExactTitleMatch(entry.details.title, allResults),
+      ),
+    );
   }
   return confirmations;
 }
