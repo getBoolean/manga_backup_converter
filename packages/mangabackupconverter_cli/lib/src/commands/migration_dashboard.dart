@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/live_search_select.dart';
 import 'package:mangabackupconverter_cli/src/commands/manga_details_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 
 // ---------------------------------------------------------------------------
 // State
@@ -63,11 +61,7 @@ class MigrationDashboard {
     required List<String> pluginNames,
     required List<SourceMangaData> manga,
     required Stream<PluginSearchEvent> Function(String query) onSearch,
-    required Future<(PluginMangaDetails, List<PluginChapter>)?> Function(
-      String pluginSourceId,
-      String mangaKey,
-    )
-    onFetchDetails,
+    required FetchDetails onFetchDetails,
   }) async {
     if (manga.isEmpty) return [];
 
@@ -222,17 +216,8 @@ class MigrationDashboard {
             await detailsScreen.run(
               context: context,
               result: tabEntry.match!,
-              fetchDetails: (String mangaKey) {
-                if (tabEntry.match!.details != null) {
-                  return Future.value(
-                    (tabEntry.match!.details!, tabEntry.match!.chapters),
-                  );
-                }
-                return onFetchDetails(
-                  tabEntry.match!.pluginSourceId,
-                  mangaKey,
-                );
-              },
+              // Reuse enriched details when present; otherwise fetch.
+              fetchDetails: () async => tabEntry.match!.fetchedOutcome ?? await onFetchDetails(tabEntry.match!.ref),
             );
 
             keySub = context.keyInput.stream.listen(
@@ -263,6 +248,7 @@ class MigrationDashboard {
               initialQuery: entry.source.details.title,
               onSearch: onSearch,
               onFetchDetails: onFetchDetails,
+              onFailure: entry.failures.add,
             );
             if (result != null) {
               entry.match = result;
@@ -309,23 +295,12 @@ class MigrationDashboard {
               Future.wait(
                 entry.candidates.map((PluginSearchResult r) async {
                   try {
-                    final (PluginMangaDetails, List<PluginChapter>)? result = await onFetchDetails(
-                      r.pluginSourceId,
-                      r.mangaKey,
-                    );
-                    if (result == null) return r;
-                    return PluginSearchResult(
-                      pluginSourceId: r.pluginSourceId,
-                      pluginSourceName: r.pluginSourceName,
-                      mangaKey: r.mangaKey,
-                      title: r.title,
-                      coverUrl: r.coverUrl,
-                      authors: result.$1.authors.isNotEmpty ? result.$1.authors : r.authors,
-                      details: result.$1,
-                      chapters: result.$2,
-                    );
+                    final FetchedManga? fetched = (await onFetchDetails(r.ref)).fetchedOrNull;
+                    // Keep unenriched on failure; the pipeline re-fetches the
+                    // confirmed match and reports a typed failure then.
+                    return fetched == null ? r : r.enrichedWith(fetched);
                   } on Object {
-                    return r; // Keep unenriched on failure.
+                    return r;
                   }
                 }),
               ).then((List<PluginSearchResult> enriched) {
@@ -369,6 +344,9 @@ class MigrationDashboard {
           (MigrationEntry e) => MangaMatchConfirmation(
             sourceManga: e.source,
             confirmedMatch: e.selected ? e.match : null,
+            // Deselecting is an explicit exclusion, not a loss.
+            excluded: !e.selected,
+            searchFailures: List<PluginSearchFailure>.of(e.failures),
           ),
         )
         .toList();

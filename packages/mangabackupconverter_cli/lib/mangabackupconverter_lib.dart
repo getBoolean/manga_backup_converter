@@ -1,57 +1,20 @@
-export 'src/common/convertable.dart';
+/// CLI library. Re-exports the portable conversion core for existing
+/// consumers and adds the CLI-only adapters: the native-dependent Tachimanga
+/// and Mangayomi codecs, concrete plugin loaders, and the migration pipeline.
+library;
+
+export 'package:manga_backup_core/manga_backup_core.dart';
+
 export 'src/converter.dart';
-export 'src/exceptions/aidoku_exception.dart';
-export 'src/exceptions/base_exception.dart';
 export 'src/exceptions/mangayomi_exception.dart';
-export 'src/exceptions/migration_exception.dart';
-export 'src/exceptions/paperback_exception.dart';
-export 'src/exceptions/tachi_exception.dart';
 export 'src/exceptions/tachimanga_exception.dart';
-export 'src/formats/aidoku/aidoku_backup.dart';
-export 'src/formats/aidoku/aidoku_backup_chapter.dart';
-export 'src/formats/aidoku/aidoku_backup_history.dart';
-export 'src/formats/aidoku/aidoku_backup_library_manga.dart';
-export 'src/formats/aidoku/aidoku_backup_manga.dart';
-export 'src/formats/aidoku/aidoku_backup_track_item.dart';
-export 'src/formats/aidoku/aidoku_enums.dart';
 export 'src/formats/mangayomi/mangayomi_backup.dart';
 export 'src/formats/mangayomi/mangayomi_backup_db.dart';
 export 'src/formats/mangayomi/mangayomi_backup_settings.dart';
-export 'src/formats/paperback/paperback_backup.dart';
-export 'src/formats/paperback/paperback_backup_chapter.dart';
-export 'src/formats/paperback/paperback_backup_chapter_progress_marker.dart';
-export 'src/formats/paperback/paperback_backup_item_reference.dart';
-export 'src/formats/paperback/paperback_backup_item_type.dart';
-export 'src/formats/paperback/paperback_backup_library_manga.dart';
-export 'src/formats/paperback/paperback_backup_library_tab.dart';
-export 'src/formats/paperback/paperback_backup_manga_info.dart';
-export 'src/formats/paperback/paperback_backup_source_manga.dart';
-export 'src/formats/tachi/neko_backup_merge_manga.dart';
-export 'src/formats/tachi/tachi_backup.dart';
-export 'src/formats/tachi/tachi_backup_category.dart';
-export 'src/formats/tachi/tachi_backup_chapter.dart';
-export 'src/formats/tachi/tachi_backup_extension_repo.dart';
-export 'src/formats/tachi/tachi_backup_history.dart';
-export 'src/formats/tachi/tachi_backup_manga.dart';
-export 'src/formats/tachi/tachi_backup_preference.dart';
-export 'src/formats/tachi/tachi_backup_source.dart';
-export 'src/formats/tachi/tachi_backup_source_preferences.dart';
-export 'src/formats/tachi/tachi_backup_tracking.dart';
-export 'src/formats/tachi/tachi_update_strategy.dart';
+export 'src/formats/tachimanga/tachi_to_tachimanga.dart';
 export 'src/formats/tachimanga/tachimanga_backup.dart';
 export 'src/formats/tachimanga/tachimanga_backup_db.dart';
 export 'src/formats/tachimanga/tachimanga_backup_db_models.dart';
 export 'src/formats/tachimanga/tachimanga_backup_meta.dart';
-export 'src/pipeline/backup_format.dart';
-export 'src/pipeline/conversion_strategy.dart';
-export 'src/pipeline/conversion_summary.dart';
-export 'src/pipeline/extension_entry.dart';
-export 'src/pipeline/manga_details.dart';
-export 'src/pipeline/migration_pipeline.dart';
 export 'src/pipeline/plugin_loader.dart';
-export 'src/pipeline/plugin_source.dart';
-export 'src/pipeline/plugin_source_aidoku.dart';
 export 'src/pipeline/plugin_source_stub.dart';
-export 'src/pipeline/source_manga_data.dart';
-export 'src/pipeline/target_backup_builder.dart';
-export 'src/reconciliation/chapter_reconciler.dart';

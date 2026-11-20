@@ -4,11 +4,12 @@ library;
 import 'dart:async';
 
 import 'package:checks/checks.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/live_search_select.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
 import 'package:test/scaffolding.dart';
+
+import '../support/test_refs.dart';
 
 void main() {
   group('LiveSearchSelect', () {
@@ -35,7 +36,7 @@ void main() {
               PluginSearchResults(
                 pluginId: 'plugin1',
                 results: [
-                  const PluginSearchResult(
+                  testResult(
                     pluginSourceId: 'plugin1',
                     mangaKey: 'key1',
                     title: 'Manga From Plugin1',
@@ -47,7 +48,7 @@ void main() {
               PluginSearchResults(
                 pluginId: 'plugin2',
                 results: [
-                  const PluginSearchResult(
+                  testResult(
                     pluginSourceId: 'plugin2',
                     mangaKey: 'key2',
                     title: 'Manga From Plugin2',
@@ -59,7 +60,7 @@ void main() {
           });
           return controller.stream;
         },
-        onFetchDetails: (String pluginSourceId, String mangaKey) async => null,
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async => null),
       );
 
       // Wait for results to arrive and render.
@@ -104,7 +105,7 @@ void main() {
               PluginSearchResults(
                 pluginId: 'plugin1',
                 results: [
-                  const PluginSearchResult(
+                  testResult(
                     pluginSourceId: 'plugin1',
                     mangaKey: 'key1',
                     title: 'Manga From Plugin1',
@@ -122,7 +123,7 @@ void main() {
           });
           return controller.stream;
         },
-        onFetchDetails: (String pluginSourceId, String mangaKey) async => null,
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async => null),
       );
 
       // Wait for results to arrive and render.
@@ -163,7 +164,7 @@ void main() {
               PluginSearchResults(
                 pluginId: 'plugin1',
                 results: [
-                  const PluginSearchResult(
+                  testResult(
                     pluginSourceId: 'plugin1',
                     mangaKey: 'key1',
                     title: 'First Result',
@@ -175,7 +176,7 @@ void main() {
               PluginSearchResults(
                 pluginId: 'plugin2',
                 results: [
-                  const PluginSearchResult(
+                  testResult(
                     pluginSourceId: 'plugin2',
                     mangaKey: 'key2',
                     title: 'Second Result',
@@ -187,7 +188,7 @@ void main() {
           });
           return controller.stream;
         },
-        onFetchDetails: (String pluginSourceId, String mangaKey) async => null,
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async => null),
       );
 
       // Wait for results to render.

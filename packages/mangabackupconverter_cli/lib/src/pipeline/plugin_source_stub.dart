@@ -1,8 +1,11 @@
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:source_runtime/source_contracts.dart';
 
-// TODO: implement search functionality for other sources
+/// A selected source whose ecosystem has no runtime on this host yet. Every
+/// operation answers with a typed [CapabilityUnavailableFailure], never an
+/// empty result (KTD15).
 class StubPluginSource implements PluginSource {
-  const StubPluginSource({required this.sourceId, required this.sourceName});
+  StubPluginSource({required this.sourceId, required this.sourceName, this.ecosystem = 'stub'});
 
   @override
   final String sourceId;
@@ -10,16 +13,30 @@ class StubPluginSource implements PluginSource {
   @override
   final String sourceName;
 
-  @override
-  Future<PluginSearchPageResult> search(String query, int page) {
-    throw UnimplementedError('Search is not yet implemented for stub sources');
-  }
+  final String ecosystem;
 
   @override
-  Future<(PluginMangaDetails, List<PluginChapter>)?> getMangaWithChapters(String mangaKey) {
-    throw UnimplementedError('getMangaWithChapters is not yet implemented for stub sources');
-  }
+  late final SourceIdentity identity = SourceIdentity(
+    ecosystem: ecosystem,
+    packageId: sourceId,
+    sourceId: sourceId,
+    artifact: const ArtifactBinding(sha256: '', kind: 'stub', version: '0'),
+  );
 
   @override
-  void dispose() {}
+  String get settingsRevision => '';
+
+  @override
+  Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page) async =>
+      SourceFailed<PluginSearchPageResult>(
+        CapabilityUnavailableFailure('search', '$ecosystem sources cannot run on this host yet'),
+      );
+
+  @override
+  Future<DetailsOutcome> fetchDetails(NativeMangaRef ref) async => DetailsFailed(
+    CapabilityUnavailableFailure('mangaDetails', '$ecosystem sources cannot run on this host yet'),
+  );
+
+  @override
+  Future<void> dispose() async {}
 }

@@ -5,11 +5,9 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/common/convertable.dart';
-import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/mangayomi_exception.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup_db.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:path/path.dart' as p;
 
 part 'mangayomi_backup.mapper.dart';
@@ -176,20 +174,24 @@ class MangayomiBackup with MangayomiBackupMappable implements ConvertableBackup 
   }
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
 
-    print('Mangayomi name: $name');
-    print('Manga: ${db.manga?.length}');
-    print('Categories: ${db.categories?.length}');
-    print('Chapters: ${db.chapters?.length}');
-    print('Downloads: ${db.downloads?.length}');
-    print('Tracks: ${db.tracks?.length}');
-    print('History: ${db.history?.length}');
-    print('Updates: ${db.updates?.length}');
-    print('Settings: ${db.settings?.length}');
-    print('Extension Preferences: ${db.extensionPreferences?.length}');
-    print('Track Preferences: ${db.trackPreferences?.length}');
-    print('Extensions: ${db.extensions?.length}');
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+
+    lines.add('Mangayomi name: $name');
+    lines.add('Manga: ${db.manga?.length}');
+    lines.add('Categories: ${db.categories?.length}');
+    lines.add('Chapters: ${db.chapters?.length}');
+    lines.add('Downloads: ${db.downloads?.length}');
+    lines.add('Tracks: ${db.tracks?.length}');
+    lines.add('History: ${db.history?.length}');
+    lines.add('Updates: ${db.updates?.length}');
+    lines.add('Settings: ${db.settings?.length}');
+    lines.add('Extension Preferences: ${db.extensionPreferences?.length}');
+    lines.add('Track Preferences: ${db.trackPreferences?.length}');
+    lines.add('Extensions: ${db.extensions?.length}');
+    return lines;
   }
 }

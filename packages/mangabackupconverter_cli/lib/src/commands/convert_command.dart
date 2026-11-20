@@ -8,19 +8,24 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:characters/characters.dart';
 import 'package:collection/collection.dart';
+import 'package:crypto/crypto.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
+import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/extension_select_screen.dart';
+import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
 import 'package:mangabackupconverter_cli/src/commands/format_select_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/migration_dashboard.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
+import 'package:mangabackupconverter_cli/src/commands/redacting_log.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:source_runtime/source_runtime.dart' show Redactor;
 
 class ConvertCommand extends Command<void> {
   /// Set by the migration pipeline; printed once the terminal is restored.
-  ConversionSummary? _conversionSummary;
+  ConversionReport? _conversionReport;
 
   @override
   final String name = 'convert';
@@ -66,9 +71,35 @@ class ConvertCommand extends Command<void> {
       )
       ..addOption(
         'max-rating',
-        help: 'Maximum extension content rating (safe, suggestive, nsfw).',
+        help:
+            'Maximum extension content rating (safe, suggestive, nsfw). Defaults to suggestive, or nsfw '
+            'with --confirm-adult; nsfw requires --confirm-adult.',
         allowed: <String>['safe', 'suggestive', 'nsfw'],
-        defaultsTo: 'suggestive',
+      )
+      ..addFlag(
+        'confirm-adult',
+        negatable: false,
+        help:
+            'Confirm you are of legal age to view adult content. Adult (NSFW) and unrated sources '
+            'are hidden from source selection without it.',
+      )
+      ..addFlag(
+        'accept-partial',
+        negatable: false,
+        help:
+            'Accept a partial conversion (unresolved or unrepresentable records) without asking. '
+            'Without it, an unattended partial conversion writes nothing.',
+      )
+      ..addFlag(
+        'fresh',
+        negatable: false,
+        help: 'Discard any conversion journal for this output and start over.',
+      )
+      ..addOption(
+        'journal',
+        help:
+            'Conversion journal path, used to resume an interrupted conversion. '
+            'Defaults to <output-basename>.journal.json; deleted after the output is written.',
       )
       ..addOption(
         'output',
@@ -126,7 +157,7 @@ class ConvertCommand extends Command<void> {
     }
     // Printed after the terminal leaves raw mode and the loading region is
     // cleared, so multi-line output is neither erased nor stair-stepped.
-    _conversionSummary?.describe().forEach(print);
+    _conversionReport?.describe().forEach(print);
   }
 
   Future<void> _runWithContext(
@@ -192,6 +223,21 @@ class ConvertCommand extends Command<void> {
     final BackupFormat resolvedInputFormat = inputFormat;
 
     List<String> repoUrls = results.multiOption('repos');
+
+    // Adult sources stay hidden unless the user confirms their age (shared
+    // core policy; the mobile hosts reuse it).
+    final ratingPolicy = SourceRatingPolicy(
+      adultContentConfirmed: results.flag('confirm-adult'),
+      maxRating: switch (results.option('max-rating')) {
+        'safe' => SourceRatingPolicy.safe,
+        'suggestive' => SourceRatingPolicy.suggestive,
+        'nsfw' => SourceRatingPolicy.nsfw,
+        _ => null,
+      },
+    );
+    if (ratingPolicy.requestsUnconfirmedAdult) {
+      throw UsageException('--max-rating nsfw requires --confirm-adult (age confirmation).', usage);
+    }
 
     final ConversionStrategy strategy = determineStrategy(resolvedInputFormat, outputFormat);
     var forceMigration = false;
@@ -275,7 +321,11 @@ class ConvertCommand extends Command<void> {
 
     final String logPath = results.option('log-file') ?? (interactive ? '${p.withoutExtension(outputPath)}.log' : '');
     final io.IOSink? logSink = logPath.isNotEmpty ? io.File(logPath).openWrite() : null;
-    var logSinkMounted = logSink != null;
+    // One session redactor for every log line and user-visible error (KTD9).
+    final redactor = Redactor();
+    final log = RedactingLog(logSink, redactor: redactor);
+    final String journalPath = results.option('journal') ?? '${p.withoutExtension(outputPath)}.journal.json';
+    final bool acceptPartial = results.flag('accept-partial');
 
     // Loading indicator for interactive startup.
     final Spinner? spinner = interactive ? Spinner() : null;
@@ -286,25 +336,100 @@ class ConvertCommand extends Command<void> {
       loadingRegion?.render(['${spinner!.frame} $loadingMessage']);
     }
 
+    /// Pauses the loading spinner around an interactive screen.
+    Future<T> paused<T>(Future<T> Function(TerminalContext context) body) async {
+      spinner!.stop();
+      loadingRegion!.clear();
+      context!.showCursor();
+      try {
+        return await body(context);
+      } finally {
+        context.hideCursor();
+        spinner.start(() => loadingRegion.render(['${spinner.frame} $loadingMessage']));
+      }
+    }
+
     if (interactive) {
       context!.hideCursor();
       spinner!.start(() => loadingRegion!.render(['${spinner.frame} $loadingMessage']));
     }
 
-    final OnConfirmMatches onConfirmMatches = interactive
-        ? (pluginNames, manga, onSearch, onFetchDetails) {
-            spinner!.stop();
-            loadingRegion!.clear();
-            context!.showCursor();
-            return MigrationDashboard().run(
-              context: context,
-              pluginNames: pluginNames,
-              manga: manga,
-              onSearch: onSearch,
-              onFetchDetails: onFetchDetails,
-            );
+    final List<String> extensionIds = results.multiOption('extensions');
+
+    final selection = CallbackSelectionPort(
+      onSelectExtensions: (List<ExtensionEntry> e) async => e,
+      onSelectSources: (SourceSelectionRequest request) async {
+        final List<ExtensionEntry> extensions = request.available;
+        if (extensions.isEmpty) {
+          throw MigrationException(
+            'No extensions available at the selected content rating'
+            '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}.',
+          );
+        }
+
+        // A resumed conversion reuses its journaled sources unless
+        // --extensions names others.
+        if (extensionIds.isEmpty && request.previousSelection.isNotEmpty) {
+          return request.previousSelection;
+        }
+
+        // --extensions flag: filter by ID, skip TUI/auto-select. Matching
+        // runs after the rating policy, so a hidden source cannot be named.
+        if (extensionIds.isNotEmpty) {
+          final Set<String> idSet = extensionIds.toSet();
+          final List<ExtensionEntry> matched = extensions.where((ExtensionEntry e) => idSet.contains(e.id)).toList();
+          final Set<String> unmatched = idSet.difference(matched.map((ExtensionEntry e) => e.id).toSet());
+          for (final id in unmatched) {
+            Zone.root.print('Warning: extension "$id" not found in repos (or hidden by the content rating).');
           }
-        : autoAcceptMatches;
+          if (matched.isNotEmpty) return matched;
+          if (!interactive) {
+            throw UsageException('None of the specified extensions were found.', usage);
+          }
+          // Fall through to TUI when interactive.
+        }
+
+        if (interactive) {
+          final List<ExtensionEntry>? result = await paused(
+            (TerminalContext c) => ExtensionSelectScreen().run(
+              context: c,
+              extensions: extensions,
+              hiddenByRating: request.hiddenByRating,
+            ),
+          );
+          if (result == null || result.isEmpty) {
+            throw const MigrationException('No extensions selected.');
+          }
+          return result;
+        }
+
+        // Non-interactive fallback: auto-select MangaDex or first.
+        return [extensions.firstWhereOrNull((ExtensionEntry e) => e.id == 'multi.mangadex') ?? extensions.first];
+      },
+      onConfirmMatches: interactive
+          ? (pluginNames, manga, onSearch, onFetchDetails) => paused(
+              (TerminalContext c) => MigrationDashboard().run(
+                context: c,
+                pluginNames: pluginNames,
+                manga: manga,
+                onSearch: onSearch,
+                onFetchDetails: onFetchDetails,
+              ),
+            )
+          : autoAcceptMatches,
+      onRepositoryTrust: interactive
+          ? (RepositoryTrustRequest request) => paused((TerminalContext c) => _readTrust(c, request))
+          : null,
+      onResolveChapters: interactive
+          ? (ChapterAmbiguityRequest request) =>
+                paused((TerminalContext c) => ChapterResolveScreen().run(context: c, request: request))
+          : null,
+      onAcceptPartial: interactive
+          ? (ConversionReport report) => paused((TerminalContext c) => _readAcceptPartial(c, report))
+          : null,
+      // Unattended runs accept a partial conversion only with --accept-partial.
+      acceptPartial: acceptPartial,
+    );
 
     try {
       await runZoned(
@@ -329,142 +454,96 @@ class ConvertCommand extends Command<void> {
             print('[VERBOSE] All arguments: ${results.arguments}');
             print('Imported Backup Extension: $backupFileExtension');
             print('============ Imported Backup Data ============ ');
-            importedBackup.verbosePrint(verbose);
+            importedBackup.diagnostics.forEach(print);
           }
           if (verbose && !interactive) {
             print('[VERBOSE] Non-interactive mode: auto-accepting best matches');
           }
 
-          final List<String> extensionIds = results.multiOption('extensions');
-          final int maxRating = switch (results.option('max-rating')) {
-            'safe' => 0,
-            'nsfw' => 2,
-            _ => 1,
-          };
-
           final pluginCache = PluginCache();
-          final cachingLoader = CachingPluginLoader(
-            outputFormat.pluginLoader,
-            cache: pluginCache,
-          );
+          final journalStore = FileJournalStore(journalPath);
+          if (results.flag('fresh')) await journalStore.clear();
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
-            pluginLoader: cachingLoader,
-            onSummary: (ConversionSummary summary) => _conversionSummary = summary,
-            onSelectExtensions: (List<ExtensionEntry> allExtensions) async {
-              final List<ExtensionEntry> extensions = allExtensions
-                  .where((ExtensionEntry e) => e.contentRating <= maxRating)
-                  .toList();
-              if (extensions.isEmpty) {
-                throw const MigrationException(
-                  'No extensions available at the selected content rating.',
-                );
-              }
-
-              // --extensions flag: filter by ID, skip TUI/auto-select.
-              if (extensionIds.isNotEmpty) {
-                final Set<String> idSet = extensionIds.toSet();
-                final List<ExtensionEntry> matched = extensions
-                    .where((ExtensionEntry e) => idSet.contains(e.id))
-                    .toList();
-                final Set<String> unmatched = idSet.difference(
-                  matched.map((ExtensionEntry e) => e.id).toSet(),
-                );
-                for (final id in unmatched) {
-                  Zone.root.print('Warning: extension "$id" not found in repos.');
-                }
-                if (matched.isNotEmpty) return matched;
-                if (!interactive) {
-                  throw UsageException(
-                    'None of the specified extensions were found.',
-                    usage,
-                  );
-                }
-                // Fall through to TUI when interactive.
-              }
-
-              if (interactive) {
-                spinner!.stop();
-                loadingRegion!.clear();
-                context!.showCursor();
-
-                final List<ExtensionEntry>? result = await ExtensionSelectScreen().run(
-                  context: context,
-                  extensions: extensions,
-                  hiddenByRating: allExtensions.length - extensions.length,
-                );
-
-                if (result == null || result.isEmpty) {
-                  throw const MigrationException('No extensions selected.');
-                }
-
-                context.hideCursor();
-                spinner.start(
-                  () => loadingRegion.render(
-                    ['${spinner.frame} $loadingMessage'],
-                  ),
-                );
-                return result;
-              }
-
-              // Non-interactive fallback: auto-select MangaDex or first.
-              return [
-                extensions.firstWhereOrNull(
-                      (ExtensionEntry e) => e.id == 'multi.mangadex',
-                    ) ??
-                    extensions.first,
-              ];
-            },
-            onConfirmMatches: onConfirmMatches,
+            pluginLoader: CachingPluginLoader(
+              pluginLoaderFor(outputFormat, onSettings: log.addSecrets),
+              cache: pluginCache,
+            ),
+            selection: selection,
+            directConverter: legacyDirectConvert,
+            journalStore: journalStore,
+            ratingPolicy: ratingPolicy,
+            trustStore: FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
+            onResume: (int decisions) => Zone.root.print(
+              'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
+            ),
+            redact: redactor.redact,
             onProgress: (int current, int total, String message) {
               if (verbose) print('[$current/$total] $message');
               if (interactive) {
                 final progress = total > 0 ? ' [$current/$total]' : '';
-                updateLoading('$message$progress');
+                updateLoading('${redactor.redact(message)}$progress');
               }
             },
           );
 
-          final ConvertableBackup convertedBackup = await pipeline.run(
+          final ConversionDraft draft = await pipeline.run(
             sourceBackup: importedBackup,
             sourceFormat: resolvedInputFormat,
             targetFormat: outputFormat,
             forceMigration: forceMigration,
+            inputIdentity: sha256.convert(bytes).toString(),
           );
+          _conversionReport = draft.report;
 
           if (verbose) {
             print('============ Converted Backup Data ============ ');
-            convertedBackup.verbosePrint(verbose);
+            draft.backup.diagnostics.forEach(print);
           }
 
-          final Uint8List fileData = await convertedBackup.toData();
+          final Uint8List fileData = await draft.backup.toData();
           final outputFile = io.File(outputPath);
           if (verbose) {
             print('Converted Backup Size: ${fileData.length}');
           }
           if (outputFile.existsSync()) {
             // Write outside zone — user-facing status message
-            Zone.root.print('Output file already exists, overwriting...');
+            Zone.root.print('Output file already exists, replacing it...');
           }
-          outputFile.writeAsBytesSync(fileData);
+          await writeFileAtomically(outputPath, fileData);
+          await journalStore.clear();
           // Write outside zone — user-facing status message
-          Zone.root.print('Converted backup written to ${outputFile.path}');
+          Zone.root.print(
+            'Converted backup written to ${outputFile.path}'
+            '${draft.partialAccepted ? ' (partial conversion accepted)' : ''}',
+          );
         },
-        zoneSpecification: logSink != null
-            ? ZoneSpecification(
-                print: (self, parent, zone, line) {
-                  if (logSinkMounted) logSink.writeln(line);
-                },
-              )
-            : null,
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) {
+            if (log.isMounted) {
+              log.writeln(line);
+            } else {
+              parent.print(zone, redactor.redact(line));
+            }
+          },
+        ),
       );
+    } on PartialConversionDeclined catch (e) {
+      _conversionReport = e.report;
+      io.stderr.writeln(
+        interactive
+            ? 'Migration stopped: the partial conversion was declined; nothing was written.'
+            : 'Migration stopped: the conversion is partial and nothing was written. '
+                  'Review the report below; re-run with --accept-partial to accept it.',
+      );
+      io.exitCode = 1;
     } on MigrationException catch (e) {
-      io.stderr.writeln('Migration failed: $e');
+      io.stderr.writeln(redactor.redact('Migration failed: $e'));
       io.exitCode = 1;
     } finally {
       spinner?.stop();
       loadingRegion?.clear();
-      logSinkMounted = false;
+      log.unmount();
       await logSink?.flush();
       await logSink?.close();
       if (logSink != null) {
@@ -474,33 +553,76 @@ class ConvertCommand extends Command<void> {
   }
 }
 
+/// Asks whether to trust a first-seen or changed repository fingerprint.
+Future<TrustDecision> _readTrust(TerminalContext context, RepositoryTrustRequest request) async {
+  context.write(
+    '${request.isChange ? 'The signing fingerprint changed' : 'First time seeing this repository'}: '
+    '${request.repository} (${request.ecosystem})\r\n'
+    '  fingerprint: ${request.fingerprint}\r\n'
+    '${request.isChange ? '  previously:  ${request.previousFingerprint}\r\n' : ''}'
+    'Trust it? [y] once / [a] always / [N] no ',
+  );
+  await for (final KeyEvent key in context.keyInput.stream) {
+    final TrustDecision? decision = switch (key) {
+      CharKey(char: 'y' || 'Y') => TrustDecision.trustOnce,
+      CharKey(char: 'a' || 'A') => TrustDecision.trustAndRemember,
+      CharKey(char: 'n' || 'N') || Enter() || Escape() => TrustDecision.reject,
+      _ => null,
+    };
+    if (decision != null) {
+      context.write('${decision.name}\r\n');
+      return decision;
+    }
+  }
+  return TrustDecision.reject;
+}
+
+/// Shows the partial-conversion report and asks whether to accept it.
+Future<bool> _readAcceptPartial(TerminalContext context, ConversionReport report) async {
+  final region = ScreenRegion(context);
+  final List<String> lines = report.describe();
+  final int room = context.height - 3;
+  region.render(<String>[
+    ...lines.take(room).map((String l) => truncate(l, context.width)),
+    if (lines.length > room) dim('… ${lines.length - room} more lines (printed after the conversion)'),
+    bold('This conversion is partial. Write it anyway? [y/N]'),
+  ]);
+  final bool accepted = await _readYesNo(context);
+  region.clear();
+  return accepted;
+}
+
 /// Non-interactive fallback: searches for each manga and accepts a match only
 /// when exactly one result across all plugins has the exact title (R8).
+/// Search failures are kept on each confirmation for the final report.
 @visibleForTesting
 Future<List<MangaMatchConfirmation>> autoAcceptMatches(
   List<String> pluginNames,
   List<SourceMangaData> manga,
   Stream<PluginSearchEvent> Function(String query) onSearch,
-  Future<(PluginMangaDetails, List<PluginChapter>)?> Function(
-    String pluginSourceId,
-    String mangaKey,
-  )
-  onFetchDetails,
+  FetchDetails onFetchDetails,
 ) async {
   final confirmations = <MangaMatchConfirmation>[];
   for (final entry in manga) {
     final allResults = <PluginSearchResult>[];
+    final failures = <PluginSearchFailure>[];
     await for (final PluginSearchEvent event in onSearch(entry.details.title)) {
-      if (event is PluginSearchResults) {
-        allResults.addAll(event.results);
+      switch (event) {
+        case PluginSearchResults(:final results):
+          allResults.addAll(results);
+        case PluginSearchError(:final failure):
+          failures.add(failure);
+        case PluginSearchStarted():
+          break;
       }
     }
     // Only a single exact-title match across plugins is accepted; anything
-    // else stays unresolved and is listed in the conversion summary.
+    // else stays unresolved and is listed in the conversion report.
     confirmations.add(
       MangaMatchConfirmation(
         sourceManga: entry,
         confirmedMatch: uniqueExactTitleMatch(entry.details.title, allResults),
+        searchFailures: failures,
       ),
     );
   }

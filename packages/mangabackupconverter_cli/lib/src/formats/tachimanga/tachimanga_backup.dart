@@ -1,18 +1,13 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/common/convertable.dart';
-import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/tachimanga_exception.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_meta.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:propertylistserialization/propertylistserialization.dart';
 import 'package:xcode_parser/xcode_parser.dart';
 
@@ -248,16 +243,20 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
   static const TachimangaBackup Function(String json) fromJson = TachimangaBackupMapper.fromJson;
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
-    print('Imported Manga: ${db.mangaTable.length}');
-    print('Imported Chapters: ${db.chapterTable.length}');
-    print('Imported Manga History: ${db.historyTable.length}');
-    print('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
-    print('Imported Categories: ${db.categoryTable.length}');
-    print('Imported Sources: ${db.sourceTable.length}');
-    print('Imported Repos: ${db.repoTable.length}');
-    print('Tachimanga Backup Name: $name');
-    print('Tachimanga Version: ${meta.version}');
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
+
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+    lines.add('Imported Manga: ${db.mangaTable.length}');
+    lines.add('Imported Chapters: ${db.chapterTable.length}');
+    lines.add('Imported Manga History: ${db.historyTable.length}');
+    lines.add('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
+    lines.add('Imported Categories: ${db.categoryTable.length}');
+    lines.add('Imported Sources: ${db.sourceTable.length}');
+    lines.add('Imported Repos: ${db.repoTable.length}');
+    lines.add('Tachimanga Backup Name: $name');
+    lines.add('Tachimanga Version: ${meta.version}');
+    return lines;
   }
 }

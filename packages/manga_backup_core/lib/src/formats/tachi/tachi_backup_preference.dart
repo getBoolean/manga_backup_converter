@@ -1,0 +1,50 @@
+import 'package:dart_mappable/dart_mappable.dart';
+import 'package:manga_backup_core/src/formats/tachi/proto/schema_mihon.proto/proto/schema_mihon.pb.dart' as mihon;
+import 'package:manga_backup_core/src/formats/tachi/proto/schema_sy.proto/proto/schema_sy.pb.dart' as sy;
+
+part 'tachi_backup_preference.mapper.dart';
+
+@MappableClass()
+class TachiBackupPreference with TachiBackupPreferenceMappable {
+  final String key;
+  final TachiBackupPreferenceValue value;
+
+  const TachiBackupPreference({required this.key, required this.value});
+
+  factory TachiBackupPreference.fromMihon(mihon.BackupPreference backupPreference) {
+    return TachiBackupPreference(
+      key: backupPreference.key,
+      value: TachiBackupPreferenceValue.fromMihon(backupPreference.value),
+    );
+  }
+
+  factory TachiBackupPreference.fromSy(sy.BackupPreference backupPreference) {
+    return TachiBackupPreference(
+      key: backupPreference.key,
+      value: TachiBackupPreferenceValue.fromSy(backupPreference.value),
+    );
+  }
+
+  static const TachiBackupPreference Function(Map<String, dynamic> map) fromMap = TachiBackupPreferenceMapper.fromMap;
+  static const TachiBackupPreference Function(String json) fromJson = TachiBackupPreferenceMapper.fromJson;
+}
+
+@MappableClass()
+class TachiBackupPreferenceValue with TachiBackupPreferenceValueMappable {
+  final String type;
+  final List<int> truevalue;
+
+  const TachiBackupPreferenceValue({required this.type, required this.truevalue});
+
+  factory TachiBackupPreferenceValue.fromMihon(mihon.PreferenceValue value) {
+    return TachiBackupPreferenceValue(type: value.type, truevalue: value.truevalue);
+  }
+
+  factory TachiBackupPreferenceValue.fromSy(sy.PreferenceValue value) {
+    return TachiBackupPreferenceValue(type: value.type, truevalue: value.truevalue);
+  }
+
+  static const TachiBackupPreferenceValue Function(Map<String, dynamic> map) fromMap =
+      TachiBackupPreferenceValueMapper.fromMap;
+  static const TachiBackupPreferenceValue Function(String json) fromJson = TachiBackupPreferenceValueMapper.fromJson;
+}

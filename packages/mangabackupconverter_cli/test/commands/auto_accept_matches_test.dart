@@ -2,14 +2,13 @@
 library;
 
 import 'package:checks/checks.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/convert_command.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:test/scaffolding.dart';
 
-PluginSearchResult _result(String pluginId, String title, {String? key}) => PluginSearchResult(
+import '../support/test_refs.dart';
+
+PluginSearchResult _result(String pluginId, String title, {String? key}) => testResult(
   pluginSourceId: pluginId,
   mangaKey: key ?? '$pluginId:$title',
   title: title,
@@ -25,7 +24,7 @@ Future<PluginSearchResult?> _accept(String title, Map<String, List<PluginSearchR
       for (final MapEntry<String, List<PluginSearchResult>> e in resultsByPlugin.entries)
         PluginSearchResults(pluginId: e.key, results: e.value),
     ]),
-    (String pluginSourceId, String mangaKey) async => null,
+    legacyFetch((String pluginSourceId, String mangaKey) async => null),
   );
   check(confirmations).length.equals(1);
   return confirmations.single.confirmedMatch;
