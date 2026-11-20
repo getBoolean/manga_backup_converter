@@ -37,7 +37,7 @@ measures its inputs, and reports rule, inputs and derived limits in the handshak
 | Restart and rehydrate, 3 packages (n=8) | p50 4.76 s, max 5.74 s |
 | Graceful shutdown (n=8) | p50 48 ms, max 55 ms |
 | Worker CPU per wall second while running one operation | 0.028 |
-| Heap: worker baseline / per loaded package | 67 MiB / 1.4 MiB |
+| Heap: worker baseline / per loaded package | 2.7 MiB measured + 64 MiB fixed floor = 67 MiB / 1.4 MiB measured |
 | Throughput, pools 1 / 2 / 3 | 0.8 / 0.8 / 0.8 details/s |
 
 Search and details times step in whole seconds because the extensions' own rate limiters (Weeb Central
@@ -60,7 +60,7 @@ interactionTimeoutMs = interactionTimeoutMs
 |---|---|---|
 | coresFactor | 36.2 | 1 / measured CPU utilisation per running operation (0.028) |
 | maxPoolSize | 3 | largest concurrency measured (three distinct packages) |
-| baseHeapMiB | 67 | measured worker baseline |
+| baseHeapMiB | 67 | 2.7 MiB measured on-heap delta plus a 64 MiB floor constant (`JVM_BASELINE_MIB`, not measured) |
 | perPackageHeapMiB | 3 | measured 1.4 MiB per package, doubled |
 | p99OperationMs | 4021 | slowest p99 over search and details |
 | deadlineFactor | 50 | policy multiplier (see limits below) |
@@ -72,6 +72,16 @@ Derived on the benchmark machine (16 cores, 30 GiB benchmark heap): pool 3, oper
 cancel grace 165 ms, shutdown grace 165 ms, interaction timeout 300 s.
 
 ## Limits of this evidence
+
+Step 6 is **partial**:
+
+- The pool size is effectively `min(3, heap bound)` on every machine: `floor(cores × 36.2)` always exceeds
+  the measured-concurrency cap, and throughput did not discriminate pool sizes because the sources' rate
+  limiters bound it.
+- `deadlineFactor` (50), `graceFactor` (3), the heap doubling and the 64 MiB floor are chosen constants,
+  not benchmark-derived.
+- The 165 ms cancel grace comes from cancels sent during rate-limiter sleeps on an idle machine. It is not
+  fit for the supervisor to adopt as is; a premature kill costs a ~5 s restart.
 
 - One device. KTD25 asks for each desktop OS and devices of different capability; macOS and Linux runs
   are still to do (rerun `./gradlew benchmark` there and commit `benchmark-<os>.json`; the rule should be

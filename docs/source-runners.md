@@ -32,7 +32,7 @@ that every external class, method and field the six qualification artifacts refe
 | Path | Steps | Result |
 |---|---|---|
 | Repository JAR | copy to private staging → SHA-256 check → JAR signature: every non-signature entry signed by exactly one signer whose certificate SHA-256 is trusted; duplicate ZIP entries rejected → stage | loads unmodified |
-| APK | copy → SHA-256 check → apksig verification against the same trust identity → dex2jar 2.4.39 → host bytecode fixes → deterministic JAR with all resources | loads |
+| APK | copy → SHA-256 check → apksig verification against the same trust identity → dex2jar 2.4.39 → host bytecode fixes → JAR (sorted entries, fixed timestamps) with all resources | loads |
 
 - **Patching.** Published keiyoushi JARs need no Android bytecode patching. APKs do: R8 removes trivial
   constructors when dexing (`new X; invoke S.<init>` and super calls that skip the direct superclass),
@@ -68,6 +68,7 @@ classes in different packages do not collide, and unloading a package releases i
 | DI | Injekt (`com.github.mihonapp:injekt`); `Application`, `Context`, `NetworkHelper` resolve to the calling package (by the first stack frame from a package class loader, so OkHttp, coroutine and main-looper threads resolve correctly) |
 | JSON | `Json { ignoreUnknownKeys = true; explicitNulls = false }` as Mihon |
 | Main thread | worker-owned `android.os.Looper` main thread (`tachi-main`) and `Dispatchers.Main` over it |
+| `AppInfo` | reports version 0.19.0 / code 19, chosen to match the Mihon source API the host implements (not an official Mihon release identity) |
 | `JavaScriptEngine` | **unsupported**: fails with `capability-unavailable` (`host.api:eu.kanade.tachiyomi.network.JavaScriptEngine.evaluate`). None of the qualification extensions call it. |
 | Cloudflare | challenge pages are detected and reported `interaction-required` (`host.browser.show`); solving them through the browser port joins at U8 |
 
@@ -107,6 +108,13 @@ requests, sent for the package's in-flight operation and closed before it replie
 
 Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.json`, `desktop-artifacts.json`,
 `capture.json` + `bodies/`). The MangaFire live browser path (AE11) runs at the U8 join with U2's helper.
+
+### Known gaps
+
+- Only the browser surface used by the keiyoushi helper and the qualification sources is translated.
+- Heap and metaspace use per package are not reported to the supervisor.
+- No CI job runs these JVM tests or the benchmark smoke yet.
+- Live transcripts of the one-time captures: `docs/validation/source-runners/desktop/captures/`.
 
 ### Protocol gaps (changes needed in `packages/source_runtime`, not made here)
 
