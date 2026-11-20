@@ -20,20 +20,14 @@ export 'package:wasm3/src/wasm3_bindings.dart'
 /// (see `hook/build.dart`).
 class Wasm3Runner implements WasmRunner {
   Wasm3Runner._({
-    required Wasm3Bindings bindings,
-    required ffi.Pointer<M3Environment> environment,
-    required ffi.Pointer<M3Runtime> runtime,
-    required ffi.Pointer<M3Module> module,
-    required ffi.Pointer<ffi.Uint8> wasmBuf,
-    required ffi.NativeCallable<M3RawCallFn> callable,
-    required Set<int> callbackIds,
-  }) : _bindings = bindings,
-       _environment = environment,
-       _runtime = runtime,
-       _module = module,
-       _wasmBuf = wasmBuf,
-       _callable = callable,
-       _callbackIds = callbackIds;
+    required this._bindings,
+    required this._environment,
+    required this._runtime,
+    required this._module,
+    required this._wasmBuf,
+    required this._callable,
+    required this._callbackIds,
+  });
 
   final Wasm3Bindings _bindings;
   final ffi.Pointer<M3Environment> _environment;

@@ -30,17 +30,14 @@ import 'package:wasm_runner/wasm_runner.dart';
 /// POSIX/Win32 semaphore while the main isolate performs the async operation.
 class AidokuPlugin {
   AidokuPlugin._({
-    required SendPort wasmCmdPort,
-    required ReceivePort asyncPort,
-    required WasmSemaphore semaphore,
-    required WasmSharedState sharedState,
+    required this._wasmCmdPort,
+    required this._asyncPort,
+    required this._semaphore,
+    required this._sharedState,
     required this.sourceInfo,
     required this.settings,
     required this.filterDefinitions,
-  }) : _wasmCmdPort = wasmCmdPort,
-       _asyncPort = asyncPort,
-       _semaphore = semaphore,
-       _sharedState = sharedState;
+  });
 
   final SendPort _wasmCmdPort;
   final ReceivePort _asyncPort;

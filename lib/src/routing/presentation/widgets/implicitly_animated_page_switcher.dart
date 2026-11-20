@@ -20,6 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 /// An [AnimatedSwitcher] that animates between its children implicitly when the index changes.

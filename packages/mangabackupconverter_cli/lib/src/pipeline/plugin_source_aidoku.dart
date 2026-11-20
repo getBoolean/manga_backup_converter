@@ -2,7 +2,7 @@ import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
 
 class AidokuPluginSource implements PluginSource {
-  AidokuPluginSource({required AidokuPlugin plugin}) : _plugin = plugin;
+  AidokuPluginSource({required this._plugin});
 
   final AidokuPlugin _plugin;
 

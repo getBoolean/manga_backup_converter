@@ -1,4 +1,6 @@
 import 'package:dart_mappable/dart_mappable.dart';
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:mangabackupconverter/src/features/settings/data/dto/human_name_enum.dart';
 
@@ -10,8 +12,7 @@ enum ThemeType implements HumanReadableEnum {
 
   dark('Dark'),
 
-  system('System')
-  ;
+  system('System');
 
   const ThemeType(this.humanName);
 

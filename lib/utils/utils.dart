@@ -3,6 +3,8 @@
 import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_adaptive_scaffold/flutter_adaptive_scaffold.dart';
 import 'package:path_provider/path_provider.dart';
@@ -22,8 +24,7 @@ enum DeviceType {
   AppleTV,
 
   /// Only available on web
-  Roku
-  ;
+  Roku;
 
   bool get isMobile => this == DeviceType.iOS || this == DeviceType.Android;
 
@@ -47,8 +48,7 @@ enum DeviceForm {
   medium(Breakpoints.medium),
 
   /// Phones and small tablets in portrait
-  small(Breakpoint(beginWidth: 0, endWidth: 600))
-  ;
+  small(Breakpoint(beginWidth: 0, endWidth: 600));
 
   const DeviceForm(this.breakpoint);
 

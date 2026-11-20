@@ -10,7 +10,7 @@ part of 'themes.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(themes)
-const themesProvider = ThemesProvider._();
+final themesProvider = ThemesProvider._();
 
 final class ThemesProvider
     extends
@@ -20,7 +20,7 @@ final class ThemesProvider
           List<FlexSchemeData>
         >
     with $Provider<List<FlexSchemeData>> {
-  const ThemesProvider._()
+  ThemesProvider._()
     : super(
         from: null,
         argument: null,

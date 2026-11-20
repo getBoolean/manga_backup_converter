@@ -21,20 +21,14 @@ export 'package:wasm_runner/wasm_runner.dart' show WasmRuntimeException, WasmTra
 /// wasmer callback. Use the web runner for full HTTP support.
 class WasmerRunner implements WasmRunner {
   WasmerRunner._({
-    required WasmerBindings bindings,
-    required ffi.Pointer<WasmEngineT> engine,
-    required ffi.Pointer<WasmStoreT> store,
-    required ffi.Pointer<WasmInstanceT> instance,
-    required ffi.Pointer<WasmMemoryT> memory,
-    required Map<String, ffi.Pointer<WasmExternT>> exports,
-    required List<ffi.NativeCallable<WasmFuncCallbackC>> nativeCallables,
-  }) : _bindings = bindings,
-       _engine = engine,
-       _store = store,
-       _instance = instance,
-       _memory = memory,
-       _exports = exports,
-       _nativeCallables = nativeCallables;
+    required this._bindings,
+    required this._engine,
+    required this._store,
+    required this._instance,
+    required this._memory,
+    required this._exports,
+    required this._nativeCallables,
+  });
 
   final WasmerBindings _bindings;
   final ffi.Pointer<WasmEngineT> _engine;

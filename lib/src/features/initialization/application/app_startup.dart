@@ -1,6 +1,8 @@
 import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:mangabackupconverter/src/features/initialization/application/info_service.dart';
 import 'package:mangabackupconverter/src/features/settings/application/prefs.dart';
