@@ -1,10 +1,13 @@
 // Sanitized Paperback (.pas4) characterization fixtures.
 //
-// These reproduce the relationships observed in a real Paperback archive with
-// anonymized IDs, titles and values. They are NOT derived byte-for-byte from
-// any private backup. Timestamps are written as Paperback writes them: seconds
-// since the Apple reference date (2001-01-01T00:00:00Z), the default Swift
-// `JSONEncoder` date strategy.
+// Hand-constructed from the defect descriptions in the source-runners plan's
+// prior read-only audits (Apple-reference epoch, library linkage via primary
+// source, UTF-8, partial progress, duplicate numbers), using anonymized IDs,
+// titles and values. They are NOT derived from any private backup, and the
+// archive contract they encode (timestamps as seconds since the Apple
+// reference date, 2001-01-01T00:00:00Z — the default Swift `JSONEncoder` date
+// strategy — and the sentinel values below) was not independently confirmed
+// against a real archive when they were written.
 
 import 'dart:convert';
 import 'dart:typed_data';

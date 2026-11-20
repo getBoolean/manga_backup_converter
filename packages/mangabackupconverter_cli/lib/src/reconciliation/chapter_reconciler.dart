@@ -181,21 +181,27 @@ List<PluginChapter> _candidatesFor(
     candidates = candidates.where((PluginChapter d) => normalizedChapterTitle(d.title) == title).toList();
   }
 
-  if (candidates.length > 1 && title != null) {
-    final List<PluginChapter> byTitle = candidates
-        .where((PluginChapter d) => normalizedChapterTitle(d.title) == title)
-        .toList();
-    if (byTitle.isNotEmpty) candidates = byTitle;
+  if (candidates.length <= 1) return candidates;
+
+  final Set<String> groups = scanlatorGroups(source.scanlator);
+  bool sharesGroup(PluginChapter d) => scanlatorGroups(d.scanlator).intersection(groups).isNotEmpty;
+  final List<PluginChapter> byTitle = title == null
+      ? const <PluginChapter>[]
+      : candidates.where((PluginChapter d) => normalizedChapterTitle(d.title) == title).toList();
+  final List<PluginChapter> byScanlator = groups.isEmpty
+      ? const <PluginChapter>[]
+      : candidates.where(sharesGroup).toList();
+
+  // Title and scanlator point at different chapters: conflicting evidence is
+  // not resolved by preferring one signal over the other.
+  if (byTitle.isNotEmpty && byScanlator.isNotEmpty && !byTitle.any(byScanlator.contains)) {
+    return candidates;
   }
 
-  if (candidates.length > 1) {
-    final Set<String> groups = scanlatorGroups(source.scanlator);
-    if (groups.isNotEmpty) {
-      final List<PluginChapter> byScanlator = candidates
-          .where((PluginChapter d) => scanlatorGroups(d.scanlator).intersection(groups).isNotEmpty)
-          .toList();
-      if (byScanlator.isNotEmpty) candidates = byScanlator;
-    }
+  if (byTitle.isNotEmpty) candidates = byTitle;
+  if (candidates.length > 1 && groups.isNotEmpty) {
+    final List<PluginChapter> narrowed = candidates.where(sharesGroup).toList();
+    if (narrowed.isNotEmpty) candidates = narrowed;
   }
 
   return candidates;

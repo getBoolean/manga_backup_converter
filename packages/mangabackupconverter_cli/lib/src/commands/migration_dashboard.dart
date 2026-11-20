@@ -114,7 +114,9 @@ class MigrationDashboard {
       // Continue linear scan.
       while (nextSearchIndex < entries.length) {
         final MigrationEntry entry = entries[nextSearchIndex++];
-        if (!entry.selected) {
+        // Skip deselected entries and entries the user already chose manually
+        // (startSearch would discard the manual choice).
+        if (!entry.selected || entry.match != null) {
           entry.searching = false;
           continue;
         }
@@ -265,6 +267,7 @@ class MigrationDashboard {
             if (result != null) {
               entry.match = result;
               entry.selected = true;
+              entry.searching = false;
             }
 
             // Re-queue interrupted search if it didn't complete.

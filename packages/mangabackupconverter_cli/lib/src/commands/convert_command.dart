@@ -19,6 +19,9 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 class ConvertCommand extends Command<void> {
+  /// Set by the migration pipeline; printed once the terminal is restored.
+  ConversionSummary? _conversionSummary;
+
   @override
   final String name = 'convert';
   @override
@@ -116,11 +119,14 @@ class ConvertCommand extends Command<void> {
     }
 
     try {
-      return await _runWithContext(results, verbose, interactive, backupFile, context);
+      await _runWithContext(results, verbose, interactive, backupFile, context);
     } finally {
       context?.showCursor();
       context?.dispose();
     }
+    // Printed after the terminal leaves raw mode and the loading region is
+    // cleared, so multi-line output is neither erased nor stair-stepped.
+    _conversionSummary?.describe().forEach(print);
   }
 
   Future<void> _runWithContext(
@@ -341,11 +347,10 @@ class ConvertCommand extends Command<void> {
             outputFormat.pluginLoader,
             cache: pluginCache,
           );
-          ConversionSummary? conversionSummary;
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: cachingLoader,
-            onSummary: (ConversionSummary summary) => conversionSummary = summary,
+            onSummary: (ConversionSummary summary) => _conversionSummary = summary,
             onSelectExtensions: (List<ExtensionEntry> allExtensions) async {
               final List<ExtensionEntry> extensions = allExtensions
                   .where((ExtensionEntry e) => e.contentRating <= maxRating)
@@ -444,7 +449,6 @@ class ConvertCommand extends Command<void> {
           outputFile.writeAsBytesSync(fileData);
           // Write outside zone — user-facing status message
           Zone.root.print('Converted backup written to ${outputFile.path}');
-          conversionSummary?.describe().forEach(Zone.root.print);
         },
         zoneSpecification: logSink != null
             ? ZoneSpecification(

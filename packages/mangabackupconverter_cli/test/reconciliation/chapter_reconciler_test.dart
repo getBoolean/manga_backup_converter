@@ -122,6 +122,34 @@ void main() {
       ).isA<AmbiguousChapter>().has((AmbiguousChapter a) => a.candidates.length, 'n').equals(2);
     });
 
+    test('title and scanlator pointing at different chapters is ambiguous', () {
+      final ChapterReconciliation r = reconcileChapters(
+        sourceChapters: <SourceChapter>[
+          SourceChapter(title: 'The Return', chapterNumber: 10, scanlator: 'Alpha', isRead: true),
+        ],
+        destinationChapters: <PluginChapter>[
+          PluginChapter(chapterId: 'd-title', title: 'The Return', chapterNumber: 10, scanlator: 'Beta'),
+          PluginChapter(chapterId: 'd-group', title: 'Chapter 10', chapterNumber: 10, scanlator: 'Alpha'),
+        ],
+      );
+      check(r.matches).isEmpty();
+      check(r.unresolved.single).isA<AmbiguousChapter>();
+    });
+
+    test('title and scanlator agreeing on one chapter matches it', () {
+      final ChapterReconciliation r = reconcileChapters(
+        sourceChapters: <SourceChapter>[
+          SourceChapter(title: 'The Return', chapterNumber: 10, scanlator: 'Alpha', isRead: true),
+        ],
+        destinationChapters: <PluginChapter>[
+          PluginChapter(chapterId: 'd-both', title: 'The Return', chapterNumber: 10, scanlator: 'Alpha'),
+          PluginChapter(chapterId: 'd-group', title: 'Chapter 10', chapterNumber: 10, scanlator: 'Alpha'),
+          PluginChapter(chapterId: 'd-other', title: 'Chapter 10', chapterNumber: 10, scanlator: 'Beta'),
+        ],
+      );
+      check(_matchedIds(r)).deepEquals(<String, String>{'The Return': 'd-both'});
+    });
+
     test('global collision: two sources selecting one destination both stay unresolved', () {
       final ChapterReconciliation r = reconcileChapters(
         sourceChapters: <SourceChapter>[

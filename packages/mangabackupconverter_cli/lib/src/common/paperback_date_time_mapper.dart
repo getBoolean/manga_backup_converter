@@ -22,10 +22,12 @@ enum PaperbackDateKind {
 
 /// Codec for Paperback (.pas4) timestamps.
 ///
-/// Paperback is a Swift app; its backup JSON uses the default `JSONEncoder`
-/// date strategy, which writes a `Date` as a floating-point number of seconds
-/// since the Apple reference date (2001-01-01T00:00:00Z) — not since the Unix
-/// epoch. Unix-seconds callers (Mangayomi, Tachi, Tachimanga) keep using
+/// Paperback is a Swift app, and prior audits of a real archive found its
+/// timestamps to be seconds since the Apple reference date
+/// (2001-01-01T00:00:00Z, the default `JSONEncoder` date strategy) rather than
+/// the Unix epoch. That contract and the sentinel values below have not been
+/// re-confirmed against an archive here; revisit if a real backup disagrees.
+/// Unix-seconds callers (Mangayomi, Tachi, Tachimanga) keep using
 /// `SecondsEpochDateTimeMapper`.
 ///
 /// Decoded values are UTC [DateTime]s. Sentinel values are decoded to the
