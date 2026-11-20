@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Private, same-UID Tachi runtime process (KTD17/KTD18). Not
+             exported: only this app can bind it, which is the trust
+             boundary. -->
+        <service
+            android:name="dev.getboolean.sourceruntime.SourceRuntimeService"
+            android:exported="false"
+            android:process=":source_runtime" />
+    </application>
+</manifest>

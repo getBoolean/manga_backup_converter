@@ -20,6 +20,8 @@ dependencies:
     path: packages/assets
   scraper:
     path: packages/scraper
+  source_runtime_android:
+    path: packages/source_runtime_android
   swiftsoup:
     path: packages/swiftsoup
   quickjs:
