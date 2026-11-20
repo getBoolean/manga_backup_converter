@@ -1,0 +1,187 @@
+{
+  "gate": "U17 Android runtime gate (M2 early gate)",
+  "evidence": "EMULATOR EVIDENCE (not a physical-device receipt; does not satisfy R16)",
+  "device": {
+    "avd": "Pixel_9_Pro",
+    "android": "16",
+    "sdkInt": 36,
+    "abi": "x86_64",
+    "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:16/BE4B.251210.005/14574095:user/release-keys",
+    "webView": "com.google.android.webview 134.0.6998.135"
+  },
+  "command": "flutter test integration_test/android_runtime_gate_test.dart -d <emulator> --reporter expanded",
+  "build": "debug, android-x64, Flutter 3.50.0, branch feat/source-runners-u17",
+  "result": "All tests passed!",
+  "passed": 5,
+  "redaction": "Host paths and the device staging path are omitted; PIDs are per-run process IDs. No credentials, cookies or network data exist in this run (tests contact no server).",
+  "receipts": [
+    {
+      "scenario": "facade",
+      "appPid": 8214,
+      "servicePid": 8279,
+      "sdkInt": 36,
+      "serviceProcess": "dev.getboolean.mangabackupconverter:source_runtime",
+      "generation": 1
+    },
+    {
+      "scenario": "dex",
+      "stagedMode": "r--------",
+      "sha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangadex",
+      "versionName": "1.6.4",
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "factoryLoader": "dalvik.system.PathClassLoader",
+      "factoryLinked": true,
+      "sourceFactoryParentOwned": true,
+      "construction": {
+        "ok": false,
+        "error": "java.lang.Exception",
+        "rootCause": "java.lang.Exception",
+        "rootMessage": "Stub!",
+        "rootFrame": "eu.kanade.tachiyomi.source.online.HttpSource.<init>(HttpSource.kt:25)"
+      },
+      "writableRejected": true,
+      "tamperedRejected": true,
+      "wrongDigestStagingRejected": true
+    },
+    {
+      "scenario": "termination",
+      "appPid": 8214,
+      "rounds": [
+        {
+          "round": 0,
+          "killedPid": 8279,
+          "reboundPid": 8298,
+          "killToDeathMs": 33,
+          "deathToRebindMs": 535,
+          "dartTicks": 53,
+          "maxDartTickGapMs": 35
+        },
+        {
+          "round": 1,
+          "killedPid": 8298,
+          "reboundPid": 8314,
+          "killToDeathMs": 17,
+          "deathToRebindMs": 556,
+          "dartTicks": 54,
+          "maxDartTickGapMs": 20
+        },
+        {
+          "round": 2,
+          "killedPid": 8314,
+          "reboundPid": 8330,
+          "killToDeathMs": 23,
+          "deathToRebindMs": 533,
+          "dartTicks": 54,
+          "maxDartTickGapMs": 24
+        },
+        {
+          "round": 3,
+          "killedPid": 8330,
+          "reboundPid": 8345,
+          "killToDeathMs": 15,
+          "deathToRebindMs": 475,
+          "dartTicks": 49,
+          "maxDartTickGapMs": 21
+        },
+        {
+          "round": 4,
+          "killedPid": 8345,
+          "reboundPid": 8361,
+          "killToDeathMs": 15,
+          "deathToRebindMs": 537,
+          "dartTicks": 53,
+          "maxDartTickGapMs": 18
+        }
+      ]
+    },
+    {
+      "scenario": "webview",
+      "sdkInt": 36,
+      "app": {
+        "pid": 8214,
+        "processName": "dev.getboolean.mangabackupconverter",
+        "sdkInt": 36,
+        "jsResult": "\"gate:42\"",
+        "liveWebViews": 1,
+        "dataDirectorySuffixApplied": false,
+        "webViewPackage": {
+          "packageName": "com.google.android.webview",
+          "versionName": "134.0.6998.135"
+        },
+        "webViewDataDirs": [
+          "app_webview"
+        ]
+      },
+      "service": {
+        "pid": 8361,
+        "processName": "dev.getboolean.mangabackupconverter:source_runtime",
+        "sdkInt": 36,
+        "jsResult": "\"gate:42\"",
+        "liveWebViews": 1,
+        "dataDirectorySuffixApplied": true,
+        "webViewPackage": {
+          "packageName": "com.google.android.webview",
+          "versionName": "134.0.6998.135"
+        },
+        "webViewDataDirs": [
+          "app_webview",
+          "app_webview_source_runtime"
+        ]
+      },
+      "serviceError": null,
+      "appWhileServiceAlive": {
+        "pid": 8214,
+        "processName": "dev.getboolean.mangabackupconverter",
+        "sdkInt": 36,
+        "jsResult": "\"gate:42\"",
+        "liveWebViews": 2,
+        "dataDirectorySuffixApplied": false,
+        "webViewPackage": {
+          "packageName": "com.google.android.webview",
+          "versionName": "134.0.6998.135"
+        },
+        "webViewDataDirs": [
+          "app_webview",
+          "app_webview_source_runtime"
+        ]
+      }
+    },
+    {
+      "scenario": "jniRefs",
+      "method": "ART JNI global reference table (Debug.dumpReferenceTables, read from own logcat) after forced Dart GC and Java GC in both processes",
+      "rounds": 30,
+      "perRound": "new AndroidSourceRuntime + bind + ping + unbind + dispose, and unbind + rebind of the shared runtime",
+      "before": {
+        "total": 650,
+        "owned": 9,
+        "binderHeld": 18
+      },
+      "samples": [
+        {
+          "total": 670,
+          "owned": 9,
+          "binderHeld": 38
+        },
+        {
+          "total": 690,
+          "owned": 9,
+          "binderHeld": 58
+        },
+        {
+          "total": 710,
+          "owned": 9,
+          "binderHeld": 78
+        }
+      ],
+      "after": {
+        "total": 710,
+        "owned": 9,
+        "binderHeld": 78
+      },
+      "ownedDelta": 0,
+      "unexplainedDelta": 0
+    }
+  ]
+}

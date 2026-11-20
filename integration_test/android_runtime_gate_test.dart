@@ -318,6 +318,14 @@ void main() {
       );
       expect(appAgain['jsResult'], '"gate:42"');
       expect(appAgain['liveWebViews'], 2);
+    } else {
+      // Below API 28 there is no data-directory suffix and no enforcement:
+      // both processes share one WebView profile. U17's decision is to raise
+      // minSdk to 28 (implemented by U11); this records the hazard.
+      expect(serviceError, isNull);
+      expect(service!['dataDirectorySuffixApplied'], isFalse);
+      expect(service['webViewDataDirs'], <String>['app_webview']);
+      expect(app['webViewDataDirs'], <String>['app_webview']);
     }
     await runtime
         .call('webViewRelease')
@@ -346,6 +354,10 @@ void main() {
       }
       final Map<String, int> after = await _settledRefs(runtime);
       final int ownedDelta = after['owned']! - before['owned']!;
+      // Everything except binder objects a remote process still references.
+      final int unexplainedDelta =
+          (after['total']! - before['total']!) -
+          (after['binderHeld']! - before['binderHeld']!);
       _receipt('jniRefs', <String, Object?>{
         'method':
             'ART JNI global reference table (Debug.dumpReferenceTables, read from own logcat) after forced Dart '
@@ -356,10 +368,14 @@ void main() {
         'samples': samples,
         'after': after,
         'ownedDelta': ownedDelta,
+        'unexplainedDelta': unexplainedDelta,
       });
       // References owned by this package's Dart wrappers and the jni listener
       // glue return to baseline: no per-round growth.
       expect(ownedDelta, lessThanOrEqualTo(2));
+      // And nothing else grows: the total moves only with binder objects that
+      // system_server or the service still holds (released by their GC).
+      expect(unexplainedDelta, lessThanOrEqualTo(2));
     },
   );
 }
