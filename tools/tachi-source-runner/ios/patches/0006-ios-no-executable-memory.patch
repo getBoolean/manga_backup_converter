@@ -1,0 +1,26 @@
+Subject: [PATCH] ios: never commit executable memory
+
+Source:  manga_backup_converter source runners (U16), original work
+Licence: GPLv2 (same as the patched OpenJDK file)
+
+The code cache is committed with PROT_EXEC on a mapping without MAP_JIT,
+which iOS refuses ("Could not reserve enough space in CodeCache"). Zero
+never executes from the code cache, so on iOS commit it read/write only.
+The runtime then maps no executable memory (R18: interpreter only, no JIT).
+---
+--- a/src/hotspot/os/bsd/os_bsd.cpp	2026-11-20 10:14:50
++++ b/src/hotspot/os/bsd/os_bsd.cpp	2026-11-20 10:14:50
+@@ -1524,6 +1524,13 @@
+ //       left at the time of mmap(). This could be a potential
+ //       problem.
+ bool os::pd_commit_memory(char* addr, size_t size, bool exec) {
++#ifdef __IOS__
++  // source-runner patch: iOS denies writable+executable memory to apps
++  // without the JIT entitlement (and App Store apps never have it). The Zero
++  // interpreter never executes code from the code cache, so commit it
++  // read/write only; the process maps no executable memory of its own.
++  exec = false;
++#endif
+   int prot = exec ? PROT_READ|PROT_WRITE|PROT_EXEC : PROT_READ|PROT_WRITE;
+ #if defined(__OpenBSD__)
+   // XXX: Work-around mmap/MAP_FIXED bug temporarily on OpenBSD

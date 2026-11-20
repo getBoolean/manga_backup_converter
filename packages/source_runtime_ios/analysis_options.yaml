@@ -1,0 +1,11 @@
+include: package:app_lints/analysis_options.yaml
+
+analyzer:
+  language:
+    strict-inference: true
+  exclude:
+    - lib/src/*.g.dart
+    - build/**
+
+formatter:
+  page_width: 120

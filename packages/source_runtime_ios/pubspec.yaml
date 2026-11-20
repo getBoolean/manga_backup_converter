@@ -1,0 +1,38 @@
+name: source_runtime_ios
+description: >-
+  Embedded interpreter-only JVM (OpenJDK mobile, Zero) for iOS source runners,
+  driven from Dart through FFIgen bindings to the JNI invocation interface and
+  a native dispatcher, plus FFIgen WebKit bindings for the WKWebView browser
+  port. U16 feasibility gate (KTD11, KTD23).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+  flutter: ">=3.50.0"
+resolution: workspace
+
+dependencies:
+  code_assets: ^1.0.0
+  ffi: ^2.2.0
+  flutter:
+    sdk: flutter
+  hooks: ^1.0.0
+  objective_c: ^9.2.0
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  ffigen: ^20.1.1
+  logging: ^1.2.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  # The runtime image and gate fixtures are staged here by
+  # tools/tachi-source-runner/ios/scripts/stage_runtime.sh (git-ignored).
+  assets:
+    - runtime/
+
+platforms:
+  ios:

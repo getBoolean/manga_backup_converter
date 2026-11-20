@@ -1,0 +1,28 @@
+Subject: [PATCH] 8374535: IOS uses different path for modules
+
+Source:  https://github.com/openjdk/mobile/pull/43 (head 6a66411f413460b69f38f8b00e705f128999d8c9)
+Issue:   https://bugs.openjdk.org/browse/JDK-8374535
+Status:  reviewed (Magnus Ihse Bursie), closed unmerged upstream
+Licence: GPLv2 (same as the patched OpenJDK file; contributed under the OCA)
+
+The modular-image existence check looked for <java.home>/Documents/lib/modules
+on iOS while ClassLoader always opens <java.home>/lib/modules, so a modular
+image never loaded. A modular image is required for App Store Connect
+validation (exploded module directories reportedly fail it; ios-tools#61).
+---
+diff --git a/src/hotspot/share/runtime/os.cpp b/src/hotspot/share/runtime/os.cpp
+index 3ec408cf025..cf18388c625 100644
+--- a/src/hotspot/share/runtime/os.cpp
++++ b/src/hotspot/share/runtime/os.cpp
+@@ -1515,11 +1515,7 @@ bool os::set_boot_path(char fileSep, char pathSep) {
+   struct stat st;
+ 
+   // modular image if "modules" jimage exists
+-#ifndef __IOS__
+   char* jimage = format_boot_path("%/lib/" MODULES_IMAGE_NAME, home, home_len, fileSep, pathSep);
+-#else
+-  char* jimage = format_boot_path("%/Documents/lib/" MODULES_IMAGE_NAME, home, home_len, fileSep, pathSep);
+-#endif
+   if (jimage == nullptr) return false;
+   bool has_jimage = (os::stat(jimage, &st) == 0);
+   if (has_jimage) {
