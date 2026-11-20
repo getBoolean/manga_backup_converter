@@ -111,14 +111,13 @@ void addAlias(Map<String, Function> map, String name, Function fn) {
 // ---------------------------------------------------------------------------
 
 /// Synchronously dispatch an HTTP request and return the response.
-typedef AsyncHttpDispatch =
-    ({int statusCode, Uint8List? body, Map<String, String> headers}) Function(
-      String url,
-      int method,
-      Map<String, String> headers,
-      Uint8List? body,
-      double timeout,
-    );
+typedef AsyncHttpDispatch = ({int statusCode, Uint8List? body, Map<String, String> headers}) Function(
+  String url,
+  int method,
+  Map<String, String> headers,
+  Uint8List? body,
+  double timeout,
+);
 
 /// Synchronously dispatch a sleep (blocks WASM isolate thread).
 typedef AsyncSleepDispatch = void Function(int seconds);

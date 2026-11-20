@@ -64,14 +64,13 @@ Map<String, Function> buildJsImports(ImportContext ctx) {
     // Webview functions remain stubbed — no native webview support.
     'webview_create': () => -1,
     'webview_load': (int webview, int request) => -1,
-    'webview_load_html':
-        (
-          int webview,
-          int htmlPtr,
-          int htmlLen,
-          int basePtr,
-          int baseLen,
-        ) => -1,
+    'webview_load_html': (
+      int webview,
+      int htmlPtr,
+      int htmlLen,
+      int basePtr,
+      int baseLen,
+    ) => -1,
     'webview_wait_for_load': (int webview) => -1,
     'webview_eval': (int webview, int strPtr, int len) => -1,
   };

@@ -25,13 +25,12 @@ import 'package:aidoku_plugin_loader/src/web/wasm_worker_isolate.dart';
 /// between the main thread and the worker uses [SendPort]/[ReceivePort].
 class AidokuPlugin {
   AidokuPlugin._({
-    required SendPort cmdPort,
-    required ReceivePort mainPort,
+    required this._cmdPort,
+    required this._mainPort,
     required this.sourceInfo,
     required this.settings,
     required this.filterDefinitions,
-  }) : _cmdPort = cmdPort,
-       _mainPort = mainPort;
+  });
 
   final SendPort _cmdPort;
   final ReceivePort _mainPort;

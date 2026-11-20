@@ -42,8 +42,10 @@ typedef WasmExporttypeVec = wasm_exporttype_vec_t;
 //   Pointer<NativeFunction<WasmFuncCallbackC>> == wasm_func_callback_t
 // ---------------------------------------------------------------------------
 
-typedef WasmFuncCallbackC =
-    ffi.Pointer<wasm_trap_t> Function(ffi.Pointer<wasm_val_vec_t> args, ffi.Pointer<wasm_val_vec_t> results);
+typedef WasmFuncCallbackC = ffi.Pointer<wasm_trap_t> Function(
+  ffi.Pointer<wasm_val_vec_t> args,
+  ffi.Pointer<wasm_val_vec_t> results,
+);
 
 // ---------------------------------------------------------------------------
 // WasmerBindings: thin wrapper preserving the original public API.

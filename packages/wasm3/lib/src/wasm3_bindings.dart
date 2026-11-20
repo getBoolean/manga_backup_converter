@@ -19,13 +19,12 @@ export 'package:wasm_runner/wasm_runner.dart'
 ///
 /// [M3RawCall] is `Pointer<NativeFunction<M3RawCallFn>>`, so this is the
 /// actual function type needed for `NativeCallable`.
-typedef M3RawCallFn =
-    ffi.Pointer<ffi.Void> Function(
-      ffi.Pointer<M3Runtime>,
-      ffi.Pointer<M3ImportContext>,
-      ffi.Pointer<ffi.Uint64>,
-      ffi.Pointer<ffi.Void>,
-    );
+typedef M3RawCallFn = ffi.Pointer<ffi.Void> Function(
+  ffi.Pointer<M3Runtime>,
+  ffi.Pointer<M3ImportContext>,
+  ffi.Pointer<ffi.Uint64>,
+  ffi.Pointer<ffi.Void>,
+);
 
 // ---------------------------------------------------------------------------
 // Type aliases

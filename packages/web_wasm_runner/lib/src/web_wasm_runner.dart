@@ -42,11 +42,9 @@ extension type _WasmMemory._(JSObject _) implements JSObject {
 /// arity, causing a mismatch when using a 12-param Dart wrapper. This factory
 /// creates a variable-arity JS function that captures the Dart bridge and
 /// forwards all `arguments` as a JS array.
-final JSFunction _varArgsFactory =
-    _jsEval(
-          '(function(bridge) { return function() { return bridge(Array.prototype.slice.call(arguments)); }; })'.toJS,
-        )
-        as JSFunction;
+final JSFunction _varArgsFactory = _jsEval(
+  '(function(bridge) { return function() { return bridge(Array.prototype.slice.call(arguments)); }; })'.toJS,
+) as JSFunction;
 
 // ---------------------------------------------------------------------------
 // Helper: convert nested Dart import map to JS object tree

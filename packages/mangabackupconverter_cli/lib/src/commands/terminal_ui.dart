@@ -702,12 +702,11 @@ class TerminalContext {
   /// Test -- injected I/O, no SIGINT, no raw mode.
   @visibleForTesting
   TerminalContext.test({
-    required StringSink output,
+    required this._output,
     required Stream<List<int>> inputStream,
     int width = 80,
     int height = 24,
-  }) : _output = output,
-       _widthOverride = width,
+  }) : _widthOverride = width,
        _heightOverride = height {
     _keyInput = KeyInput.withStream(inputStream);
     _keyInput.start();
