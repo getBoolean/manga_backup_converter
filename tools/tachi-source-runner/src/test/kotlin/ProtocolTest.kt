@@ -38,13 +38,32 @@ class ProtocolTest {
 
     @Test
     fun `sizing rule derives every limit from measured inputs`() {
-        val rule = SizingRule("test", 1.0, 256.0, 64.0, 2000.0, 3.0, 400.0, 900.0, 2.0, 300_000)
+        val rule = SizingRule("test", 1.0, 256.0, 64.0, 2000.0, 3.0, 400.0, 900.0, 2.0, 300_000, maxPoolSize = 6)
         val limits = rule.derive(SizingRule.Inputs(cores = 8, maxHeapMiB = 512))
         assertEquals(4, limits.poolSize) // heap-bound: (512-256)/64
         assertEquals(6000, limits.operationDeadlineMs)
-        assertEquals(800, limits.cancelGraceMs)
+        assertEquals(1800, limits.cancelGraceMs)
         assertEquals(1800, limits.shutdownGraceMs)
         assertEquals(1, rule.derive(SizingRule.Inputs(cores = 1, maxHeapMiB = 100)).poolSize)
+        assertEquals(6, rule.derive(SizingRule.Inputs(cores = 32, maxHeapMiB = 4096)).poolSize, "never beyond the measured concurrency")
+    }
+
+    @Test
+    fun `without overrides the worker derives every limit from the committed sizing rule and reports it`() {
+        val javaHome = java.io.File(System.getProperty("tachi.javaHome"))
+        val (client, process) = mangabackup.tachi.protocol.WorkerClient.subprocess(javaHome, System.getProperty("tachi.workerClasspath"), emptyList())
+        try {
+            val ok = client.handshake()
+            val sizing = ok["sizing"]!!.jsonObject
+            assertTrue(sizing["rule"]!!.jsonObject["source"]!!.jsonPrimitive.content.contains("docs/validation/source-runners/desktop/"))
+            assertEquals(0, sizing["overridden"]!!.jsonArray.size)
+            val limits = ok["limits"]!!.jsonObject
+            for (key in mangabackup.tachi.host.WorkerLimits.KEYS) assertTrue(limits[key]!!.jsonPrimitive.content.toLong() > 0, key)
+            client.call("shutdown")
+        } finally {
+            client.close()
+            process.destroyForcibly()
+        }
     }
 
     @Test

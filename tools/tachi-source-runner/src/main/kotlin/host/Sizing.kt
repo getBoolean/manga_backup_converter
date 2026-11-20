@@ -51,9 +51,13 @@ data class WorkerLimits(
  * `tachi-worker-sizing.json` resource; a worker without it refuses to derive
  * limits rather than invent them.
  *
- *  poolSize            = clamp(floor(cores × coresFactor), 1, floor((maxHeapMiB − baseHeapMiB) / perPackageHeapMiB))
+ *  poolSize            = clamp(floor(cores × coresFactor), 1, min(maxPoolSize, floor((maxHeapMiB − baseHeapMiB) / perPackageHeapMiB)))
+ *                        (coresFactor = 1 / measured CPU utilisation per running operation; maxPoolSize = largest
+ *                        concurrency the benchmark measured)
  *  operationDeadlineMs = ceil(p99OperationMs × deadlineFactor)
- *  cancelGraceMs       = ceil(maxCancelSettleMs × graceFactor)
+ *  cancelGraceMs       = ceil(max(maxCancelSettleMs, maxShutdownMs) × graceFactor)
+ *                        (shutdown time is the floor: it covers JVM scheduling and GC pauses a
+ *                        microsecond-scale cooperative cancel does not)
  *  shutdownGraceMs     = ceil(maxShutdownMs × graceFactor)
  *  interactionTimeoutMs = interactionTimeoutMs (a user-facing bound recorded with the rule)
  */
@@ -68,17 +72,18 @@ data class SizingRule(
     val maxShutdownMs: Double,
     val graceFactor: Double,
     val interactionTimeoutMs: Long,
+    val maxPoolSize: Int,
 ) {
     data class Inputs(val cores: Int, val maxHeapMiB: Long)
 
     fun derive(inputs: Inputs): WorkerLimits {
         val byCores = kotlin.math.floor(inputs.cores * coresFactor).toInt()
         val byHeap = kotlin.math.floor((inputs.maxHeapMiB - baseHeapMiB) / perPackageHeapMiB).toInt()
-        val pool = maxOf(1, minOf(byCores, byHeap))
+        val pool = maxOf(1, minOf(byCores, byHeap, maxPoolSize))
         return WorkerLimits(
             poolSize = pool,
             operationDeadlineMs = kotlin.math.ceil(p99OperationMs * deadlineFactor).toLong(),
-            cancelGraceMs = kotlin.math.ceil(maxCancelSettleMs * graceFactor).toLong(),
+            cancelGraceMs = kotlin.math.ceil(maxOf(maxCancelSettleMs, maxShutdownMs) * graceFactor).toLong(),
             interactionTimeoutMs = interactionTimeoutMs,
             shutdownGraceMs = kotlin.math.ceil(maxShutdownMs * graceFactor).toLong(),
         )
@@ -95,6 +100,7 @@ data class SizingRule(
         put("maxShutdownMs", maxShutdownMs)
         put("graceFactor", graceFactor)
         put("interactionTimeoutMs", interactionTimeoutMs)
+        put("maxPoolSize", maxPoolSize)
     }
 
     companion object {
@@ -114,6 +120,7 @@ data class SizingRule(
                 maxShutdownMs = d("maxShutdownMs"),
                 graceFactor = d("graceFactor"),
                 interactionTimeoutMs = o["interactionTimeoutMs"]!!.jsonPrimitive.long,
+                maxPoolSize = o["maxPoolSize"]!!.jsonPrimitive.long.toInt(),
             )
         }
 
@@ -136,8 +143,16 @@ data class SizingReport(val rule: SizingRule?, val inputs: SizingRule.Inputs, va
     }
 
     companion object {
+        /** The committed rule; an unreadable rule is fatal unless explicit overrides cover every limit. */
+        private fun committedOrNull(overrides: Map<String, Long>): SizingRule? = try {
+            SizingRule.committed()
+        } catch (e: Exception) {
+            if (!overrides.keys.containsAll(WorkerLimits.KEYS)) throw IllegalStateException("unreadable ${SizingRule.RESOURCE}: $e", e)
+            null
+        }
+
         /** Derives limits from the committed rule, applying explicit overrides; null if neither covers every limit. */
-        fun resolve(overrides: Map<String, Long>, rule: SizingRule? = SizingRule.committed()): SizingReport? {
+        fun resolve(overrides: Map<String, Long>, rule: SizingRule? = committedOrNull(overrides)): SizingReport? {
             val inputs = SizingRule.measureInputs()
             val base = rule?.derive(inputs) ?: WorkerLimits.fromOverrides(overrides)?.let { return SizingReport(null, inputs, it, overrides.keys) } ?: return null
             return SizingReport(rule, inputs, base.override(overrides), overrides.keys)

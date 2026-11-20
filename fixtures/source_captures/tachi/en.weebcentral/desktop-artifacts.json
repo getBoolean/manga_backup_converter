@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "en.weebcentral",
+  "recordedAt": "2026-11-20T10:16:00Z",
+  "recordedBy": "U3 desktop Tachi worker (one manual download; tests never download)",
+  "notes": "Repository JAR and APK of the same release. Both verify against the keiyoushi signer (JAR: every entry signed; APK: apksig v2), so they share one trust identity. Loaded by tools/tachi-source-runner tests on both KTD5 paths; site responses for the fixed test query are in capture.json.",
+  "repository": {
+    "indexUrl": "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json",
+    "indexSha256AtCapture": "d477bbb98e3aa8257e9b0a13dd91f15120715227d279cf33367a70c1b7aff402",
+    "indexEntry": "index-entry.json",
+    "signingKeyFingerprint": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+  },
+  "artifacts": [
+    {
+      "path": "tachiyomi-en.weebcentral-v1.6.27.jar",
+      "kind": "jar",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/3cf15bc/tachiyomi-en.weebcentral-v1.6.27.jar",
+      "sha256": "8b287c95536381e1ef26d59c5c570de9b2afdf66f7c147cbe7c37d6238f0fce1",
+      "size": 117238,
+      "packageName": "eu.kanade.tachiyomi.extension.en.weebcentral",
+      "versionName": "1.6.27",
+      "versionCode": 106027,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "jar"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    },
+    {
+      "path": "tachiyomi-en.weebcentral-v1.6.27.apk",
+      "kind": "apk",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/3cf15bc/tachiyomi-en.weebcentral-v1.6.27.apk",
+      "sha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+      "size": 74851,
+      "packageName": "eu.kanade.tachiyomi.extension.en.weebcentral",
+      "versionName": "1.6.27",
+      "versionCode": 106027,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "v2"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    }
+  ]
+}

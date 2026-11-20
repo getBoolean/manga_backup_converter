@@ -45,6 +45,7 @@ val capture: SourceSet by sourceSets.creating {
 
 // Benchmark harness (KTD25). Runs the worker against replayed captures.
 val benchmark: SourceSet by sourceSets.creating {
+    kotlin.srcDir("benchmark/src")
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
     runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
 }
