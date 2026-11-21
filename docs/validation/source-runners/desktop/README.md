@@ -4,7 +4,10 @@ Harness: `tools/tachi-source-runner/benchmark/src/Benchmark.kt`
 (`./gradlew benchmark` from `tools/tachi-source-runner`; `-PbenchmarkArgs=--quick` is the CI smoke mode,
 which prints results and writes nothing).
 
-Raw results: [`benchmark-windows-11.json`](benchmark-windows-11.json). The derived rule is committed as
+Raw results: [`benchmark-windows-11-2026-11-20-idle.json`](benchmark-windows-11-2026-11-20-idle.json)
+(idle machine; every limit except the handshake deadline) and
+[`benchmark-windows-11.json`](benchmark-windows-11.json) (loaded machine; start-up only, see Results).
+The derived rule is committed as
 `tools/tachi-source-runner/src/main/resources/tachi-worker-sizing.json`; the worker reads it at startup,
 measures its inputs, and reports rule, inputs and derived limits in the handshake (`sizing`, `limits`).
 
@@ -28,33 +31,41 @@ measures its inputs, and reports rule, inputs and derived limits in the handshak
   and the virus scanner), with and without the JDK's CDS archive (`-Xshare:off`); warm samples repeat
   launches of one install. This is the coldest start the harness can provoke, not a cold OS boot.
 
-## Results (Windows 11, Intel Family 6 Model 165, 16 logical cores; 2026-11-21)
+## Results (Windows 11, Intel Family 6 Model 165, 16 logical cores)
 
-**Machine load:** this run (2026-11-21T04:27Z, after the protocol 1.2 and deterministic-conversion
-changes) ran while unrelated processes held the CPU at 100% (other agents' Dart and JVM processes, WSL,
-a long-running Python job). Every time below is therefore inflated against the previous idle-machine run
-(2026-11-20: restart 4.76 s, shutdown max 55 ms, cancel max 5.9 ms, MangaDex prepare p50 38 ms). Inflated
-times only lengthen the derived deadlines and graces, so the rule errs on the safe side, but it should be
-regenerated on an idle machine.
+The rule combines two runs:
+
+- **2026-11-20T17:39Z, idle machine** (before protocol 1.2): every table except start-up, and every
+  coefficient except `maxStartupToHandshakeMs`.
+- **2026-11-21T04:27Z, loaded machine** (after the protocol 1.2 and deterministic-conversion changes):
+  start-up only. Unrelated processes held the CPU at 100% (other agents' Dart and JVM processes, WSL, a
+  long-running Python job), which inflated its times: restart and rehydrate p50 13.98 s (idle 4.76 s),
+  shutdown max 312 ms (idle 55 ms), cancel settle max 223.5 ms (idle 5.9 ms), details p99 4603 ms (idle
+  4021 ms). Those inflated values are not used. Its start-up samples are kept: an inflated handshake time
+  only lengthens the handshake deadline, the safe direction for a bound that otherwise fails every Tachi
+  conversion.
+
+**Pending:** a full rerun on an idle machine (to measure start-up idle and confirm the other values after
+the protocol 1.2 changes), and runs on macOS and Linux.
 
 | Operation | MangaDex p50 / p99 | Weeb Central p50 / p99 | MangaFire p50 / p99 |
 |---|---|---|---|
-| artifact.prepare (JAR verify + stage) | 610 / 2407 ms | 260 / 384 ms | 574 / 826 ms |
-| package.load | 666 / 2436 ms | 203 / 221 ms | 362 / 429 ms |
-| search | 51 / 941 ms | 1920 / 1984 ms | 430 / 643 ms |
-| details (manga + chapters) | 1009 / 1079 ms | 4086 / 4603 ms | 1020 / 1074 ms |
+| artifact.prepare (JAR verify + stage) | 38 / 180 ms | 19 / 19 ms | 27 / 31 ms |
+| package.load | 59 / 148 ms | 11 / 13 ms | 17 / 19 ms |
+| search | 137 / 858 ms | 1994 / 1998 ms | 18 / 986 ms |
+| details (manga + chapters) | 1001 / 1003 ms | 4007 / 4021 ms | 1001 / 1003 ms |
 
 | Measurement | Result |
 |---|---|
-| Cancel settle, fixture (n=20) | p50 1.0 ms, max 223.5 ms |
-| Cancel settle, real sources in flight (n=15) | p50 1.8 ms, max 194.5 ms |
-| Restart and rehydrate, 3 packages (n=8) | p50 13.98 s, max 15.47 s |
-| Graceful shutdown (n=8) | p50 114 ms, max 312 ms |
-| Worker CPU per wall second while running one operation | 0.042 |
-| Heap: worker baseline / per loaded package | 2.7 MiB measured + 64 MiB fixed floor = 67 MiB / 1.3 MiB measured |
+| Cancel settle, fixture (n=20) | p50 0.7 ms, max 5.9 ms |
+| Cancel settle, real sources in flight (n=15) | p50 1.2 ms, max 5.5 ms |
+| Restart and rehydrate, 3 packages (n=8) | p50 4.76 s, max 5.74 s |
+| Graceful shutdown (n=8) | p50 48 ms, max 55 ms |
+| Worker CPU per wall second while running one operation | 0.028 |
+| Heap: worker baseline / per loaded package | 2.7 MiB measured + 64 MiB fixed floor = 67 MiB / 1.4 MiB measured |
 | Throughput, pools 1 / 2 / 3 | 0.8 / 0.8 / 0.8 details/s |
 
-Start-up (launch → handshake reply, then package loads in the same process):
+Start-up (2026-11-21 loaded run; launch → handshake reply, then package loads in the same process):
 
 | Samples | Handshake p50 / max | Load 1 package p50 / max | Load 3 packages p50 / max |
 |---|---|---|---|
@@ -84,26 +95,26 @@ handshakeDeadlineMs  = ceil(maxStartupToHandshakeMs × handshakeFactor)
 
 | Coefficient | Value | From |
 |---|---|---|
-| coresFactor | 24.1 | 1 / measured CPU utilisation per running operation (0.042) |
+| coresFactor | 36.2 | 1 / measured CPU utilisation per running operation (0.028) |
 | maxPoolSize | 3 | largest concurrency measured (three distinct packages) |
 | baseHeapMiB | 67 | 2.7 MiB measured on-heap delta plus a 64 MiB floor constant (`JVM_BASELINE_MIB`, not measured) |
-| perPackageHeapMiB | 3 | measured 1.3 MiB per package, doubled |
-| p99OperationMs | 4603 | slowest p99 over search and details |
+| perPackageHeapMiB | 3 | measured 1.4 MiB per package, doubled |
+| p99OperationMs | 4021 | slowest p99 over search and details |
 | deadlineFactor | 50 | policy multiplier (see limits below) |
-| maxCancelSettleMs / maxShutdownMs | 223.5 / 312 | measured maxima |
+| maxCancelSettleMs / maxShutdownMs | 5.9 / 55 | measured maxima |
 | graceFactor | 3 | policy multiplier |
 | interactionTimeoutMs | 300000 | user-facing bound, not a machine capability |
-| maxStartupToHandshakeMs | 3112.5 | worst launch → handshake sample (cold, `-Xshare:off`) |
+| maxStartupToHandshakeMs | 3112.5 | worst launch → handshake sample (cold, `-Xshare:off`; loaded run) |
 | handshakeFactor | 10 | chosen headroom constant (`HANDSHAKE_FACTOR`), pending macOS and Linux runs |
 
-Derived on the benchmark machine (16 cores, 30 GiB benchmark heap): pool 3, operation deadline 230 s,
-cancel grace 936 ms, shutdown grace 936 ms, interaction timeout 300 s, handshake deadline 31.1 s.
+Derived on the benchmark machine (16 cores, 30 GiB benchmark heap): pool 3, operation deadline 201 s,
+cancel grace 165 ms, shutdown grace 165 ms, interaction timeout 300 s, handshake deadline 31.1 s.
 
 The handshake deadline does not depend on device inputs, so it is fixed when the worker is packaged:
 the `runtimeManifest` task writes it into `tachi-runtime.json` at the install root, where
 `TachiWorkerLocation` reads `handshakeDeadlineMs` before starting the worker. The handshake repeats it in
 `limits` and `sizing.derived` for receipts. `handshakeFactor` is a chosen constant: 10× the worst sample
-covers first launches after install, a loaded machine (as in this run) and slower disks. A tighter value
+covers first launches after install, a loaded machine (as in the start-up run) and slower disks. A tighter value
 risks failing every Tachi conversion on a slower machine; a looser one only delays reporting a worker
 that never starts. Revisit it with the macOS and Linux results.
 
@@ -116,10 +127,11 @@ Step 6 is **partial**:
   limiters bound it.
 - `deadlineFactor` (50), `graceFactor` (3), the heap doubling and the 64 MiB floor are chosen constants,
   not benchmark-derived.
-- The cancel grace comes from cancels sent during rate-limiter sleeps. On the idle machine it was 165 ms,
-  not fit for the supervisor to adopt as is (a premature kill costs a restart); this loaded run gives
-  936 ms. Neither is a considered value yet.
-- This run was taken on a loaded machine (see Results); regenerate it on an idle one.
+- The 165 ms cancel grace comes from cancels sent during rate-limiter sleeps on an idle machine. It is not
+  fit for the supervisor to adopt as is; a premature kill costs a ~5 s restart. (The loaded 2026-11-21 run
+  gave 936 ms; neither is a considered value yet.)
+- The start-up measurement comes from a loaded machine and the other values predate protocol 1.2 (see
+  Results); regenerate the whole rule from one idle run.
 
 - One device. KTD25 asks for each desktop OS and devices of different capability; macOS and Linux runs
   are still to do (rerun `./gradlew benchmark` there and commit `benchmark-<os>.json`; the rule should be
