@@ -18,6 +18,7 @@ SettingsSnapshot aidokuSettingsFor(AidokuExtensionEntry entry, [SettingsSnapshot
 class AidokuPluginLoader extends PluginLoader {
   const AidokuPluginLoader({
     this.providerFactory = AidokuSourceProvider.new,
+    this.client,
     this.onSettings,
     this.settingsFor = noExtensionSettings,
   });
@@ -29,6 +30,10 @@ class AidokuPluginLoader extends PluginLoader {
   /// backend (the iOS backgrounding gate, a replaying client in tests)
   /// otherwise.
   final SourceProvider Function() providerFactory;
+
+  /// Fetches repository lists and `.aix` downloads; a new live client when
+  /// `null`. (Source traffic goes through the provider's own client.)
+  final http.Client? client;
 
   /// Receives each settings snapshot a source is opened with, so the host
   /// can register its secrets with the log redactor (KTD9).
@@ -42,7 +47,7 @@ class AidokuPluginLoader extends PluginLoader {
   }) async {
     // Aidoku repositories are unsigned; [trust] is never consulted.
     final entries = <ExtensionEntry>[];
-    final manager = SourceListManager();
+    final manager = SourceListManager(httpClient: client);
     for (final url in repoUrls) {
       try {
         final RemoteSourceList sourceList = await manager.fetchRemoteSourceList(url);
@@ -116,7 +121,8 @@ class AidokuPluginLoader extends PluginLoader {
   @override
   Future<Uint8List?> downloadPluginBytes(ExtensionEntry entry) async {
     final aidokuEntry = entry as AidokuExtensionEntry;
-    final http.Response response = await http.get(Uri.parse(aidokuEntry.downloadUrl));
+    final Uri url = Uri.parse(aidokuEntry.downloadUrl);
+    final http.Response response = await (client?.get(url) ?? http.get(url));
     if (response.statusCode != 200) return null;
     return Uint8List.fromList(response.bodyBytes);
   }

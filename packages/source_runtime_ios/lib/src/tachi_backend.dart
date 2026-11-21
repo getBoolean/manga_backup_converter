@@ -133,7 +133,7 @@ final class IosTachiBackend implements SourceProvider {
       launcher: inVmWorkerLauncher(runtime, () => backend._options(++generation)),
       browserPort: browserPort,
       resolveBrowserSource: (WorkerKind kind, String? packageId, String sourceId) =>
-          backend._identities['$packageId\u0000$sourceId'],
+          backend._resolveBrowserSource(packageId, sourceId),
       browserReplacementTimeout: config.browserReplacementTimeout,
       onLog: onLog,
     );
@@ -154,6 +154,20 @@ final class IosTachiBackend implements SourceProvider {
   /// The started worker supervisor (a `TachiWorkerAccess` for the common
   /// Tachi provider).
   Future<SourceOutcome<WorkerSupervisor>> worker() => _scope.worker(WorkerKind.jvm);
+
+  /// The identity a browser reverse request from [packageId]'s source
+  /// [sourceId] is scoped to: the session this backend opened, or, for a
+  /// package the common `TachiRuntime` opened over [worker] (the app's
+  /// composition), one built from the artifact the current worker generation
+  /// hosts. A package that is not hosted resolves to nothing, so the bridge
+  /// refuses the request.
+  SourceIdentity? _resolveBrowserSource(String? packageId, String sourceId) {
+    final SourceIdentity? opened = _identities['$packageId\u0000$sourceId'];
+    if (opened != null || packageId == null) return opened;
+    final ArtifactBinding? artifact = supervisor?.artifactOf(packageId);
+    if (artifact == null) return null;
+    return SourceIdentity(ecosystem: iosTachiEcosystem, packageId: packageId, sourceId: sourceId, artifact: artifact);
+  }
 
   /// The supervisor, once started.
   WorkerSupervisor? get supervisor => _scope.supervisors[WorkerKind.jvm];

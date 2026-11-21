@@ -458,6 +458,10 @@ class WorkerSupervisor {
   /// Restarts reload the package with these settings.
   SettingsSnapshot? settingsOf(String packageId) => _packages[packageId]?.settings;
 
+  /// Binding of the artifact a hosted package was loaded from, or `null` if
+  /// it is not loaded (for example to build its sources' identities).
+  ArtifactBinding? artifactOf(String packageId) => _packages[packageId]?.artifact.binding;
+
   /// The current worker's handshake reply, once started.
   HandshakeResponse? get handshake => _handshake;
 

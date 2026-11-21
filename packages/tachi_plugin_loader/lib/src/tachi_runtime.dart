@@ -95,12 +95,23 @@ final class TachiPreparedArtifact implements VerifiedArtifact {
 /// - A hosted package is unloaded when its last session closes, so disposing
 ///   one selection never unloads another selection's package.
 class TachiRuntime implements SourceProvider {
-  TachiRuntime({required this.worker, required this.store, this.catalog, this.policy = const TachiArtifactPolicy()});
+  TachiRuntime({
+    required this.worker,
+    required this.store,
+    this.catalog,
+    this.policy = const TachiArtifactPolicy(),
+    this.hostCompatibility = tachiHostCompatibility,
+  });
 
   final TachiWorkerAccess worker;
   final TachiArtifactStore store;
   final TachiCatalog? catalog;
   final TachiArtifactPolicy policy;
+
+  /// Host compatibility recorded in every prepared artifact's cache identity
+  /// (KTD5): the desktop worker's by default; the iOS worker, which also
+  /// rewrites back-edges, passes its own so the two never share an entry.
+  final String hostCompatibility;
 
   final Map<String, _HostedPackage> _hosted = <String, _HostedPackage>{};
   final Map<String, Future<void>> _locks = <String, Future<void>>{};
@@ -200,7 +211,7 @@ class TachiRuntime implements SourceProvider {
         input: raw,
         trust: trust.anchor,
         cache: store.cache,
-        hostCompatibility: tachiHostCompatibility,
+        hostCompatibility: hostCompatibility,
         cancel: cancel,
       );
       return prepared.map(
