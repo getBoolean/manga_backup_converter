@@ -78,6 +78,7 @@ pub static CAPS: Caps = Caps {
   navigation_failures: true,
   storage: "ephemeral-per-session (nonPersistent WKWebsiteDataStore per WebView)",
   offline_enforced: true,
+  record: false,
   browser: &[
     ("pageStartScripts", None),
     ("scriptErrors", None),

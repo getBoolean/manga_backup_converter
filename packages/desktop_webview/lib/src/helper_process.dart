@@ -65,6 +65,7 @@ final class HelperCapabilities {
     required this.storage,
     required this.syncScriptInterface,
     required this.browser,
+    this.record = false,
   });
 
   factory HelperCapabilities.fromJson(Map<String, Object?> json) => HelperCapabilities(
@@ -74,6 +75,7 @@ final class HelperCapabilities {
     navigationFailures: json['navigationFailures'] as bool? ?? false,
     storage: json['storage'] as String? ?? '',
     syncScriptInterface: json['syncScriptInterface'] as bool? ?? false,
+    record: json['record'] as bool? ?? false,
     browser: switch (json['browser']) {
       final Map<String, Object?> b => BrowserCapabilities.fromJson(b),
       _ => BrowserCapabilities.unreported(),
@@ -87,6 +89,9 @@ final class HelperCapabilities {
   final bool navigationFailures;
   final String storage;
   final bool syncScriptInterface;
+
+  /// Whether `--record` can report every response with its body (WebView2).
+  final bool record;
 
   /// The protocol 1.2 features every session of this helper has, each
   /// missing one with the engine's reason (the helper's `browser` field).

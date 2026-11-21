@@ -121,10 +121,39 @@ addEventListener('message', function (e) {
 </script></head><body>frame</body></html>''';
 
   Future<void> _handleOther(HttpRequest request) async {
-    request.response.headers.contentType = ContentType.html;
-    request.response.write(_framePage);
+    if (request.uri.path == '/rec/cors') {
+      // A cross-origin fetch target that allows the page's origin live.
+      request.response.headers
+        ..contentType = ContentType.text
+        ..set('Access-Control-Allow-Origin', '*');
+      request.response.write('cors-ok');
+    } else {
+      request.response.headers.contentType = ContentType.html;
+      request.response.write(_framePage);
+    }
     await request.response.close();
   }
+
+  /// The browser recording page: a script, a stylesheet, and (in `run()`)
+  /// a POST with a body, a redirect, a gzip response, cookies and a
+  /// cross-origin fetch.
+  String _recordingPage() =>
+      '''
+<!doctype html><html><head><title>rec</title>
+<link rel="stylesheet" href="/rec/style.css"><script src="/rec/script.js"></script>
+<script>
+async function run() {
+  const text = (r) => r.text();
+  return JSON.stringify({
+    script: window.scriptLoaded,
+    post: await fetch('/rec/echo', {method: 'POST', body: 'hello-body'}).then(text),
+    redirect: await fetch('/rec/redirect').then(text),
+    gzip: await fetch('/rec/gz').then(text),
+    cookie: await fetch('/rec/cookie').then(text),
+    cors: await fetch('${otherOriginUrl('/rec/cors')}').then(text, () => 'cors-failed'),
+  });
+}
+</script></head><body>recording</body></html>''';
 
   Future<void> _handle(HttpRequest request) async {
     final headers = <String, String>{};
@@ -173,6 +202,36 @@ addEventListener('message', function (e) {
           r.headers.add(HttpHeaders.setCookieHeader, 'server=1; Path=/');
           r.headers.contentType = ContentType.html;
           r.write('<html><head><title>cookie</title></head></html>');
+        case '/rec/page':
+          r.headers.contentType = ContentType.html;
+          r.write(_recordingPage());
+        case '/rec/script.js':
+          r.headers.contentType = ContentType('application', 'javascript');
+          r.write("window.scriptLoaded = 'yes';");
+        case '/rec/style.css':
+          r.headers.contentType = ContentType('text', 'css');
+          r.write('body { color: black; }');
+        case '/rec/echo':
+          final String body = await utf8.decoder.bind(request).join();
+          r.headers.contentType = ContentType.text;
+          r.write('${request.method}:$body');
+        case '/rec/redirect':
+          r.statusCode = HttpStatus.found;
+          r.headers.set(HttpHeaders.locationHeader, '/rec/target');
+        case '/rec/target':
+          r.headers.contentType = ContentType.text;
+          r.write('target');
+        case '/rec/gz':
+          r.headers
+            ..contentType = ContentType.text
+            ..set(HttpHeaders.contentEncodingHeader, 'gzip');
+          r.add(gzip.encode(utf8.encode('gzipped body')));
+        case '/rec/cookie':
+          r.headers
+            ..contentType = ContentType.text
+            ..add(HttpHeaders.setCookieHeader, 'keep=1; Path=/')
+            ..add(HttpHeaders.setCookieHeader, 'drop=secret; Path=/; HttpOnly');
+          r.write('cookie');
         case final String path when path.startsWith('/status/'):
           // An HTTP error page (a Cloudflare challenge is a 403 or 503 page).
           r.statusCode = int.parse(path.substring('/status/'.length));

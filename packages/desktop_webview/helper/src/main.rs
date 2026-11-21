@@ -56,6 +56,8 @@ pub struct Shared {
   pub channels: HashSet<String>,
   pub mode: InterceptMode,
   pub offline: bool,
+  /// `--record`: report every response with its body (`exchange` events).
+  pub record: bool,
   /// `loadData` substitution: the next main-document request for this URL
   /// is answered with this HTML (WebView2 has no `loadDataWithBaseURL`).
   pub load_data: Option<(String, String)>,
@@ -91,7 +93,31 @@ pub enum UserEvent {
   NavFinished { session: String, url: String, ok: bool, status: Option<i64>, error: Option<String> },
   RedirectRejected { session: String, location: String },
   Request(RequestEvent),
+  Exchange(ExchangeEvent),
 }
+
+/// A response the engine received, with its request (`--record`).
+#[derive(Debug)]
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub struct ExchangeEvent {
+  pub session: String,
+  pub method: String,
+  pub url: String,
+  pub request_body: Option<Vec<u8>>,
+  pub request_body_omitted: bool,
+  pub status: i32,
+  /// Every response header in order, repeated names (`Set-Cookie`) included.
+  pub headers: Vec<(String, String)>,
+  /// The decoded body, or `None` when the engine has none for this response.
+  pub body: Option<Vec<u8>>,
+  /// The response had a body the event does not carry (larger than
+  /// [MAX_RECORDED_BODY_BYTES], or unreadable).
+  pub body_omitted: bool,
+}
+
+/// Largest response body carried in an `exchange` event: base64 inflates it
+/// by a third, which keeps the frame below [MAX_FRAME_BYTES].
+pub const MAX_RECORDED_BODY_BYTES: usize = 10 * 1024 * 1024;
 
 /// A request the engine reported (`request` event).
 #[derive(Debug)]
@@ -140,17 +166,19 @@ struct Session {
 struct Options {
   data_root: Option<PathBuf>,
   offline: bool,
+  record: bool,
   test_hooks: bool,
   simulate_fatal: Option<String>,
 }
 
 fn parse_args() -> Result<Options, String> {
-  let mut opts = Options { data_root: None, offline: false, test_hooks: false, simulate_fatal: None };
+  let mut opts = Options { data_root: None, offline: false, record: false, test_hooks: false, simulate_fatal: None };
   let mut args = std::env::args().skip(1);
   while let Some(a) = args.next() {
     match a.as_str() {
       "--data-root" => opts.data_root = Some(PathBuf::from(args.next().ok_or("--data-root needs a value")?)),
       "--offline" => opts.offline = true,
+      "--record" => opts.record = true,
       "--test-hooks" => opts.test_hooks = true,
       // Test hook: report this fatal code at start-up (typed-failure tests
       // for hosts that do have a display and a WebView runtime).
@@ -412,7 +440,10 @@ impl App {
           self.out.ok(id, json!({}));
           return true;
         }
-        let response = cmd.get("response").filter(|r| !r.is_null()).map(platform::ReplacementResponse::from_json);
+        // `replay`: the client's own capture replay (never a worker's
+        // replacement) may serve a captured redirect to an http(s) target.
+        let replay = cmd.get("replay").and_then(Value::as_bool).unwrap_or(false);
+        let response = cmd.get("response").filter(|r| !r.is_null()).map(|r| platform::ReplacementResponse::from_json(r, replay));
         match response {
           Some(Err(e)) => {
             // Never serve an invalid replacement, and never let the request
@@ -463,6 +494,7 @@ impl App {
       channels: HashSet::new(),
       mode,
       offline: self.opts.offline,
+      record: self.opts.record,
       load_data: None,
       load_chain: Vec::new(),
       awaiting_start: false,
@@ -817,6 +849,23 @@ impl App {
           "context": r.context,
         }));
       }
+      UserEvent::Exchange(x) => {
+        use base64::Engine as _;
+        let b64 = |b: Vec<u8>| base64::engine::general_purpose::STANDARD.encode(b);
+        let headers: Vec<Value> = x.headers.into_iter().map(|(k, v)| json!([k, v])).collect();
+        self.out.send(json!({
+          "ev": "exchange",
+          "session": x.session,
+          "method": x.method,
+          "url": x.url,
+          "requestBodyBase64": x.request_body.map(b64),
+          "requestBodyOmitted": x.request_body_omitted,
+          "status": x.status,
+          "headers": headers,
+          "bodyBase64": x.body.map(b64),
+          "bodyOmitted": x.body_omitted,
+        }));
+      }
       UserEvent::Command(_) | UserEvent::StdinClosed | UserEvent::FrameError(_) => unreachable!(),
     }
   }
@@ -951,6 +1000,9 @@ fn main() {
   if opts.offline && !platform::CAPS.offline_enforced {
     // Fail closed: replay must never fall through to the network.
     fatal(&out, "offline-unsupported", &format!("{} cannot block network requests yet; offline replay is unavailable", platform::ENGINE));
+  }
+  if opts.record && !platform::CAPS.record {
+    fatal(&out, "record-unsupported", &format!("{} cannot report response bodies; browser recording is unavailable", platform::ENGINE));
   }
   if let Some(reason) = platform::display_missing() {
     fatal(&out, "no-display", &reason);

@@ -45,6 +45,7 @@ pub static CAPS: Caps = Caps {
   navigation_failures: true,
   storage: "ephemeral-per-session (ephemeral WebContext per WebView)",
   offline_enforced: false,
+  record: false,
   browser: &[
     ("pageStartScripts", None),
     ("observeNavigations", Some("the WebKitGTK helper does not observe requests yet (resource-load-started is not wired)")),
