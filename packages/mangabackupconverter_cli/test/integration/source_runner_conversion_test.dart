@@ -260,7 +260,7 @@ void main() {
       check(m.source.toString()).equals(_weebCentralId);
       check(m.chapters.length).isGreaterThan(100);
       check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
-      _writeReceipt('windows-tachi-two-repositories-one-worker', <String, Object?>{
+      _writeReceipt('${Platform.operatingSystem}-tachi-two-repositories-one-worker', <String, Object?>{
         ..._workerIdentity(workerSeen),
         'java': _worker.location?.java == null ? null : p.basename(p.dirname(p.dirname(_worker.location!.java))),
         'artifacts': <Object?>[
@@ -353,7 +353,7 @@ void main() {
           .isA<SourceErrorFailure>()
           .has((SourceErrorFailure f) => f.message, 'message')
           .contains('VRF capture timed out');
-      _writeReceipt('windows-paperback-executeinwebview-helper', <String, Object?>{
+      _writeReceipt('${Platform.operatingSystem}-paperback-executeinwebview-helper', <String, Object?>{
         'webview': <String, Object?>{'engine': engine, 'engineVersion': engineVersion},
         'artifact': <String, Object?>{
           'kind': 'paperback-bundle-0.9',
