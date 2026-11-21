@@ -58,6 +58,12 @@ final class PaperbackSourceProvider implements SourceProvider {
 
   final Map<String, PaperbackCatalogEntry> _admitted = <String, PaperbackCatalogEntry>{};
   final Map<String, PaperbackCatalogEntry> _entries = <String, PaperbackCatalogEntry>{};
+  final Map<String, SourceIdentity> _identities = <String, SourceIdentity>{};
+
+  /// The identity a worker package may open a browser session for: a source
+  /// of a package this provider opened, or `null` (refused). The conversion
+  /// scope's `resolveBrowserSource` (KTD20).
+  SourceIdentity? browserIdentity(String? packageId, String sourceId) => _identities['$packageId|$sourceId'];
 
   @override
   String get ecosystem => 'paperback';
@@ -216,7 +222,7 @@ final class PaperbackSourceProvider implements SourceProvider {
           for (final LoadedSource s in r.sources)
             WorkerSourceSession(
               supervisor: supervisor,
-              identity: SourceIdentity(
+              identity: _identities['${entry.packageId}|${s.sourceId}'] = SourceIdentity(
                 ecosystem: ecosystem,
                 packageId: entry.packageId,
                 sourceId: s.sourceId,

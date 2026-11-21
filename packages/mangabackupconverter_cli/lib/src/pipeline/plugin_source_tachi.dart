@@ -26,6 +26,11 @@ Future<Uint8List> httpTachiFetch(Uri url) async {
 /// adopted from the worker's handshake (its benchmarked sizing rule); only
 /// the handshake deadline comes from the location, and a location without
 /// one is a typed [RuntimeUnavailableFailure] for every Tachi package.
+///
+/// With a [browserPort], the worker's `host.browser.*` reverse requests
+/// (the `android.webkit` shim) are served by it: each package may open
+/// sessions only for the sources it enumerated
+/// ([TachiRuntime.browserIdentity]).
 final class DesktopTachiRuntime implements TachiLoaderRuntime {
   DesktopTachiRuntime({
     required this.locate,
@@ -37,6 +42,9 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
     this.launcher,
     this.onLog,
     this.redactor,
+    this.browserPort,
+    this.browserReplacementTimeout,
+    this.interactionTimeout,
   });
 
   /// Resolves where the worker is (see [TachiWorkerLocation.resolve]).
@@ -53,6 +61,17 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
   final WorkerLauncher? launcher;
   final void Function(String line)? onLog;
   final Redactor? redactor;
+
+  /// The conversion's browser (the desktop WebView helper), or `null`:
+  /// every browser request then fails as capability-unavailable.
+  final BrowserPort? browserPort;
+
+  /// How long a request held for the worker's replacement waits
+  /// ([ConversionRuntimeScope.browserReplacementTimeout]).
+  final Duration? browserReplacementTimeout;
+
+  /// Bound on a visible browser interaction (`host.browser.show`).
+  final Duration? interactionTimeout;
 
   ConversionOwner? _owner;
   ConversionRuntimeScope? _scope;
@@ -82,24 +101,31 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
       case SourceFailed<TachiWorkerLocation>(:final SourceFailure failure):
         return SourceFailed<TachiRuntime>(failure);
       case SourceSuccess<TachiWorkerLocation>(value: final TachiWorkerLocation location):
+        late final TachiRuntime runtime;
         final scope = ConversionRuntimeScope(
           workers: <WorkerKind, WorkerSpec>{
             WorkerKind.jvm: location.spec(stateDirectory: stateDirectory, replay: replay),
           },
-          limits: location.limits,
+          limits: AdoptWorkerLimits(
+            handshakeDeadline: location.handshakeDeadline,
+            interactionTimeout: interactionTimeout,
+          ),
           launcher: launcher,
           onLog: onLog,
           redactor: redactor,
+          browserPort: browserPort,
+          resolveBrowserSource: (WorkerKind kind, String? packageId, String sourceId) =>
+              kind == WorkerKind.jvm ? runtime.browserIdentity(packageId, sourceId) : null,
+          browserReplacementTimeout: browserReplacementTimeout,
         );
         _scope = scope;
-        return SourceSuccess<TachiRuntime>(
-          TachiRuntime(
-            worker: () => scope.worker(WorkerKind.jvm),
-            store: TachiArtifactStore(cache: ArtifactCache(cacheDirectory), fetch: fetch),
-            catalog: TachiCatalog(fetch),
-            policy: policy,
-          ),
+        runtime = TachiRuntime(
+          worker: () => scope.worker(WorkerKind.jvm),
+          store: TachiArtifactStore(cache: ArtifactCache(cacheDirectory), fetch: fetch),
+          catalog: TachiCatalog(fetch),
+          policy: policy,
         );
+        return SourceSuccess<TachiRuntime>(runtime);
     }
   }
 }

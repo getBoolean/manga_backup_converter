@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
@@ -10,7 +11,7 @@ import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backu
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
-import 'package:source_runtime/source_contracts.dart';
+import 'package:source_runtime/source_runtime.dart';
 
 /// The CLI composition root (KTD15): the portable codecs and writers plus
 /// the native-dependent Tachimanga (SQLite) and Mangayomi codecs and the
@@ -35,14 +36,25 @@ SourceFailure? probeTachiWorker(DesktopTachiRuntime tachi) => tachi.locate().fai
 /// Paperback (the CLI re-launched as its QuickJS worker) and Tachi (the
 /// conversion's single JVM worker, Mihon destination). Each loader is wrapped
 /// in the verified plugin byte cache.
+///
+/// [browserPort] (the desktop WebView helper) serves the Paperback worker's
+/// browser requests; the Tachi worker's are served by the same port through
+/// [tachi] (its `browserPort`). [paperbackClient] and [paperbackLauncher]
+/// replace the live network and the re-launched executable (tests).
 RuntimeRegistry cliRuntimeRegistry({
   required PluginCache cache,
   required DesktopTachiRuntime tachi,
   required String cacheRoot,
+  required Duration interactionTimeout,
   void Function(SettingsSnapshot settings)? onSettings,
   void Function(String line)? onLog,
   SourceFailure? Function()? paperbackProbe,
   SourceFailure? Function()? tachiProbe,
+  BrowserPort? browserPort,
+  Duration? browserReplacementTimeout,
+  http.Client? paperbackClient,
+  WorkerLauncher? paperbackLauncher,
+  Redactor? redactor,
 }) => RuntimeRegistry(<DestinationRuntime>[
   DestinationRuntime(
     ecosystem: 'aidoku',
@@ -61,10 +73,16 @@ RuntimeRegistry cliRuntimeRegistry({
         onSettings: onSettings,
         onLog: onLog,
         settingsFor: context.settingsFor,
+        browserPort: browserPort,
+        browserReplacementTimeout: browserReplacementTimeout,
+        interactionTimeout: interactionTimeout,
+        client: paperbackClient,
+        launcher: paperbackLauncher,
+        redactor: redactor,
       ),
       cache: cache,
     ),
-    probe: paperbackProbe ?? paperbackWorkerUnavailable,
+    probe: paperbackProbe ?? (paperbackLauncher == null ? paperbackWorkerUnavailable : () => null),
   ),
   DestinationRuntime(
     ecosystem: tachiTrustEcosystem,

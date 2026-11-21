@@ -123,6 +123,21 @@ class TachiRuntime implements SourceProvider {
   /// Package identifiers currently hosted in the worker.
   Iterable<String> get hostedPackages => _hosted.keys;
 
+  /// The identity a worker package may open a browser session for: one of
+  /// the sources that package enumerated, bound to its hosted artifact, or
+  /// `null` (refused) for an unknown package or a source it does not own.
+  /// The conversion scope's `resolveBrowserSource` (KTD20).
+  SourceIdentity? browserIdentity(String? packageId, String sourceId) {
+    final _HostedPackage? hosted = packageId == null ? null : _hosted[packageId];
+    if (hosted == null || !hosted.sources.any((LoadedSource s) => s.sourceId == sourceId)) return null;
+    return SourceIdentity(
+      ecosystem: tachiEcosystem,
+      packageId: hosted.artifact.packageId,
+      sourceId: sourceId,
+      artifact: hosted.artifact.binding,
+    );
+  }
+
   @override
   String get ecosystem => tachiEcosystem;
 

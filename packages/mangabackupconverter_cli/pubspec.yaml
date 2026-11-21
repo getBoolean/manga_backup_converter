@@ -18,6 +18,8 @@ dependencies:
   collection: ^1.19.0
   crypto: ^3.0.0
   dart_mappable: ^4.2.2
+  desktop_webview:
+    path: ../desktop_webview
   ffi: ^2.2.0
   fixnum: ^1.1.1
   http: ^1.2.0

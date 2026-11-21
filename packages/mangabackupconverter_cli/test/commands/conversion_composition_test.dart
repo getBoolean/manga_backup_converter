@@ -41,6 +41,7 @@ void main() {
     tachi: tachi(located: tachiLocated),
     cacheRoot: temp.path,
     paperbackProbe: () => paperback,
+    interactionTimeout: const Duration(minutes: 5),
   );
 
   test('formats: portable writers plus the native Tachimanga/Mangayomi codecs and the direct converter', () {

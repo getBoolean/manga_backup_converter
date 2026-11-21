@@ -30,23 +30,44 @@ SourceFailure? paperbackWorkerUnavailable() {
 /// The desktop composition: the CLI executable re-launched as the worker
 /// ([paperbackWorkerCommand]) with limits from the KTD25 sizing rule, an
 /// artifact cache under [cacheRoot], and the live network.
+///
+/// The worker runs in its own [ConversionRuntimeScope], so with a
+/// [browserPort] its `host.browser.*` reverse requests (`executeInWebView`,
+/// Cloudflare bypass) are served through a [BrowserReverseBridge]; each
+/// bundle may open sessions only for its own sources
+/// ([PaperbackPluginLoader.browserIdentity]). Closing the conversion owner
+/// closes the worker, then the bridge's sessions.
+///
+/// Tests inject [client] (catalogs and bundles), [launcher] (for example an
+/// in-process worker over replayed captures) and [workerArguments]; with a
+/// [launcher] the built-executable check is skipped.
 PaperbackPluginLoader desktopPaperbackLoader({
   required String cacheRoot,
   void Function(SettingsSnapshot settings)? onSettings,
   void Function(String line)? onLog,
   ExtensionSettingsProvider settingsFor = noExtensionSettings,
+  BrowserPort? browserPort,
+  Duration? browserReplacementTimeout,
+  Duration interactionTimeout = const Duration(minutes: 5),
+  http.Client? client,
+  WorkerLauncher? launcher,
+  List<String> workerArguments = const <String>[],
+  Redactor? redactor,
 }) {
-  final client = http.Client();
-  WorkerSupervisor? supervisor;
-  return PaperbackPluginLoader(
-    client: client,
+  final http.Client httpClient = client ?? http.Client();
+  ConversionRuntimeScope? scope;
+  late final PaperbackPluginLoader loader;
+  return loader = PaperbackPluginLoader(
+    client: httpClient,
     cache: ArtifactCache(Directory(p.join(cacheRoot, 'paperback_artifacts'))),
     onSettings: onSettings,
     settingsFor: settingsFor,
     worker: (ConversionOwner? owner) async {
-      if (supervisor == null) {
-        final SourceFailure? unavailable = paperbackWorkerUnavailable();
-        if (unavailable != null) return SourceFailed<WorkerSupervisor>(unavailable);
+      if (scope == null) {
+        if (launcher == null) {
+          final SourceFailure? unavailable = paperbackWorkerUnavailable();
+          if (unavailable != null) return SourceFailed<WorkerSupervisor>(unavailable);
+        }
         final PaperbackWorkerPlan plan = planPaperbackWorker();
         // KTD25: record the rule, its inputs and the derived limits, and any
         // cap that left a limit below the measured need.
@@ -54,13 +75,15 @@ PaperbackPluginLoader desktopPaperbackLoader({
         for (final String warning in plan.sizing.warnings) {
           onLog?.call('[paperback] sizing warning: $warning');
         }
-        final created = WorkerSupervisor(
-          spec: WorkerSpec(
-            label: 'paperback',
-            executable: Platform.resolvedExecutable,
-            arguments: <String>[paperbackWorkerCommand, ...plan.arguments],
-            environment: scrubbedEnvironment(),
-          ),
+        final created = ConversionRuntimeScope(
+          workers: <WorkerKind, WorkerSpec>{
+            WorkerKind.paperback: WorkerSpec(
+              label: 'paperback',
+              executable: Platform.resolvedExecutable,
+              arguments: <String>[paperbackWorkerCommand, ...plan.arguments, ...workerArguments],
+              environment: scrubbedEnvironment(),
+            ),
+          },
           // The worker reports its supervisor-side deadline (engine
           // deadline plus measured headroom); the rest are not QuickJS
           // limits and come from the desktop policy (KTD4).
@@ -68,19 +91,24 @@ PaperbackPluginLoader desktopPaperbackLoader({
             handshakeDeadline: plan.handshakeDeadline,
             maxConcurrentPackages: 1,
             cancelGrace: plan.cancelGrace,
-            interactionTimeout: const Duration(minutes: 5),
+            interactionTimeout: interactionTimeout,
             shutdownGrace: plan.cancelGrace,
           ),
+          launcher: launcher,
+          browserPort: browserPort,
+          resolveBrowserSource: (WorkerKind kind, String? packageId, String sourceId) =>
+              kind == WorkerKind.paperback ? loader.browserIdentity(packageId, sourceId) : null,
+          browserReplacementTimeout: browserReplacementTimeout,
           onLog: onLog,
+          redactor: redactor,
         );
-        supervisor = created;
+        scope = created;
         await owner?.adopt(() async {
           await created.close();
-          client.close();
+          httpClient.close();
         });
       }
-      final WorkerSupervisor s = supervisor!;
-      return (await s.start()).map((_) => s);
+      return scope!.worker(WorkerKind.paperback);
     },
   );
 }

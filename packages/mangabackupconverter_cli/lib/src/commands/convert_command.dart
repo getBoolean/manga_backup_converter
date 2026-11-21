@@ -8,9 +8,11 @@ import 'dart:typed_data';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:characters/characters.dart';
+import 'package:desktop_webview/desktop_webview.dart' show DesktopBrowserPort;
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';
+import 'package:mangabackupconverter_cli/src/commands/desktop_runtime.dart';
 import 'package:mangabackupconverter_cli/src/commands/extension_select_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
 import 'package:mangabackupconverter_cli/src/commands/format_select_screen.dart';
@@ -158,7 +160,16 @@ class ConvertCommand extends Command<void> {
       ..addOption(
         'tachi-runtime',
         valueHelp: 'tachi-runtime.json',
-        help: 'Tachi worker runtime manifest. Defaults to the development install (./gradlew installDist).',
+        help:
+            'Tachi worker runtime manifest. Defaults to the packaged runtime beside the executable, '
+            'else the development install (./gradlew installDist).',
+      )
+      ..addOption(
+        'webview-helper',
+        valueHelp: 'runtime-artifacts.json',
+        help:
+            'Desktop WebView helper manifest (browser access for sources that need it). Defaults to the '
+            'packaged runtime beside the executable, else the development build.',
       )
       ..addOption(
         'tachi-handshake-deadline-ms',
@@ -358,11 +369,27 @@ class ConvertCommand extends Command<void> {
     // One session redactor for every log line and user-visible error (KTD9).
     final redactor = Redactor();
     RedactingLog? activeLog;
+    // One desktop WebView helper per conversion serves both workers' browser
+    // requests (KTD20). Interactive runs may show its window for a challenge;
+    // unattended runs never open a window (interaction-required).
+    final io.Directory searchFrom = io.File(io.Platform.script.toFilePath()).parent;
+    final (DesktopBrowserPort? browser, String? browserUnavailable) = createCliBrowserPort(
+      interactive: interactive,
+      dataRoot: io.Directory(p.join(userConfigDirectory(), 'cache', 'webview')),
+      manifest: locateWebViewHelperManifest(explicit: results.option('webview-helper'), searchFrom: searchFrom),
+      onLog: (String line) => activeLog?.writeln(line),
+    );
+    if (browserUnavailable != null && verbose) {
+      print('[VERBOSE] Browser-backed source features are unavailable: $browserUnavailable');
+    }
     final tachi = DesktopTachiRuntime(
+      browserPort: browser,
+      browserReplacementTimeout: CliBrowserPolicy.replacementTimeout,
+      interactionTimeout: CliBrowserPolicy.interactionTimeout,
       locate: () => TachiWorkerLocation.resolve(
-        manifestPath: results.option('tachi-runtime'),
+        manifestPath: results.option('tachi-runtime') ?? packagedTachiManifest(),
         handshakeDeadline: tachiHandshakeDeadline,
-        searchFrom: io.File(io.Platform.script.toFilePath()).parent,
+        searchFrom: searchFrom,
       ),
       cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
       fetch: httpTachiFetch,
@@ -376,6 +403,10 @@ class ConvertCommand extends Command<void> {
       cacheRoot: userConfigDirectory(),
       onSettings: (SettingsSnapshot settings) => activeLog?.addSecrets(settings),
       onLog: (String line) => activeLog?.writeln(line),
+      browserPort: browser,
+      browserReplacementTimeout: CliBrowserPolicy.replacementTimeout,
+      interactionTimeout: CliBrowserPolicy.interactionTimeout,
+      redactor: redactor,
     );
     final SourceFailure? unavailable = conversionUnavailable(
       formats,
@@ -603,7 +634,12 @@ class ConvertCommand extends Command<void> {
             ),
             // The Tachi worker scope is closed with every plugin, in the
             // pipeline's finally; it starts only if a Tachi package loads.
-            onOwnerOpened: tachi.attach,
+            // Adopted first, so it closes last: after the workers and their
+            // browser bridges (the owner closes in reverse order).
+            onOwnerOpened: (ConversionOwner owner) async {
+              if (browser != null) await owner.adopt(browser.dispose);
+              await tachi.attach(owner);
+            },
             onResume: (int decisions) => Zone.root.print(
               'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
             ),

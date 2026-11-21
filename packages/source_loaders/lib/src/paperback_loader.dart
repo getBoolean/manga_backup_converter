@@ -44,6 +44,12 @@ class PaperbackPluginLoader extends PluginLoader {
   late final PaperbackSourceProvider _provider;
   ConversionOwner? _owner;
 
+  /// The identity a bundle may open a browser session for (a source of a
+  /// package this loader opened), or `null`; a conversion scope's
+  /// `resolveBrowserSource` (KTD20).
+  SourceIdentity? browserIdentity(String? packageId, String sourceId) =>
+      _provider.browserIdentity(packageId, sourceId);
+
   @override
   Future<List<ExtensionEntry>> fetchExtensionLists(
     List<String> repoUrls, {
