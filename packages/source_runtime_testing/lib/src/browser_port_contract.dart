@@ -5,6 +5,7 @@ import 'package:checks/checks.dart';
 import 'package:source_runtime/source_contracts.dart';
 import 'package:source_runtime_testing/src/fake_browser_port.dart';
 import 'package:test/scaffolding.dart';
+import 'package:test/scaffolding.dart' as scaffolding show test;
 
 /// Drives one `BrowserPort` implementation through the contract suite.
 ///
@@ -126,7 +127,23 @@ SourceIdentity _source(String id) => SourceIdentity(
 
 /// Registers the reusable `BrowserPort` contract tests, creating a fresh
 /// harness with [createHarness] for every test.
-void runBrowserPortContractSuite(String name, BrowserPortHarness Function() createHarness) {
+///
+/// [knownFailures] maps a contract test's own description (without its
+/// group names) to the reason that implementation cannot pass it yet; those
+/// tests are skipped with that reason. Use it only for a documented
+/// follow-up, never to weaken the contract. A key that names no contract
+/// test fails the suite, so a stale entry cannot linger.
+void runBrowserPortContractSuite(
+  String name,
+  BrowserPortHarness Function() createHarness, {
+  Map<String, String> knownFailures = const <String, String>{},
+}) {
+  final registered = <String>{};
+  void test(String description, FutureOr<void> Function() body) {
+    registered.add(description);
+    scaffolding.test(description, body, skip: knownFailures[description]);
+  }
+
   group('BrowserPort contract: $name', () {
     late BrowserPortHarness harness;
     late BrowserPort port;
@@ -634,6 +651,10 @@ void runBrowserPortContractSuite(String name, BrowserPortHarness Function() crea
         check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
         check(observed).isEmpty();
       });
+    });
+
+    test('every known failure names a contract test', () {
+      check(knownFailures.keys.where((String k) => !registered.contains(k))).isEmpty();
     });
   });
 }
