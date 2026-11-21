@@ -42,7 +42,7 @@ class _FixtureLoader extends PluginLoader {
     void Function(int current, int total, String message)? onProgress,
     ConversionOwner? owner,
     void Function(PluginLoadFailure failure)? onFailure,
-  }) async => <PluginSource>[(await inner.loadPluginFromBytes(_entry, bytes, owner: owner)).valueOrNull!];
+  }) async => (await inner.loadPluginFromBytes(_entry, bytes, owner: owner)).valueOrNull!;
 }
 
 const _entry = AidokuExtensionEntry(
@@ -85,7 +85,7 @@ void main() {
         _entry,
         aix.readAsBytesSync(),
         owner: owner,
-      )).valueOrNull!;
+      )).valueOrNull!.single;
       check(source.identity.ecosystem).equals('aidoku');
       check(source.identity.artifact.kind).equals('aix');
 
@@ -107,7 +107,7 @@ void main() {
         _entry,
         aix.readAsBytesSync(),
         owner: owner,
-      )).valueOrNull!;
+      )).valueOrNull!.single;
       final DetailsOutcome outcome = await source.fetchDetails(
         NativeMangaRef(
           source: source.identity,

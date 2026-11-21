@@ -22,6 +22,7 @@ import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_runtime.dart' show Redactor;
+import 'package:tachi_plugin_loader/tachi_plugin_loader.dart' show TachiArtifactPolicy, TachiWorkerLocation;
 
 class ConvertCommand extends Command<void> {
   /// Set by the migration pipeline; printed once the terminal is restored.
@@ -105,6 +106,31 @@ class ConvertCommand extends Command<void> {
         'output',
         abbr: 'o',
         help: 'Output file path. Defaults to <input>_converted.<ext> next to the backup file.',
+      )
+      ..addMultiOption(
+        'trust-tachi-repo',
+        valueHelp: 'URL=SHA256',
+        help:
+            'Pre-approve a Tachi repository signing fingerprint (certificate SHA-256). Unattended runs '
+            'refuse first-seen or changed fingerprints without it.',
+      )
+      ..addMultiOption(
+        'tachi-artifact',
+        valueHelp: 'jar|apk|REPO_URL=jar|apk|PACKAGE=jar|apk',
+        help:
+            'Force the Tachi artifact kind for every repository, one repository, or one package. '
+            'Defaults to the JAR when a repository publishes one, otherwise the APK.',
+      )
+      ..addOption(
+        'tachi-runtime',
+        valueHelp: 'tachi-runtime.json',
+        help: 'Tachi worker runtime manifest. Defaults to the development install (./gradlew installDist).',
+      )
+      ..addOption(
+        'tachi-handshake-deadline-ms',
+        help:
+            'Deadline for the Tachi worker handshake, in milliseconds. Required unless the runtime manifest '
+            'sets handshakeDeadlineMs; the worker reports every other limit itself.',
       )
       ..addOption(
         'log-file',
@@ -223,6 +249,22 @@ class ConvertCommand extends Command<void> {
     final BackupFormat resolvedInputFormat = inputFormat;
 
     List<String> repoUrls = results.multiOption('repos');
+
+    // --- Tachi runtime options (validated up front) ---
+    final Map<Uri, String> tachiPins;
+    final TachiArtifactPolicy tachiPolicy;
+    final Duration? tachiHandshakeDeadline;
+    try {
+      tachiPins = PinnedTrustStore.parsePins(results.multiOption('trust-tachi-repo'));
+      tachiPolicy = parseTachiArtifactOverrides(results.multiOption('tachi-artifact'));
+      tachiHandshakeDeadline = switch (results.option('tachi-handshake-deadline-ms')) {
+        null => null,
+        final String ms when (int.tryParse(ms) ?? 0) > 0 => Duration(milliseconds: int.parse(ms)),
+        final String ms => throw FormatException('--tachi-handshake-deadline-ms must be a positive integer, got "$ms"'),
+      };
+    } on FormatException catch (e) {
+      throw UsageException(e.message, usage);
+    }
 
     // Adult sources stay hidden unless the user confirms their age (shared
     // core policy; the mobile hosts reuse it).
@@ -461,19 +503,37 @@ class ConvertCommand extends Command<void> {
           }
 
           final pluginCache = PluginCache();
+          final tachi = DesktopTachiRuntime(
+            locate: () => TachiWorkerLocation.resolve(
+              manifestPath: results.option('tachi-runtime'),
+              handshakeDeadline: tachiHandshakeDeadline,
+              searchFrom: io.File(io.Platform.script.toFilePath()).parent,
+            ),
+            cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
+            fetch: httpTachiFetch,
+            policy: tachiPolicy,
+            onLog: log.writeln,
+            redactor: redactor,
+          );
           final journalStore = FileJournalStore(journalPath);
           if (results.flag('fresh')) await journalStore.clear();
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: CachingPluginLoader(
-              pluginLoaderFor(outputFormat, onSettings: log.addSecrets),
+              pluginLoaderFor(outputFormat, onSettings: log.addSecrets, tachi: tachi),
               cache: pluginCache,
             ),
             selection: selection,
             directConverter: legacyDirectConvert,
             journalStore: journalStore,
             ratingPolicy: ratingPolicy,
-            trustStore: FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
+            trustStore: PinnedTrustStore(
+              FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
+              tachiPins,
+            ),
+            // The Tachi worker scope is closed with every plugin, in the
+            // pipeline's finally; it starts only if a Tachi package loads.
+            onOwnerOpened: tachi.attach,
             onResume: (int decisions) => Zone.root.print(
               'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
             ),

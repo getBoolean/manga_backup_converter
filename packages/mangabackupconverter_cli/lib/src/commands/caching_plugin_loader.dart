@@ -53,11 +53,11 @@ class CachingPluginLoader extends PluginLoader {
         } else {
           onProgress?.call(i + 1, extensions.length, 'Loading plugin: ${entry.name} (cached)');
         }
-        final SourceOutcome<PluginSource>? loaded = await _inner.loadPluginFromBytes(entry, bytes, owner: owner);
+        final SourceOutcome<List<PluginSource>>? loaded = await _inner.loadPluginFromBytes(entry, bytes, owner: owner);
         switch (loaded) {
-          case SourceSuccess<PluginSource>(:final PluginSource value):
-            plugins.add(value);
-          case SourceFailed<PluginSource>(:final SourceFailure failure):
+          case SourceSuccess<List<PluginSource>>(:final List<PluginSource> value):
+            plugins.addAll(value);
+          case SourceFailed<List<PluginSource>>(:final SourceFailure failure):
             fail(failure);
           case null:
             fail(const UnsupportedApiFailure('unsupported plugin format'));

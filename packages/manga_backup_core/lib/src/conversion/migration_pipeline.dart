@@ -154,7 +154,11 @@ class MigrationPipeline {
     );
     report.decisions.addAll(gate.decisions);
     if (availableExtensions.isEmpty && repoUrls.isNotEmpty) {
-      throw const MigrationException('No extensions found from provided repos');
+      // Keep trust decisions visible: a refused repository lists nothing.
+      throw MigrationException(
+        'No extensions found from provided repos'
+        '${gate.decisions.isEmpty ? '' : ' (${gate.decisions.map(redact).join('; ')})'}',
+      );
     }
 
     final ({int hidden, List<ExtensionEntry> visible}) rated = ratingPolicy.apply(availableExtensions);
