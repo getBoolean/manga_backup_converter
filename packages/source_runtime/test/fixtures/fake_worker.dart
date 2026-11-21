@@ -23,6 +23,12 @@
 //                          host.browser.respond rreq whose response body is
 //                          "from worker", sent under the reverse call in flight
 //
+// Every event the worker receives is recorded (stats `events`); a reply to a
+// `fake.reverse` request carries `eventsAtReply`, the event ops seen before
+// the reverse reply arrived. package.load records its `apiFamily` (stats
+// `apiFamilies`, null when absent). `fake.errorTrust` answers
+// artifact-incompatible with that `trust` reason (1.3).
+//
 // artifact.prepare copies inputPath to outputPath, echoes the input binding
 // (a copy keeps its digest) and records trustedSigners; it never needs the
 // package to be loaded.
@@ -46,6 +52,8 @@ final Map<String, String> _loaded = <String, String>{};
 final Map<String, Object?> _settings = <String, Object?>{};
 final List<Object?> _disposed = <Object?>[];
 final List<Object?> _prepared = <Object?>[];
+final List<Map<String, Object?>> _events = <Map<String, Object?>>[];
+final Map<String, Object?> _apiFamilies = <String, Object?>{};
 int _active = 0;
 int _maxActive = 0;
 int _handleCounter = 0;
@@ -196,6 +204,8 @@ Future<void> _dispatch(Map<String, Object?> frame) async {
             'settings': _settings,
             'disposed': _disposed,
             'prepared': _prepared,
+            'events': _events,
+            'apiFamilies': _apiFamilies,
           },
         ),
       );
@@ -208,6 +218,7 @@ Future<void> _dispatch(Map<String, Object?> frame) async {
       }
       _loaded[pkg] = (payload['artifact'] as Map<String, Object?>?)?['sha256'] as String? ?? '';
       _settings[pkg] = payload['settings'];
+      _apiFamilies[pkg] = payload['apiFamily'];
       if (_arg('malformed-load') == pkg) {
         _write(_res(id, ok: <String, Object?>{'sources': 'not a list'}));
         return;
@@ -312,6 +323,16 @@ Future<void> _run(String id, String? pkg, String op, Map<String, Object?> payloa
       stdout.writeln(text);
       return;
     }
+    if (fake['errorTrust'] case final String reason) {
+      _write(<String, Object?>{
+        'v': 1,
+        't': 'res',
+        'id': id,
+        'gen': _gen,
+        'err': <String, Object?>{'code': 'artifact-incompatible', 'message': 'untrusted signer', 'trust': reason},
+      });
+      return;
+    }
     if (fake['errorMessage'] case final String message) {
       _write(_res(id, errCode: 'source-error', errMessage: message));
       return;
@@ -367,7 +388,16 @@ Future<void> _run(String id, String? pkg, String op, Map<String, Object?> payloa
       });
       final Map<String, Object?> reply = await done.future;
       _inFlightReverse.remove(id);
-      _write(_res(id, ok: <String, Object?>{'reverse': reply['ok'], 'reverseError': reply['err']}));
+      _write(
+        _res(
+          id,
+          ok: <String, Object?>{
+            'reverse': reply['ok'],
+            'reverseError': reply['err'],
+            'eventsAtReply': <Object?>[for (final Map<String, Object?> e in _events) e['op']],
+          },
+        ),
+      );
       return;
     }
     final Map<String, Object?> reply = switch (op) {
@@ -441,6 +471,7 @@ Map<String, Object?> _detailsReply(String id, String? pkg, Map<String, Object?> 
 /// Answers a held `host.browser.request` while a reverse call is in flight
 /// (the orphan rule needs an originating request).
 void _onEvent(Map<String, Object?> frame) {
+  _events.add(<String, Object?>{'op': frame['op'], 'payload': frame['payload']});
   if (!args.contains('--respond-requests') || frame['op'] != 'host.browser.request') return;
   final payload = frame['payload']! as Map<String, Object?>;
   final Object? requestId = payload['requestId'];

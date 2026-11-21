@@ -1,4 +1,4 @@
-/// End-to-end: the `source_runtime` supervisor speaking protocol 1.1 to the
+/// End-to-end: the `source_runtime` supervisor speaking protocol 1.3 to the
 /// Paperback worker as a real subprocess.
 ///
 /// `setUpAll` builds each entrypoint once with `dart build cli` (the QuickJS
@@ -125,8 +125,8 @@ void main() {
       final SourceOutcome<HandshakeResponse> started = await supervisor.start();
       final HandshakeResponse handshake = (started as SourceSuccess<HandshakeResponse>).value;
       check(handshake.worker).equals('paperback');
-      check(handshake.protocolMinor).equals(1);
-      check(supervisor.protocolMinor).equals(1);
+      check(handshake.protocolMinor).equals(3);
+      check(supervisor.protocolMinor).equals(3);
       // The supervisor-side deadline: engine deadline plus headroom.
       check(handshake.limits!.operationDeadline).equals(const Duration(milliseconds: 4250));
       check(handshake.limits!.fields['operationDeadlineMicros']).equals(4000000);

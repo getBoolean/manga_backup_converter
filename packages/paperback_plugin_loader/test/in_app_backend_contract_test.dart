@@ -146,4 +146,22 @@ void main() {
     check(reply.error!['code']).equals('timeout');
     check(await h.shutdown()).equals(0);
   });
+
+  test('interaction events pause the deadline in the worker isolate too (protocol 1.3)', () async {
+    const deadline = Duration(milliseconds: 300);
+    final IsolateWorkerHarness h = await IsolateWorkerHarness.start(_loopConfig(deadline: deadline));
+    await h.handshake();
+    check((await h.loadLoopPackage()).error).isNull();
+    final String id = h.search('host');
+    ProtocolFrame? early;
+    final Future<ProtocolFrame> reply = h.reply(id);
+    unawaited(reply.then((ProtocolFrame f) => early = f));
+    h.event(WorkerInteractionStarted.op, WorkerInteractionStarted(of: id, timeout: deadline * 10).toJson());
+    await Future<void>.delayed(deadline * 4);
+    // Well past the deadline, and still waiting: the engine deadline is paused.
+    check(early).isNull();
+    h.event(WorkerInteractionEnded.op, WorkerInteractionEnded(of: id, paused: deadline * 4).toJson());
+    check((await reply.timeout(const Duration(seconds: 10))).error!['code']).equals('timeout');
+    check(await h.shutdown()).equals(0);
+  });
 }

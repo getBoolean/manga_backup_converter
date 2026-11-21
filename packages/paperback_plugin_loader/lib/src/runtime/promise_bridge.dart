@@ -117,15 +117,16 @@ final class PromiseBridge {
   ///
   /// Jobs run in slices of `limits.jobSlice`, each followed by a timer turn
   /// so stdin, cancellation and host I/O are serviced. The JS interrupt
-  /// handler enforces [deadlineNs] while jobs run; a Dart timer enforces it
-  /// while waiting on host calls. A promise that is pending with no queued
+  /// handler enforces the runtime's deadline while jobs run; a Dart timer
+  /// enforces it while waiting on host calls, re-armed whenever the deadline
+  /// is paused or resumed (`SourceJsRuntime.pauseDeadline`). A promise that is pending with no queued
   /// jobs and no host calls can never settle and fails immediately.
-  Future<JsValue> settle(JsValue promise, {required int deadlineNs, required CancellationToken cancel}) async {
+  Future<JsValue> settle(JsValue promise, {required CancellationToken cancel}) async {
     final JsContext context = _runtime.context;
     while (true) {
       _runtime.checkAlive();
-      _throwIfStopped(cancel, deadlineNs);
-      final JsJobDrain drain = _runtime.drainSlice(deadlineNs);
+      _throwIfStopped(cancel);
+      final JsJobDrain drain = _runtime.drainSlice();
       // An interrupt inside a promise job can surface as a rejection rather
       // than a job error; the runtime's sticky reason is authoritative.
       final PaperbackRuntimeException? interrupted = _runtime.interruptFailure();
@@ -162,18 +163,18 @@ final class PromiseBridge {
           reason: PaperbackFailureReason.neverSettles,
         );
       }
-      await _waitForProgress(deadlineNs, cancel);
+      await _waitForProgress(cancel);
     }
   }
 
-  void _throwIfStopped(CancellationToken cancel, int deadlineNs) {
+  void _throwIfStopped(CancellationToken cancel) {
     if (cancel.isCancelled) {
       throw PaperbackRuntimeException(
         CancelledFailure(cancel.reason ?? 'cancelled'),
         reason: PaperbackFailureReason.cancelled,
       );
     }
-    if (QuickJs.nowNanoseconds() >= deadlineNs) {
+    if (!_runtime.deadlinePaused && QuickJs.nowNanoseconds() >= _runtime.currentDeadlineNs) {
       throw const PaperbackRuntimeException(
         TimeoutFailure('The operation exceeded its deadline'),
         reason: PaperbackFailureReason.deadline,
@@ -181,9 +182,16 @@ final class PromiseBridge {
     }
   }
 
-  Future<void> _waitForProgress(int deadlineNs, CancellationToken cancel) async {
+  /// Waits for a host call to settle, the deadline to pass, cancellation,
+  /// or a pause or resume of the deadline ([wake]). While the deadline is
+  /// paused no timer runs.
+  Future<void> _waitForProgress(CancellationToken cancel) async {
     final Completer<void> progress = _progress ??= Completer<void>();
-    final int remainingUs = (deadlineNs - QuickJs.nowNanoseconds()) ~/ 1000;
+    if (_runtime.deadlinePaused) {
+      await Future.any(<Future<void>>[progress.future, cancel.whenCancelled]);
+      return;
+    }
+    final int remainingUs = (_runtime.currentDeadlineNs - QuickJs.nowNanoseconds()) ~/ 1000;
     final timer = Completer<void>();
     final t = Timer(Duration(microseconds: remainingUs < 0 ? 0 : remainingUs), timer.complete);
     try {
@@ -192,6 +200,10 @@ final class PromiseBridge {
       t.cancel();
     }
   }
+
+  /// Wakes a waiting [settle] so it re-reads the deadline.
+  @internal
+  void wake() => _signal();
 
   /// One event-loop turn through the timer queue. A microtask yield would
   /// not let I/O run.

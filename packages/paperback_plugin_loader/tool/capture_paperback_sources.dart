@@ -127,6 +127,9 @@ Future<void> _capture(String site, String exe, {String? only, Directory? out}) a
         '--record-source=$site',
         '--record-min-interval-ms=1500',
         '--record-licence=${captureTerms[site]}',
+        for (final MapEntry<String, CapturedCookieValue> c
+            in (captureSetCookies[site] ?? const <String, CapturedCookieValue>{}).entries)
+          '--record-cookie=${c.key}:${c.value.name}',
       ],
       environment: scrubbedEnvironment(),
     ),
@@ -220,6 +223,7 @@ void _merge(Directory into, Directory from, String only) {
           '${fresh.recordedAt.toUtc().toIso8601String()} (${fresh.exchanges.length} exchanges, replacing '
           '${dropped.length}), sanitized',
       volatileQueryParameters: committed.volatileQueryParameters,
+      setCookieAllowList: <String, CapturedCookieValue>{...committed.setCookieAllowList, ...fresh.setCookieAllowList},
       exchanges: exchanges,
     ).encode(),
   );
@@ -321,6 +325,7 @@ Future<void> _prune(Directory dir, String site) async {
           '${committed.notes}; pruned to the exchanges the current bundles request '
           '(${committed.exchanges.length - kept.length} removed)',
       volatileQueryParameters: committed.volatileQueryParameters,
+      setCookieAllowList: committed.setCookieAllowList,
       exchanges: kept,
     ).encode(),
   );

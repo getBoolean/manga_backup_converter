@@ -88,6 +88,16 @@ final class SourceJsRuntime {
   late final PromiseBridge bridge;
   bool _busy = false;
   bool _closed = false;
+
+  /// The running operation's deadline (QuickJS monotonic nanoseconds), or
+  /// `null` between operations.
+  int? _deadlineNs;
+
+  /// Nesting depth of [pauseDeadline] calls in the running operation.
+  int _pauseDepth = 0;
+
+  /// The budget left when the deadline was paused, in nanoseconds.
+  int _pausedRemainingNs = 0;
   String? _closedReason;
 
   bool get isClosed => _closed;
@@ -112,48 +122,86 @@ final class SourceJsRuntime {
     if (!_token.isReleased) _token.request();
   }
 
+  /// Whether the running operation's deadline is paused ([pauseDeadline]).
+  bool get deadlinePaused => _pauseDepth > 0;
+
+  /// Stops counting time against the running operation's deadline, for
+  /// example while a visible browser interaction is pending (protocol 1.3,
+  /// "Deadline pause"). Calls nest; each needs a matching [resumeDeadline].
+  /// Has no effect between operations; an operation's end clears any pause.
+  ///
+  /// JS that runs while paused (other host calls settling) gets the budget
+  /// that was left at the pause, so a loop is still interrupted.
+  void pauseDeadline() {
+    final int? deadline = _deadlineNs;
+    if (deadline == null || _closed) return;
+    if (_pauseDepth++ == 0) {
+      final int left = deadline - QuickJs.nowNanoseconds();
+      _pausedRemainingNs = left < 0 ? 0 : left;
+      bridge.wake();
+    }
+  }
+
+  /// Resumes the deadline paused by [pauseDeadline]: the operation keeps the
+  /// budget it had left when paused. Extra calls are ignored.
+  void resumeDeadline() {
+    if (_pauseDepth == 0 || _deadlineNs == null) return;
+    if (--_pauseDepth == 0) {
+      _deadlineNs = QuickJs.nowNanoseconds() + _pausedRemainingNs;
+      bridge.wake();
+    }
+  }
+
+  /// The deadline in force now: while paused, the remaining budget counted
+  /// from this moment.
+  @internal
+  int get currentDeadlineNs {
+    final int deadline = _deadlineNs ?? (throw StateError('$name is not running an operation'));
+    return _pauseDepth > 0 ? QuickJs.nowNanoseconds() + _pausedRemainingNs : deadline;
+  }
+
   /// Evaluates script code under the operation deadline. A promise result is
   /// awaited through the bridge. Returns the result as Dart data.
   Future<Object?> evaluate(String code, {String filename = '<source>', CancellationToken? cancel}) =>
-      _operation(cancel, (int deadlineNs) => context.eval(code, filename: filename));
+      _operation(cancel, () => context.eval(code, filename: filename));
 
   /// Calls the global function [function] with [args] (Dart data) and awaits
   /// its result.
-  Future<Object?> call(String function, List<Object?> args, {CancellationToken? cancel}) =>
-      _operation(cancel, (int deadlineNs) {
-        final JsValue global = context.global;
-        try {
-          final JsValue fn = global.getProperty(function);
-          try {
-            if (fn.kind != JsValueKind.function) {
-              throw PaperbackRuntimeException(
-                SourceErrorFailure('$name does not define a function named "$function"'),
-                reason: PaperbackFailureReason.sourceError,
-              );
-            }
-            final jsArgs = <JsValue>[for (final Object? a in args) context.fromDart(a)];
-            try {
-              return context.call(fn, thisValue: global, args: jsArgs);
-            } finally {
-              for (final a in jsArgs) {
-                a.dispose();
-              }
-            }
-          } finally {
-            fn.dispose();
-          }
-        } finally {
-          global.dispose();
+  Future<Object?> call(String function, List<Object?> args, {CancellationToken? cancel}) => _operation(cancel, () {
+    final JsValue global = context.global;
+    try {
+      final JsValue fn = global.getProperty(function);
+      try {
+        if (fn.kind != JsValueKind.function) {
+          throw PaperbackRuntimeException(
+            SourceErrorFailure('$name does not define a function named "$function"'),
+            reason: PaperbackFailureReason.sourceError,
+          );
         }
-      });
+        final jsArgs = <JsValue>[for (final Object? a in args) context.fromDart(a)];
+        try {
+          return context.call(fn, thisValue: global, args: jsArgs);
+        } finally {
+          for (final a in jsArgs) {
+            a.dispose();
+          }
+        }
+      } finally {
+        fn.dispose();
+      }
+    } finally {
+      global.dispose();
+    }
+  });
 
-  Future<Object?> _operation(CancellationToken? cancel, JsValue Function(int deadlineNs) start) async {
+  Future<Object?> _operation(CancellationToken? cancel, JsValue Function() start) async {
     checkAlive();
     if (_busy) throw StateError('$name is already running an operation');
     _busy = true;
     final CancellationToken token = cancel ?? CancellationToken.none;
     final Duration deadline = operationDeadlineOverride ?? limits.operationDeadline;
-    final int deadlineNs = QuickJs.nowNanoseconds() + deadline.inMicroseconds * 1000;
+    _deadlineNs = QuickJs.nowNanoseconds() + deadline.inMicroseconds * 1000;
+    _pauseDepth = 0;
     _token.reset();
     _runtime.clearInterrupt();
     bridge.endOperation();
@@ -166,9 +214,9 @@ final class SourceJsRuntime {
           reason: PaperbackFailureReason.cancelled,
         );
       }
-      final JsValue result = _runJs(deadlineNs, () => start(deadlineNs));
+      final JsValue result = _runJs(start);
       try {
-        final JsValue settled = await bridge.settle(result, deadlineNs: deadlineNs, cancel: token);
+        final JsValue settled = await bridge.settle(result, cancel: token);
         try {
           return context.toDart(settled);
         } on JsConversionException catch (e) {
@@ -188,12 +236,14 @@ final class SourceJsRuntime {
     } finally {
       if (!_closed) bridge.endOperation();
       await onCancel.cancel();
+      _deadlineNs = null;
+      _pauseDepth = 0;
       _busy = false;
     }
   }
 
-  T _runJs<T>(int deadlineNs, T Function() body) {
-    _runtime.deadlineNanoseconds = deadlineNs;
+  T _runJs<T>(T Function() body) {
+    _runtime.deadlineNanoseconds = currentDeadlineNs;
     try {
       return body();
     } on JsException catch (e) {
@@ -203,8 +253,10 @@ final class SourceJsRuntime {
     }
   }
 
-  /// Runs pending jobs for at most one `limits.jobSlice`, under [deadlineNs].
-  JsJobDrain drainSlice(int deadlineNs) {
+  /// Runs pending jobs for at most one `limits.jobSlice`, under the current
+  /// deadline ([currentDeadlineNs]).
+  JsJobDrain drainSlice() {
+    final int deadlineNs = currentDeadlineNs;
     final int sliceEnd = QuickJs.nowNanoseconds() + limits.jobSlice.inMicroseconds * 1000;
     _runtime.deadlineNanoseconds = deadlineNs;
     try {

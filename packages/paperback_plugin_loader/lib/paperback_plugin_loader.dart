@@ -19,7 +19,6 @@ export 'src/runtime/limit_sizing.dart';
 export 'src/runtime/promise_bridge.dart' show AsyncHostFunction, HostCallError, PromiseBridge;
 export 'src/runtime/quickjs_runtime.dart';
 export 'src/runtime/runtime_limits.dart';
-export 'src/runtime/settings_scopes.dart';
 export 'src/runtime/worker.dart';
 export 'src/worker_main.dart';
 export 'src/worker_plan.dart';

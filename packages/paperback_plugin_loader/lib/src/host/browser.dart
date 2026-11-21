@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:paperback_plugin_loader/src/runtime/worker.dart' show paperbackProtocolMinor;
 import 'package:source_runtime/source_runtime.dart';
 
 /// Sends one `host.browser.*` request and returns its `ok` payload or a
@@ -17,6 +18,12 @@ abstract interface class PaperbackBrowserChannel {
   /// Page messages (`host.browser.message` events) for this channel's
   /// sessions.
   Stream<HostBrowserMessage> get messages;
+
+  /// Whether this channel itself pauses the engine deadline while a
+  /// `host.browser.show` is pending (protocol 1.3 "Deadline pause"): the
+  /// worker does, on the supervisor's `interaction.started`/`ended` events.
+  /// When `false` the host pauses around its own `show` request instead.
+  bool get pausesForInteraction;
 }
 
 /// A failed browser step; [failure] is reported as the operation's failure.
@@ -107,15 +114,28 @@ final class _PageState {
 /// HTML with its base URL, run the injected function body, read the cookies
 /// back, and close the session.
 ///
-/// `inject` may return a promise, and `BrowserPort.evaluate` does not promise
-/// to await one, so the result travels back through the protocol 1.1 message
-/// channel (`window.<channel>.postMessage`), which every port implements
-/// identically; `evaluate` only starts the function.
+/// `inject` may return a promise. A protocol 1.3 `evaluate` awaits it, so
+/// the settled result comes back as the evaluate reply, and a throwing or
+/// rejecting script is a `scriptError` that rejects at once. An older
+/// engine replies before the promise settles, so the result also travels
+/// through the protocol 1.1 message channel (`window.<channel>.postMessage`),
+/// which every port implements identically; whichever arrives first wins.
 final class PaperbackBrowser {
-  PaperbackBrowser(this.channel, {required this.sourceId, required this.resultTimeout});
+  PaperbackBrowser(
+    this.channel, {
+    required this.sourceId,
+    required this.resultTimeout,
+    this.pauseDeadline,
+    this.resumeDeadline,
+  });
 
   final PaperbackBrowserChannel channel;
   final String sourceId;
+
+  /// Pause and resume the engine deadline around a visible interaction when
+  /// the [channel] does not ([PaperbackBrowserChannel.pausesForInteraction]).
+  final void Function()? pauseDeadline;
+  final void Function()? resumeDeadline;
 
   /// Bound on waiting for the injected function's result; the operation
   /// deadline still applies around the whole call.
@@ -151,7 +171,29 @@ final class PaperbackBrowser {
       try {
         await _send(HostBrowserSetMessageHandler(session: session, name: resultChannel, enabled: true), cancel);
         await _send(HostBrowserLoadData(session: session, html: context.html, baseUrl: base), cancel);
-        await _send(HostBrowserEvaluate(session: session, script: _runner(context.inject)), cancel);
+        // A 1.3 engine answers with the settled `{ok}` / `{error}`; an older
+        // one with the unsettled promise, and the message channel delivers.
+        unawaited(
+          _send(HostBrowserEvaluate(session: session, script: _runner(context.inject)), cancel).then(
+            (HostBrowserEvaluated evaluated) {
+              if (result.isCompleted) return;
+              final String? thrown = evaluated.scriptError;
+              if (thrown != null) {
+                result.completeError(
+                  PaperbackBrowserException(SourceErrorFailure('executeInWebView script threw: $thrown')),
+                );
+                return;
+              }
+              final Object? settled = _tryDecode(evaluated.result);
+              if (settled is Map<String, Object?> && (settled.containsKey('ok') || settled.containsKey('error'))) {
+                result.complete(jsonEncode(settled));
+              }
+            },
+            onError: (Object e, StackTrace st) {
+              if (!result.isCompleted) result.completeError(e, st);
+            },
+          ),
+        );
         final String message =
             await Future.any(<Future<String>>[
               result.future,
@@ -228,10 +270,10 @@ final class PaperbackBrowser {
         state = await _pageState(session, cancel);
       }
       if (state.challenged) {
-        // The user solves it in a visible window. The page is probed again
-        // once `show` completes; the contract does not yet say whether it
-        // completes when the window closes or only when the bound expires.
-        await _send(HostBrowserShow(session: session), cancel);
+        // The user solves it in a visible window. `show` completes when the
+        // user closes the window (protocol 1.3), and the page is probed
+        // again; its bound fails as interaction-required.
+        await _show(session, cancel);
         state = await _pageState(session, cancel);
         if (state.challenged) {
           throw PaperbackBrowserException(
@@ -246,6 +288,18 @@ final class PaperbackBrowser {
       };
     } finally {
       await channel.send(HostBrowserClose(session: session), CancellationToken.none);
+    }
+  }
+
+  /// `host.browser.show`, with the engine deadline paused while it is
+  /// pending when the channel does not pause it itself.
+  Future<HostBrowserShown> _show(String session, CancellationToken cancel) async {
+    final bool pauseHere = !channel.pausesForInteraction;
+    if (pauseHere) pauseDeadline?.call();
+    try {
+      return await _send(HostBrowserShow(session: session), cancel);
+    } finally {
+      if (pauseHere) resumeDeadline?.call();
     }
   }
 
@@ -293,18 +347,19 @@ final class PaperbackBrowser {
     }
   }
 
-  /// Starts [inject] as an async function and posts `{ok}` or `{error}` on
-  /// the result channel. `evaluate` itself returns `true` at once.
+  /// Runs [inject] as an async function. Its completion value is a promise
+  /// of `{ok}` or `{error}` (what a 1.3 `evaluate` replies with), and the
+  /// same object is posted on the result channel for older engines.
   static String _runner(String inject) =>
       '''
 (function () {
-  const post = (v) => window.$resultChannel.postMessage(JSON.stringify(v));
-  Promise.resolve()
+  const post = (v) => { try { window.$resultChannel.postMessage(JSON.stringify(v)); } catch (_) {} };
+  return Promise.resolve()
     .then(async () => { const r = await (async function () {
 $inject
-    })(); post({ ok: r === undefined ? null : r }); })
-    .catch((e) => post({ error: String((e && e.message) || e) }));
-  return true;
+    })(); return { ok: r === undefined ? null : r }; })
+    .catch((e) => ({ error: String((e && e.message) || e) }))
+    .then((v) => { post(v); return v; });
 })()''';
 }
 
@@ -341,6 +396,11 @@ final class InProcessBrowserChannel implements PaperbackBrowserChannel {
   @override
   Stream<HostBrowserMessage> get messages => _messages.stream;
 
+  /// No supervisor sends interaction events in process; the host pauses
+  /// the engine deadline around its own `show` (protocol 1.3).
+  @override
+  bool get pausesForInteraction => false;
+
   @override
   Future<SourceOutcome<Map<String, Object?>>> send(
     HostBrowserRequest<ProtocolPayload> request,
@@ -352,6 +412,9 @@ final class InProcessBrowserChannel implements PaperbackBrowserChannel {
       packageId: _packageId,
       generation: generation,
       cancel: cancel,
+      // The host speaks the worker's protocol, so the bridge serves it the
+      // same minor (script errors, the `show` outcome).
+      protocolMinor: paperbackProtocolMinor,
     ),
   );
 

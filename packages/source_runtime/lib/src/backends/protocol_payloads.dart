@@ -1,4 +1,4 @@
-/// Typed request and response payloads of worker protocol 1.2 (KTD4).
+/// Typed request and response payloads of worker protocol 1.3 (KTD4).
 ///
 /// These classes are the source of truth for every `payload` (request) and
 /// `ok` (response) object; `doc/protocol-v1.md` describes the same shapes for
@@ -15,8 +15,12 @@
 /// (`SettingsPayload.sources`). Minor 2 added browser capabilities on
 /// `host.browser.open`, `scriptError` on `host.browser.evaluate`, and the
 /// `host.browser.addPageStartScript`, `setRequestInterception` and
-/// `respond` reverse requests with the `host.browser.request` event. Fields
-/// added in a minor version decode as absent from an older peer.
+/// `respond` reverse requests with the `host.browser.request` event. Minor 3
+/// added `PackageLoadRequest.apiFamily`, the `host.browser.show` reply's
+/// `outcome`, `host.browser.endInteraction`, the `interaction.started` and
+/// `interaction.ended` events, and the `trust` field on
+/// `artifact-incompatible` errors. Fields added in a minor version decode
+/// as absent from an older peer.
 library;
 
 import 'dart:convert';
@@ -433,7 +437,7 @@ final class ArtifactPrepareResponse implements ProtocolPayload {
 /// `package.load`: the effective settings of source `S` are [values] with
 /// `sources[S].values` laid over them (likewise for secrets). Keys are
 /// plain setting keys; they carry no source prefix.
-final class SettingsPayload implements ProtocolPayload {
+final class SettingsPayload with ScopedSettingsView implements ProtocolPayload {
   SettingsPayload({
     required Map<String, Object> values,
     required Map<String, String> secrets,
@@ -463,16 +467,16 @@ final class SettingsPayload implements ProtocolPayload {
   );
 
   /// Each a `String`, `bool`, `int` or sorted, deduplicated `List<String>`.
+  @override
   final Map<String, Object> values;
+  @override
   final Map<String, String> secrets;
 
   /// Per-source overrides keyed by source ID; absent from a 1.0 supervisor.
+  /// Resolve one source's settings with [valuesFor] and [secretsFor].
+  @override
   final Map<String, SourceScopedSettings> sources;
   final String revision;
-
-  /// Whether a 1.0 worker could not read this payload (string sets or
-  /// source scopes).
-  bool get needsProtocol11 => sources.isNotEmpty || values.values.any((Object v) => v is List<String>);
 
   @override
   Map<String, Object?> toJson() => <String, Object?>{
@@ -501,12 +505,13 @@ SourceScopedSettings _scope(String key, Object? json) {
 /// `package.load` request: load the verified artifact at [path] into its own
 /// class loader or runtime with [settings].
 final class PackageLoadRequest extends WorkerRequest<PackageLoadResponse> {
-  const PackageLoadRequest({required this.artifact, required this.path, required this.settings});
+  const PackageLoadRequest({required this.artifact, required this.path, required this.settings, this.apiFamily});
 
   factory PackageLoadRequest.fromJson(Map<String, Object?> json) => PackageLoadRequest(
     artifact: _binding(json, 'artifact'),
     path: _string(json, 'path'),
     settings: SettingsPayload.fromJson(_object(json, 'settings')),
+    apiFamily: _optString(json, 'apiFamily'),
   );
 
   final ArtifactBinding artifact;
@@ -514,6 +519,14 @@ final class PackageLoadRequest extends WorkerRequest<PackageLoadResponse> {
   /// Path of the privately staged, just re-verified artifact.
   final String path;
   final SettingsPayload settings;
+
+  /// The source API family the trust decision bound to the artifact (1.3),
+  /// for example `paperback-0.9` or `tachi-1.5` (KTD6). The worker hosts
+  /// the package as that family and fails `unsupported-api` for one it
+  /// cannot host. `null` from a supervisor before 1.3, or for a package
+  /// without a family; a worker then falls back to what it did before
+  /// (Paperback: the family encoded in [ArtifactBinding.kind]).
+  final String? apiFamily;
 
   @override
   WorkerOperation get operation => WorkerOperation.packageLoad;
@@ -526,6 +539,7 @@ final class PackageLoadRequest extends WorkerRequest<PackageLoadResponse> {
     'artifact': artifact.toJson(),
     'path': path,
     'settings': settings.toJson(),
+    if (apiFamily != null) 'apiFamily': apiFamily,
   };
 }
 
@@ -807,7 +821,8 @@ enum HostBrowserOperation {
   close('host.browser.close'),
   addPageStartScript('host.browser.addPageStartScript', sinceMinor: 2),
   setRequestInterception('host.browser.setRequestInterception', sinceMinor: 2),
-  respond('host.browser.respond', sinceMinor: 2);
+  respond('host.browser.respond', sinceMinor: 2),
+  endInteraction('host.browser.endInteraction', sinceMinor: 3);
 
   const HostBrowserOperation(this.wire, {this.sinceMinor = 0});
 
@@ -850,6 +865,7 @@ sealed class HostBrowserRequest<R extends ProtocolPayload> implements ProtocolPa
         HostBrowserOperation.addPageStartScript => HostBrowserAddPageStartScript.fromJson(p),
         HostBrowserOperation.setRequestInterception => HostBrowserSetRequestInterception.fromJson(p),
         HostBrowserOperation.respond => HostBrowserRespond.fromJson(p),
+        HostBrowserOperation.endInteraction => HostBrowserEndInteraction.fromJson(p),
       };
 }
 
@@ -1127,13 +1143,63 @@ final class HostBrowserSetUserAgent extends HostBrowserSessionRequest<EmptyPaylo
 /// `host.browser.show`: show the session for a user interaction. The
 /// originating operation's deadline is paused while it is open and the
 /// interaction is bounded separately (KTD4).
-final class HostBrowserShow extends HostBrowserSessionRequest<EmptyPayload> {
+///
+/// Completion (1.3, `showBrowserInteraction`): the reply is `ok` when the
+/// user closed the window (`outcome: closed`) or the worker ended the
+/// interaction with [HostBrowserEndInteraction] (`outcome: completed`);
+/// `interaction-required` when the interaction bound elapsed or no display
+/// exists; `cancelled` when the operation was cancelled or the session
+/// closed.
+final class HostBrowserShow extends HostBrowserSessionRequest<HostBrowserShown> {
   const HostBrowserShow({required super.session});
 
   factory HostBrowserShow.fromJson(Map<String, Object?> json) => HostBrowserShow(session: _string(json, 'session'));
 
   @override
   HostBrowserOperation get operation => HostBrowserOperation.show;
+
+  @override
+  HostBrowserShown decodeResponse(Map<String, Object?> ok) => HostBrowserShown.fromJson(ok);
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'session': session};
+}
+
+/// `host.browser.show` reply: how the interaction ended.
+final class HostBrowserShown implements ProtocolPayload {
+  const HostBrowserShown({this.outcome});
+
+  /// Reads `{}` (a pre-1.3 supervisor) as an unknown [outcome]; an unknown
+  /// outcome name from a newer peer reads the same way.
+  factory HostBrowserShown.fromJson(Map<String, Object?> json) =>
+      HostBrowserShown(outcome: BrowserInteractionEnd.fromWire(_optString(json, 'outcome')));
+
+  /// `closed` or `completed` (1.3); `null` from a pre-1.3 supervisor, which
+  /// only ever answered `ok` when the platform's show returned.
+  final BrowserInteractionEnd? outcome;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{if (outcome != null) 'outcome': outcome!.wire};
+}
+
+/// `host.browser.endInteraction` (1.3): the page signalled completion, so
+/// end the interaction pending in [session]. Its `host.browser.show`
+/// replies `ok` with `outcome: completed`, the window is hidden, and the
+/// session stays open. Answered `cancelled` when no interaction is shown in
+/// the session.
+///
+/// The worker sends it while its `host.browser.show` is still pending, so
+/// it must come from a thread other than the one waiting on the show's
+/// `rres` (the Tachi shim: its frame reader, on a `host.browser.message`
+/// event or after polling cookies).
+final class HostBrowserEndInteraction extends HostBrowserSessionRequest<EmptyPayload> {
+  const HostBrowserEndInteraction({required super.session});
+
+  factory HostBrowserEndInteraction.fromJson(Map<String, Object?> json) =>
+      HostBrowserEndInteraction(session: _string(json, 'session'));
+
+  @override
+  HostBrowserOperation get operation => HostBrowserOperation.endInteraction;
 
   @override
   EmptyPayload decodeResponse(Map<String, Object?> ok) => EmptyPayload.fromJson(ok);
@@ -1368,6 +1434,65 @@ BrowserReplacement browserReplacementFromJson(Map<String, Object?> json) {
   final String? invalid = replacement.invalidReason;
   if (invalid != null) throw FormatException('Invalid replacement: $invalid');
   return replacement;
+}
+
+/// `interaction.started` event (1.3, supervisor → worker): a visible
+/// interaction of the operation [of] is in progress, so the supervisor has
+/// paused that operation's deadline.
+///
+/// Worker obligation: pause every engine deadline of operation [of] (the
+/// QuickJS interrupt budget, a JVM watchdog) until the matching
+/// [WorkerInteractionEnded]. The interaction itself is bounded by
+/// [timeout]; the supervisor enforces it. Sent once when the first
+/// `host.browser.show` of [of] begins, however many overlap, and only to a
+/// worker that negotiated 1.3.
+final class WorkerInteractionStarted implements ProtocolPayload {
+  const WorkerInteractionStarted({required this.of, required this.timeout});
+
+  factory WorkerInteractionStarted.fromJson(Map<String, Object?> json) => WorkerInteractionStarted(
+    of: _string(json, 'of'),
+    timeout: Duration(milliseconds: _int(json, 'timeoutMs')),
+  );
+
+  /// The event frame's `op`.
+  static const String op = 'interaction.started';
+
+  /// The `id` of the originating `req`.
+  final String of;
+
+  /// The supervisor's bound on the interaction.
+  final Duration timeout;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'of': of, 'timeoutMs': timeout.inMilliseconds};
+}
+
+/// `interaction.ended` event (1.3, supervisor → worker): no visible
+/// interaction of operation [of] is in progress any more; the supervisor
+/// resumed its deadline, and the worker resumes its engine deadlines.
+///
+/// Written before the `rres` of the `host.browser.show` that ended last, so
+/// a worker always sees it before that reply. A fenced generation (restart,
+/// failure, close) ends every interaction without this event.
+final class WorkerInteractionEnded implements ProtocolPayload {
+  const WorkerInteractionEnded({required this.of, required this.paused});
+
+  factory WorkerInteractionEnded.fromJson(Map<String, Object?> json) => WorkerInteractionEnded(
+    of: _string(json, 'of'),
+    paused: Duration(milliseconds: _int(json, 'pausedMs')),
+  );
+
+  /// The event frame's `op`.
+  static const String op = 'interaction.ended';
+
+  /// The `id` of the originating `req`.
+  final String of;
+
+  /// How long the supervisor kept the deadline paused.
+  final Duration paused;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'of': of, 'pausedMs': paused.inMilliseconds};
 }
 
 /// `host.browser.message` event (supervisor → worker): a page posted

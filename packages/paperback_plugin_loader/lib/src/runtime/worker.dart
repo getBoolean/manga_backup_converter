@@ -26,12 +26,20 @@ abstract interface class PaperbackPackageAdapter {
   );
 }
 
-/// Highest minor version of protocol 1 this worker implements: 1.1 adds
-/// string-set settings and source scopes (`SettingsPayload.sources`), which
-/// this worker passes to its adapter, and handshake `limits`. Kept local so a
-/// newer `source_runtime` cannot make the worker claim a minor it does not
-/// implement.
-const int paperbackProtocolMinor = 1;
+/// Highest minor version of protocol 1 this worker implements:
+///
+/// - 1.1: string-set settings and source scopes (`SettingsPayload.sources`),
+///   which this worker passes to its adapter, and handshake `limits`.
+/// - 1.2: browser capabilities and `scriptError` replies; nothing here
+///   depends on the other 1.2 browser operations.
+/// - 1.3: `package.load` `apiFamily`, the `interaction.started` /
+///   `interaction.ended` events (the QuickJS deadline is paused between
+///   them), the `show` reply's `outcome`, evaluate awaiting promises, and
+///   `trust` on `artifact-incompatible` failures.
+///
+/// Kept local so a newer `source_runtime` cannot make the worker claim a
+/// minor it does not implement.
+const int paperbackProtocolMinor = 3;
 
 /// The limits this worker reports in its handshake (protocol 1.1, KTD25):
 /// the QuickJS limits as runtime-specific fields, plus the standard limit
@@ -57,7 +65,7 @@ WorkerReportedLimits reportedLimits(PaperbackRuntimeLimits limits, {Duration dea
       fields: <String, Object?>{...limits.toJson(), 'deadlineHeadroomMicros': deadlineHeadroom.inMicroseconds},
     );
 
-/// The Paperback worker: speaks protocol 1.1 over `input`/`output` (KTD4) and
+/// The Paperback worker: speaks protocol 1.3 over `input`/`output` (KTD4) and
 /// owns one QuickJS runtime per loaded package on this isolate (KTD2).
 ///
 /// Cancellation: a `cancel` frame cancels the operation and requests the
@@ -118,6 +126,9 @@ final class PaperbackSourceWorker {
   final Map<String, SourceJsRuntime> _packages = <String, SourceJsRuntime>{};
   final Map<String, _InFlight> _inFlight = <String, _InFlight>{};
   int _generation = 0;
+
+  /// The minor version negotiated in the handshake (0 before it).
+  int _protocolMinor = 0;
   bool _shuttingDown = false;
   late final _WorkerBrowserChannel _browser = _WorkerBrowserChannel(this);
   final Map<String, _PendingReverse> _reverse = <String, _PendingReverse>{};
@@ -160,27 +171,40 @@ final class PaperbackSourceWorker {
         pending.completer.complete(
           error == null
               ? SourceSuccess<Map<String, Object?>>(frame.ok ?? const <String, Object?>{})
-              : SourceFailed<Map<String, Object?>>(
-                  SourceFailure.fromWire(
-                    error['code'] as String? ?? 'source-error',
-                    error['message'] as String? ?? '',
-                    operation: error['operation'] as String?,
-                  ),
-                ),
+              // `fromJson` keeps every wire field, so a trust reason or a
+              // named capability survives the rebuild.
+              : SourceFailed<Map<String, Object?>>(SourceFailure.fromJson(error)),
         );
       case FrameType.event:
-        final Map<String, Object?>? payload = frame.payload;
-        if (frame.op == HostBrowserMessage.op && payload != null) {
-          try {
-            _browser.deliver(HostBrowserMessage.fromJson(payload));
-          } on FormatException catch (e) {
-            _log('[paperback-worker] malformed browser message: ${e.message}');
-          }
-        } else {
-          _log('[paperback-worker] ignoring event ${frame.op}');
-        }
+        _onEvent(frame);
       case FrameType.response || FrameType.reverseRequest:
         _log('[paperback-worker] protocol violation: ${frame.type.wire} sent to the worker');
+    }
+  }
+
+  void _onEvent(ProtocolFrame frame) {
+    final Map<String, Object?>? payload = frame.payload;
+    if (payload == null) {
+      _log('[paperback-worker] ignoring event ${frame.op} without a payload');
+      return;
+    }
+    try {
+      switch (frame.op) {
+        case HostBrowserMessage.op:
+          _browser.deliver(HostBrowserMessage.fromJson(payload));
+        // Protocol 1.3 "Deadline pause": the supervisor paused operation
+        // `of`'s deadline for a visible interaction; pause its engine
+        // deadline for the same span. Only these events resume it, never
+        // the `show` reply.
+        case WorkerInteractionStarted.op:
+          _inFlight[WorkerInteractionStarted.fromJson(payload).of]?.pause();
+        case WorkerInteractionEnded.op:
+          _inFlight[WorkerInteractionEnded.fromJson(payload).of]?.resume();
+        default:
+          _log('[paperback-worker] ignoring event ${frame.op}');
+      }
+    } on FormatException catch (e) {
+      _log('[paperback-worker] malformed ${frame.op} event: ${e.message}');
     }
   }
 
@@ -204,13 +228,14 @@ final class PaperbackSourceWorker {
           _reply(frame, error: const ProtocolViolationFailure('Worker speaks protocol $protocolVersion only').toWire());
           return;
         }
+        _protocolMinor = request.protocolMinor < paperbackProtocolMinor
+            ? request.protocolMinor
+            : paperbackProtocolMinor;
         _reply(
           frame,
           ok: HandshakeResponse(
             protocolVersion: protocolVersion,
-            protocolMinor: request.protocolMinor < paperbackProtocolMinor
-                ? request.protocolMinor
-                : paperbackProtocolMinor,
+            protocolMinor: _protocolMinor,
             worker: 'paperback',
             workerVersion: workerVersion,
             pid: pid,
@@ -326,7 +351,7 @@ final class PaperbackSourceWorker {
         _packages.remove(packageId)?.dispose();
         final runtime = SourceJsRuntime(limits: limits, name: packageId, log: _log);
         onRuntimeCreated?.call(runtime);
-        op.runtime = runtime;
+        op.attach(runtime);
         try {
           final PackageLoadResponse response = await adapter.load(runtime, request, op.cancel.token);
           _packages[packageId] = runtime;
@@ -348,7 +373,7 @@ final class PaperbackSourceWorker {
         }
         // Admission already refused a package that is absent or closed.
         final SourceJsRuntime runtime = _packages[packageId]!;
-        op.runtime = runtime;
+        op.attach(runtime);
         return adapter.handle(runtime, request, op.cancel.token);
     }
   }
@@ -416,6 +441,28 @@ final class _InFlight {
 
   final CancellationSource cancel;
   SourceJsRuntime? runtime;
+
+  /// Whether an `interaction.started` for this operation is unmatched.
+  bool _paused = false;
+
+  void attach(SourceJsRuntime runtime) {
+    this.runtime = runtime;
+    if (_paused) runtime.pauseDeadline();
+  }
+
+  /// One pause per operation, however many shows overlap (the supervisor
+  /// sends one event pair for them).
+  void pause() {
+    if (_paused) return;
+    _paused = true;
+    runtime?.pauseDeadline();
+  }
+
+  void resume() {
+    if (!_paused) return;
+    _paused = false;
+    runtime?.resumeDeadline();
+  }
 }
 
 /// A protocol failure raised by the worker itself.
@@ -449,6 +496,12 @@ final class _WorkerBrowserChannel implements PaperbackBrowserChannel {
 
   @override
   Stream<HostBrowserMessage> get messages => _messages.stream;
+
+  /// A 1.3 supervisor sends `interaction.started`/`ended`, which pause the
+  /// engine deadline; an older one does not, so the host pauses around its
+  /// own `show` instead.
+  @override
+  bool get pausesForInteraction => _worker._protocolMinor >= 3;
 
   @override
   Future<SourceOutcome<Map<String, Object?>>> send(

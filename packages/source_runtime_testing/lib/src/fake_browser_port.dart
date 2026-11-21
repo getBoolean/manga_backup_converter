@@ -11,10 +11,17 @@ final class FakeWebPage {
     this.redirectTo,
     this.status = 200,
     this.frames = const <Uri>[],
+    this.cookies = const <BrowserCookie>[],
   });
 
   /// The response body as text.
   final String html;
+
+  /// Cookies the response sets (its `Set-Cookie` headers), stored in the
+  /// session's jar when the page or request is served from the network.
+  /// [FakeBrowserPort.replay] fills them from a capture's sanitised
+  /// [CapturedResponse.setCookies].
+  final List<BrowserCookie> cookies;
 
   /// URLs of the page's child frames; scripts run in them through
   /// [FakeBrowserPort.frameScript], and page-start scripts run in them on
@@ -90,9 +97,20 @@ final class FakeBrowserStore {
 /// `localStorage.setItem("k", "v")`, `localStorage.getItem("k")`,
 /// `window.<name> = <JSON literal>` and `window.<name>`,
 /// `window.<channel>.postMessage(<JSON string> | location.href)` (see
-/// [BrowserMessageChannel]), `throw new Error("text")`, scripts carrying a
-/// [fetchMarker] comment, plus the harness markers produced by [heldScript]
-/// and [frameScript]. Page-start scripts use the same subset.
+/// [BrowserMessageChannel]), `throw new Error("text")`, the promise forms of
+/// `BrowserContractScripts` (`Promise.resolve(<JSON>)`,
+/// `Promise.reject(new Error("text"))` and a `setTimeout`-delayed promise;
+/// `evaluate` awaits them), scripts carrying a [fetchMarker] comment, plus
+/// the harness markers produced by [heldScript] and [frameScript].
+/// Page-start scripts use the same subset.
+///
+/// Interaction: without [hasDisplay], `showForInteraction` is
+/// `interaction-required`. With a display and [userClosesInteraction] (the
+/// default), a simulated user closes the window at once. With
+/// [userClosesInteraction] off, the window stays shown until
+/// [closeInteraction] (the user closes it), the call's cancel token (the
+/// window is hidden, the session stays open), its timeout
+/// (`interaction-required`), or the session closing or being fenced.
 class FakeBrowserPort implements BrowserPort {
   FakeBrowserPort({
     FakePageResolver? pages,
@@ -101,6 +119,7 @@ class FakeBrowserPort implements BrowserPort {
     BrowserCapabilities? capabilities,
     this.wipeOnStart = true,
     this.hasDisplay = false,
+    this.userClosesInteraction = true,
     List<CaptureKey>? misses,
   }) : _pages = pages ?? ((_) => null),
        store = store ?? FakeBrowserStore(),
@@ -133,6 +152,10 @@ class FakeBrowserPort implements BrowserPort {
         html: utf8.decode(r.body, allowMalformed: true),
         status: r.status,
         redirectTo: r.status >= 300 && r.status < 400 && location != null ? url.resolve(location) : null,
+        cookies: <BrowserCookie>[
+          for (final CapturedCookie c in r.setCookies)
+            BrowserCookie(name: c.name, value: c.value, domain: c.domain, path: c.path),
+        ],
       );
     }
 
@@ -191,6 +214,23 @@ class FakeBrowserPort implements BrowserPort {
 
   /// Whether a visible interaction can be shown.
   final bool hasDisplay;
+
+  /// Whether a simulated user closes a shown window at once. When false,
+  /// the window stays shown until [closeInteraction], cancellation, the
+  /// timeout, or the session ends.
+  final bool userClosesInteraction;
+
+  /// Number of interaction windows currently shown.
+  int get shownInteractions =>
+      _sessions.fold(0, (int n, FakeBrowserSession s) => n + s._shows.where((c) => !c.isCompleted).length);
+
+  /// Closes every shown interaction window as a user would; each
+  /// `showForInteraction` completes successfully.
+  void closeInteraction() {
+    for (final FakeBrowserSession s in _sessions) {
+      s._endShows(const BrowserCompleted<void>(null));
+    }
+  }
 
   /// Capture keys requested in replay mode without a committed capture.
   final List<CaptureKey> misses;
@@ -301,6 +341,7 @@ class FakeBrowserSession implements BrowserSession {
   bool _fenced = false;
   final Map<String, void Function(String message)> _handlers = <String, void Function(String message)>{};
   final Set<Completer<BrowserOutcome<String>>> _pending = <Completer<BrowserOutcome<String>>>{};
+  final Set<Completer<BrowserOutcome<void>>> _shows = <Completer<BrowserOutcome<void>>>{};
   final List<String> _startScripts = <String>[];
   final Map<String, String> _globals = <String, String>{};
   BrowserRequestObserver? _observer;
@@ -328,6 +369,15 @@ class FakeBrowserSession implements BrowserSession {
       if (!c.isCompleted) c.complete(BrowserCancelled<String>('Generation $generation is fenced'));
     }
     _pending.clear();
+    _endShows(BrowserCancelled<void>('Generation $generation is fenced'));
+  }
+
+  /// Ends every shown interaction window of this session with [outcome].
+  void _endShows(BrowserOutcome<void> outcome) {
+    for (final Completer<BrowserOutcome<void>> c in _shows) {
+      if (!c.isCompleted) c.complete(outcome);
+    }
+    _shows.clear();
   }
 
   // --- requests ------------------------------------------------------------
@@ -401,7 +451,14 @@ class FakeBrowserSession implements BrowserSession {
       }
     }
     final FakeWebPage? page = network();
-    return page == null ? const _Failed('No such page') : _Served(page);
+    if (page == null) return const _Failed('No such page');
+    if (_alive) {
+      final Map<String, BrowserCookie> jar = _port.store.cookiesFor(_key);
+      for (final BrowserCookie c in page.cookies) {
+        jar[c.name] = c;
+      }
+    }
+    return _Served(page);
   }
 
   // --- documents -----------------------------------------------------------
@@ -498,20 +555,37 @@ class FakeBrowserSession implements BrowserSession {
       return const BrowserCompleted<String>('null');
     }
     if (s.startsWith(FakeBrowserPort.fetchMarker)) return _fetch(s);
-    final RegExpMatch? thrown = _throwPattern.firstMatch(s);
-    if (thrown != null) {
-      final message = 'Error: ${jsonDecode(thrown[1]!)}';
-      return capabilities.supports(BrowserFeature.scriptErrors)
-          ? BrowserScriptError<String>(message)
-          : const BrowserCompleted<String>('null');
+    final RegExpMatch? thrown = _throwPattern.firstMatch(s) ?? _rejectedPattern.firstMatch(s);
+    if (thrown != null) return _scriptError('Error: ${jsonDecode(thrown[1]!)}');
+    // `evaluate` awaits a returned promise (BrowserSession.evaluate).
+    final RegExpMatch? resolved = _resolvedPattern.firstMatch(s);
+    if (resolved != null) return BrowserCompleted<String>(_json(resolved[1]!));
+    final RegExpMatch? delayed = _delayedPattern.firstMatch(s);
+    if (delayed != null) {
+      await Future<void>.delayed(Duration(milliseconds: int.parse(delayed[2]!)));
+      return _dead(cancel) ?? BrowserCompleted<String>(_json(delayed[1]!));
     }
     final String? ran = _runIn(s, frame: _current, top: true);
     if (ran != null) return BrowserCompleted<String>(ran);
     return BrowserCompleted<String>(_interpret(s));
   }
 
+  BrowserOutcome<String> _scriptError(String message) => capabilities.supports(BrowserFeature.scriptErrors)
+      ? BrowserScriptError<String>(message)
+      : const BrowserCompleted<String>('null');
+
+  /// [literal] re-encoded as JSON text; `undefined` reads as `null`.
+  static String _json(String literal) => literal.trim() == 'undefined' ? 'null' : jsonEncode(jsonDecode(literal));
+
   static final RegExp _postPattern = RegExp(r'^(?:window\.)?([A-Za-z_$][A-Za-z0-9_$]*)\.postMessage\((.*)\);?$');
   static final RegExp _throwPattern = RegExp(r'^throw\s+new\s+Error\(\s*("(?:[^"\\]|\\.)*")\s*\);?$');
+
+  /// The promise forms of `BrowserContractScripts`.
+  static final RegExp _resolvedPattern = RegExp(r'^Promise\.resolve\((.*)\);?$');
+  static final RegExp _rejectedPattern = RegExp(r'^Promise\.reject\(new Error\(("(?:[^"\\]|\\.)*")\)\);?$');
+  static final RegExp _delayedPattern = RegExp(
+    r'^new Promise\(function\(r\)\{setTimeout\(function\(\)\{r\((.*)\);\},(\d+)\);\}\);?$',
+  );
   static final RegExp _setGlobal = RegExp(r'^window\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+?);?$');
   static final RegExp _getGlobal = RegExp(r'^window\.([A-Za-z_$][A-Za-z0-9_$]*);?$');
 
@@ -757,7 +831,25 @@ class FakeBrowserSession implements BrowserSession {
     final BrowserCancelled<void>? dead = _dead(cancel);
     if (dead != null) return dead;
     if (!_port.hasDisplay) return const BrowserInteractionRequired<void>('No display available for interaction');
-    return const BrowserCompleted<void>(null);
+    if (_port.userClosesInteraction) return const BrowserCompleted<void>(null);
+    final shown = Completer<BrowserOutcome<void>>();
+    _shows.add(shown);
+    final timer = Timer(timeout, () {
+      if (!shown.isCompleted) {
+        shown.complete(BrowserInteractionRequired<void>('Interaction not completed within $timeout'));
+      }
+    });
+    if (cancel != null) {
+      unawaited(
+        cancel.whenCancelled.then((_) {
+          if (!shown.isCompleted) shown.complete(BrowserCancelled<void>(cancel.reason ?? 'cancelled'));
+        }),
+      );
+    }
+    final BrowserOutcome<void> outcome = await shown.future;
+    timer.cancel();
+    _shows.remove(shown);
+    return outcome;
   }
 
   @override
@@ -770,6 +862,7 @@ class FakeBrowserSession implements BrowserSession {
       if (!c.isCompleted) c.complete(const BrowserCancelled<String>('Session closed'));
     }
     _pending.clear();
+    _endShows(const BrowserCancelled<void>('Session closed'));
     _port._sessions.remove(this);
     return _port.store.delete(_key)
         ? const BrowserCompleted<void>(null)

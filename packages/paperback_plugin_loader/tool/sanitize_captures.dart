@@ -86,6 +86,7 @@ int sanitizeCaptureDir(Directory dir) {
         status: e.status,
         headers: e.headers,
         bodyFile: newBody,
+        setCookies: e.setCookies,
         artifact: CaptureArtifact(
           sourceUrl: e.artifact.sourceUrl,
           sha256: digest,
@@ -104,6 +105,7 @@ int sanitizeCaptureDir(Directory dir) {
           ? manifest.notes
           : '${manifest.notes}; sanitized by tool/sanitize_captures.dart',
       volatileQueryParameters: manifest.volatileQueryParameters,
+      setCookieAllowList: manifest.setCookieAllowList,
       exchanges: exchanges,
     ).encode(),
   );

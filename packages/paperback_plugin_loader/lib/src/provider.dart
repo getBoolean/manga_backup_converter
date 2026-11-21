@@ -147,8 +147,13 @@ final class PaperbackSourceProvider implements SourceProvider {
       bundleTrustFingerprint(family, binding.sha256),
     );
     if (!trusted) {
+      // The decision answers only yes or no, so a refusal cannot say whether
+      // the bundle was new or changed; the gate (or the user) refused it.
       throw BundleAdmissionException(
-        ArtifactIncompatibleFailure('The bundle for ${entry.packageId} (${binding.sha256}) is not trusted'),
+        TrustFailure(
+          TrustFailureReason.refused,
+          'The bundle for ${entry.packageId} (${binding.sha256}) is not trusted',
+        ),
       );
     }
   }
@@ -161,8 +166,12 @@ final class PaperbackSourceProvider implements SourceProvider {
   }) async {
     final PaperbackCatalogEntry? entry = _admitted[artifact.binding.sha256];
     if (artifact is! ArtifactLease || entry == null) {
+      // Nothing approved this artifact in this run.
       return const SourceFailed<SourcePackage>(
-        ArtifactIncompatibleFailure('Paperback bundles must be admitted through PaperbackSourceProvider.admit'),
+        TrustFailure(
+          TrustFailureReason.firstSeen,
+          'Paperback bundles must be admitted through PaperbackSourceProvider.admit',
+        ),
       );
     }
     final SourceOutcome<WorkerSupervisor> started = await worker();
@@ -171,7 +180,14 @@ final class PaperbackSourceProvider implements SourceProvider {
     final WorkerSupervisor? supervisor = started.valueOrNull;
     if (supervisor == null) return SourceFailed<SourcePackage>(started.failureOrNull!);
     final SourceOutcome<PackageLoadResponse> loaded = await supervisor.loadPackage(
-      WorkerPackage(packageId: entry.packageId, artifact: artifact, settings: settings),
+      WorkerPackage(
+        packageId: entry.packageId,
+        artifact: artifact,
+        settings: settings,
+        // The family the trust decision bound (KTD6); a 1.3 worker hosts
+        // the package as this family.
+        apiFamily: entry.family.wire,
+      ),
       cancel: cancel,
     );
     return loaded.map(

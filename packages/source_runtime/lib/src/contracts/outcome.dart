@@ -57,13 +57,20 @@ sealed class SourceFailure {
   const SourceFailure(this.message);
 
   /// Reconstructs a failure from its wire form.
-  factory SourceFailure.fromWire(String code, String message, {String? operation}) => switch (code) {
+  ///
+  /// [trust] (protocol 1.3) turns an `artifact-incompatible` failure into a
+  /// [TrustFailure]; an unknown reason keeps the plain
+  /// [ArtifactIncompatibleFailure].
+  factory SourceFailure.fromWire(String code, String message, {String? operation, String? trust}) => switch (code) {
     TimeoutFailure.wireCode => TimeoutFailure(message),
     CancelledFailure.wireCode => CancelledFailure(message),
     UnsupportedApiFailure.wireCode => UnsupportedApiFailure(message),
     InteractionRequiredFailure.wireCode => InteractionRequiredFailure(message),
     StaleReferenceFailure.wireCode => StaleReferenceFailure(message),
-    ArtifactIncompatibleFailure.wireCode => ArtifactIncompatibleFailure(message),
+    ArtifactIncompatibleFailure.wireCode => switch (TrustFailureReason.fromWire(trust)) {
+      final TrustFailureReason reason => TrustFailure(reason, message),
+      null => ArtifactIncompatibleFailure(message),
+    },
     WorkerRestartedFailure.wireCode => WorkerRestartedFailure(message),
     CapabilityUnavailableFailure.wireCode => CapabilityUnavailableFailure(operation ?? 'unknown', message),
     ProtocolViolationFailure.wireCode => ProtocolViolationFailure(message),
@@ -71,10 +78,25 @@ sealed class SourceFailure {
     _ => SourceErrorFailure(message),
   };
 
+  /// Reconstructs a failure from a wire `err` object (`code`, `message`,
+  /// and the optional `operation` and `trust`). Fields of the wrong type
+  /// read as absent; a missing code reads as `source-error`.
+  factory SourceFailure.fromJson(Map<String, Object?> err) => SourceFailure.fromWire(
+    err['code'] is String ? err['code']! as String : '',
+    err['message'] is String ? err['message']! as String : '',
+    operation: err['operation'] is String ? err['operation']! as String : null,
+    trust: err['trust'] is String ? err['trust']! as String : null,
+  );
+
   final String message;
 
   /// Stable wire identifier.
   String get code;
+
+  /// The same failure, subtype and extra fields included, with [message]
+  /// replaced (for example by its redacted form).
+  SourceFailure withMessage(String message) =>
+      SourceFailure.fromJson(<String, Object?>{...toWire(), 'message': message});
 
   Map<String, Object?> toWire() => <String, Object?>{'code': code, 'message': message};
 
@@ -126,11 +148,57 @@ final class StaleReferenceFailure extends SourceFailure {
 }
 
 /// The artifact failed integrity, trust, or host-compatibility checks.
-final class ArtifactIncompatibleFailure extends SourceFailure {
+///
+/// A trust decision that did not admit the artifact is the subtype
+/// [TrustFailure]; it shares this wire code, so a peer that predates it
+/// still reads `artifact-incompatible`.
+base class ArtifactIncompatibleFailure extends SourceFailure {
   const ArtifactIncompatibleFailure(super.message);
   static const String wireCode = 'artifact-incompatible';
   @override
   String get code => wireCode;
+}
+
+/// Why a trust decision did not admit an artifact or repository (KTD5, KTD6).
+enum TrustFailureReason {
+  /// The signer or repository key has never been approved, and nothing
+  /// approved it in this run (non-interactive, or no prompt was possible).
+  firstSeen('first-seen'),
+
+  /// The signer or key differs from the one approved earlier.
+  changed('changed'),
+
+  /// The user, or a policy such as a pinned manifest, refused it.
+  refused('refused');
+
+  const TrustFailureReason(this.wire);
+
+  /// The `err.trust` value.
+  final String wire;
+
+  static TrustFailureReason? fromWire(String? wire) {
+    for (final TrustFailureReason r in values) {
+      if (r.wire == wire) return r;
+    }
+    return null;
+  }
+}
+
+/// A trust decision did not admit the artifact (protocol 1.3).
+///
+/// Crosses the wire as `artifact-incompatible` with an extra `trust` field
+/// naming the [reason]; replaces the earlier `trust:` message prefix.
+/// Callers that only check [ArtifactIncompatibleFailure] keep working.
+final class TrustFailure extends ArtifactIncompatibleFailure {
+  const TrustFailure(this.reason, String message) : super(message);
+
+  final TrustFailureReason reason;
+
+  @override
+  Map<String, Object?> toWire() => <String, Object?>{...super.toWire(), 'trust': reason.wire};
+
+  @override
+  String toString() => '$code(trust ${reason.wire}): $message';
 }
 
 /// The worker restarted while the operation was in flight, and its single

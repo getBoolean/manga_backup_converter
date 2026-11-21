@@ -65,6 +65,17 @@ const Map<String, List<PinnedBundle>> captureSites = <String, List<PinnedBundle>
   ],
 };
 
+/// Cookies whose `Set-Cookie` a site's capture keeps (capture format 1.3,
+/// `setCookieAllowList`); every other site keeps none. Mangahub issues its
+/// API access token as the `mhub_access` cookie, a credential, so the
+/// capture records that the site set it with the value `redacted`.
+///
+/// The committed Mangahub capture predates this allow-list and holds no
+/// `Set-Cookie`; the next recording of the site picks it up.
+const Map<String, Map<String, CapturedCookieValue>> captureSetCookies = <String, Map<String, CapturedCookieValue>>{
+  'mangahub': <String, CapturedCookieValue>{'mhub_access': CapturedCookieValue.redact},
+};
+
 /// Terms recorded for each site's captured responses.
 const Map<String, String> captureTerms = <String, String>{
   'mangadex':

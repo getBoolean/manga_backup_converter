@@ -295,6 +295,55 @@ void main() {
       }
     });
 
+    test('a 1.3 engine: the settled result comes back as the evaluate reply', () async {
+      final port = ScriptedBrowserPort(
+        respond: (ScriptedPage page) => <String, Object?>{'via': 'evaluate'},
+        awaitsPromises: true,
+      );
+      final channel = InProcessBrowserChannel(port: port, source: identity);
+      final HostUnderTest h = await HostUnderTest.load(
+        bundle09('e.Test = (function(){ ${_searchSource(webviewSource)} })();'),
+        PaperbackApiFamily.v09,
+        browser: channel,
+      );
+      try {
+        // Nothing is posted on the message channel, so only the reply can
+        // deliver the result.
+        final PaperbackSearchPage page = await h.search('q');
+        check(jsonDecode(page.items.single['mangaId']! as String) as Map<String, Object?>).deepEquals(<String, Object?>{
+          'via': 'evaluate',
+        });
+        check(port.closed).length.equals(1);
+      } finally {
+        h.dispose();
+        await channel.close();
+      }
+    });
+
+    test('a throwing script rejects executeInWebView at once with its message', () async {
+      final port = ScriptedBrowserPort(scriptError: (_) => 'SyntaxError: Unexpected token');
+      final channel = InProcessBrowserChannel(port: port, source: identity);
+      final HostUnderTest h = await HostUnderTest.load(
+        bundle09('e.Test = (function(){ ${_searchSource(webviewSource)} })();'),
+        PaperbackApiFamily.v09,
+        browser: channel,
+        // Waiting for a channel message would take this long.
+        deadline: const Duration(seconds: 30),
+      );
+      try {
+        final watch = Stopwatch()..start();
+        check(await failureOf(h.search('q')))
+            .isA<SourceErrorFailure>()
+            .has((SourceErrorFailure f) => f.message, 'message')
+            .contains('SyntaxError: Unexpected token');
+        check(watch.elapsed).isLessThan(const Duration(seconds: 5));
+        check(port.closed).length.equals(1);
+      } finally {
+        h.dispose();
+        await channel.close();
+      }
+    });
+
     test('a port that cannot evaluate yields capability-unavailable, never an empty result', () async {
       final port = ScriptedBrowserPort(respond: (_) => null, evaluateUnavailable: true);
       final channel = InProcessBrowserChannel(port: port, source: identity);

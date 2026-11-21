@@ -68,16 +68,19 @@ final class PaperbackSourceHost {
   Map<String, PaperbackLoadedSource> get sources => Map<String, PaperbackLoadedSource>.unmodifiable(_sources);
 
   /// Admits [bytes] against [binding] (digest, family, shape) and only then
-  /// evaluates anything. Seeds state from [settings] per source.
+  /// evaluates anything. Seeds state from [settings] per source. [apiFamily]
+  /// is the protocol 1.3 `package.load` family; without it the family comes
+  /// from the artifact kind ([admitBundle]).
   Future<List<PaperbackLoadedSource>> load(
     Uint8List bytes,
     ArtifactBinding binding,
     SettingsPayload settings, {
+    String? apiFamily,
     CancellationToken? cancel,
   }) async {
     final PaperbackApiFamily family;
     try {
-      family = admitBundle(bytes, binding);
+      family = admitBundle(bytes, binding, apiFamily: apiFamily);
     } on BundleAdmissionException catch (e) {
       throw PaperbackRuntimeException(e.failure, reason: PaperbackFailureReason.sourceError);
     }
@@ -132,20 +135,11 @@ final class PaperbackSourceHost {
     final String? only = _sources.length == 1
         ? _sources.keys.single
         : (settings.sources.length == 1 ? settings.sources.keys.single : null);
-    final Map<String, Object> values = only == null
-        ? settings.values
-        : _effective(settings.values, settings.sources[only]?.values);
-    final Map<String, String> secrets = only == null
-        ? settings.secrets
-        : <String, String>{...settings.secrets, ...?settings.sources[only]?.secrets};
+    final Map<String, Object> values = only == null ? settings.values : settings.valuesFor(only);
+    final Map<String, String> secrets = only == null ? settings.secrets : settings.secretsFor(only);
     final seed = '__pbApi.seed(${jsonEncode(values)}, ${jsonEncode(secrets)})';
     await runtime.evaluate(seed, filename: 'paperback/seed.js', cancel: cancel);
   }
-
-  static Map<String, Object> _effective(Map<String, Object> base, Map<String, Object>? scoped) => <String, Object>{
-    ...base,
-    ...?scoped,
-  };
 
   /// Searches [sourceId]. [cursor] is the source's own pagination metadata
   /// from a previous page, JSON-encoded; `null` asks for the first page.
@@ -177,14 +171,17 @@ final class PaperbackSourceHost {
     final map = reply! as Map<String, Object?>;
     final failure = map['failure'] as Map<String, Object?>?;
     if (failure != null) {
-      final String code = failure['code'] as String? ?? 'source-error';
       final String message = failure['message'] as String? ?? 'unknown failure';
+      // `fromJson` keeps every field the glue reported (a trust reason, an
+      // operation); a capability failure without one names it from the text.
       throw PaperbackRuntimeException(
-        SourceFailure.fromWire(
-          code,
-          message,
-          operation: code == 'capability-unavailable' ? _capabilityName(message) : null,
-        ),
+        SourceFailure.fromJson(<String, Object?>{
+          'code': 'source-error',
+          ...failure,
+          'message': message,
+          if (failure['code'] == CapabilityUnavailableFailure.wireCode && failure['operation'] is! String)
+            'operation': _capabilityName(message),
+        }),
         reason: PaperbackFailureReason.sourceError,
         stack: failure['stack'] as String?,
       );
@@ -222,6 +219,8 @@ final class PaperbackSourceHost {
           channel,
           sourceId: sourceId,
           resultTimeout: runtime.limits.operationDeadline,
+          pauseDeadline: runtime.pauseDeadline,
+          resumeDeadline: runtime.resumeDeadline,
         ).execute(WebViewExecution.fromJs(spec), _currentCancel ?? CancellationToken.none);
       } on PaperbackBrowserException catch (e) {
         final SourceFailure f = e.failure;
@@ -245,6 +244,8 @@ final class PaperbackSourceHost {
           channel,
           sourceId: sourceId,
           resultTimeout: runtime.limits.operationDeadline,
+          pauseDeadline: runtime.pauseDeadline,
+          resumeDeadline: runtime.resumeDeadline,
         ).bypassCloudflare(
           CloudflareBypass.fromJs(spec),
           _currentCancel ?? CancellationToken.none,
