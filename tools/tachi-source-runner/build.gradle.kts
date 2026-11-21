@@ -81,6 +81,28 @@ application {
     applicationName = "tachi-source-runner"
 }
 
+// KTD25: the runtime manifest carries the handshake deadline the supervisor needs before the worker
+// speaks. It is written by the worker's own code from the committed sizing rule, and installed at the
+// root of the distribution beside lib/.
+val runtimeManifest by tasks.registering(JavaExec::class) {
+    group = "distribution"
+    description = "Writes tachi-runtime.json (handshake deadline from the committed sizing rule)."
+    val out = layout.buildDirectory.file("runtime-manifest/tachi-runtime.json")
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "mangabackup.tachi.host.RuntimeManifest"
+    inputs.file("src/main/resources/tachi-worker-sizing.json")
+    outputs.file(out)
+    argumentProviders += CommandLineArgumentProvider { listOf(out.get().asFile.absolutePath) }
+}
+
+distributions {
+    main {
+        contents {
+            from(runtimeManifest)
+        }
+    }
+}
+
 val repoRoot: File = rootDir.parentFile.parentFile
 val fixtureJarsDir = layout.buildDirectory.dir("fx")
 
@@ -137,9 +159,11 @@ tasks.register<JavaExec>("benchmark") {
     classpath = benchmark.runtimeClasspath
     mainClass = "mangabackup.tachi.benchmark.BenchmarkKt"
     workingDir = repoRoot
-    dependsOn(fixtureJarTasks)
+    dependsOn(fixtureJarTasks, tasks.named("installDist"))
     systemProperty("tachi.fixtureJars", fixtureJarsDir.get().asFile.absolutePath)
     systemProperty("tachi.workerClasspath", sourceSets.main.get().runtimeClasspath.asPath)
+    // Start-up is measured on the installed distribution, launched the way the supervisor launches it.
+    systemProperty("tachi.installDir", layout.buildDirectory.dir("install/tachi-source-runner").get().asFile.absolutePath)
     args = (project.findProperty("benchmarkArgs") as String?)?.split(' ')?.filter { it.isNotBlank() } ?: emptyList()
 }
 

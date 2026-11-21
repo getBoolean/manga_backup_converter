@@ -6,7 +6,8 @@ runner. Only the desktop Tachi worker (U3) is described so far.
 ## Desktop Tachi worker (`tools/tachi-source-runner`, U3)
 
 One Kotlin/JVM process per conversion hosts every selected Tachi extension package (KTD1). It speaks
-protocol v1 on stdio (`packages/source_runtime/doc/protocol-v1.md`); logs go to stderr only.
+protocol v1, minor 1.2, on stdio (`packages/source_runtime/doc/protocol-v1.md`), answering an older
+supervisor with its lower minor; logs go to stderr only.
 
 ### Runtime
 
@@ -15,6 +16,12 @@ protocol v1 on stdio (`packages/source_runtime/doc/protocol-v1.md`); logs go to 
   `gradle.lockfile`. Licences: `tools/tachi-source-runner/THIRD_PARTY.md`.
 - Limits come from the committed KTD25 sizing rule (see `docs/validation/source-runners/desktop/`), or
   from explicit `--limit NAME=VALUE` overrides. Without either the worker refuses to start.
+- Handshake deadline: the one limit the worker cannot report, because the supervisor needs it before the
+  worker has said anything. The benchmark measures JVM launch to handshake reply (cold and warm) and the
+  rule derives `handshakeDeadlineMs = ceil(maxStartupToHandshakeMs × handshakeFactor)`. `installDist`
+  writes it into the runtime manifest `tachi-runtime.json` at the install root (beside `lib/`), which
+  `package:tachi_plugin_loader` reads; the handshake repeats it in `limits` and `sizing.derived` for
+  receipts only (it is not an adoptable limit).
 
 ### Extension API
 
@@ -32,7 +39,7 @@ that every external class, method and field the six qualification artifacts refe
 | Path | Steps | Result |
 |---|---|---|
 | Repository JAR | copy to private staging → SHA-256 check → JAR signature: every non-signature entry signed by exactly one signer whose certificate SHA-256 is trusted; duplicate ZIP entries rejected → stage | loads unmodified |
-| APK | copy → SHA-256 check → apksig verification against the same trust identity → dex2jar 2.4.39 → host bytecode fixes → JAR (sorted entries, fixed timestamps) with all resources | loads |
+| APK | copy → SHA-256 check → apksig verification against the same trust identity → dex2jar 2.4.39 (own loader, insertion-ordered collections) → host bytecode fixes → JAR (sorted entries, fixed zone-free timestamps) with all resources | loads; byte-deterministic |
 
 - **Patching.** Published keiyoushi JARs need no Android bytecode patching. APKs do: R8 removes trivial
   constructors when dexing (`new X; invoke S.<init>` and super calls that skip the direct superclass),
@@ -40,11 +47,23 @@ that every external class, method and field the six qualification artifacts refe
   (it cannot occur in verified JAR class files), and `FrameComputer` recomputes stack map frames with the
   extension's own class hierarchy, because dex2jar's frame pass falls back to `Object`. dex2jar must also
   keep Kotlin's mangled names (`constructor-impl`). All of this is in the converter version
-  `dex2jar-2.4.39+ctorfix.1+frames.1`, which is part of the prepared artifact's cache identity
+  `dex2jar-2.4.39+ctorfix.1+frames.1+ordered.1`, which is part of the prepared artifact's cache identity
   (`converterVersion` in the `artifact.prepare` reply, with host compatibility `tachi-host.1`).
-- **Determinism.** dex2jar's register allocation differs between conversions in one JVM (static state),
-  so two conversions can differ in bytes but not in entries or behaviour. The supervisor re-hashes the
-  staged output, so byte identity is not relied on.
+- **Determinism.** Preparing the same APK always gives the same bytes, so a resumed conversion on the
+  APK path keeps its session identity (the prepared digest). dex2jar's IR passes kept working sets in
+  `HashMap`/`HashSet` keyed by identity-hashed IR objects, so register assignment changed between
+  conversions in one JVM. Each conversion now loads dex2jar in a fresh class loader that rewrites those
+  instantiations (constructors, `::new` handles, subclasses) to `LinkedHashMap`/`LinkedHashSet`, so
+  iteration follows insertion order; frames are recomputed in sorted class order; entries are sorted and
+  stamped with a fixed DOS time that does not depend on the JVM's time zone. `DeterministicConversionTest`
+  checks MangaDex, Weeb Central and MangaFire twice in one JVM (other thread, other order) and in two
+  worker processes started with different time zones, collectors and heaps. Prepared digests (converter
+  `+ordered.1`, Corretto 21.0.13):
+  - MangaDex `b7dda66c5c901aa23d172173d54c12f04d64bdc20bd0da58748ce7f095da28d0`
+  - Weeb Central `546c4a615158c44bf656d9bb45f7555e9d31638a77d977d3f8a5a7e01dceb143`
+  - MangaFire `19bd52b03b7dc17fa9aac1220ac729902d0d5ff03e536df6c1f73dcda8ec5630`
+
+  The supervisor still re-hashes the staged output.
 - **Trust identity.** keiyoushi's JAR and APK certificates both equal the published fingerprint
   `9add655a…4da2`, so they share one trust identity. The trusted signer reaches the worker only in
   the `trustedSigners` array of the `artifact.prepare` request (protocol 1.1): the certificate SHA-256
@@ -92,13 +111,38 @@ requests, sent for the package's in-flight operation and closed before it replie
 - `WebView.getWebViewClassLoader()` sees no Chromium glue, so keiyoushi's `WebViewGlueBridge` reports
   every feature unsupported and the helper falls back to `addJavascriptInterface` (verified with the real
   MangaFire helper in `CapturedProofTest`).
-- `addJavascriptInterface(obj, name)` registers message channel `name`; a page message invokes the
-  object's `@JavascriptInterface` method `postMessage(String)` (or its only one-`String` method).
+- `addJavascriptInterface(obj, name)` registers message channel `name` (any JavaScript identifier,
+  `ipc` included); a page message invokes the object's `@JavascriptInterface` method `postMessage(String)`.
 - Load, navigation and base URLs must be http(s) (`about:blank` for loads); anything else is
   `capability-unavailable` before any reverse request.
 - Cookies are pushed to the session before each load and pulled into the package jar after it.
-- Observe-only `shouldInterceptRequest` sees main-frame `loadUrl` navigations. Returning a replacement
-  response, and synchronous `@JavascriptInterface` return values, are named capability errors.
+- Protocol 1.2 features are used only when negotiated, and only as far as the session's reported
+  `capabilities` allow (absent capabilities mean none):
+  - `androidx.webkit.WebViewCompat.addDocumentStartJavaScript` (shimmed with `WebViewFeature` and
+    `ScriptHandler`) becomes `host.browser.addPageStartScript`, replayed in registration order after the
+    channel objects when the session opens. `allowedOriginRules` (androidx grammar: `*`, or
+    `scheme://host[:port]` with an optional `*.` that also matches the domain itself) are enforced by a
+    `location` check wrapped around the script; with `*` the script is sent unchanged, otherwise its
+    top-level `let`/`const`/`class` are scoped to the wrapping block. Without `pageStartScripts` the call
+    fails as `capability-unavailable` (operation `addPageStartScript`). `ScriptHandler.remove()` throws
+    `UnsupportedOperationException` and adds an operation warning: the port cannot remove a script.
+  - `shouldInterceptRequest` uses the replace tier when the session has `replaceRequests` (falling back
+    to observe if the supervisor refuses it, for example with no replacement timeout), otherwise observe
+    when it can see navigations. Held requests are answered with `host.browser.respond`: the replacement's
+    status, reason, headers (plus `Content-Type` from the MIME type and encoding) and body, or `null`. A
+    redirect or out-of-range status is refused by name (`android.webkit.shouldInterceptRequest.redirect`)
+    and the request proceeds. On an observe-only session a non-null response is a named capability error
+    (`android.webkit.shouldInterceptRequest.replace`). Without subresource observation the operation
+    carries a `degraded: subresource observation unavailable` warning with the engine's reason.
+  - `host.browser.request` events are decoded and routed on the frame reader thread; the extension's
+    handler runs on a browser thread (as Android calls it off the main thread) and `respond` is sent
+    without waiting for its `rres`. The thread that sent `host.browser.load` is blocked until the held
+    request is answered, and the reader is the only thread that can read that `rres`, so neither may
+    wait. `respond` is sent only while one of the package's operations is in flight.
+  - `evaluate`'s `scriptError` is ignored, so a throwing script reads as `"null"` as on Android.
+- Against a 1.1 supervisor, or a session with no observe feature, `shouldInterceptRequest` sees
+  main-frame `loadUrl` navigations only (called by the shim), and `addDocumentStartJavaScript` is
+  `capability-unavailable`. Synchronous `@JavascriptInterface` return values are a named capability error.
 - A capability or interaction failure from the port cancels the package's in-flight calls, so helpers
   that watch their call (`runWebViewBlocking`) fail at once with the recorded host error.
 
@@ -114,6 +158,9 @@ Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.js
 `capture.json` + `bodies/`). The MangaFire live browser path (AE11) runs at the U8 join with U2's helper.
 
 ### Known gaps
+
+- `tachi_plugin_loader`'s development discovery (no `--tachi-runtime`) does not read
+  `tachi-runtime.json` from the install it finds, so those runs still need an explicit handshake deadline.
 
 - Only the browser surface used by the keiyoushi helper and the qualification sources is translated.
 - Heap and metaspace use per package are not reported to the supervisor.

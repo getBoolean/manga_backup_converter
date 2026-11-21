@@ -1,5 +1,5 @@
 {
-    "recordedAt": "2026-11-20T17:39:10.517983800Z",
+    "recordedAt": "2026-11-21T04:27:40.191846500Z",
     "quick": false,
     "machine": {
         "os": "Windows 11 10.0 amd64",
@@ -14,123 +14,123 @@
         "all.mangadex": {
             "prepare": {
                 "n": 5,
-                "p50Ms": 37.8,
-                "p95Ms": 180.3,
-                "p99Ms": 180.3,
-                "maxMs": 180.3
+                "p50Ms": 609.7,
+                "p95Ms": 2406.8,
+                "p99Ms": 2406.8,
+                "maxMs": 2406.8
             },
             "load": {
                 "n": 5,
-                "p50Ms": 58.5,
-                "p95Ms": 148.0,
-                "p99Ms": 148.0,
-                "maxMs": 148.0
+                "p50Ms": 665.7,
+                "p95Ms": 2436.4,
+                "p99Ms": 2436.4,
+                "maxMs": 2436.4
             },
             "search": {
                 "n": 20,
-                "p50Ms": 136.6,
-                "p95Ms": 856.1,
-                "p99Ms": 858.2,
-                "maxMs": 858.2
+                "p50Ms": 51.0,
+                "p95Ms": 920.6,
+                "p99Ms": 940.7,
+                "maxMs": 940.7
             },
             "details": {
                 "n": 20,
-                "p50Ms": 1001.3,
-                "p95Ms": 1003.0,
-                "p99Ms": 1003.3,
-                "maxMs": 1003.3
+                "p50Ms": 1008.7,
+                "p95Ms": 1077.9,
+                "p99Ms": 1079.4,
+                "maxMs": 1079.4
             }
         },
         "en.weebcentral": {
             "prepare": {
                 "n": 5,
-                "p50Ms": 18.6,
-                "p95Ms": 19.0,
-                "p99Ms": 19.0,
-                "maxMs": 19.0
+                "p50Ms": 259.8,
+                "p95Ms": 383.5,
+                "p99Ms": 383.5,
+                "maxMs": 383.5
             },
             "load": {
                 "n": 5,
-                "p50Ms": 10.9,
-                "p95Ms": 13.3,
-                "p99Ms": 13.3,
-                "maxMs": 13.3
+                "p50Ms": 202.5,
+                "p95Ms": 220.5,
+                "p99Ms": 220.5,
+                "maxMs": 220.5
             },
             "search": {
                 "n": 20,
-                "p50Ms": 1993.6,
-                "p95Ms": 1997.8,
-                "p99Ms": 1997.8,
-                "maxMs": 1997.8
+                "p50Ms": 1919.8,
+                "p95Ms": 1967.5,
+                "p99Ms": 1984.0,
+                "maxMs": 1984.0
             },
             "details": {
                 "n": 20,
-                "p50Ms": 4006.7,
-                "p95Ms": 4015.0,
-                "p99Ms": 4021.1,
-                "maxMs": 4021.1
+                "p50Ms": 4085.7,
+                "p95Ms": 4271.3,
+                "p99Ms": 4603.2,
+                "maxMs": 4603.2
             }
         },
         "all.mangafire": {
             "prepare": {
                 "n": 5,
-                "p50Ms": 26.6,
-                "p95Ms": 30.8,
-                "p99Ms": 30.8,
-                "maxMs": 30.8
+                "p50Ms": 574.2,
+                "p95Ms": 826.1,
+                "p99Ms": 826.1,
+                "maxMs": 826.1
             },
             "load": {
                 "n": 5,
-                "p50Ms": 16.9,
-                "p95Ms": 19.4,
-                "p99Ms": 19.4,
-                "maxMs": 19.4
+                "p50Ms": 361.8,
+                "p95Ms": 429.2,
+                "p99Ms": 429.2,
+                "maxMs": 429.2
             },
             "search": {
                 "n": 20,
-                "p50Ms": 18.0,
-                "p95Ms": 984.9,
-                "p99Ms": 985.7,
-                "maxMs": 985.7
+                "p50Ms": 429.7,
+                "p95Ms": 583.1,
+                "p99Ms": 643.3,
+                "maxMs": 643.3
             },
             "details": {
                 "n": 20,
-                "p50Ms": 1001.3,
-                "p95Ms": 1002.5,
-                "p99Ms": 1002.5,
-                "maxMs": 1002.5
+                "p50Ms": 1020.4,
+                "p95Ms": 1052.1,
+                "p99Ms": 1073.7,
+                "maxMs": 1073.7
             }
         }
     },
     "cancelSettleFixture": {
         "n": 20,
-        "p50Ms": 0.7,
-        "p95Ms": 1.0,
-        "p99Ms": 5.9,
-        "maxMs": 5.9
+        "p50Ms": 1.0,
+        "p95Ms": 3.1,
+        "p99Ms": 223.5,
+        "maxMs": 223.5
     },
     "cancelSettleRealSources": {
         "n": 15,
-        "p50Ms": 1.2,
-        "p95Ms": 5.5,
-        "p99Ms": 5.5,
-        "maxMs": 5.5
+        "p50Ms": 1.8,
+        "p95Ms": 194.5,
+        "p99Ms": 194.5,
+        "maxMs": 194.5
     },
-    "cpuUtilisationPerRunningOperation": 0.027600000000000003,
+    "cpuUtilisationPerRunningOperation": 0.0415,
     "throughputKneePoolSize": 1,
     "restartAndRehydrate": {
         "n": 8,
-        "p50Ms": 4755.5,
-        "p95Ms": 5739.4,
-        "p99Ms": 5739.4,
-        "maxMs": 5739.4
+        "p50Ms": 13975.8,
+        "p95Ms": 15473.0,
+        "p99Ms": 15473.0,
+        "maxMs": 15473.0
     },
     "shutdown": {
         "n": 8,
-        "p50Ms": 47.7,
-        "p95Ms": 55.0,
-        "p99Ms": 55.0,
-        "maxMs": 55.0
+        "p50Ms": 113.8,
+        "p95Ms": 312.0,
+        "p99Ms": 312.0,
+        "maxMs": 312.0
     },
     "throughput": {
         "pool1": {
@@ -149,22 +149,97 @@
             "opsPerSecond": 0.8
         }
     },
+    "startup": {
+        "launch": "java -cp <install>/lib/* mangabackup.tachi.MainKt --state-dir <tmp> --replay <3 capture dirs>",
+        "coldFreshCopy": {
+            "handshake": {
+                "n": 3,
+                "p50Ms": 2262.8,
+                "p95Ms": 2695.5,
+                "p99Ms": 2695.5,
+                "maxMs": 2695.5
+            },
+            "load1Package": {
+                "n": 3,
+                "p50Ms": 249.5,
+                "p95Ms": 1271.8,
+                "p99Ms": 1271.8,
+                "maxMs": 1271.8
+            },
+            "load3Packages": {
+                "n": 3,
+                "p50Ms": 652.3,
+                "p95Ms": 1405.2,
+                "p99Ms": 1405.2,
+                "maxMs": 1405.2
+            }
+        },
+        "coldFreshCopyNoCds": {
+            "handshake": {
+                "n": 3,
+                "p50Ms": 2340.5,
+                "p95Ms": 3112.5,
+                "p99Ms": 3112.5,
+                "maxMs": 3112.5
+            },
+            "load1Package": {
+                "n": 3,
+                "p50Ms": 996.9,
+                "p95Ms": 2454.3,
+                "p99Ms": 2454.3,
+                "maxMs": 2454.3
+            },
+            "load3Packages": {
+                "n": 3,
+                "p50Ms": 1101.9,
+                "p95Ms": 2948.4,
+                "p99Ms": 2948.4,
+                "maxMs": 2948.4
+            }
+        },
+        "warm": {
+            "handshake": {
+                "n": 10,
+                "p50Ms": 1365.1,
+                "p95Ms": 3006.3,
+                "p99Ms": 3006.3,
+                "maxMs": 3006.3
+            },
+            "load1Package": {
+                "n": 10,
+                "p50Ms": 248.6,
+                "p95Ms": 805.9,
+                "p99Ms": 805.9,
+                "maxMs": 805.9
+            },
+            "load3Packages": {
+                "n": 10,
+                "p50Ms": 319.4,
+                "p95Ms": 1316.0,
+                "p99Ms": 1316.0,
+                "maxMs": 1316.0
+            }
+        },
+        "maxStartupToHandshakeMs": 3112.5
+    },
     "heap": {
         "baseHeapMiB": 66.7,
-        "perPackageHeapMiB": 1.4
+        "perPackageHeapMiB": 1.3
     },
     "rule": {
-        "source": "docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-20T17:39:10.517983800Z)",
-        "coresFactor": 36.2,
+        "source": "docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-21T04:27:40.191846500Z)",
+        "coresFactor": 24.1,
         "baseHeapMiB": 67.0,
         "perPackageHeapMiB": 3.0,
-        "p99OperationMs": 4021.1,
+        "p99OperationMs": 4603.2,
         "deadlineFactor": 50.0,
-        "maxCancelSettleMs": 5.9,
-        "maxShutdownMs": 55.0,
+        "maxCancelSettleMs": 223.5,
+        "maxShutdownMs": 312.0,
         "graceFactor": 3.0,
         "interactionTimeoutMs": 300000,
-        "maxPoolSize": 3
+        "maxPoolSize": 3,
+        "maxStartupToHandshakeMs": 3112.5,
+        "handshakeFactor": 10.0
     },
     "derivedForThisMachine": {
         "inputs": {
@@ -173,10 +248,11 @@
         },
         "limits": {
             "poolSize": 3,
-            "operationDeadlineMs": 201055,
-            "cancelGraceMs": 165,
+            "operationDeadlineMs": 230160,
+            "cancelGraceMs": 936,
             "interactionTimeoutMs": 300000,
-            "shutdownGraceMs": 165
-        }
+            "shutdownGraceMs": 936
+        },
+        "handshakeDeadlineMs": 31125
     }
 }

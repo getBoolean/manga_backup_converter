@@ -21,6 +21,7 @@ import mangabackup.tachi.host.HostOperationException
 import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
+import mangabackup.tachi.host.withHandshake
 import mangabackup.tachi.shim.HostFailures
 import mangabackup.tachi.shim.UnsupportedHostApi
 import mangabackup.tachi.webkit.BrowserBridge
@@ -246,7 +247,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                     put("browser", options.browser)
                 })
                 // KTD25 limits and sizing (1.1), then additive runtime identity fields readers ignore.
-                put("limits", options.sizing.limits.toJson())
+                put("limits", options.sizing.limits.toJson().withHandshake(options.sizing.rule))
                 put("sizing", options.sizing.toJson())
                 put("networkMode", options.networkMode)
                 put("javaVersion", Runtime.version().toString())

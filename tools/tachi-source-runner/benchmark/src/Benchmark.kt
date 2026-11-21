@@ -31,7 +31,10 @@ import kotlin.math.ceil
  *  2. cooperative-cancel settle time;
  *  3. restart-and-rehydrate time (kill, new process, reload every package, details by durable ref);
  *  4. concurrent-package throughput by pool size, and heap per loaded package;
- *  5. graceful shutdown time.
+ *  5. graceful shutdown time;
+ *  6. start-up: JVM launch to handshake reply, then loading one and three packages, launched the way
+ *     the supervisor launches the installed worker (cold: a fresh copy of the install, with and without
+ *     the JDK's CDS archive; warm: repeated launches of one install). Sizes the handshake deadline.
  *
  * Writes results JSON + Markdown to docs/validation/source-runners/desktop/ and the derived
  * sizing rule to src/main/resources/tachi-worker-sizing.json.
@@ -115,6 +118,16 @@ class Bench(private val repo: File, private val quick: Boolean) {
             put("trustedSigners", buildJsonArray { add(JsonPrimitive(KEIYOUSHI_SIGNER)) })
         })
         return Staged(q, ArtifactBinding.from(ok["artifact"]!!.jsonObject), out)
+    }
+
+    /** Prepares the three qualification JARs once (in a short-lived worker) for runs that only load them. */
+    fun stageQualification(): List<Staged> {
+        val (client, _) = spawn(1)
+        client.handshake()
+        val staged = QUALIFICATION.map { prepare(client, it) }
+        client.call("shutdown")
+        client.close()
+        return staged
     }
 
     fun load(client: WorkerClient, s: Staged) = client.call("package.load", s.q.packageId, buildJsonObject {
@@ -320,6 +333,87 @@ class Bench(private val repo: File, private val quick: Boolean) {
         }
     }
 
+    /**
+     * 6. Start-up as the supervisor sees it: `java -cp "<install>/lib/<wildcard>" mangabackup.tachi.MainKt
+     * --state-dir … --replay …`, no `--limit`, no `-Xmx` (`TachiWorkerLocation.spec`). The clock starts
+     * before the process is created and stops at the handshake reply; the package loads that follow
+     * are timed separately (they are evidence, not inputs to the handshake deadline).
+     *
+     * "Cold" here is the coldest start this harness can provoke, not an OS-cache-cold boot: each cold
+     * sample launches from a fresh copy of the install directory (new files, so the OS and any virus
+     * scanner see them for the first time), once with the default CDS archive and once with
+     * `-Xshare:off`.
+     */
+    fun startup(staged: List<Staged>): JsonObject {
+        val install = File(System.getProperty("tachi.installDir") ?: error("tachi.installDir not set"))
+        val lib = File(install, "lib")
+        check(lib.isDirectory) { "no installed worker at $lib (run ./gradlew installDist)" }
+        val coldRuns = if (quick) 1 else 3
+        val warmRuns = if (quick) 2 else 10
+
+        data class Sample(val handshakeMs: Double, val load1Ms: Double, val load3Ms: Double)
+
+        fun launch(libDir: File, jvmArgs: List<String>): Sample {
+            val state = Files.createTempDirectory("bench-startup-state-").toFile()
+            val args = listOf("--state-dir", state.absolutePath) + replayArgs
+            val t = System.nanoTime()
+            val (client, process) = WorkerClient.subprocess(javaHome, File(libDir, "*").path, args, extraJvmArgs = jvmArgs)
+            try {
+                val handshake = client.handshake()
+                val handshakeMs = ms(t)
+                check(handshake["limits"] != null) { "the installed worker reported no limits" }
+                val t1 = System.nanoTime()
+                load(client, staged[0])
+                val load1 = ms(t1)
+                staged.drop(1).forEach { load(client, it) }
+                val load3 = ms(t1)
+                client.call("shutdown")
+                process.waitFor(30, TimeUnit.SECONDS)
+                return Sample(handshakeMs, load1, load3)
+            } finally {
+                client.close()
+                state.deleteRecursively()
+            }
+        }
+
+        fun freshCopy(): File {
+            val dir = Files.createTempDirectory("bench-install-").toFile()
+            lib.copyRecursively(File(dir, "lib"))
+            return File(dir, "lib")
+        }
+
+        fun stats(samples: List<Sample>) = buildJsonObject {
+            put("handshake", Stats(samples.map { it.handshakeMs }).json())
+            put("load1Package", Stats(samples.map { it.load1Ms }).json())
+            put("load3Packages", Stats(samples.map { it.load3Ms }).json())
+        }
+
+        val coldCds = ArrayList<Sample>()
+        val coldNoCds = ArrayList<Sample>()
+        repeat(coldRuns) {
+            for ((into, jvmArgs) in listOf(coldCds to emptyList(), coldNoCds to listOf("-Xshare:off"))) {
+                val copy = freshCopy()
+                try {
+                    into += launch(copy, jvmArgs)
+                } finally {
+                    copy.parentFile.deleteRecursively()
+                }
+            }
+        }
+        val warm = (1..warmRuns).map { launch(lib, emptyList()) }
+        maxStartupToHandshakeMs = (coldCds + coldNoCds + warm).maxOf { it.handshakeMs }
+        return buildJsonObject {
+            put("launch", "java -cp <install>/lib/* mangabackup.tachi.MainKt --state-dir <tmp> --replay <3 capture dirs>")
+            put("coldFreshCopy", stats(coldCds))
+            put("coldFreshCopyNoCds", stats(coldNoCds))
+            put("warm", stats(warm))
+            put("maxStartupToHandshakeMs", round(maxStartupToHandshakeMs))
+        }
+    }
+
+    /** Worst launch → handshake sample from [startup]. */
+    var maxStartupToHandshakeMs = 0.0
+
     /** Heap: worker baseline and per loaded package, measured in this JVM after full GCs. */
     fun heap(): Pair<Double, Double> {
         fun used(): Double {
@@ -377,6 +471,8 @@ fun main(args: Array<String>) {
     val throughput = bench.throughput()
     System.err.println("[bench] heap")
     val (baseHeap, perPackage) = bench.heap()
+    System.err.println("[bench] start-up")
+    val startup = bench.startup(bench.stageQualification())
 
     val cores = Runtime.getRuntime().availableProcessors()
     val opP99 = latency.values.flatMap { src -> listOf("search", "details").map { src.jsonObject[it]!!.jsonObject["p99Ms"]!!.jsonPrimitive.content.toDouble() } }.max()
@@ -396,6 +492,8 @@ fun main(args: Array<String>) {
         graceFactor = GRACE_FACTOR,
         interactionTimeoutMs = INTERACTION_TIMEOUT_MS,
         maxPoolSize = tp.maxOf { it.first },
+        maxStartupToHandshakeMs = round(bench.maxStartupToHandshakeMs),
+        handshakeFactor = HANDSHAKE_FACTOR,
     )
     val inputs = SizingRule.measureInputs()
     val derived = rule.derive(inputs)
@@ -420,6 +518,7 @@ fun main(args: Array<String>) {
         put("restartAndRehydrate", restart.json())
         put("shutdown", shutdown.json())
         put("throughput", throughput)
+        put("startup", startup)
         put("heap", buildJsonObject {
             put("baseHeapMiB", round(baseHeap))
             put("perPackageHeapMiB", round(perPackage))
@@ -431,6 +530,7 @@ fun main(args: Array<String>) {
                 put("maxHeapMiB", inputs.maxHeapMiB)
             })
             put("limits", derived.toJson())
+            put("handshakeDeadlineMs", rule.handshakeDeadlineMs)
         })
     }
     if (quick) {
@@ -451,6 +551,16 @@ fun main(args: Array<String>) {
  */
 const val DEADLINE_FACTOR = 50.0
 const val GRACE_FACTOR = 3.0
+
+/**
+ * Headroom over the worst measured launch → handshake time. A chosen constant, not a measurement:
+ * a deadline that is too tight fails every Tachi conversion on a slower or busier machine (the failure
+ * this limit exists to remove), while one that is too loose only delays reporting a worker that never
+ * starts. 10× covers first launches after install (antivirus scanning of new JARs), a loaded machine,
+ * and slower disks until the benchmark has been run on macOS and Linux reference devices; revisit it
+ * with those results.
+ */
+const val HANDSHAKE_FACTOR = 10.0
 
 /** A user-facing bound for a visible browser interaction, not a machine capability. */
 const val INTERACTION_TIMEOUT_MS = 300_000L
