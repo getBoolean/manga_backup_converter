@@ -262,7 +262,7 @@ void main() {
       check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
       _writeReceipt('${Platform.operatingSystem}-tachi-two-repositories-one-worker', <String, Object?>{
         ..._workerIdentity(workerSeen),
-        'java': _worker.location?.java == null ? null : _jreName(_worker.location!.java),
+        'java': _worker.location?.java == null ? null : _javaRuntime(_worker.location!.java),
         'artifacts': <Object?>[
           for (final TachiCapture c in tachiCaptures())
             if (c.source != 'all.mangafire')
@@ -451,6 +451,15 @@ Map<String, Object?> _workerIdentity(WorkerSupervisor? s) => <String, Object?>{
   'sizing': <String, Object?>{'rule': s?.handshake?.sizing?.rule, 'derived': s?.handshake?.sizing?.derived?.toJson()},
 };
 
+/// The runtime version and vendor the worker's [java] reports
+/// (`java.runtime.version`, `java.vendor`), e.g. `21.0.13.1+...` from Amazon.
+Map<String, String?> _javaRuntime(String java) {
+  final ProcessResult r = Process.runSync(java, <String>['-XshowSettings:properties', '-version']);
+  String? property(String name) =>
+      RegExp('^\\s*${RegExp.escape(name)} = (.+)\$', multiLine: true).firstMatch('${r.stderr}')?.group(1)?.trim();
+  return <String, String?>{'version': property('java.runtime.version'), 'vendor': property('java.vendor')};
+}
+
 /// Whether a process with [pid] is still running.
 bool _processAlive(int pid) {
   if (Platform.isWindows) {
@@ -458,13 +467,4 @@ bool _processAlive(int pid) {
     return (r.stdout as String).contains(' $pid ');
   }
   return Process.runSync('kill', <String>['-0', '$pid']).exitCode == 0;
-}
-
-/// The JRE directory name of a `java` executable: `<jre>/bin/java`, or the
-/// `.jdk` bundle on macOS (`<name>.jdk/Contents/Home/bin/java`).
-String _jreName(String java) {
-  final String home = p.dirname(p.dirname(java));
-  return p.basename(home) == 'Home' && p.basename(p.dirname(home)) == 'Contents'
-      ? p.basename(p.dirname(p.dirname(home)))
-      : p.basename(home);
 }

@@ -194,8 +194,16 @@ Future<void> main(List<String> args) async {
       File(l.value!).copySync(p.join(licenses.path, l.key));
     }
   }
-  File(p.join(licenses.path, 'desktop_webview_helper-crates.txt'))
-      .writeAsStringSync(await _crateLicenses());
+  for (final (String label, String manifest) in _rustTrees) {
+    // The scraper bridge is bundled only where jsoup uses it (not macOS).
+    if (label == 'scraper_bridge' &&
+        !nativeLibs.any((String l) => l.contains('scraper'))) {
+      continue;
+    }
+    File(
+      p.join(licenses.path, '$label-crates.txt'),
+    ).writeAsStringSync(await _crateLicenses(label, manifest, licenses));
+  }
   File(p.join(licenses.path, 'NOTICE.md'))
       .writeAsStringSync(_notice(javaVersion, pins, nativeLibs));
   if (missing.isNotEmpty) throw StateError('Missing licence sources: $missing');
@@ -457,34 +465,155 @@ Map<String, String?> _nativeLicences(List<String> libs) {
   return result;
 }
 
-/// The helper's crates and their declared licences (`cargo metadata`).
-Future<String> _crateLicenses() async {
+/// The Rust trees compiled into the package: the WebView helper executable
+/// and the scraper bridge native asset.
+const List<(String, String)> _rustTrees = <(String, String)>[
+  ('desktop_webview_helper', 'packages/desktop_webview/helper/Cargo.toml'),
+  ('scraper_bridge', 'packages/scraper/rust/Cargo.toml'),
+];
+
+/// The Rust host triple of this machine.
+String get _rustHost => switch ((_os, _arch)) {
+  ('windows', 'x64') => 'x86_64-pc-windows-msvc',
+  ('windows', 'arm64') => 'aarch64-pc-windows-msvc',
+  ('linux', 'x64') => 'x86_64-unknown-linux-gnu',
+  ('linux', 'arm64') => 'aarch64-unknown-linux-gnu',
+  ('macos', 'arm64') => 'aarch64-apple-darwin',
+  ('macos', 'x64') => 'x86_64-apple-darwin',
+  _ => throw StateError('No Rust host triple for $_os-$_arch'),
+};
+
+/// Licence and notice files a crate publishes (`LICENSE-MIT`, `COPYING`, ...).
+final RegExp _licenseFile = RegExp(
+  r'^(licen[cs]e|copying|notice|unlicense|copyright)([-._].*)?$',
+  caseSensitive: false,
+);
+
+/// The crates of [label]'s tree linked for this host (`cargo metadata
+/// --filter-platform`), listed with their declared licences, and each crate's
+/// licence texts copied to `licenses/rust/<label>/<crate>-<version>/`: the
+/// files the crate publishes, or, for a crate that publishes none, the
+/// canonical text of each licence in its SPDX expression
+/// (`scripts/licenses/`; MIT with the crate's authors as holders). This
+/// repository's own crates get its `LICENSE.md`. Fails when a declared
+/// licence has no text.
+Future<String> _crateLicenses(
+  String label,
+  String manifest,
+  Directory licenses,
+) async {
   final ProcessResult r = await Process.run('cargo', <String>[
     'metadata',
     '--locked',
     '--format-version',
     '1',
+    '--filter-platform',
+    _rustHost,
     '--manifest-path',
-    p.join(_root, 'packages', 'desktop_webview', 'helper', 'Cargo.toml'),
+    p.join(_root, manifest),
   ]);
-  if (r.exitCode != 0) return 'cargo metadata failed: ${r.stderr}\n';
+  if (r.exitCode != 0) {
+    throw StateError('cargo metadata failed for $manifest: ${r.stderr}');
+  }
   final meta = jsonDecode(r.stdout as String) as Map<String, Object?>;
+  final linked = <String>{
+    for (final Object? n
+        in (meta['resolve']! as Map<String, Object?>)['nodes']!
+            as List<Object?>)
+      (n! as Map<String, Object?>)['id']! as String,
+  };
+  final List<Map<String, Object?>> packages =
+      (meta['packages']! as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .where((Map<String, Object?> pkg) => linked.contains(pkg['id']))
+          .toList()
+        ..sort(
+          (Map<String, Object?> a, Map<String, Object?> b) =>
+              '${a['name']} ${a['version']}'.compareTo(
+                '${b['name']} ${b['version']}',
+              ),
+        );
+  final String local = p.join(_root, 'packages');
   final lines = <String>[
-    'Crates linked into desktop_webview_helper (from helper/Cargo.lock), with their declared licences.',
-    "Every target platform is listed; only the host platform's crates are linked into this build.",
+    'Crates linked into $label for $_rustHost (from ${p.dirname(manifest)}/Cargo.lock), with their',
+    "declared licences. Each crate's licence texts are in rust/$label/<crate>-<version>/.",
     '',
   ];
-  final List<Map<String, Object?>> packages =
-      (meta['packages']! as List<Object?>).cast<Map<String, Object?>>()..sort(
-        (Map<String, Object?> a, Map<String, Object?> b) =>
-            (a['name']! as String).compareTo(b['name']! as String),
-      );
   for (final pkg in packages) {
-    lines.add(
-      '${pkg['name']} ${pkg['version']}: ${pkg['license'] ?? pkg['license_file'] ?? 'UNDECLARED'}',
-    );
+    final name = pkg['name']! as String;
+    final version = pkg['version']! as String;
+    final declared = pkg['license'] as String?;
+    final String crateDir = p.dirname(pkg['manifest_path']! as String);
+    final dest = Directory(
+      p.join(licenses.path, 'rust', label, '$name-$version'),
+    )..createSync(recursive: true);
+    final String how;
+    final published = <File>[
+      for (final FileSystemEntity e in Directory(crateDir).listSync())
+        if (e is File && _licenseFile.hasMatch(p.basename(e.path))) e,
+    ];
+    if (p.isWithin(local, crateDir)) {
+      File(p.join(_root, 'LICENSE.md'))
+          .copySync(p.join(dest.path, 'LICENSE.md'));
+      how = "this repository's LICENSE.md";
+    } else if (published.isNotEmpty) {
+      for (final f in published) {
+        f.copySync(p.join(dest.path, p.basename(f.path)));
+      }
+      how = published.map((File f) => p.basename(f.path)).join(', ');
+    } else {
+      final List<String> ids = _licencesToShip(declared, name, version);
+      for (final id in ids) {
+        final canonical = File(p.join(_root, 'scripts', 'licenses', '$id.txt'));
+        final String authors =
+            (pkg['authors'] as List<Object?>? ?? const <Object?>[])
+                .map((Object? a) => '$a'.replaceAll(RegExp(r'\s*<[^>]*>'), ''))
+                .join(', ');
+        File(p.join(dest.path, 'LICENSE-$id')).writeAsStringSync(
+          canonical.readAsStringSync().replaceAll(
+            '{{holders}}',
+            authors.isEmpty ? 'the $name authors' : authors,
+          ),
+        );
+      }
+      how =
+          'canonical ${ids.join(', ')} text (the crate publishes no licence file)';
+    }
+    lines.add('$name $version: ${declared ?? 'UNDECLARED'} ($how)');
   }
   return '${lines.join('\n')}\n';
+}
+
+/// The licences whose canonical texts ship for a crate that publishes no
+/// licence file: every `AND` term of its SPDX expression, and for each term
+/// that offers a choice (`OR`, or Cargo's older `/`) the first option with a
+/// text in `scripts/licenses/` (the recipient may take any one). Fails when a
+/// term has no option with a text.
+List<String> _licencesToShip(String? declared, String name, String version) {
+  final String expression = (declared ?? '').replaceAll(RegExp('[()]'), ' ');
+  final terms = <String>[
+    for (final String t in expression.split(RegExp(r'\s+AND\s+')))
+      if (t.trim().isNotEmpty) t.trim(),
+  ];
+  if (terms.isEmpty) {
+    throw StateError(
+      '$name $version declares no licence and publishes no licence file',
+    );
+  }
+  bool hasText(String id) =>
+      File(p.join(_root, 'scripts', 'licenses', '$id.txt')).existsSync();
+  return <String>[
+    for (final String term in terms)
+      <String>[
+        for (final String option in term.split(RegExp(r'\s*(?:/|\bOR\b)\s*')))
+          if (option.trim().isNotEmpty) option.trim(),
+      ].firstWhere(
+        hasText,
+        orElse: () => throw StateError(
+          '$name $version: no canonical text in scripts/licenses/ for any of "$term"',
+        ),
+      ),
+  ];
 }
 
 String _notice(
@@ -500,10 +629,10 @@ String _notice(
 |---|---|---|
 | Amazon Corretto $javaVersion (jlinked) | `runtime/jre/` | ${pins['license']}; texts in `runtime/jre/legal/` |
 | Tachi source runner and its JVM libraries | `runtime/tachi/lib/` | see `tachi-source-runner-THIRD_PARTY.md` |
-| desktop_webview_helper (wry, tao and their crates) | `runtime/desktop_webview/` | MIT (helper); crates in `desktop_webview_helper-crates.txt` |
+| desktop_webview_helper (wry, tao and their crates) | `runtime/desktop_webview/` | MIT (helper); crates in `desktop_webview_helper-crates.txt`, texts in `rust/desktop_webview_helper/` |
 | QuickJS-ng | `lib/` (native asset) | MIT, `quickjs-ng-LICENSE` |
 | wasm3 | `lib/` (native asset) | MIT, `wasm3-LICENSE` |
-${has('scraper') ? '| Rust scraper bridge (scraper 0.25, html5ever) | `lib/scraper_bridge` (native asset) | MIT/Apache-2.0 crates; texts not bundled (gap) |\n' : ''}${has('SwiftSoup') ? '| SwiftSoup and its Swift packages (swift-atomics, LRUCache) | `lib/libSwiftSoupWrapper.dylib` (native asset) | MIT, Apache-2.0, MIT: `swiftsoup-LICENSE`, `swift-atomics-LICENSE.txt`, `lrucache-LICENSE.md` |\n' : ''}${has('objective_c') ? '| Dart `objective_c` runtime support | `lib/objective_c.dylib` (native asset) | BSD-3-Clause, `objective_c-LICENSE` |\n' : ''}| SQLite | `lib/sqlite3` (native asset, `sqlite3` package) | public domain |
+${has('scraper') ? '| Rust scraper bridge (scraper 0.25, html5ever) | `lib/scraper_bridge` (native asset) | MIT/Apache-2.0 and MPL-2.0 crates in `scraper_bridge-crates.txt`, texts in `rust/scraper_bridge/` |\n' : ''}${has('SwiftSoup') ? '| SwiftSoup and its Swift packages (swift-atomics, LRUCache) | `lib/libSwiftSoupWrapper.dylib` (native asset) | MIT, Apache-2.0, MIT: `swiftsoup-LICENSE`, `swift-atomics-LICENSE.txt`, `lrucache-LICENSE.md` |\n' : ''}${has('objective_c') ? '| Dart `objective_c` runtime support | `lib/objective_c.dylib` (native asset) | BSD-3-Clause, `objective_c-LICENSE` |\n' : ''}| SQLite | `lib/sqlite3` (native asset, `sqlite3` package) | public domain |
 | Paperback host library (Cheerio and its dependencies) | inside the CLI executable | `paperback-host-lib-LICENSES.txt` |
 
 No extension, repository or source artifact is bundled: repositories, extensions and

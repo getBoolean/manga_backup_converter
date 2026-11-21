@@ -273,6 +273,10 @@ jobs:
         shell: bash
         run: ./gradlew --no-daemon --quiet benchmark -PbenchmarkArgs="--quick" > ../../build/benchmarks/tachi-worker-quick.json
 
+      - name: Committed results match the current workers and sizing rules
+        shell: bash
+        run: dart run tool/check_benchmark_results.dart | tee build/benchmarks/committed-results-check.txt
+
       - name: Upload benchmark report
         if: always()
         uses: actions/upload-artifact@v4
