@@ -6,17 +6,21 @@
   "date": "2026-11-21",
   "runs": [
     {
-      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --dart-define=SRT_BENCH=true --reporter expanded",
-      "head": "rebased on feat/source-runners 0bd7eb0d, before the final browser fixes",
-      "result": "14:15 +96 -2: Some tests failed.",
-      "note": "U11/U13/U12-Paperback cases and the Paperback benchmark; the two U12 browser failures in this run were fixed and the browser group re-run below"
-    },
-    {
-      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --plain-name \"U12 app-process\" --reporter expanded",
-      "head": "d1e88a4e",
-      "result": "03:31 +66: All tests passed!"
+      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded",
+      "base": "feat/source-runners-u12 rebased on feat/source-runners 28b44470",
+      "head": "5b584a5b",
+      "result": "08:01 +96 ~2: All tests passed!",
+      "skips": [
+        "KTD25 benchmark (opt-in with --dart-define=SRT_BENCH=true; its receipt is the benchmark file from an earlier run)",
+        "contract case \"showForInteraction reports interaction-required without a display\" (the harness has a display)"
+      ]
     }
   ],
+  "benchmarkRun": {
+    "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --dart-define=SRT_BENCH=true --reporter expanded",
+    "head": "feat/source-runners-u12 rebased on 0bd7eb0d, before the final browser fixes (Paperback host unchanged since)"
+  },
+  "redaction": "Chapter titles removed (evidence-check private-text rule); queries are the fixed public query (Onimai/Oshimai); cookies appear only by name and are test constants set by the cases.",
   "paperback": [
     {
       "scenario": "quickjs",
@@ -36,14 +40,14 @@
       "limits": {
         "memoryLimitBytes": 19420946,
         "maxStackBytes": 433936,
-        "operationDeadlineMicros": 198496980,
-        "jobSliceMicros": 249939
+        "operationDeadlineMicros": 196578953,
+        "jobSliceMicros": 211579
       },
       "device": {
         "physicalMemoryBytes": 4104826880,
         "threadStackBytes": 1062839,
         "processors": 4,
-        "calibrationMicros": 159774
+        "calibrationMicros": 135252
       },
       "profile": {
         "source": "U6 real Paperback bundles (14 workloads, replayed captures), windows AOT",
@@ -63,8 +67,8 @@
       "concurrentRuntimes": 1,
       "hostWaitAllowanceMicros": 186000000,
       "warnings": [],
-      "deadlineHeadroomMicros": 348528,
-      "cancelGraceMicros": 598467,
+      "deadlineHeadroomMicros": 295036,
+      "cancelGraceMicros": 506615,
       "handshakeDeadlineMicros": 30000000
     },
     {
@@ -352,9 +356,7 @@
       ],
       "misses": [],
       "browserLog": [
-        "[android-webview] started: {\"multiProfile\":true,\"features\":{\"MULTI_PROFILE\":true,\"WEB_MESSAGE_LISTENER\":true,\"DOCUMENT_START_SCRIPT\":true,\"PROXY_OVERRIDE\":true,\"GET_COOKIE_INFO\":true},\"webViewPackage\":\"com.google.android.webview 134.0.6998.135\",\"startedActivities\":1,\"offlineProxy\":\"127.0.0.1:36229\"}",
-        "[android-webview] dropped a \"__pbResult\" message: frame origin https://mangafire.to, document about:blank",
-        "[android-webview] dropped a \"__pbResult\" message: frame origin https://mangafire.to, document about:blank"
+        "[android-webview] started: {\"multiProfile\":true,\"features\":{\"MULTI_PROFILE\":true,\"WEB_MESSAGE_LISTENER\":true,\"DOCUMENT_START_SCRIPT\":true,\"PROXY_OVERRIDE\":true,\"GET_COOKIE_INFO\":true},\"webViewPackage\":\"com.google.android.webview 134.0.6998.135\",\"startedActivities\":1,\"offlineProxy\":\"127.0.0.1:42877\"}"
       ],
       "sessionsLeftOpen": 0,
       "refusedBrowserRequests": [
@@ -364,18 +366,18 @@
         "CONNECT fonts.gstatic.com:443 HTTP/1.1",
         "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT s.mfcdn.nl:443 HTTP/1.1",
+        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT static.cloudflareinsights.com:443 HTTP/1.1",
         "CONNECT s.mfcdn.nl:443 HTTP/1.1",
-        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT fonts.googleapis.com:443 HTTP/1.1",
         "CONNECT mangafire.to:443 HTTP/1.1",
         "CONNECT mangafire.to:443 HTTP/1.1",
         "CONNECT fonts.googleapis.com:443 HTTP/1.1",
-        "CONNECT fonts.googleapis.com:443 HTTP/1.1",
-        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
-        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT fonts.gstatic.com:443 HTTP/1.1",
         "CONNECT fonts.googleapis.com:443 HTTP/1.1",
+        "CONNECT fonts.gstatic.com:443 HTTP/1.1",
+        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
+        "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT s.mfcdn.nl:443 HTTP/1.1",
         "CONNECT static.cloudflareinsights.com:443 HTTP/1.1",
@@ -388,14 +390,14 @@
       "evidence": "emulator",
       "abi": "android_x64",
       "code": "timeout",
-      "elapsedMs": 491
+      "elapsedMs": 417
     },
     {
       "scenario": "loop-jobs",
       "evidence": "emulator",
       "abi": "android_x64",
       "code": "cancelled",
-      "elapsedMs": 400
+      "elapsedMs": 150
     },
     {
       "scenario": "memory-exhaustion",
@@ -403,14 +405,14 @@
       "abi": "android_x64",
       "code": "source-error",
       "message": "pkg.loop exceeded its JS memory limit of 16777216 bytes",
-      "elapsedMs": 76
+      "elapsedMs": 82
     },
     {
       "scenario": "kill",
       "evidence": "emulator",
       "abi": "android_x64",
       "exit": -9,
-      "elapsedMs": 17
+      "elapsedMs": 10
     },
     {
       "scenario": "host-call-deadline-and-pause",
@@ -437,76 +439,50 @@
         "mechanism": "one androidx.webkit profile per session"
       },
       "sessionProfiles": [
-        "srt-1795297631965-0",
-        "srt-1795297654481-1"
+        "srt-1795300066701-0",
+        "srt-1795300109961-1"
       ],
       "profilesWhileOpen": [
         "Default",
-        "srt-1795297631965-0",
-        "srt-1795297654481-1",
-        "srt-probe-6352943856598",
-        "srt-probe-6355571050398",
-        "srt-probe-6358079508198",
-        "srt-probe-6360626139998",
-        "srt-probe-6363526395198"
+        "srt-1795300066701-0",
+        "srt-1795300109961-1",
+        "srt-probe-8797652012898",
+        "srt-probe-8799835375398",
+        "srt-probe-8802062817798",
+        "srt-probe-8804327863498",
+        "srt-probe-8806824724098"
       ],
       "appProcessSetProfile": {
-        "process": 19991,
+        "process": 22497,
         "multiProfile": true,
         "stages": {
           "afterConstruction": {
             "setProfile": "ok",
-            "profileInUse": "srt-probe-6352943856598",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6352943856598"
+            "profileInUse": "srt-probe-8797652012898",
+            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-8797652012898"
           },
           "afterSettings": {
             "setProfile": "ok",
-            "profileInUse": "srt-probe-6355571050398",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6355571050398"
+            "profileInUse": "srt-probe-8799835375398",
+            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-8799835375398"
           },
           "afterAddJavascriptInterface": {
             "setProfile": "ok",
-            "profileInUse": "srt-probe-6358079508198",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6358079508198"
+            "profileInUse": "srt-probe-8802062817798",
+            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-8802062817798"
           },
           "afterLoad": {
             "setProfile": "IllegalStateException: Cannot set new profile on a WebView that has been previously navigated.",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6360626139998"
+            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-8804327863498"
           },
           "afterEvaluate": {
             "setProfile": "IllegalStateException: Cannot set new profile after call to evaluateJavascript",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6363526395198"
+            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-8806824724098"
           }
         }
       },
       "serviceProcessSetProfile": {
-        "process": 21041,
-        "multiProfile": true,
-        "stages": {
-          "afterConstruction": {
-            "setProfile": "ok",
-            "profileInUse": "srt-probe-6367779188598",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6367779188598"
-          },
-          "afterSettings": {
-            "setProfile": "ok",
-            "profileInUse": "srt-probe-6370321337598",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6370321337598"
-          },
-          "afterAddJavascriptInterface": {
-            "setProfile": "ok",
-            "profileInUse": "srt-probe-6372603752098",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6372603752098"
-          },
-          "afterLoad": {
-            "setProfile": "IllegalStateException: Cannot set new profile on a WebView that has been previously navigated.",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6374934441998"
-          },
-          "afterEvaluate": {
-            "setProfile": "IllegalStateException: Cannot set new profile after call to evaluateJavascript",
-            "deleteAfterDestroy": "java.lang.IllegalStateException: Cannot delete in-use profile srt-probe-6377598844498"
-          }
-        }
+        "error": "probe timed out"
       }
     },
     {
@@ -514,22 +490,22 @@
       "evidence": "emulator",
       "abi": "android_x64",
       "sessionProfiles": [
-        "srt-1795297631965-0",
-        "srt-1795297654481-1"
+        "srt-1795300066701-0",
+        "srt-1795300109961-1"
       ],
       "profilesAfterClose": [
         "Default",
-        "srt-1795297631965-0",
-        "srt-1795297654481-1",
-        "srt-probe-6352943856598",
-        "srt-probe-6355571050398",
-        "srt-probe-6358079508198",
-        "srt-probe-6360626139998",
-        "srt-probe-6363526395198"
+        "srt-1795300066701-0",
+        "srt-1795300109961-1",
+        "srt-probe-8797652012898",
+        "srt-probe-8799835375398",
+        "srt-probe-8802062817798",
+        "srt-probe-8804327863498",
+        "srt-probe-8806824724098"
       ],
       "freeProfiles": [
-        "srt-1795297631965-0",
-        "srt-1795297654481-1"
+        "srt-1795300066701-0",
+        "srt-1795300109961-1"
       ],
       "leftover": []
     },
@@ -550,7 +526,7 @@
       "abi": "android_x64",
       "blockedLoad": "BrowserNavigationFailed(https://example.com/: net::ERR_EMPTY_RESPONSE (-1))",
       "pageFetch": "\"failed\"",
-      "offlineProxy": "127.0.0.1:33273",
+      "offlineProxy": "127.0.0.1:38851",
       "refusedRequests": [
         "CONNECT example.com:443 HTTP/1.1",
         "CONNECT u12-replay-check.invalid:443 HTTP/1.1"
@@ -562,7 +538,7 @@
       "abi": "android_x64",
       "ok": "null",
       "missing": "404",
-      "closedPort": "BrowserNavigationFailed(http://127.0.0.1:45205/gone: net::ERR_CONNECTION_REFUSED (-6))",
+      "closedPort": "BrowserNavigationFailed(http://127.0.0.1:36523/gone: net::ERR_CONNECTION_REFUSED (-6))",
       "redirectToFile": "BrowserCapabilityUnavailable(loadUrl: Navigation to scheme \"file\" is not allowed (only http, https, about:blank))"
     },
     {
@@ -637,11 +613,10 @@
       "evidence": "emulator",
       "abi": "android_x64",
       "rounds": 10,
-      "totalBefore": 864,
-      "totalAfter": 962,
-      "ownedBefore": 8,
+      "totalBefore": 802,
+      "totalAfter": 909,
+      "ownedBefore": 6,
       "ownedAfter": 3
     }
-  ],
-  "redaction": "Chapter titles removed (evidence check private-text rule); queries are the fixed public query (Onimai/Oshimai); cookie values are test constants set by the cases and appear only as names."
+  ]
 }

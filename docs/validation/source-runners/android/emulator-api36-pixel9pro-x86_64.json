@@ -17,8 +17,8 @@
   "receipts": [
     {
       "scenario": "facade",
-      "appPid": 21897,
-      "servicePid": 21957,
+      "appPid": 26683,
+      "servicePid": 26722,
       "sdkInt": 36,
       "serviceProcess": "dev.getboolean.mangabackupconverter:source_runtime",
       "generation": 1
@@ -355,52 +355,52 @@
     },
     {
       "scenario": "termination",
-      "appPid": 21897,
+      "appPid": 26683,
       "rounds": [
         {
           "round": 0,
-          "killedPid": 21957,
-          "reboundPid": 21976,
-          "killToDeathMs": 48,
-          "deathToRebindMs": 1173,
-          "dartTicks": 75,
-          "maxDartTickGapMs": 130
+          "killedPid": 26722,
+          "reboundPid": 26742,
+          "killToDeathMs": 35,
+          "deathToRebindMs": 546,
+          "dartTicks": 54,
+          "maxDartTickGapMs": 35
         },
         {
           "round": 1,
-          "killedPid": 21976,
-          "reboundPid": 21991,
-          "killToDeathMs": 38,
-          "deathToRebindMs": 781,
-          "dartTicks": 61,
-          "maxDartTickGapMs": 65
+          "killedPid": 26742,
+          "reboundPid": 26757,
+          "killToDeathMs": 34,
+          "deathToRebindMs": 539,
+          "dartTicks": 55,
+          "maxDartTickGapMs": 27
         },
         {
           "round": 2,
-          "killedPid": 21991,
-          "reboundPid": 22007,
-          "killToDeathMs": 42,
-          "deathToRebindMs": 690,
-          "dartTicks": 60,
-          "maxDartTickGapMs": 95
+          "killedPid": 26757,
+          "reboundPid": 26773,
+          "killToDeathMs": 20,
+          "deathToRebindMs": 644,
+          "dartTicks": 57,
+          "maxDartTickGapMs": 41
         },
         {
           "round": 3,
-          "killedPid": 22007,
-          "reboundPid": 22022,
-          "killToDeathMs": 41,
-          "deathToRebindMs": 1090,
-          "dartTicks": 81,
-          "maxDartTickGapMs": 65
+          "killedPid": 26773,
+          "reboundPid": 26789,
+          "killToDeathMs": 98,
+          "deathToRebindMs": 795,
+          "dartTicks": 60,
+          "maxDartTickGapMs": 64
         },
         {
           "round": 4,
-          "killedPid": 22022,
-          "reboundPid": 22038,
-          "killToDeathMs": 48,
-          "deathToRebindMs": 830,
-          "dartTicks": 67,
-          "maxDartTickGapMs": 71
+          "killedPid": 26789,
+          "reboundPid": 26804,
+          "killToDeathMs": 20,
+          "deathToRebindMs": 636,
+          "dartTicks": 59,
+          "maxDartTickGapMs": 31
         }
       ]
     },
@@ -408,7 +408,7 @@
       "scenario": "webview",
       "sdkInt": 36,
       "app": {
-        "pid": 21897,
+        "pid": 26683,
         "processName": "dev.getboolean.mangabackupconverter",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -423,7 +423,7 @@
         ]
       },
       "service": {
-        "pid": 22038,
+        "pid": 26804,
         "processName": "dev.getboolean.mangabackupconverter:source_runtime",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -440,7 +440,7 @@
       },
       "serviceError": null,
       "appWhileServiceAlive": {
-        "pid": 21897,
+        "pid": 26683,
         "processName": "dev.getboolean.mangabackupconverter",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -495,8 +495,9 @@
   "refreshed": {
     "by": "U12",
     "date": "2026-11-21",
-    "head": "d1e88a4e",
+    "base": "feat/source-runners-u12 rebased on feat/source-runners 28b44470",
+    "head": "5b584a5b",
     "command": "flutter test integration_test/android_runtime_gate_test.dart -d emulator-5554 --reporter expanded",
-    "result": "00:24 +5: All tests passed!"
+    "result": "00:18 +5: All tests passed!"
   }
 }

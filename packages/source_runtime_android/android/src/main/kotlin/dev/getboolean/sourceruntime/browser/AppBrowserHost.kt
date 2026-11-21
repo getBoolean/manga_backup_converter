@@ -642,8 +642,10 @@ internal object ActivityTracker : android.app.Application.ActivityLifecycleCallb
  * (U12 emulator receipt). A released profile is therefore emptied first
  * (cookies, web storage, HTTP cache) and confirmed empty; it is then deleted
  * when Chromium allows it, and otherwise parked in [free] and handed to the
- * next session. Either way no session sees another session's data, and a
- * profile that cannot be confirmed empty is never reused.
+ * next session. A profile whose cookies are not confirmed gone is never
+ * reused. Web storage is deleted with `deleteAllData`, but WebView 134's
+ * `getOrigins` does not report localStorage, so its deletion is checked by
+ * the contract cases, not confirmed here.
  */
 internal object ProfilePool {
     val inUse = HashSet<String>()

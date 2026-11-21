@@ -20,9 +20,9 @@
           "hits": 2,
           "title": "Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)",
           "chapters": 15,
-          "loadMs": 1895,
-          "searchMs": 1149,
-          "detailsMs": 465
+          "loadMs": 2136,
+          "searchMs": 987,
+          "detailsMs": 528
         },
         "eu.kanade.tachiyomi.extension.en.weebcentral": {
           "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
@@ -31,9 +31,9 @@
           "hits": 1,
           "title": "ONIMAI - I'm Now Your Sister!",
           "chapters": 114,
-          "loadMs": 653,
-          "searchMs": 666,
-          "detailsMs": 4600
+          "loadMs": 322,
+          "searchMs": 463,
+          "detailsMs": 4078
         },
         "eu.kanade.tachiyomi.extension.all.mangafire": {
           "artifactSha256": "f2d1f69dfca4fcf930f696873807e6ec0f4dd1626aed0f0c779dfbab876f70f8",
@@ -42,9 +42,9 @@
           "hits": 50,
           "title": "Highschool ONIMAI",
           "chapters": 86,
-          "loadMs": 455,
-          "searchMs": 583,
-          "detailsMs": 891
+          "loadMs": 588,
+          "searchMs": 504,
+          "detailsMs": 1047
         }
       },
       "liveLoaders": 3,
@@ -107,15 +107,15 @@
     {
       "scenario": "ae10-kill-rehydrate",
       "evidence": "emulator",
-      "pidBefore": 16114,
-      "pidAfter": 16181,
+      "pidBefore": 22856,
+      "pidAfter": 22921,
       "loopFailure": "timeout: search exceeded its deadline; worker restarted",
       "restartReason": "search for fixture.android.busy did not settle after cooperative cancel",
       "requeued": [],
       "failed": [],
       "reloadFailures": [],
       "queuedHits": 1,
-      "maxDartTickGapMs": 141,
+      "maxDartTickGapMs": 118,
       "startupWipe": [
         "app_webview_source_runtime"
       ],
@@ -143,10 +143,10 @@
     {
       "scenario": "service-webview-cookies",
       "evidence": "emulator",
-      "set": "webview=fixture:42;pid=16315;cookies=k",
-      "sharedBeforeClose": "webview=-;pid=16315;cookies=k",
-      "afterSessionClose": "webview=-;pid=16315;cookies=",
-      "afterRestart": "webview=-;pid=16479;cookies=",
+      "set": "webview=fixture:42;pid=23057;cookies=k",
+      "sharedBeforeClose": "webview=-;pid=23057;cookies=k",
+      "afterSessionClose": "webview=-;pid=23057;cookies=",
+      "afterRestart": "webview=-;pid=23222;cookies=",
       "webStorage": {
         "stored": {
           "origin": "https://cookies.test/",
@@ -191,15 +191,15 @@
       "scenario": "ae11-mangafire-webview",
       "evidence": "emulator",
       "outcome": "source-error: IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually. (cause IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually.)",
-      "searchMs": 5510,
+      "searchMs": 3229,
       "challengesServed": 1,
       "refusedBrowserRequests": [],
       "replayMisses": [],
-      "servicePid": 16577,
+      "servicePid": 23323,
       "webViewDataDirs": [
         {
           "name": "app_webview_source_runtime",
-          "bytes": 109184
+          "bytes": 109316
         }
       ],
       "workerLog": []
@@ -208,12 +208,13 @@
       "scenario": "jni-references",
       "evidence": "emulator",
       "rounds": 10,
-      "totalBefore": 469,
-      "totalAfter": 479,
-      "ownedBefore": 1,
-      "ownedAfter": 1,
+      "totalBefore": 478,
+      "totalAfter": 490,
+      "ownedBefore": 7,
+      "ownedAfter": 9,
       "classDelta": {
-        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10
+        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10,
+        "com.github.dart_lang.jni.PortProxyBuilder": 2
       }
     },
     {
@@ -225,12 +226,12 @@
       },
       "shown": {
         "result": "shown",
-        "activityPid": 17347
+        "activityPid": 24083
       },
       "closed": {
         "result": "closed"
       },
-      "workerPid": 17347
+      "workerPid": 24083
     },
     {
       "scenario": "production-start",
@@ -298,8 +299,9 @@
   "refreshed": {
     "by": "U12",
     "date": "2026-11-21",
-    "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --dart-define=SRT_BENCH=true --reporter expanded",
-    "head": "feat/source-runners-u12 rebased on 0bd7eb0d (protocol 1.3 merged)",
-    "result": "14:15 +96 -2: Some tests failed."
+    "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded",
+    "base": "feat/source-runners-u12 rebased on feat/source-runners 28b44470",
+    "head": "5b584a5b",
+    "result": "08:01 +96 ~2: All tests passed! (one file: U13, U11 and U12 cases)"
   }
 }
