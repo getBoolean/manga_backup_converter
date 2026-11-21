@@ -1,0 +1,48 @@
+{
+  "repository": "https://inkdex.github.io/extensions/0.9/stable/",
+  "apiFamily": "paperback-0.9",
+  "retrievedAt": "2026-11-21T00:35:25Z",
+  "licence": "GPL-3.0 (source repositories github.com/inkdex/general-extensions, branch 0.9/stable; the catalog repository github.com/inkdex/extensions declares no licence)",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://inkdex.github.io/extensions/0.9/stable/versioning.json",
+    "sha256": "f861c2f9dc56eead9ff17b9b986bbf57a306754f8fab01edb4649c0547126185",
+    "size": 36193,
+    "builtWith": {
+      "toolchain": "1.0.0-alpha.94",
+      "types": "1.0.0-alpha.94"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "MangaDex",
+      "version": "1.0.0-alpha.28",
+      "contentRating": "SAFE",
+      "path": "MangaDex/index.js",
+      "sourceUrl": "https://inkdex.github.io/extensions/0.9/stable/MangaDex/index.js",
+      "sha256": "f40ce64c5ab2bb16d1a3de5b821ea16ccfda82f24de3d1243b8003ca41d5dbc6",
+      "size": 377168,
+      "licence": "GPL-3.0 (source repositories github.com/inkdex/general-extensions, branch 0.9/stable; the catalog repository github.com/inkdex/extensions declares no licence)"
+    },
+    {
+      "sourceId": "WeebCentral",
+      "version": "1.0.0-alpha.25",
+      "contentRating": "SAFE",
+      "path": "WeebCentral/index.js",
+      "sourceUrl": "https://inkdex.github.io/extensions/0.9/stable/WeebCentral/index.js",
+      "sha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+      "size": 305167,
+      "licence": "GPL-3.0 (source repositories github.com/inkdex/general-extensions, branch 0.9/stable; the catalog repository github.com/inkdex/extensions declares no licence)"
+    },
+    {
+      "sourceId": "MangaFire",
+      "version": "1.0.0-alpha.24",
+      "contentRating": "SAFE",
+      "path": "MangaFire/index.js",
+      "sourceUrl": "https://inkdex.github.io/extensions/0.9/stable/MangaFire/index.js",
+      "sha256": "193ba19c1f837f1f5a4ac2fe2a378c4546ce8cd048670ae93f684cbd4a280eab",
+      "size": 36803,
+      "licence": "GPL-3.0 (source repositories github.com/inkdex/general-extensions, branch 0.9/stable; the catalog repository github.com/inkdex/extensions declares no licence)"
+    }
+  ]
+}

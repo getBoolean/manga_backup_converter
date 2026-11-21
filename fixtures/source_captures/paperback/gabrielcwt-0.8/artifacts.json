@@ -1,0 +1,28 @@
+{
+  "repository": "https://gabrielcwt.github.io/gabe-extensions/0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T00:56:40Z",
+  "licence": "none declared (github.com/GabrielCWT/gabe-extensions has no licence file); held only as interoperability test evidence",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://gabrielcwt.github.io/gabe-extensions/0.8/versioning.json",
+    "sha256": "31411d36fd90e5a95b9a604290da24d45ae716d84e5760d37c25198f8f59d5a5",
+    "size": 750,
+    "builtWith": {
+      "toolchain": "0.8.0-alpha.47",
+      "types": "0.8.0-alpha.47"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "WeebCentral",
+      "version": "1.1.1",
+      "contentRating": "EVERYONE",
+      "path": "WeebCentral/source.js",
+      "sourceUrl": "https://gabrielcwt.github.io/gabe-extensions/0.8/WeebCentral/source.js",
+      "sha256": "5e8fd82fb8962ba215a9eaf453f7e29f0c8fb3f19682dbe3abde97e2b483237a",
+      "size": 154499,
+      "licence": "none declared (github.com/GabrielCWT/gabe-extensions has no licence file); held only as interoperability test evidence"
+    }
+  ]
+}

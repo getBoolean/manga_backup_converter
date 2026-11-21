@@ -1,0 +1,1626 @@
+{
+  "buildTime": "2026-11-10T11:51:23.531Z",
+  "builtWith": {
+    "toolchain": "1.0.0-alpha.94",
+    "types": "1.0.0-alpha.94"
+  },
+  "repository": {
+    "name": "Inkdex Extensions (0.9)",
+    "description": "All extensions from the Inkdex community in a single repository."
+  },
+  "sources": [
+    {
+      "id": "AllManga",
+      "name": "AllManga",
+      "description": "Extension that pulls content from allmanga.to.",
+      "version": "1.0.0-alpha.4",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Popmango",
+          "website": null,
+          "github": "https://github.com/PoppingMangoSources"
+        }
+      ]
+    },
+    {
+      "id": "AllPornComic",
+      "name": "AllPornComic",
+      "description": "Extension that pulls content from allporncomic.com.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "AniList",
+      "name": "AniList",
+      "description": "Extension that integrates with anilist.co for tracking and collection management.",
+      "version": "1.0.0-alpha.19",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        4,
+        2,
+        32,
+        64,
+        8
+      ],
+      "developers": [
+        {
+          "name": "Celarye",
+          "website": "https://celarye.dev",
+          "github": "https://github.com/Celarye"
+        }
+      ]
+    },
+    {
+      "id": "ArthurScan",
+      "name": "ArthurScan",
+      "description": "Extension that pulls content from arthurscan.xyz.",
+      "version": "1.0.0-alpha.16",
+      "icon": "icon.png",
+      "language": "pt",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Atsumaru",
+      "name": "Atsumaru",
+      "description": "Extension that pulls content from atsu.moe.",
+      "version": "1.0.0-alpha.25",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Lucifers Circle",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "CoffeeManga",
+      "name": "CoffeeManga",
+      "description": "Extension that pulls content from coffeemanga.ink.",
+      "version": "1.0.0-alpha.16",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "DragonTea",
+      "name": "DragonTea",
+      "description": "Extension that pulls content from dragontea.ink.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "DrakeScans",
+      "name": "Drake Scans",
+      "description": "Extension that pulls content from drakecomic.org.",
+      "version": "1.0.0-alpha.7",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "FlameComics",
+      "name": "FlameComics",
+      "description": "Extension that pulls content from FlameComics.xyz.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Guillaume Favier",
+          "website": null,
+          "github": "https://github.com/Guillaume-favier"
+        }
+      ]
+    },
+    {
+      "id": "GourmetScans",
+      "name": "GourmetScans",
+      "description": "Extension that pulls content from gourmetsupremacy.com.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Hentai20",
+      "name": "Hentai20",
+      "description": "Extension that pulls content from hentai20.io.",
+      "version": "1.0.0-alpha.6",
+      "icon": "icon.jpg",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "HiperDex",
+      "name": "HiperDex",
+      "description": "Extension that pulls content from hiperdex.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "HiveToons",
+      "name": "HiveToons",
+      "description": "Extension that pulls content from hivetoons.org.",
+      "version": "1.0.0-alpha.4",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Popmango",
+          "website": null,
+          "github": "https://github.com/PoppingMangoSources"
+        }
+      ]
+    },
+    {
+      "id": "KunManga",
+      "name": "KunManga",
+      "description": "Extension that pulls content from kunmanga.co.uk.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "LHTranslation",
+      "name": "LHTranslation",
+      "description": "Extension that pulls content from lhtranslation.net.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "LNori",
+      "name": "LNori",
+      "description": "Extension that pulls content from LNori.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [
+        {
+          "label": "Novel",
+          "textColor": "#ffffff",
+          "backgroundColor": "#3baf4b"
+        }
+      ],
+      "capabilities": [
+        4,
+        64,
+        1
+      ],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "website": null,
+          "github": "https://github.com/Catta1997"
+        }
+      ]
+    },
+    {
+      "id": "LekManga",
+      "name": "LekManga",
+      "description": "Extension that pulls content from mangalik.net.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "ar",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "LelManga",
+      "name": "LelManga",
+      "description": "Extension that pulls content from lelmanga.com.",
+      "version": "1.0.0-alpha.6",
+      "icon": "icon.png",
+      "language": "fr",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "LilyManga",
+      "name": "LilyManga",
+      "description": "Extension that pulls content from lilymanga.net.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MadaraDex",
+      "name": "MadaraDex",
+      "description": "Extension that pulls content from madaradex.org.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Manga3asq",
+      "name": "Manga3asq",
+      "description": "Extension that pulls content from 3asq.pro.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "ar",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaBat",
+      "name": "MangaBat",
+      "description": "Extension that pulls content from mangabat.com.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Saw_6",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaDemon",
+      "name": "MangaDemon",
+      "description": "Extension that pulls content from demonicscans.org.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "samipmainali",
+          "website": null,
+          "github": "https://github.com/samipmainali"
+        }
+      ]
+    },
+    {
+      "id": "MangaDex",
+      "name": "MangaDex",
+      "description": "Extension that pulls content from mangadex.org.",
+      "version": "1.0.0-alpha.28",
+      "icon": "icon.png",
+      "language": "multi",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        8,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaDistrict",
+      "name": "MangaDistrict",
+      "description": "Extension that pulls content from mangadistrict.com.",
+      "version": "1.0.0-alpha.12",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaDot",
+      "name": "MangaDot",
+      "description": "Extension that pulls content from MangaDot.net",
+      "version": "1.0.0-alpha.6",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "website": null,
+          "github": "https://github.com/Catta1997"
+        }
+      ]
+    },
+    {
+      "id": "MangaFire",
+      "name": "MangaFire",
+      "description": "Extension that pulls content from mangafire.to.",
+      "version": "1.0.0-alpha.24",
+      "icon": "icon.png",
+      "language": "multi",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        4,
+        64,
+        1,
+        32,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaFox",
+      "name": "MangaFox",
+      "description": "Extension that pulls content from fanfox.net.",
+      "version": "1.0.0-alpha.13",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Egwau",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaKakalot",
+      "name": "MangaKakalot",
+      "description": "Extension that pulls content from mangakakalot.gg.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Saw_6",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaKatana",
+      "name": "MangaKatana",
+      "description": "Extension that pulls content from mangakatana.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Egwau",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaKoma",
+      "name": "MangaKoma",
+      "description": "Extension that pulls content from mangakoma.net.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "ja",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        4,
+        64,
+        1
+      ],
+      "developers": [
+        {
+          "name": "deskpacito",
+          "website": null,
+          "github": "https://github.com/deskpacito"
+        }
+      ]
+    },
+    {
+      "id": "MangaNato",
+      "name": "MangaNato",
+      "description": "Extension that pulls content from manganato.gg.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Saw_6",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaNelo",
+      "name": "MangaNelo",
+      "description": "Extension that pulls content from nelomanga.net.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Saw_6",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaOrigines",
+      "name": "MangaOrigines",
+      "description": "Extension that pulls content from mangas-origines.fr.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "fr",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaPlus",
+      "name": "MangaPlus",
+      "description": "Extension that pulls content from mangaplus.shueisha.co.jp.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Yves Pa",
+          "website": null,
+          "github": "https://github.com/YvesPa"
+        }
+      ]
+    },
+    {
+      "id": "MangaReadOrg",
+      "name": "MangaReadOrg",
+      "description": "Extension that pulls content from mangaread.org.",
+      "version": "1.0.0-alpha.17",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaScantrad",
+      "name": "MangaScantrad",
+      "description": "Extension that pulls content from manga-scantrad.io.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "fr",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "MangaTaro",
+      "name": "MangaTaro",
+      "description": "Extension that pulls content from mangataro.org.",
+      "version": "1.0.0-alpha.3",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Lucifers Circle",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "MangaUpdates",
+      "name": "MangaUpdates",
+      "description": "Extension that integrates with mangaupdates.com for tracking and collection management.",
+      "version": "1.0.0-alpha.9",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        4,
+        2,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "IntermittentlyRupert",
+          "website": null,
+          "github": "https://github.com/IntermittentlyRupert"
+        }
+      ]
+    },
+    {
+      "id": "MangaWorld",
+      "name": "MangaWorld",
+      "description": "Extension that pulls content from www.mangaworld.mx.",
+      "version": "1.0.0-alpha.5",
+      "icon": "icon.png",
+      "language": "it",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "website": null,
+          "github": "https://github.com/Catta1997"
+        }
+      ]
+    },
+    {
+      "id": "MangaWorldAdult",
+      "name": "MangaWorldAdult",
+      "description": "Extension that pulls content from www.mangaworldadult.net.",
+      "version": "1.0.0-alpha.5",
+      "icon": "icon.png",
+      "language": "it",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Catta1997",
+          "website": null,
+          "github": "https://github.com/Catta1997"
+        }
+      ]
+    },
+    {
+      "id": "MangaZin",
+      "name": "MangaZin",
+      "description": "Extension that pulls content from mangazin.org.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Mangago",
+      "name": "Mangago",
+      "description": "Extension that pulls content from mangago.me.",
+      "version": "1.0.0-alpha.1",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Popmango",
+          "website": null,
+          "github": "https://github.com/PoppingMangoSources"
+        }
+      ]
+    },
+    {
+      "id": "Mangapill",
+      "name": "Mangapill",
+      "description": "Extension that pulls content from mangapill.com.",
+      "version": "1.0.0-alpha.12",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "GabrielCWT",
+          "website": null,
+          "github": "https://github.com/GabrielCWT"
+        }
+      ]
+    },
+    {
+      "id": "ManhuaPlus",
+      "name": "ManhuaPlus",
+      "description": "Extension that pulls content from manhuaplus.com.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Manhuaus",
+      "name": "Manhuaus",
+      "description": "Extension that pulls content from manhuaus.com.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "ManhwaClub",
+      "name": "ManhwaClub",
+      "description": "Extension that pulls content from manhwaclub.net.",
+      "version": "1.0.0-alpha.3",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "ManhwaRaw",
+      "name": "ManhwaRaw",
+      "description": "Extension that pulls content from manhwa-raw.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "ko",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "ManhwaTop",
+      "name": "ManhwaTop",
+      "description": "Extension that pulls content from manhwatop.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "ManhwaX",
+      "name": "ManhwaX",
+      "description": "Extension that pulls content from manhwax.top.",
+      "version": "1.0.0-alpha.9",
+      "icon": "icon.jpg",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "Mgeko",
+      "name": "Mgeko",
+      "description": "Extension that pulls content from mgeko.cc.",
+      "version": "1.0.0-alpha.29",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "PunkRecords",
+      "name": "PunkRecords",
+      "description": "Extension pour récupérer le contenu de punkrecordz.com.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "fr",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Finebouche",
+          "website": null,
+          "github": "https://github.com/Finebouche"
+        }
+      ]
+    },
+    {
+      "id": "QiScans",
+      "name": "QiScans",
+      "description": "Extension that pulls content from qimanhwa.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Lucifers Circle",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "RageScans",
+      "name": "Rage Scans",
+      "description": "Extension that pulls content from ragescans.com.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "Raw1001",
+      "name": "Raw1001",
+      "description": "Extension that pulls content from raw1001.net.",
+      "version": "1.0.0-alpha.2",
+      "icon": "icon.png",
+      "language": "ja",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        4,
+        64,
+        1
+      ],
+      "developers": [
+        {
+          "name": "deskpacito",
+          "website": null,
+          "github": "https://github.com/deskpacito"
+        }
+      ]
+    },
+    {
+      "id": "Roliascan",
+      "name": "Roliascan",
+      "description": "Extension that pulls content from roliascan.com.",
+      "version": "1.0.0-alpha.1",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        4,
+        64,
+        1,
+        16
+      ],
+      "developers": [
+        {
+          "name": "Saw_6",
+          "website": null,
+          "github": null
+        }
+      ]
+    },
+    {
+      "id": "RoyalRoad",
+      "name": "RoyalRoad",
+      "description": "Extension that pulls web novels from royalroad.com and renders their chapters as readable pages.",
+      "version": "1.0.0-alpha.1",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": null,
+          "github": "https://github.com/Inkdex"
+        }
+      ]
+    },
+    {
+      "id": "SamuraiScan",
+      "name": "SamuraiScan",
+      "description": "Extension that pulls content from samurai.j5z.xyz.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "es",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "SetsuScans",
+      "name": "SetsuScans",
+      "description": "Extension that pulls content from setsuscans.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "MATURE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "SushiScans",
+      "name": "SushiScans",
+      "description": "Extension that pulls content from sushiscan.net.",
+      "version": "1.0.0-alpha.7",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "Thunderscans",
+      "name": "Thunderscans",
+      "description": "Extension that pulls content from en-thunderscans.com.",
+      "version": "1.0.0-alpha.11",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "nyzzik",
+          "website": null,
+          "github": "https://github.com/nyzzik"
+        }
+      ]
+    },
+    {
+      "id": "ToonGod",
+      "name": "ToonGod",
+      "description": "Extension that pulls content from toongod.com.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Toonily",
+      "name": "Toonily",
+      "description": "Extension that pulls content from toonily.com.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "UToon",
+      "name": "UToon",
+      "description": "Extension that pulls content from utoon.net.",
+      "version": "1.0.0-alpha.15",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "Webtoon",
+      "name": "Webtoon",
+      "description": "Extension that pulls content from webtoons.com.",
+      "version": "1.0.0-alpha.18",
+      "icon": "icon.png",
+      "language": "multi",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Yves Pa",
+          "website": null,
+          "github": "https://github.com/YvesPa"
+        }
+      ]
+    },
+    {
+      "id": "WebtoonXYZ",
+      "name": "WebtoonXYZ",
+      "description": "Extension that pulls content from webtoon.xyz.",
+      "version": "1.0.0-alpha.14",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    },
+    {
+      "id": "WeebCentral",
+      "name": "WeebCentral",
+      "description": "Extension that pulls content from weebcentral.com.",
+      "version": "1.0.0-alpha.25",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        64,
+        32
+      ],
+      "developers": [
+        {
+          "name": "GabrielCWT",
+          "website": null,
+          "github": "https://github.com/GabrielCWT"
+        }
+      ]
+    },
+    {
+      "id": "YaoiScan",
+      "name": "YaoiScan",
+      "description": "Extension that pulls content from yaoiscan.com.",
+      "version": "1.0.0-alpha.12",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "ADULT",
+      "badges": [],
+      "capabilities": [
+        1,
+        16,
+        4,
+        32,
+        64
+      ],
+      "developers": [
+        {
+          "name": "Inkdex",
+          "website": "https://inkdex.github.io",
+          "github": "https://github.com/inkdex"
+        }
+      ]
+    }
+  ]
+}
