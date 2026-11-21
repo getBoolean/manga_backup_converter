@@ -495,7 +495,8 @@ class WorkerSupervisor {
     try {
       request = await _loadRequest(package);
     } on ArtifactIntegrityException catch (e) {
-      return SourceFailed<PackageLoadResponse>(ArtifactIncompatibleFailure(e.message));
+      // The staged bytes no longer match the digest trust admitted.
+      return SourceFailed<PackageLoadResponse>(TrustFailure(TrustFailureReason.changed, e.message));
     }
     final SourceOutcome<PackageLoadResponse> outcome = await send(package.packageId, request, cancel: cancel);
     if (outcome is SourceSuccess<PackageLoadResponse>) _packages[package.packageId] = package;
@@ -600,7 +601,8 @@ class WorkerSupervisor {
     try {
       inputPath = await input.verifiedPath();
     } on ArtifactIntegrityException catch (e) {
-      return SourceFailed<ArtifactLease>(ArtifactIncompatibleFailure(e.message));
+      // The staged bytes no longer match the digest trust admitted.
+      return SourceFailed<ArtifactLease>(TrustFailure(TrustFailureReason.changed, e.message));
     }
     final Directory staging = await cache.createScratchDirectory();
     try {
@@ -1291,7 +1293,8 @@ class WorkerSupervisor {
     try {
       request = await _loadRequest(package);
     } on ArtifactIntegrityException catch (e) {
-      return SourceFailed<PackageLoadResponse>(ArtifactIncompatibleFailure(e.message));
+      // The staged bytes no longer match the digest trust admitted.
+      return SourceFailed<PackageLoadResponse>(TrustFailure(TrustFailureReason.changed, e.message));
     }
     final c = _Call(
       packageId: package.packageId,

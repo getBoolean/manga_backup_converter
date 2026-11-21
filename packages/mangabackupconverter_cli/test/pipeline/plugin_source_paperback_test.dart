@@ -210,7 +210,9 @@ void main() {
     check(rejected)
         .isA<SourceFailed<List<PluginSource>>>()
         .has((SourceFailed<List<PluginSource>> f) => f.failure, 'failure')
-        .isA<ArtifactIncompatibleFailure>();
+        .isA<TrustFailure>()
+        .has((TrustFailure f) => f.reason, 'reason')
+        .equals(TrustFailureReason.refused);
     check(supervisor.state).equals(WorkerState.idle);
 
     answer = TrustDecision.trustAndRemember;
@@ -226,6 +228,15 @@ void main() {
       check(refused).isA<SourceFailed<List<PluginSource>>>();
       check(asked.single.isChange).isTrue();
       check(asked.single.repository.fragment).equals('WeebCentral');
+      // Nobody can answer (an unattended run): the reason is the change.
+      answer = TrustDecision.unanswered;
+      final changedAgain = Uint8List.fromList(pinned)..[pinned.length - 11] ^= 1;
+      check(await l.loadPluginFromBytes(wc, changedAgain, owner: owner))
+          .isA<SourceFailed<List<PluginSource>>>()
+          .has((SourceFailed<List<PluginSource>> f) => f.failure, 'failure')
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.changed);
     } finally {
       await owner.close();
     }

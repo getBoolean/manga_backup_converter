@@ -100,7 +100,7 @@ abstract interface class SelectionPort {
 }
 
 /// A [SelectionPort] assembled from callbacks. Unset decisions default to
-/// the conservative answer: reject trust, resolve nothing, decline partial
+/// the conservative answer: leave trust unanswered (not trusted), resolve nothing, decline partial
 /// conversions unless [acceptPartial] is set.
 final class CallbackSelectionPort implements SelectionPort {
   CallbackSelectionPort({
@@ -133,7 +133,7 @@ final class CallbackSelectionPort implements SelectionPort {
 
   @override
   Future<TrustDecision> decideRepositoryTrust(RepositoryTrustRequest request) async =>
-      await onRepositoryTrust?.call(request) ?? TrustDecision.reject;
+      await onRepositoryTrust?.call(request) ?? TrustDecision.unanswered;
 
   @override
   Future<List<MangaMatchConfirmation>> confirmMatches(

@@ -13,6 +13,11 @@ import 'package:source_runtime/source_runtime.dart';
 /// fingerprint)`); a qualification run answers it from pinned digests.
 typedef PaperbackTrustDecision = Future<bool> Function(Uri trustKey, String fingerprint);
 
+/// Like [PaperbackTrustDecision], but says why a bundle is not trusted:
+/// `null` admits it, a [TrustFailure] refuses it with its reason (the core
+/// `RepositoryTrustGate.check`).
+typedef PaperbackTrustCheck = Future<TrustFailure?> Function(Uri trustKey, String fingerprint);
+
 /// The cache profile of admitted Paperback bundles. The API family is part
 /// of the host compatibility, so one digest admitted for 0.8 is never served
 /// to a 0.9 load.
@@ -35,12 +40,17 @@ final class PaperbackSourceProvider implements SourceProvider {
     required this.cache,
     required this.trust,
     required this.worker,
+    this.trustCheck,
   });
 
   /// Fetches catalogs and bundles (live in production; replay in tests).
   final http.Client client;
   final ArtifactCache cache;
   final PaperbackTrustDecision trust;
+
+  /// When set, decides instead of [trust] and names the refusal's reason
+  /// (first-seen, changed or refused).
+  final PaperbackTrustCheck? trustCheck;
 
   /// The started Paperback worker supervisor, created on first use
   /// (`ConversionRuntimeScope.worker(WorkerKind.paperback)` on desktop).
@@ -142,13 +152,21 @@ final class PaperbackSourceProvider implements SourceProvider {
 
   Future<void> _verify(PaperbackCatalogEntry entry, Uint8List bytes, ArtifactBinding binding) async {
     final PaperbackApiFamily family = admitBundle(bytes, binding);
-    final bool trusted = await trust(
-      bundleTrustKey(entry.repository, entry.sourceId),
-      bundleTrustFingerprint(family, binding.sha256),
-    );
+    final Uri key = bundleTrustKey(entry.repository, entry.sourceId);
+    final String fingerprint = bundleTrustFingerprint(family, binding.sha256);
+    final PaperbackTrustCheck? check = trustCheck;
+    if (check != null) {
+      final TrustFailure? refused = await check(key, fingerprint);
+      if (refused != null) {
+        throw BundleAdmissionException(
+          TrustFailure(refused.reason, 'The bundle for ${entry.packageId} (${binding.sha256}): ${refused.message}'),
+        );
+      }
+      return;
+    }
+    final bool trusted = await trust(key, fingerprint);
     if (!trusted) {
-      // The decision answers only yes or no, so a refusal cannot say whether
-      // the bundle was new or changed; the gate (or the user) refused it.
+      // A yes/no decision cannot say whether the bundle was new or changed.
       throw BundleAdmissionException(
         TrustFailure(
           TrustFailureReason.refused,

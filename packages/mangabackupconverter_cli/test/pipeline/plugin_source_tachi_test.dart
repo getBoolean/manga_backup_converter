@@ -50,11 +50,11 @@ void main() {
   );
 
   /// A gate as the pipeline builds it, deciding with [decide] (an
-  /// unattended CLI run rejects every request).
+  /// unattended CLI run answers nothing, so nothing new is trusted).
   RepositoryTrustGate gate(TrustStore store, {Future<TrustDecision> Function(RepositoryTrustRequest)? decide}) {
     return RepositoryTrustGate(
       store: store,
-      decide: (RepositoryTrustRequest r) async => await decide?.call(r) ?? TrustDecision.reject,
+      decide: (RepositoryTrustRequest r) async => await decide?.call(r) ?? TrustDecision.unanswered,
     );
   }
 
@@ -69,8 +69,11 @@ void main() {
         trust: g,
       );
       check(entries).isEmpty();
-      check(warnings.single).contains(keiyoushiFingerprint);
-      check(g.decisions.single).startsWith('First-seen signing fingerprint for $keiyoushiRepository (tachi): reject');
+      check(warnings.single)
+        ..contains(keiyoushiFingerprint)
+        ..contains('(first-seen)');
+      check(g.decisions.single)
+          .startsWith('First-seen signing fingerprint for $keiyoushiRepository (tachi): unanswered');
       check(fetch.requests).deepEquals(<Uri>[Uri.parse('$keiyoushiRepository/repo.json')]);
     });
 
@@ -105,10 +108,13 @@ void main() {
       keiyoushi.fingerprint = _otherFingerprint * 32;
 
       final RepositoryTrustGate refused = gate(store);
+      final changedWarnings = <String>[];
       check(
-        await TachiPluginLoader(runtime: runtime())
-            .fetchExtensionLists(<String>[keiyoushiRepository.toString()], trust: refused),
+        await TachiPluginLoader(
+          runtime: runtime(),
+        ).fetchExtensionLists(<String>[keiyoushiRepository.toString()], trust: refused, onWarning: changedWarnings.add),
       ).isEmpty();
+      check(changedWarnings.single).contains('(changed)');
       check(refused.decisions.single).startsWith('Changed signing fingerprint');
 
       RepositoryTrustRequest? asked;
@@ -141,11 +147,9 @@ void main() {
       ], onFailure: failures.add);
       check(loaded).isEmpty();
       check(failures.single.failure)
-          .isA<ArtifactIncompatibleFailure>()
-          .has((f) => f.message, 'message')
-          .startsWith(
-            'trust:',
-          );
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.firstSeen);
       check(fetch.requests).isEmpty();
     });
   });

@@ -396,6 +396,16 @@ void main() {
       check(outs.map((SourceOutcome<Map<String, Object?>> o) => o.valueOrNull?['echo'])).deepEquals(<int>[0, 1, 2]);
     });
 
+    test('a package whose staged bytes changed after admission fails to load as a changed trust failure', () async {
+      final WorkerSupervisor s = supervisor();
+      final WorkerPackage tampered = await package('tampered-first');
+      File(tampered.artifact.path).writeAsStringSync('changed bytes');
+      check((await s.loadPackage(tampered)).failureOrNull)
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.changed);
+    });
+
     test('a restart re-verifies artifacts and fails a package whose staged bytes changed', () async {
       final WorkerSupervisor s = supervisor();
       final WorkerPackage tampered = await package('tampered');
@@ -412,7 +422,10 @@ void main() {
         'fake': crashOnce(),
       });
       check(crash.valueOrNull!['echo']).equals('retried');
-      check((await queued).failureOrNull).isA<ArtifactIncompatibleFailure>();
+      check((await queued).failureOrNull)
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.changed);
       check(s.packageIds).not((Subject<Iterable<String>> it) => it.contains('tampered'));
       check(s.events.whereType<WorkerRestartedEvent>().first.reloadFailures).contains('tampered');
     });

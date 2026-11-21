@@ -1,3 +1,5 @@
+import 'package:source_runtime/source_contracts.dart' show TrustFailure, TrustFailureReason;
+
 /// A request to trust a repository's signing identity: shown when the
 /// fingerprint is first seen, or differs from the one previously trusted.
 final class RepositoryTrustRequest {
@@ -28,8 +30,13 @@ enum TrustDecision {
   /// Trust and remember the fingerprint, so it is not asked again.
   trustAndRemember,
 
-  /// Do not use the repository.
+  /// Do not use the repository (the user, or a policy, said no).
   reject,
+
+  /// Nobody could be asked (an unattended run without a pin): the
+  /// fingerprint is not trusted. Reported as first-seen or changed, never as
+  /// a refusal.
+  unanswered,
 }
 
 /// Remembered repository fingerprints; persisted by a platform adapter.
@@ -77,11 +84,22 @@ final class RepositoryTrustGate {
   /// Decisions taken through [decide], for the conversion report.
   final List<String> decisions = <String>[];
 
-  Future<bool> admit(String ecosystem, Uri repository, String fingerprint) async {
+  /// Whether [fingerprint] is admitted for [repository] (see [check]).
+  Future<bool> admit(String ecosystem, Uri repository, String fingerprint) async =>
+      await check(ecosystem, repository, fingerprint) == null;
+
+  /// `null` when [fingerprint] is admitted for [repository]; otherwise the
+  /// [TrustFailure] saying why not:
+  /// - [TrustFailureReason.refused] when the user (or a policy) answered no;
+  /// - [TrustFailureReason.changed] when nobody could be asked and a
+  ///   different fingerprint was remembered;
+  /// - [TrustFailureReason.firstSeen] when nobody could be asked and none
+  ///   was remembered.
+  Future<TrustFailure?> check(String ecosystem, Uri repository, String fingerprint) async {
     final key = '${InMemoryTrustStore.keyOf(ecosystem, repository)}|$fingerprint';
-    if (_session.contains(key)) return true;
+    if (_session.contains(key)) return null;
     final String? known = await store.fingerprintFor(ecosystem, repository);
-    if (known == fingerprint) return true;
+    if (known == fingerprint) return null;
     final request = RepositoryTrustRequest(
       ecosystem: ecosystem,
       repository: repository,
@@ -92,15 +110,23 @@ final class RepositoryTrustGate {
     decisions.add(
       '${request.isChange ? 'Changed' : 'First-seen'} signing fingerprint for $repository ($ecosystem): ${decision.name}',
     );
+    final what = request.isChange
+        ? 'The signing fingerprint of $repository ($ecosystem) changed to $fingerprint'
+        : 'The signing fingerprint $fingerprint of $repository ($ecosystem) is first seen';
     switch (decision) {
       case TrustDecision.reject:
-        return false;
+        return TrustFailure(TrustFailureReason.refused, '$what and was refused');
+      case TrustDecision.unanswered:
+        return TrustFailure(
+          request.isChange ? TrustFailureReason.changed : TrustFailureReason.firstSeen,
+          '$what and nobody could approve it in this run',
+        );
       case TrustDecision.trustOnce:
         _session.add(key);
-        return true;
+        return null;
       case TrustDecision.trustAndRemember:
         await store.remember(ecosystem, repository, fingerprint);
-        return true;
+        return null;
     }
   }
 }

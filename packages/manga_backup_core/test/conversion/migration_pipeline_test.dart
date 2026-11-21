@@ -479,7 +479,7 @@ void main() {
       ).throws<MigrationException>(
         (Subject<MigrationException> it) => it
             .has((MigrationException e) => '$e', 'message')
-            .contains('First-seen signing fingerprint for ${_repos.single} (test): reject'),
+            .contains('First-seen signing fingerprint for ${_repos.single} (test): unanswered'),
       );
     });
   });

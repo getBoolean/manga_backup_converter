@@ -28,6 +28,9 @@ class PaperbackPluginLoader extends PluginLoader {
       client: client,
       cache: cache,
       trust: (Uri key, String fingerprint) async => await _trust?.admit('paperback', key, fingerprint) ?? false,
+      trustCheck: (Uri key, String fingerprint) async =>
+          await _trust?.check('paperback', key, fingerprint) ??
+          (_trust == null ? const TrustFailure(TrustFailureReason.firstSeen, 'No trust gate in this run') : null),
       worker: () => worker(_owner),
     );
   }

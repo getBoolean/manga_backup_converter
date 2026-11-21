@@ -55,6 +55,9 @@ class TachiPluginLoader extends PluginLoader {
 
   final Map<String, _Admitted> _admitted = <String, _Admitted>{};
 
+  /// Trust failures of repositories this run refused, by base URL.
+  final Map<String, TrustFailure> _refused = <String, TrustFailure>{};
+
   TachiCatalog get _catalog => TachiCatalog(runtime.fetch);
 
   @override
@@ -74,15 +77,15 @@ class TachiPluginLoader extends PluginLoader {
       }
       // KTD5: a repository is used only after its published fingerprint is
       // trusted (stored, pinned, or approved now through the SelectionPort).
-      final bool admitted =
-          trust != null && await trust.admit(tachiTrustEcosystem, repository.baseUrl, repository.signingKeyFingerprint);
-      if (!admitted) {
-        onWarning?.call(
-          'Repository ${repository.baseUrl} was not admitted: its signing fingerprint '
-          '${repository.signingKeyFingerprint} is not trusted',
-        );
+      final TrustFailure? refused = trust == null
+          ? TrustFailure(TrustFailureReason.firstSeen, 'No trust gate in this run for ${repository.baseUrl}')
+          : await trust.check(tachiTrustEcosystem, repository.baseUrl, repository.signingKeyFingerprint);
+      if (refused != null) {
+        _refused[repository.baseUrl.toString()] = refused;
+        onWarning?.call('Repository ${repository.baseUrl} was not admitted (${refused.reason.wire}): ${refused.message}');
         continue;
       }
+      _refused.remove(repository.baseUrl.toString());
       final trustIdentity = TachiTrustIdentity(
         repository: repository.baseUrl,
         fingerprint: repository.signingKeyFingerprint,
@@ -222,7 +225,13 @@ class TachiPluginLoader extends PluginLoader {
   /// keeps its own repository's URL and trust.
   static String _keyOf(TachiExtensionEntry entry) => '${entry.repositoryUrl}|${entry.cacheKey}';
 
-  static SourceFailure _notAdmitted(ExtensionEntry entry) => ArtifactIncompatibleFailure(
-    'trust: ${entry.id} was not listed by an admitted Tachi repository in this run, so no trusted signer is known',
-  );
+  /// Why [entry] cannot load: its repository's trust failure from this run
+  /// (first-seen, changed or refused), or first-seen when no admitted
+  /// repository listed it.
+  SourceFailure _notAdmitted(ExtensionEntry entry) =>
+      (entry is TachiExtensionEntry ? _refused[entry.repositoryUrl] : null) ??
+      TrustFailure(
+        TrustFailureReason.firstSeen,
+        '${entry.id} was not listed by an admitted Tachi repository in this run, so no trusted signer is known',
+      );
 }
