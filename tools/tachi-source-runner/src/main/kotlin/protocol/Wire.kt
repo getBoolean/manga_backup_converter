@@ -21,8 +21,11 @@ import kotlinx.serialization.json.put
 object Wire {
     const val VERSION = 1
 
-    /** Highest minor version of [VERSION] this worker speaks (1.1: string sets, source scopes, trustedSigners). */
-    const val MINOR_VERSION = 1
+    /**
+     * Highest minor version of [VERSION] this worker speaks (1.1: string sets, source scopes,
+     * trustedSigners; 1.2: browser capabilities, page-start scripts, request interception).
+     */
+    const val MINOR_VERSION = 2
     const val MAX_FRAME_BYTES = 16 * 1024 * 1024
     const val MAX_SAFE_INTEGER = 9007199254740991L
 

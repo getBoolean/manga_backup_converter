@@ -14,13 +14,16 @@ import java.util.concurrent.TimeUnit
 /**
  * Worker side of the KTD20 browser translation: turns WebView shim calls into
  * `host.browser.*` reverse requests for the package's in-flight operation, and
- * routes `host.browser.message` events back to the WebView that registered the
- * channel. Sessions are closed before their operation replies, because no
- * reverse request may follow the reply.
+ * routes `host.browser.message` and (1.2) `host.browser.request` events back to
+ * the WebView that owns the session. Sessions are closed before their operation
+ * replies, because no reverse request may follow the reply.
  */
 class BrowserBridge(private val worker: Worker) {
     private val sessionsByOperation = ConcurrentHashMap<String, MutableSet<WebViewTranslation>>()
     private val bySession = ConcurrentHashMap<String, WebViewTranslation>()
+
+    /** The minor protocol version agreed with the supervisor. */
+    val protocolMinor: Long get() = worker.protocolMinor
 
     /** Allowed navigation targets (KTD20): http(s) and about:blank. */
     fun isNavigable(url: String): Boolean = url == "about:blank" || isWebUrl(url)
@@ -62,6 +65,27 @@ class BrowserBridge(private val worker: Worker) {
         val name = str("name") ?: return
         val message = str("message") ?: return
         bySession[session]?.deliverMessage(name, message)
+    }
+
+    /**
+     * A `host.browser.request` event (1.2), called on the frame reader thread. Only decoding and
+     * routing happen here; the extension's `shouldInterceptRequest` runs on a browser thread, so a
+     * handler that blocks (or makes its own reverse request) cannot stop the reader from delivering
+     * the `rres` frames everything else is waiting for. A malformed event is dropped.
+     */
+    fun onRequest(payload: JsonObject) {
+        val event = BrowserRequestEvent.parse(payload) ?: return
+        bySession[event.session]?.onPlatformRequest(event)
+    }
+
+    /**
+     * Sends `host.browser.respond` without waiting for its `rres`: the reply arrives on the frame
+     * reader, which must never block on it. Not sent when none of the package's operations is in
+     * flight (the orphan rule); the held request then proceeds after the supervisor's timeout.
+     */
+    fun respond(environment: PackageEnvironment, payload: JsonObject) {
+        val operation = environment.currentOperation ?: return
+        worker.reverseRequest(operation.requestId, "host.browser.respond", payload).exceptionally { null }
     }
 
     /** Closes every session an operation opened; bounded so a stuck port cannot hold the reply. */

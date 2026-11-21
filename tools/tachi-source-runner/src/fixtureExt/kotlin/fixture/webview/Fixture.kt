@@ -30,6 +30,12 @@ class Factory : eu.kanade.tachiyomi.source.SourceFactory {
  * there, block the calling thread on a latch until the page answers through a
  * JavascriptInterface. The query picks the base URL (`file` → a file: URL the
  * shim must refuse). The result title reports the Chromium-glue probe.
+ *
+ * Protocol 1.2 queries: `ipc` (channel named `ipc`), `docstart`
+ * (addDocumentStartJavaScript, then ScriptHandler.remove), `observe` / `replace`
+ * / `redirect` (loadUrl with a shouldInterceptRequest that records what it sees
+ * and, for `replace` / `redirect`, answers the main frame), `evalerr` (a throwing
+ * evaluateJavascript instead of a channel message).
  */
 class WebViewSource : HttpSource() {
     override val name = "WebView"
@@ -51,6 +57,8 @@ class WebViewSource : HttpSource() {
         var result: String? = null
         var error: String? = null
         var webView: WebView? = null
+        val seen = java.util.concurrent.CopyOnWriteArrayList<String>()
+        var removeOutcome = ""
         val main = Handler(Looper.getMainLooper())
         main.post {
             check(Looper.myLooper() == Looper.getMainLooper())
@@ -67,10 +75,30 @@ class WebViewSource : HttpSource() {
             }
             // `badname`: a channel name that is not a JavaScript identifier, which the shim must refuse.
             if (query == "badname") view.addJavascriptInterface(bridge, "bad-name")
-            view.addJavascriptInterface(bridge, "bridge")
+            when (query) {
+                "ipc" -> view.addJavascriptInterface(bridge, "ipc")
+                "evalerr" -> Unit
+                else -> view.addJavascriptInterface(bridge, "bridge")
+            }
             view.webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? =
-                    if (query == "intercept") android.webkit.WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(ByteArray(0))) else null
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? {
+                    seen += "${request.method} ${request.url} main=${request.isForMainFrame} ua=${request.requestHeaders["sec-ch-ua"]}"
+                    return when {
+                        query == "intercept" -> android.webkit.WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
+                        query == "replace" && request.isForMainFrame ->
+                            android.webkit.WebResourceResponse("text/html", "utf-8", 200, "Replaced", mapOf("X-Fixture" to "1"), "replaced".byteInputStream())
+                        query == "redirect" && request.isForMainFrame ->
+                            android.webkit.WebResourceResponse("text/html", "utf-8", 302, "Found", mapOf("Location" to "https://elsewhere.test/"), null)
+                        else -> null
+                    }
+                }
+
+                override fun onPageFinished(view: WebView, url: String) {
+                    if (query == "evalerr") view.evaluateJavascript("throw new Error('boom')") { value ->
+                        result = "eval=$value"
+                        latch.countDown()
+                    }
+                }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error2: WebResourceError) {
                     error = error2.description.toString()
@@ -78,7 +106,16 @@ class WebViewSource : HttpSource() {
                 }
             }
             val base = if (query == "file") "file:///etc/passwd" else "https://webview.test/"
-            if (query == "intercept" || query == "load") {
+            if (query == "docstart") {
+                val handler = androidx.webkit.WebViewCompat.addDocumentStartJavaScript(view, "window.__fixture = 1", setOf("https://webview.test"))
+                removeOutcome = try {
+                    handler.remove()
+                    "|remove=ok"
+                } catch (e: UnsupportedOperationException) {
+                    "|remove=${e.javaClass.simpleName}"
+                }
+            }
+            if (query in setOf("intercept", "load", "observe", "replace", "redirect")) {
                 view.loadUrl("https://webview.test/page")
             } else {
                 view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)
@@ -87,7 +124,8 @@ class WebViewSource : HttpSource() {
         if (!latch.await(30, TimeUnit.SECONDS)) throw IOException("WebView timed out")
         main.post { webView?.destroy() }
         error?.let { throw IOException("WebView failed: $it") }
-        return MangasPage(listOf(SManga.create().apply { url = "/w"; title = "$probe:$result" }), false)
+        val suffix = if (query in setOf("observe", "replace")) "|seen=${seen.joinToString(";")}" else removeOutcome
+        return MangasPage(listOf(SManga.create().apply { url = "/w"; title = "$probe:$result$suffix" }), false)
     }
 
     override suspend fun getMangaUpdate(manga: SManga, chapters: List<SChapter>, fetchDetails: Boolean, fetchChapters: Boolean) =

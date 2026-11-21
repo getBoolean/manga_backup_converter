@@ -2,7 +2,9 @@ package mangabackup.tachi.shim;
 
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
+import androidx.webkit.ScriptHandler;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * What {@link WebView} forwards to. The worker's KTD20 translation layer
@@ -23,6 +25,9 @@ public interface WebViewBackend {
     void addJavascriptInterface(Object target, String name);
 
     void removeJavascriptInterface(String name);
+
+    /** androidx.webkit.WebViewCompat.addDocumentStartJavaScript. */
+    ScriptHandler addDocumentStartJavaScript(String script, Set<String> allowedOriginRules);
 
     void setUserAgent(String userAgent);
 

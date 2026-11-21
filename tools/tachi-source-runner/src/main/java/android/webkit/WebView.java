@@ -44,7 +44,8 @@ public class WebView extends ViewGroup {
         }
     }
 
-    WebViewBackend backend() { return backend; }
+    /** Host access for androidx.webkit shims (not an Android API). */
+    public WebViewBackend hostBackend() { return backend; }
 
     public static ClassLoader getWebViewClassLoader() { return PROVIDER_LOADER; }
 

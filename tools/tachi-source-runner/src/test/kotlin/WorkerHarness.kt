@@ -34,6 +34,8 @@ class WorkerHarness(
     limits: Map<String, Long> = TEST_LIMITS,
     browser: Boolean = true,
     val stateRoot: File = TestSupport.tempDir("worker"),
+    /** The minor version the fake supervisor offers in the handshake. */
+    minor: Int = mangabackup.tachi.protocol.Wire.MINOR_VERSION,
 ) : AutoCloseable {
     val options = WorkerOptions(
         sizing = SizingReport.resolve(limits, rule = null)!!,
@@ -44,12 +46,13 @@ class WorkerHarness(
     )
     val client: WorkerClient
     private val thread: Thread
+    val handshake: JsonObject
 
     init {
         val (c, t) = WorkerClient.inProcess(options)
         client = c
         thread = t
-        client.handshake()
+        handshake = client.handshake(minor)
     }
 
     data class Loaded(val packageId: String, val artifact: ArtifactBinding, val sources: List<JsonObject>, val revision: String)
