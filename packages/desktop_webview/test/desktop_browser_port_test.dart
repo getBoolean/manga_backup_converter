@@ -61,12 +61,16 @@ Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
 Future<void> _waitForNoProcessUsing(Directory dir, DateTime deadline) async {
   final String name = dir.absolute.path.replaceAll("'", "''");
   while (true) {
+    final String command =
+        '@(Get-CimInstance Win32_Process | Where-Object { '
+        r'$_.CommandLine -like '
+        "'*$name*'"
+        r' -and $_.ProcessId -ne $PID }).Count';
     final ProcessResult r = await Process.run('powershell', <String>[
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      "@(Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*$name*' -and "
-          r"$_.ProcessId -ne $PID }).Count",
+      command,
     ]);
     if (r.exitCode == 0 && (r.stdout as String).trim() == '0') return;
     if (DateTime.now().isAfter(deadline)) {
