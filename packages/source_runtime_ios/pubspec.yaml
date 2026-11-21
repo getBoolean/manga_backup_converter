@@ -19,10 +19,13 @@ dependencies:
     sdk: flutter
   hooks: ^1.0.0
   objective_c: ^9.2.0
+  source_runtime:
+    path: ../source_runtime
 
 dev_dependencies:
   app_lints:
     path: ../app_lints
+  checks: ^0.3.0
   ffigen: ^20.1.1
   logging: ^1.2.0
   flutter_test:
