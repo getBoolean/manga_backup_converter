@@ -11,7 +11,7 @@
       "scenario": "qualification-apks",
       "evidence": "emulator",
       "worker": "tachi-android",
-      "protocolMinor": 2,
+      "protocolMinor": 3,
       "packages": {
         "eu.kanade.tachiyomi.extension.all.mangadex": {
           "artifactSha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
@@ -20,9 +20,9 @@
           "hits": 2,
           "title": "Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)",
           "chapters": 15,
-          "loadMs": 1473,
-          "searchMs": 1150,
-          "detailsMs": 761
+          "loadMs": 1895,
+          "searchMs": 1149,
+          "detailsMs": 465
         },
         "eu.kanade.tachiyomi.extension.en.weebcentral": {
           "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
@@ -31,9 +31,9 @@
           "hits": 1,
           "title": "ONIMAI - I'm Now Your Sister!",
           "chapters": 114,
-          "loadMs": 516,
-          "searchMs": 492,
-          "detailsMs": 4609
+          "loadMs": 653,
+          "searchMs": 666,
+          "detailsMs": 4600
         },
         "eu.kanade.tachiyomi.extension.all.mangafire": {
           "artifactSha256": "f2d1f69dfca4fcf930f696873807e6ec0f4dd1626aed0f0c779dfbab876f70f8",
@@ -42,9 +42,9 @@
           "hits": 50,
           "title": "Highschool ONIMAI",
           "chapters": 86,
-          "loadMs": 871,
-          "searchMs": 760,
-          "detailsMs": 875
+          "loadMs": 455,
+          "searchMs": 583,
+          "detailsMs": 891
         }
       },
       "liveLoaders": 3,
@@ -107,15 +107,15 @@
     {
       "scenario": "ae10-kill-rehydrate",
       "evidence": "emulator",
-      "pidBefore": 15632,
-      "pidAfter": 15718,
+      "pidBefore": 16114,
+      "pidAfter": 16181,
       "loopFailure": "timeout: search exceeded its deadline; worker restarted",
       "restartReason": "search for fixture.android.busy did not settle after cooperative cancel",
       "requeued": [],
       "failed": [],
       "reloadFailures": [],
       "queuedHits": 1,
-      "maxDartTickGapMs": 343,
+      "maxDartTickGapMs": 141,
       "startupWipe": [
         "app_webview_source_runtime"
       ],
@@ -140,15 +140,32 @@
     {
       "scenario": "service-webview-cookies",
       "evidence": "emulator",
-      "set": "webview=fixture:42;pid=15885;cookies=k",
-      "sharedBeforeClose": "webview=-;pid=15885;cookies=k",
-      "afterSessionClose": "webview=-;pid=15885;cookies=",
-      "afterRestart": "webview=-;pid=16003;cookies=",
+      "set": "webview=fixture:42;pid=16315;cookies=k",
+      "sharedBeforeClose": "webview=-;pid=16315;cookies=k",
+      "afterSessionClose": "webview=-;pid=16315;cookies=",
+      "afterRestart": "webview=-;pid=16479;cookies=",
+      "webStorage": {
+        "stored": {
+          "origin": "https://cookies.test/",
+          "value": "\"kept\"",
+          "storageOrigins": []
+        },
+        "afterSessionClose": {
+          "origin": "https://cookies.test/",
+          "value": "null",
+          "storageOrigins": []
+        },
+        "afterRestart": {
+          "origin": "https://cookies.test/",
+          "value": "null",
+          "storageOrigins": []
+        }
+      },
       "browserIsolation": {
         "webViewPackage": "com.google.android.webview 134.0.6998.135",
         "webViewMultiProfile": "true",
         "sourceBrowserIsolation": "unavailable",
-        "sourceBrowserIsolationReason": "extension-created android.webkit.WebView instances cannot be assigned an androidx.webkit profile before first use without rewriting extension bytecode; the service wipes the shared profile at session close and on start (KTD19)"
+        "sourceBrowserIsolationReason": "setProfile succeeds only before a WebView's first load or evaluateJavascript (U12 probe), and extension code constructs and loads its own android.webkit.WebView with no host hook in between unless extension bytecode is rewritten; the service wipes the shared profile at session close and on start (KTD19)"
       },
       "cookieNamesBeforeClose": {
         "https://cookies.test/": [
@@ -171,15 +188,15 @@
       "scenario": "ae11-mangafire-webview",
       "evidence": "emulator",
       "outcome": "source-error: IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually. (cause IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually.)",
-      "searchMs": 2743,
+      "searchMs": 5510,
       "challengesServed": 1,
       "refusedBrowserRequests": [],
       "replayMisses": [],
-      "servicePid": 16094,
+      "servicePid": 16577,
       "webViewDataDirs": [
         {
           "name": "app_webview_source_runtime",
-          "bytes": 109316
+          "bytes": 109184
         }
       ],
       "workerLog": []
@@ -188,13 +205,12 @@
       "scenario": "jni-references",
       "evidence": "emulator",
       "rounds": 10,
-      "totalBefore": 474,
-      "totalAfter": 482,
-      "ownedBefore": 3,
+      "totalBefore": 469,
+      "totalAfter": 479,
+      "ownedBefore": 1,
       "ownedAfter": 1,
       "classDelta": {
-        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10,
-        "com.github.dart_lang.jni.PortProxyBuilder": -2
+        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10
       }
     },
     {
@@ -206,12 +222,12 @@
       },
       "shown": {
         "result": "shown",
-        "activityPid": 16963
+        "activityPid": 17347
       },
       "closed": {
         "result": "closed"
       },
-      "workerPid": 16963
+      "workerPid": 17347
     },
     {
       "scenario": "production-start",
@@ -275,5 +291,12 @@
       },
       "servicePidAfter": 17641
     }
-  ]
+  ],
+  "refreshed": {
+    "by": "U12",
+    "date": "2026-11-21",
+    "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --dart-define=SRT_BENCH=true --reporter expanded",
+    "head": "feat/source-runners-u12 rebased on 0bd7eb0d (protocol 1.3 merged)",
+    "result": "14:15 +96 -2: Some tests failed."
+  }
 }

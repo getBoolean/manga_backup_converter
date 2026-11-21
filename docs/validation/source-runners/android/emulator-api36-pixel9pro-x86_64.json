@@ -17,8 +17,8 @@
   "receipts": [
     {
       "scenario": "facade",
-      "appPid": 8214,
-      "servicePid": 8279,
+      "appPid": 21897,
+      "servicePid": 21957,
       "sdkInt": 36,
       "serviceProcess": "dev.getboolean.mangabackupconverter:source_runtime",
       "generation": 1
@@ -35,11 +35,319 @@
       "factoryLinked": true,
       "sourceFactoryParentOwned": true,
       "construction": {
-        "ok": false,
-        "error": "java.lang.Exception",
-        "rootCause": "java.lang.Exception",
-        "rootMessage": "Stub!",
-        "rootFrame": "eu.kanade.tachiyomi.source.online.HttpSource.<init>(HttpSource.kt:25)"
+        "ok": true,
+        "sources": [
+          {
+            "id": "6404943692147160087",
+            "name": "MangaDex",
+            "lang": "all"
+          },
+          {
+            "id": "4638673959522768501",
+            "name": "MangaDex",
+            "lang": "af"
+          },
+          {
+            "id": "987803387023224960",
+            "name": "MangaDex",
+            "lang": "sq"
+          },
+          {
+            "id": "3339599426223341161",
+            "name": "MangaDex",
+            "lang": "ar"
+          },
+          {
+            "id": "9127464796236242233",
+            "name": "MangaDex",
+            "lang": "az"
+          },
+          {
+            "id": "1553736397938752611",
+            "name": "MangaDex",
+            "lang": "eu"
+          },
+          {
+            "id": "3601180820582582605",
+            "name": "MangaDex",
+            "lang": "be"
+          },
+          {
+            "id": "4150470519566206911",
+            "name": "MangaDex",
+            "lang": "bn"
+          },
+          {
+            "id": "5463447640980279236",
+            "name": "MangaDex",
+            "lang": "bg"
+          },
+          {
+            "id": "1347402746269051958",
+            "name": "MangaDex",
+            "lang": "my"
+          },
+          {
+            "id": "5860541308324630662",
+            "name": "MangaDex",
+            "lang": "ca"
+          },
+          {
+            "id": "5148895169070562838",
+            "name": "MangaDex",
+            "lang": "zh-Hans"
+          },
+          {
+            "id": "1493666528525752601",
+            "name": "MangaDex",
+            "lang": "zh-Hant"
+          },
+          {
+            "id": "2072928884077964642",
+            "name": "MangaDex",
+            "lang": "cv"
+          },
+          {
+            "id": "8548374501079910130",
+            "name": "MangaDex",
+            "lang": "hr"
+          },
+          {
+            "id": "3578612018159256808",
+            "name": "MangaDex",
+            "lang": "cs"
+          },
+          {
+            "id": "425785191804166217",
+            "name": "MangaDex",
+            "lang": "da"
+          },
+          {
+            "id": "6750440049024086587",
+            "name": "MangaDex",
+            "lang": "nl"
+          },
+          {
+            "id": "2499283573021220255",
+            "name": "MangaDex",
+            "lang": "en"
+          },
+          {
+            "id": "2819252027406613931",
+            "name": "MangaDex",
+            "lang": "eo"
+          },
+          {
+            "id": "8773024089257004344",
+            "name": "MangaDex",
+            "lang": "et"
+          },
+          {
+            "id": "8578871918181236609",
+            "name": "MangaDex",
+            "lang": "fil"
+          },
+          {
+            "id": "8254121249433835847",
+            "name": "MangaDex",
+            "lang": "fi"
+          },
+          {
+            "id": "4505830566611664829",
+            "name": "MangaDex",
+            "lang": "fr"
+          },
+          {
+            "id": "8952567078513962586",
+            "name": "MangaDex",
+            "lang": "ka"
+          },
+          {
+            "id": "5098537545549490547",
+            "name": "MangaDex",
+            "lang": "de"
+          },
+          {
+            "id": "3260701926561129943",
+            "name": "MangaDex",
+            "lang": "el"
+          },
+          {
+            "id": "1424273154577029558",
+            "name": "MangaDex",
+            "lang": "he"
+          },
+          {
+            "id": "6840513937945146538",
+            "name": "MangaDex",
+            "lang": "hi"
+          },
+          {
+            "id": "4284949320785450865",
+            "name": "MangaDex",
+            "lang": "hu"
+          },
+          {
+            "id": "3686775439235747344",
+            "name": "MangaDex",
+            "lang": "ga"
+          },
+          {
+            "id": "3807502156582598786",
+            "name": "MangaDex",
+            "lang": "id"
+          },
+          {
+            "id": "1952071260038453057",
+            "name": "MangaDex",
+            "lang": "it"
+          },
+          {
+            "id": "1411768577036936240",
+            "name": "MangaDex",
+            "lang": "ja"
+          },
+          {
+            "id": "1573550798452063564",
+            "name": "MangaDex",
+            "lang": "jv"
+          },
+          {
+            "id": "8884149958776527952",
+            "name": "MangaDex",
+            "lang": "kk"
+          },
+          {
+            "id": "3285208643537017688",
+            "name": "MangaDex",
+            "lang": "ko"
+          },
+          {
+            "id": "764587568075398530",
+            "name": "MangaDex",
+            "lang": "la"
+          },
+          {
+            "id": "737986167355114438",
+            "name": "MangaDex",
+            "lang": "lt"
+          },
+          {
+            "id": "1471784905273036181",
+            "name": "MangaDex",
+            "lang": "ms"
+          },
+          {
+            "id": "5967745367608513818",
+            "name": "MangaDex",
+            "lang": "mn"
+          },
+          {
+            "id": "954368055061084457",
+            "name": "MangaDex",
+            "lang": "ne"
+          },
+          {
+            "id": "4872213291993424667",
+            "name": "MangaDex",
+            "lang": "no"
+          },
+          {
+            "id": "3781216447842245147",
+            "name": "MangaDex",
+            "lang": "fa"
+          },
+          {
+            "id": "8033579885162383068",
+            "name": "MangaDex",
+            "lang": "pl"
+          },
+          {
+            "id": "2655149515337070132",
+            "name": "MangaDex",
+            "lang": "pt-BR"
+          },
+          {
+            "id": "5189216366882819742",
+            "name": "MangaDex",
+            "lang": "pt"
+          },
+          {
+            "id": "4774459486579224459",
+            "name": "MangaDex",
+            "lang": "ro"
+          },
+          {
+            "id": "2098905203823335614",
+            "name": "MangaDex",
+            "lang": "ru"
+          },
+          {
+            "id": "3507378005483435886",
+            "name": "MangaDex",
+            "lang": "sr"
+          },
+          {
+            "id": "2875503798326600410",
+            "name": "MangaDex",
+            "lang": "sk"
+          },
+          {
+            "id": "4938773340256184018",
+            "name": "MangaDex",
+            "lang": "es-419"
+          },
+          {
+            "id": "6400665728063187402",
+            "name": "MangaDex",
+            "lang": "es"
+          },
+          {
+            "id": "1145824452519314725",
+            "name": "MangaDex",
+            "lang": "sv"
+          },
+          {
+            "id": "4273071356706429527",
+            "name": "MangaDex",
+            "lang": "ta"
+          },
+          {
+            "id": "6886894829142702925",
+            "name": "MangaDex",
+            "lang": "te"
+          },
+          {
+            "id": "1713554459881080228",
+            "name": "MangaDex",
+            "lang": "th"
+          },
+          {
+            "id": "3846770256925560569",
+            "name": "MangaDex",
+            "lang": "tr"
+          },
+          {
+            "id": "5779037855201976894",
+            "name": "MangaDex",
+            "lang": "uk"
+          },
+          {
+            "id": "72800122520214493",
+            "name": "MangaDex",
+            "lang": "ur"
+          },
+          {
+            "id": "2838715564514827672",
+            "name": "MangaDex",
+            "lang": "uz"
+          },
+          {
+            "id": "9194073792736219759",
+            "name": "MangaDex",
+            "lang": "vi"
+          }
+        ]
       },
       "writableRejected": true,
       "tamperedRejected": true,
@@ -47,52 +355,52 @@
     },
     {
       "scenario": "termination",
-      "appPid": 8214,
+      "appPid": 21897,
       "rounds": [
         {
           "round": 0,
-          "killedPid": 8279,
-          "reboundPid": 8298,
-          "killToDeathMs": 33,
-          "deathToRebindMs": 535,
-          "dartTicks": 53,
-          "maxDartTickGapMs": 35
+          "killedPid": 21957,
+          "reboundPid": 21976,
+          "killToDeathMs": 48,
+          "deathToRebindMs": 1173,
+          "dartTicks": 75,
+          "maxDartTickGapMs": 130
         },
         {
           "round": 1,
-          "killedPid": 8298,
-          "reboundPid": 8314,
-          "killToDeathMs": 17,
-          "deathToRebindMs": 556,
-          "dartTicks": 54,
-          "maxDartTickGapMs": 20
+          "killedPid": 21976,
+          "reboundPid": 21991,
+          "killToDeathMs": 38,
+          "deathToRebindMs": 781,
+          "dartTicks": 61,
+          "maxDartTickGapMs": 65
         },
         {
           "round": 2,
-          "killedPid": 8314,
-          "reboundPid": 8330,
-          "killToDeathMs": 23,
-          "deathToRebindMs": 533,
-          "dartTicks": 54,
-          "maxDartTickGapMs": 24
+          "killedPid": 21991,
+          "reboundPid": 22007,
+          "killToDeathMs": 42,
+          "deathToRebindMs": 690,
+          "dartTicks": 60,
+          "maxDartTickGapMs": 95
         },
         {
           "round": 3,
-          "killedPid": 8330,
-          "reboundPid": 8345,
-          "killToDeathMs": 15,
-          "deathToRebindMs": 475,
-          "dartTicks": 49,
-          "maxDartTickGapMs": 21
+          "killedPid": 22007,
+          "reboundPid": 22022,
+          "killToDeathMs": 41,
+          "deathToRebindMs": 1090,
+          "dartTicks": 81,
+          "maxDartTickGapMs": 65
         },
         {
           "round": 4,
-          "killedPid": 8345,
-          "reboundPid": 8361,
-          "killToDeathMs": 15,
-          "deathToRebindMs": 537,
-          "dartTicks": 53,
-          "maxDartTickGapMs": 18
+          "killedPid": 22022,
+          "reboundPid": 22038,
+          "killToDeathMs": 48,
+          "deathToRebindMs": 830,
+          "dartTicks": 67,
+          "maxDartTickGapMs": 71
         }
       ]
     },
@@ -100,7 +408,7 @@
       "scenario": "webview",
       "sdkInt": 36,
       "app": {
-        "pid": 8214,
+        "pid": 21897,
         "processName": "dev.getboolean.mangabackupconverter",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -115,7 +423,7 @@
         ]
       },
       "service": {
-        "pid": 8361,
+        "pid": 22038,
         "processName": "dev.getboolean.mangabackupconverter:source_runtime",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -132,7 +440,7 @@
       },
       "serviceError": null,
       "appWhileServiceAlive": {
-        "pid": 8214,
+        "pid": 21897,
         "processName": "dev.getboolean.mangabackupconverter",
         "sdkInt": 36,
         "jsResult": "\"gate:42\"",
@@ -154,34 +462,41 @@
       "rounds": 30,
       "perRound": "new AndroidSourceRuntime + bind + ping + unbind + dispose, and unbind + rebind of the shared runtime",
       "before": {
-        "total": 650,
-        "owned": 9,
+        "total": 649,
+        "owned": 8,
         "binderHeld": 18
       },
       "samples": [
         {
-          "total": 670,
-          "owned": 9,
+          "total": 669,
+          "owned": 8,
           "binderHeld": 38
         },
         {
-          "total": 690,
-          "owned": 9,
+          "total": 689,
+          "owned": 8,
           "binderHeld": 58
         },
         {
-          "total": 710,
-          "owned": 9,
+          "total": 709,
+          "owned": 8,
           "binderHeld": 78
         }
       ],
       "after": {
-        "total": 710,
-        "owned": 9,
+        "total": 709,
+        "owned": 8,
         "binderHeld": 78
       },
       "ownedDelta": 0,
       "unexplainedDelta": 0
     }
-  ]
+  ],
+  "refreshed": {
+    "by": "U12",
+    "date": "2026-11-21",
+    "head": "d1e88a4e",
+    "command": "flutter test integration_test/android_runtime_gate_test.dart -d emulator-5554 --reporter expanded",
+    "result": "00:24 +5: All tests passed!"
+  }
 }

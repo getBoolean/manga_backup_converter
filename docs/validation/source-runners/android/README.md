@@ -204,7 +204,7 @@ Command: `flutter test integration_test/source_runners_android_test.dart -d emul
 | Challenge Activity | `https://…` was shown in `ChallengeActivity` in the worker's PID, then closed. A `file:` URL was refused as `capability-unavailable` |
 | JNI references | Over 10 rounds of worker start and close, package and jni listener references returned to baseline (`PortProxyBuilder` −2). The only growth is `LoadedApk$ServiceDispatcher$InnerConnection` (+10), one per `bindService`, held by system_server until its own GC, as U17 recorded. The worker connection reaches its listener only through relays that are cleared at exit, so these do not pin the Dart proxy |
 
-**Open decision — per-source browser isolation is not met.** The brief asks for per-source androidx.webkit profiles where supported, and the installed WebView supports multi-profile (`webViewMultiProfile: true`). The service does not apply them. A profile must be assigned with `WebViewCompat.setProfile` before first use, and the extension constructs and configures its own WebView; the claim that no host hook exists before that first use is reasoning, not a demonstrated probe. Options: a probe (setProfile right after construction vs after a load) and, if a hook exists, per-source profiles; bytecode rewriting of WebView construction; or accepting the shared profile with the wipe rule. The handshake reports `sourceBrowserIsolation: unavailable` with that reason, and the service applies KTD19's rule instead: it wipes the shared profile at a browser-using source's session close and at every service start, and fails the browser capability if it cannot confirm the wipe.
+**Open decision — per-source browser isolation is not met.** (U12 probed it; see "Isolation probe" in the U12 section: it stays unavailable in the service.) The brief asks for per-source androidx.webkit profiles where supported, and the installed WebView supports multi-profile (`webViewMultiProfile: true`). The service does not apply them. A profile must be assigned with `WebViewCompat.setProfile` before first use, and the extension constructs and configures its own WebView; the claim that no host hook exists before that first use is reasoning, not a demonstrated probe. Options: a probe (setProfile right after construction vs after a load) and, if a hook exists, per-source profiles; bytecode rewriting of WebView construction; or accepting the shared profile with the wipe rule. The handshake reports `sourceBrowserIsolation: unavailable` with that reason, and the service applies KTD19's rule instead: it wipes the shared profile at a browser-using source's session close and at every service start, and fails the browser capability if it cannot confirm the wipe.
 
 Wiping the shared profile at one source's session close also wipes it under any other browser-using source in flight in the same service.
 
@@ -251,11 +251,84 @@ Verification (static; the release APK was not run): `tools/tachi-source-runner/a
 ## U11 notes and gaps
 
 - **Network contact in development runs.** Before the proxy's DIRECT fallback was removed, the AE11 case ran four times on the emulator (one of those runs succeeded through the solver), and the two runs of the proxy check before the fix let Chromium resolve `proxy-check.invalid` itself (DNS lookups). Chromium falls back to DIRECT when the proxy refuses a tunnel, so in those runs WebView subresource requests (MangaFire's solver page) may have reached the real network. Every receipt above comes from runs after the fix, which fail closed.
-- **WebView cookies and OkHttp.** WebView-acquired cookies are not copied into the package's OkHttp jar. OkHttp keeps the per-package in-memory jar (KTD9), while WebView keeps the process profile. Mihon shares a single CookieManager-backed jar; a source that relies on that sharing after a solved challenge is unverified.
-- **Cloudflare interaction.** The `CloudflareInterceptor` still fails with `interaction-required` (the desktop behaviour). It does not open `ChallengeActivity` yet; the Activity and its visible-only launcher exist and are tested directly.
+- **WebView cookies and OkHttp.** (Addressed in U12; see "Carried from U11".) WebView-acquired cookies are not copied into the package's OkHttp jar. OkHttp keeps the per-package in-memory jar (KTD9), while WebView keeps the process profile. Mihon shares a single CookieManager-backed jar; a source that relies on that sharing after a solved challenge is unverified.
+- **Cloudflare interaction.** (Addressed in U12 for interactive runs; see "Carried from U11".) The `CloudflareInterceptor` still fails with `interaction-required` (the desktop behaviour). It does not open `ChallengeActivity` yet; the Activity and its visible-only launcher exist and are tested directly.
 - **Resources.** `Context.getString(resId)` resolves against the app's resources, not the extension's: the extension's resources are not merged. None of the qualification sources call it.
 - **Not implemented:**
   - Pausing new work and fencing callbacks when the app is backgrounded (KTD18 lifecycle).
   - The app-scoped conversion job and its recovery from the KTD8 journal (the journal exists in `manga_backup_core` but is not exercised on Android).
   - Activity recreation was not run. The worker lives in a bound service; nothing in U11 ties it to an Activity, and `MainActivity` handles configuration changes itself.
 - **U17 gate test.** `integration_test/android_runtime_gate_test.dart` passes 4/5 on this branch. Scenario 2 asserts `construction['ok'] == false` with `Stub!`; with the real host, MangaDex's sources now construct (`ok` true), so the case stops there, before its writable and tampered staged-file checks. The file is outside U11's ownership: it needs its construction assertion updated.
+
+# U12 Paperback and the app-process BrowserPort on Android — receipts
+
+Plan: U12 (KTD19, KTD20, KTD23, KTD25; AE4, AE9, AE11). **Emulator evidence only** (AVD `Pixel_9_Pro`, Android 16 / API 36, x86_64, WebView 134.0.6998.135, debug build). It does not satisfy R16; every physical ARM64 cell stays open.
+
+| Receipt | Content |
+|---|---|
+| [`u12-paperback-browser-emulator-api36-pixel9pro-x86_64.json`](u12-paperback-browser-emulator-api36-pixel9pro-x86_64.json) | `U12_RECEIPT` lines: Paperback in the worker isolate, and every app-process BrowserPort case |
+| [`2026-11-21-android-emulator-x64-bundles-jit.json`](../../../../packages/paperback_plugin_loader/benchmark/results/2026-11-21-android-emulator-x64-bundles-jit.json) | KTD25 real-bundle benchmark on the emulator (provisional) |
+| refreshed `u11-tachi-…`, `u13-aidoku-…` and `emulator-api36-pixel9pro-x86_64.json` (U17 gate) | U11, U13 and U17 re-run on this branch after the protocol 1.3 merge |
+
+Commands: `flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --dart-define=SRT_BENCH=true --reporter expanded` (U13, U11 and U12 cases; the U12 cases live in `integration_test/android_u12_cases.dart`) and `flutter test integration_test/android_runtime_gate_test.dart -d emulator-5554`. Host: `flutter test packages/source_runtime_android/test` (`browser_port_contract_test.dart`, `paperback_backend_contract_test.dart`) and `packages/paperback_plugin_loader/test/in_app_backend_contract_test.dart` (shared with U10).
+
+## How it runs
+
+- **Paperback.** The common host runs unchanged in an app-owned worker isolate through `isolatePaperbackLauncher` (the U10 design), on the QuickJS-ng the quickjs hook builds for each advertised ABI (`libquickjs.so` in `lib/{arm64-v8a,armeabi-v7a,x86_64}`). Limits come from `planPaperbackIsolateWorker()` measured on the device (KTD25 rule `quickjs-sizing-v2`); the site cases ran with those limits, not test constants. `AndroidPaperbackBackend.register` admits the injected desktop provider only after `libquickjs.so` loads. Fixtures reach the device through a debug-only Gradle task (`paperbackFixtureAssets`, assets under `source_captures/paperback/`); release variants never get them.
+- **BrowserPort.** `AndroidWebViewBrowserPort` (`lib/src/browser_port.dart`) drives the Kotlin facade `browser/AppBrowserHost` through JNIgen (`AppBrowserHost` and `AppBrowserListener`, with `@Keep` and consumer rules). Every facade call only posts to the main looper and returns, and every listener method is asynchronous. No Dart isolate waits on the main thread and no main-thread code waits on Dart. No platform channel exists.
+  - **Messages:** one private `WebViewCompat.addWebMessageListener` bridge per session, registered before the first load, reports the engine-attested frame origin; Dart applies the KTD20 origin rule. Channel objects and page-start scripts are `addDocumentStartJavaScript` scripts, channels first. The port refuses to start without `WEB_MESSAGE_LISTENER` and `DOCUMENT_START_SCRIPT`. WebView reports a loadData document's URL as `about:blank`, so the session uses its loadData base URL as the document for the origin rule.
+  - **Evaluate (protocol 1.3):** values and thrown errors come back through `evaluateJavascript`; a returned thenable posts its settled value on the bridge (`scriptErrors` is available). A page CSP without `unsafe-eval` falls back to the unwrapped script, without promise awaiting. An evaluation still running when its WebView is destroyed settles as cancelled.
+  - **Show (protocol 1.3):** `BrowserInteractionActivity` (app process, not exported) hosts the session's WebView, which lives on a `MutableContextWrapper` and outlives the Activity. The close button, back or task removal ends it as `closed`; timeout, cancel and session close hide it. A configuration change recreates the Activity, and the new instance re-attaches the same WebView.
+  - **Backgrounding:** when no Activity of the process has been started for 700 ms (the `ProcessLifecycleOwner` delay, so recreation gaps do not count), pending loads and evaluations end as interaction-required, and new work and shows are refused the same way. `setBackgroundedOverride` is the test seam.
+  - **Cookies, UA, redirects, binary data:** a cookie is set with one `Set-Cookie` line (injection refused) and read back as name and value, which is what `CookieManager` reports. A redirect to `file:` is refused as capability-unavailable; `file:` and `content:` access are off, and non-web subresources get a blocked response. Status codes are reported for HTTP errors only: WebView exposes no status for a successful main-frame load, so 200 reads as `null`. `replaceRequests` and `observeRequestBodies` are named unavailable.
+  - **Replay mode** (`AndroidBrowserConfig.offline`, tests only): `ProxyController` points every WebView request of the process at a loopback refuser with no DIRECT fallback; loopback hosts keep Chromium's implicit bypass. The port refuses to start if the override is not confirmed. Debug builds allow cleartext to `127.0.0.1` only (`android/app/src/debug/res/xml/srt_debug_network_security.xml`); release keeps the platform default.
+
+## Isolation probe
+
+`ProfileProbe` (receipt `isolation-probe`) tried `WebViewCompat.setProfile` at five points, in both the app process and `:source_runtime`. Both gave the same result:
+
+| After | setProfile |
+|---|---|
+| construction | ok |
+| a settings change | ok |
+| `addJavascriptInterface` | ok |
+| the first load | `IllegalStateException: Cannot set new profile on a WebView that has been previously navigated.` |
+| `evaluateJavascript` | `IllegalStateException: Cannot set new profile after call to evaluateJavascript` |
+
+- **App process (Paperback, Aidoku):** isolation is **available** where the WebView supports multi-profile: each session gets its own profile right after construction. Two sources' cookies and web storage stayed apart (contract case `scopes cookies and web storage to the source`). Without multi-profile the port reports isolation unavailable and refuses a second concurrently open source by name (receipt `isolation-unavailable`, forced with `disableProfiles`).
+- **Service process (Tachi):** a profile could be assigned to an extension-created WebView only by code that holds the reference between construction and first load. No host code does: the extension constructs, configures and loads its own `android.webkit.WebView` in one main-looper task. Without rewriting extension bytecode, service isolation stays **unavailable**, and the service's reason now cites this probe. The side effect is unchanged from U11: wiping the shared profile at one source's session close also wipes it under any other browser-using source in flight in the same service.
+- **Profile deletion:** Chromium refuses `ProfileStore.deleteProfile` ("Cannot delete in-use profile") for at least 2 s after the profile's last WebView is destroyed. A closed session's profile is therefore emptied (cookies, web storage, HTTP cache) and kept in a process-wide pool (`ProfilePool`). It is deleted when Chromium allows it, or handed to the next session. The start-up wipe empties every port-owned profile that no live session uses.
+
+## Results (emulator)
+
+| Scenario | Result |
+|---|---|
+| QuickJS on x86_64 | loads on the root and a worker isolate; worker thread stack 1,062,887 B |
+| KTD25 sizing on the device | memory 19,420,946 B, stack 433,936 B, operation deadline 198.5 s, job slice 250 ms (4 cores, 3.8 GiB) |
+| AE4 WeebCentral (0.9 and two 0.8 bundles) | search, details and 114 chapters each; 0 replay misses |
+| AE4 MangaDex (0.9 and 0.8 community) | 223 chapters each; 0 misses |
+| AE4 Mangahub (0.8, Cloudflare-fronted) | 11 hits, details and chapters; 0 misses |
+| AE11 MangaFire 0.9 `executeInWebView` | ran on the app-process WebView. Offline, the VRF capture times out with a named source error. Its subresources reached only the refuser (`CONNECT mangafire.to:443`, fonts, CDN); 0 sessions left open |
+| Native limits while the isolate is blocked | sync loop `timeout` in 491 ms; promise-job loop `cancelled` in 400 ms; memory exhaustion stopped at the 16 MiB limit in 76 ms; kill through the interrupt token in 17 ms; a never-completing host call times out, and interaction events pause the deadline |
+| BrowserPort contract suite (protocol 1.3) | **every case passes**, including two-source isolation, storage gone after close and after abandon and restart, user close, page-signalled completion, timeout, cancel, and session close during a show |
+| Replay fails closed | a load of `https://example.com/` fails, and so does a page fetch of `u12-replay-check.invalid`. Both appear only as `CONNECT` lines at the refuser, so the engine did no DNS lookup |
+| Request observation | main frame and subresources, with headers including `sec-ch-ua*`, so `observeClientHints` is available |
+| Interaction and Activity recreation | a held script in the shown session survived two recreations; user close gave completed, a 2 s timeout interaction-required, cancel cancelled |
+| `executeInWebView` | cookies round-trip. An execution in flight while the interaction Activity was recreated completed. Backgrounded, it fails `interaction-required`. After a fence it fails `cancelled`, with 0 pending operations, and late results are discarded |
+| 0.8 Cloudflare bypass | interactive: shown in `BrowserInteractionActivity`, and the user's `cf_clearance` returned to the host (the 0.8 clearance jar). Unattended: interaction-required |
+| JNI references | facade references went from 8 to 3 over 10 open and close rounds |
+
+## Carried from U11
+
+- **Service web storage:** the U11 cookie-wipe case now also stores `localStorage` in the service WebView (`ServiceDiagnostics` `webStorage`). It read `"kept"` before close, `null` after the session closed, and `null` after a kill and restart.
+- **WebView cookies into the package jar:** packages whose code uses WebView read the service WebView store on each request and copy its cookies into their own in-memory jar (`PackageCookieJar.browserCookies`). JVM-tested (`BrowserCookiesAndChallengeTest`); no device fixture exercises it.
+- **Cloudflare to the challenge Activity:** with `--interactive-challenges MS`, `CloudflareInterceptor` shows the challenge in the service's `ChallengeActivity` with the request's user agent, and retries once when the user closes it. Without the flag (unattended), or while the app is not visible, it stays interaction-required. JVM-tested only. The supervisor's operation deadline is **not** paused during such an in-service challenge.
+
+## U12: still open
+
+- Every case on a physical ARM64 device, release profile (R16, AE4, AE11). Only x86_64 ran; the arm64-v8a and armeabi-v7a QuickJS builds are verified only by their presence in the release APK.
+- Physical-device KTD25 benchmarks. The emulator run measured a deadline overshoot of 924 ms (`maxDeadlineOvershootMicros`), well above the 349 ms headroom the rule derived on the same device. The rule's headroom must be revisited with physical-device data.
+- MangaFire's success path, which needs a live challenge. A MangaFire failure keeps M2 open.
+- Real backgrounding and a real tap on the close button went through test seams (`setBackgroundedOverride`, and `debugCloseInteractionAsUser`, which runs the close button's own handler), not through device automation.
+- In the app process, web storage deletion is confirmed by the contract cases (localStorage reads back `null`), not by `WebStorage.getOrigins`. On WebView 134 it reports no origin even while `localStorage` holds data (service receipt `webStorage.stored.storageOrigins: []`).
+- The Tachi WebView-cookie copy and the interactive Cloudflare path have JVM evidence only, and no composition root passes `--interactive-challenges` yet.

@@ -18,6 +18,8 @@ dart build cli -t benchmark/bundle_benchmark_main.dart -o <dir>
 
 iOS (U10): `integration_test/source_runners_ios_paperback_browser_test.dart` runs `runBundleBenchmark` in a worker isolate on the device with `--dart-define=SRT_BENCH=true`. 2026-11-21, iOS 26.5 Simulator (arm64, debug/JIT Dart, native QuickJS): `results/2026-11-21-ios-simulator-arm64-bundles-jit.json`, **provisional** (a simulator on an Apple-silicon Mac; physical iPhones still to be measured; `docs/validation/source-runners/ios/README.md`, U10).
 
+Android (U12): `integration_test/android_u12_cases.dart` runs the same benchmark in a worker isolate with `--dart-define=SRT_BENCH=true`. 2026-11-21, Android 16 emulator (x86_64, debug/JIT Dart, native QuickJS): `results/2026-11-21-android-emulator-x64-bundles-jit.json`, **provisional** (an emulator; physical ARM64 devices still to be measured). It measured a 924 ms deadline overshoot; see `docs/validation/source-runners/android/README.md`, U12.
+
 Results and the derived limits are in `docs/source-runners.md` (Paperback host, Limits). 2026-11-21, Windows 11 x64 (MSVC): `results/2026-11-21-windows-x64-bundles-aot.json` (sizes the shipped worker) and `...-bundles-jit.json`.
 
 ## Running
