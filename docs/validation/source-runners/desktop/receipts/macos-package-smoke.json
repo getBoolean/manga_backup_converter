@@ -1,0 +1,138 @@
+{
+  "kind": "desktop-package-smoke",
+  "evidence": "local packaged build",
+  "recordedAt": "2026-11-21T22:45:35.274152Z",
+  "os": "macos",
+  "osVersion": "Version 27.0 (Build 26A428)",
+  "arch": "arm64",
+  "hostCommit": "872a1b26f25ff3bfe8ba42c60273e0a728a2a388",
+  "hostDirty": false,
+  "jre": {
+    "vendor": "Amazon Corretto",
+    "version": "21.0.13.1.2",
+    "securityFloor": "21.0.13.1",
+    "javaVersion": "openjdk version \"21.0.13.1\" 2026-11-17 LTS",
+    "archiveUrl": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-macosx-aarch64.tar.gz",
+    "archiveSha256": "3e566c5b2760dc4f2199ac68b09a1b7c5381f228a336f3514a1aad4c113d474a",
+    "modules": [
+      "java.base",
+      "java.desktop",
+      "java.instrument",
+      "java.logging",
+      "java.management",
+      "java.naming",
+      "java.net.http",
+      "java.sql",
+      "java.xml",
+      "jdk.charsets",
+      "jdk.crypto.ec",
+      "jdk.localedata",
+      "jdk.unsupported",
+      "jdk.zipfs"
+    ]
+  },
+  "ok": true,
+  "checks": [
+    {
+      "check": "copied into a path with spaces",
+      "ok": true
+    },
+    {
+      "check": "manifest hashes match the packaged files",
+      "ok": true,
+      "detail": {
+        "files": 192
+      }
+    },
+    {
+      "check": "licence and notice files present",
+      "ok": true,
+      "detail": {
+        "licenses": [
+          "LICENSE.md",
+          "NOTICE.md",
+          "desktop_webview_helper-crates.txt",
+          "lrucache-LICENSE.md",
+          "objective_c-LICENSE",
+          "paperback-host-lib-LICENSES.txt",
+          "quickjs-ng-LICENSE",
+          "swift-atomics-LICENSE.txt",
+          "swiftsoup-LICENSE",
+          "tachi-source-runner-THIRD_PARTY.md",
+          "wasm3-LICENSE"
+        ],
+        "jreLegal": true
+      }
+    },
+    {
+      "check": "no test fixtures or source artifacts shipped",
+      "ok": true
+    },
+    {
+      "check": "every Mach-O file has a valid signature and nothing is quarantined",
+      "ok": true,
+      "detail": {
+        "machO": 38
+      }
+    },
+    {
+      "check": "no system java/dart/gradle/rust/node on the scrubbed PATH",
+      "ok": true,
+      "detail": {
+        "osLauncherStubs": [
+          "/usr/bin/java"
+        ]
+      }
+    },
+    {
+      "check": "--help runs",
+      "ok": true,
+      "detail": "exit 0"
+    },
+    {
+      "check": "bundled JRE at or above the security floor 21.0.13.1",
+      "ok": true,
+      "detail": "openjdk version \"21.0.13.1\" 2026-11-17 LTS"
+    },
+    {
+      "check": "runtime check starts the JVM worker, Paperback worker and WebView helper",
+      "ok": true,
+      "detail": {
+        "exit": 0,
+        "tachi": {
+          "java": "<package>/runtime/jre/bin/java",
+          "pid": 71551,
+          "protocol": "1.3"
+        },
+        "paperback": {
+          "pid": 71574,
+          "protocol": "1.3"
+        },
+        "helper": {
+          "pid": 71575,
+          "engine": "wkwebview",
+          "engineVersion": "22625.1.29.11.27",
+          "evaluated": "\"ok\""
+        }
+      }
+    },
+    {
+      "check": "closing leaves no owned worker or helper process",
+      "ok": true,
+      "detail": {
+        "owned": 3,
+        "left": []
+      }
+    },
+    {
+      "check": "killing the CLI leaves no owned worker or helper process",
+      "ok": true,
+      "detail": {
+        "owned": 3,
+        "left": [],
+        "webkitProcessesStarted": 1,
+        "webkitProcessesLeft": 0
+      }
+    }
+  ]
+}
