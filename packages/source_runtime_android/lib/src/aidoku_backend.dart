@@ -18,9 +18,6 @@
 
 import 'dart:ffi';
 
-// Needs `source_runtime` in this package's pubspec (reported in the U13
-// handoff); it resolves through the workspace until then.
-// ignore: depend_on_referenced_packages
 import 'package:source_runtime/source_contracts.dart';
 
 /// Native libraries the Aidoku host loads in the app process, as packaged

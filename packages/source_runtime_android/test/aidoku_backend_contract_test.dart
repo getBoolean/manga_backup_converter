@@ -4,8 +4,6 @@
 // directly so no JNI binding loads. The real adapter runs on the device in
 // integration_test/source_runners_android_test.dart.
 
-// ignore_for_file: depend_on_referenced_packages, the pubspec line is reported in U13's handoff.
-
 import 'package:checks/checks.dart';
 import 'package:source_runtime/source_contracts.dart';
 import 'package:source_runtime_android/src/aidoku_backend.dart';
