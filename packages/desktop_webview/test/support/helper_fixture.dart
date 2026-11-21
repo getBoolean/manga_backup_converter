@@ -193,13 +193,29 @@ addEventListener('message', function (e) {
   }
 }
 
-/// [BrowserPortHarness] for [DesktopBrowserPort] over the real helper.
+/// Why no interaction window can be shown on this host, or `null` when one
+/// can: Linux needs an X11 or Wayland display; Windows and macOS always have
+/// a window server for a desktop session. `DWV_NO_DISPLAY=1` forces the
+/// headless path (CI without a desktop session).
+String? get interactionUnavailableReason {
+  final Map<String, String> env = Platform.environment;
+  if (env['DWV_NO_DISPLAY'] == '1') return 'DWV_NO_DISPLAY=1 is set';
+  if (Platform.isLinux && (env['DISPLAY'] ?? '').isEmpty && (env['WAYLAND_DISPLAY'] ?? '').isEmpty) {
+    return 'no DISPLAY or WAYLAND_DISPLAY (headless Linux)';
+  }
+  return null;
+}
+
+/// [InteractiveBrowserPortHarness] for [DesktopBrowserPort] over the real
+/// helper.
 ///
-/// Runs with visible windows disabled (`canShowInteraction == false`): the
-/// contract suite's displayed branch expects an immediate completion, which a
-/// real window cannot give unaided. The visible path is covered by
-/// `desktop_browser_port_test.dart`.
-class DesktopBrowserPortHarness implements BrowserPortHarness {
+/// Where a display exists (see [interactionUnavailableReason]) visible
+/// windows are enabled, so the protocol 1.3 interaction cases run on the
+/// helper: the page signals completion through a message channel, the
+/// "user" closes the window with a native close request (`WM_CLOSE` on
+/// Windows, through the helper's test hook), and a session closes while
+/// shown. Without a display the cases take the no-display path.
+class DesktopBrowserPortHarness implements InteractiveBrowserPortHarness {
   DesktopBrowserPortHarness(this.helper, this.server, this.dataRoot);
 
   final File helper;
@@ -208,7 +224,24 @@ class DesktopBrowserPortHarness implements BrowserPortHarness {
   DesktopBrowserPort? _port;
 
   @override
-  Future<BrowserPort> start() async => _port = DesktopBrowserPort(testConfig(helper, dataRoot));
+  Future<BrowserPort> start() async => _port = DesktopBrowserPort(
+    testConfig(helper, dataRoot, allowVisibleWindows: canShowInteraction),
+  );
+
+  @override
+  Future<void> closeInteractionWindow() async {
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (true) {
+      final DesktopBrowserSession? shown = _port?.debugShowingSessions.firstOrNull;
+      if (shown != null) {
+        final BrowserOutcome<void> closed = await shown.debugRequestClose();
+        if (closed is! BrowserCompleted<void>) throw StateError('debugRequestClose failed: $closed');
+        return;
+      }
+      if (DateTime.now().isAfter(deadline)) throw StateError('No interaction window was shown');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
 
   @override
   Future<void> kill() async => _port?.debugKillHelper();
@@ -227,7 +260,7 @@ class DesktopBrowserPortHarness implements BrowserPortHarness {
   Uri get redirectToFileUrl => server.url('/to-file');
 
   @override
-  bool get canShowInteraction => false;
+  bool get canShowInteraction => interactionUnavailableReason == null;
 
   @override
   String heldScript(String resultJson) {

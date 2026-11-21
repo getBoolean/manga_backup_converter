@@ -39,6 +39,12 @@ SourceIdentity _source(String id) => SourceIdentity(
 /// renaming it away and back.
 Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
   final DateTime deadline = DateTime.now().add(timeout);
+  // A directory can be renamed while a terminating browser process still
+  // has it open with delete sharing, and that process can then fail the
+  // next helper's single start-up attempt. On Windows wait first until no
+  // process names the directory on its command line (WebView2 passes it as
+  // --user-data-dir), which is the release the wipe needs.
+  if (Platform.isWindows) await _waitForNoProcessUsing(dir, deadline);
   final probe = '${dir.path}.probe';
   while (true) {
     try {
@@ -48,6 +54,25 @@ Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
       if (DateTime.now().isAfter(deadline)) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
+  }
+}
+
+/// Waits until no running process has [dir]'s name on its command line.
+Future<void> _waitForNoProcessUsing(Directory dir, DateTime deadline) async {
+  final String name = dir.absolute.path.replaceAll("'", "''");
+  while (true) {
+    final ProcessResult r = await Process.run('powershell', <String>[
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "@(Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*$name*' -and "
+          "\$_.ProcessId -ne \$PID }).Count",
+    ]);
+    if (r.exitCode == 0 && (r.stdout as String).trim() == '0') return;
+    if (DateTime.now().isAfter(deadline)) {
+      throw StateError('Processes still use ${dir.path} after the release bound: ${r.stdout}${r.stderr}');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
   }
 }
 
@@ -350,7 +375,9 @@ Future<void> main() async {
       final BrowserRequest post = seen.firstWhere((BrowserRequest r) => r.method == 'POST');
       check(post.body).isNotNull().deepEquals(utf8.encode('answer=1'));
       check(post.bodyOmitted).isFalse();
-      check(misses).length.equals(1);
+      // Only the test's own requests count: WebView2 fetches /favicon.ico on
+      // its own, and that request can reach the replacer after it is set.
+      check(misses.where((CaptureKey k) => Uri.parse(k.url).path.startsWith('/body-replay'))).length.equals(1);
       check(server.seen.where(((String, Map<String, String>) e) => e.$1.startsWith('/body-replay'))).isEmpty();
     });
 

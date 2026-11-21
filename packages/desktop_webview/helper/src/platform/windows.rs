@@ -62,6 +62,18 @@ pub static CAPS: Caps = Caps {
   ],
 };
 
+/// Asks the window to close the way the title bar's close button does: a
+/// posted `WM_CLOSE` reaches the event loop as `CloseRequested` (test hook).
+pub fn request_window_close(window: &Window) -> Result<(), String> {
+  use tao::platform::windows::WindowExtWindows;
+  use windows::Win32::{
+    Foundation::{HWND, LPARAM, WPARAM},
+    UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
+  };
+  let hwnd = HWND(window.hwnd() as *mut core::ffi::c_void);
+  unsafe { PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)) }.map_err(|e| e.to_string())
+}
+
 pub fn display_missing() -> Option<String> {
   None
 }

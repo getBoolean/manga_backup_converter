@@ -407,7 +407,10 @@ void runBrowserPortContractSuite(
 
       test('showForInteraction reports interaction-required without a display', () async {
         // With a display, the protocol 1.3 interaction cases cover the show.
-        if (harness.canShowInteraction) return;
+        if (harness.canShowInteraction) {
+          markTestSkipped('the harness has a display; the protocol 1.3 interaction cases cover the show');
+          return;
+        }
         final BrowserSession s = await open(sourceA);
         final BrowserOutcome<void> shown = await s.showForInteraction(timeout: const Duration(seconds: 1));
         check(shown).isA<BrowserInteractionRequired<void>>();
@@ -566,7 +569,10 @@ void runBrowserPortContractSuite(
 
       test('the interaction completes when the user closes the window', () async {
         final h = harness;
-        if (h is! InteractiveBrowserPortHarness || !h.canShowInteraction) return;
+        if (h is! InteractiveBrowserPortHarness || !h.canShowInteraction) {
+          markTestSkipped('needs an interactive harness with a display (a user closing the window)');
+          return;
+        }
         final BrowserSession s = await open(sourceA);
         check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
         final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(
@@ -582,7 +588,10 @@ void runBrowserPortContractSuite(
       });
 
       test('closing the session ends a shown interaction as cancelled', () async {
-        if (!harness.canShowInteraction) return;
+        if (!harness.canShowInteraction) {
+          markTestSkipped('needs a display (a shown window to end by closing the session)');
+          return;
+        }
         final BrowserSession s = await open(sourceA);
         check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
         final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(

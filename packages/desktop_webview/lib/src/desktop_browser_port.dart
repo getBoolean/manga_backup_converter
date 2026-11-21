@@ -255,6 +255,11 @@ class DesktopBrowserPort implements BrowserPort {
   /// The running helper, for tests that speak to it directly.
   @visibleForTesting
   HelperProcess? get debugHelper => _helper;
+
+  /// Open sessions whose interaction window is shown (or being shown).
+  @visibleForTesting
+  Iterable<DesktopBrowserSession> get debugShowingSessions =>
+      _sessions.values.where((DesktopBrowserSession s) => s.isShowing);
 }
 
 /// One source-scoped WebView session in the helper.
@@ -287,6 +292,9 @@ class DesktopBrowserSession implements BrowserSession {
   BrowserOutcome<void>? _closeAfterCrash;
 
   bool get isClosed => _closedReason != null;
+
+  /// Whether a [showForInteraction] call is in progress.
+  bool get isShowing => !isClosed && _interaction != null && !_interaction!.isSettled;
 
   BrowserCancelled<T>? _dead<T>(CancellationToken? cancel) {
     final String? closed = _closedReason;

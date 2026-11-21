@@ -58,6 +58,12 @@ pub static CAPS: Caps = Caps {
 };
 
 /// GTK needs a display even for hidden windows.
+/// No synthetic native close here: the caller falls back to the
+/// `CloseRequested` handler directly.
+pub fn request_window_close(_window: &Window) -> Result<(), String> {
+  Err("no native close request on this engine".into())
+}
+
 pub fn display_missing() -> Option<String> {
   let set = |k: &str| std::env::var_os(k).is_some_and(|v| !v.is_empty());
   (!set("DISPLAY") && !set("WAYLAND_DISPLAY")).then(|| "neither DISPLAY nor WAYLAND_DISPLAY is set".to_string())

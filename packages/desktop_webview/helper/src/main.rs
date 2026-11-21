@@ -669,8 +669,12 @@ impl App {
       }
       "debugRequestClose" if test_hooks => {
         out.ok(id, json!({}));
-        let wid = s.window.id();
-        self.window_close_requested(wid);
+        // Through the OS where the engine allows it, so the close arrives as
+        // a user's would (WindowEvent::CloseRequested).
+        if platform::request_window_close(&s.window).is_err() {
+          let wid = s.window.id();
+          self.window_close_requested(wid);
+        }
       }
       "close" => {
         let result = self.close_session(sid);

@@ -55,6 +55,12 @@ pub static CAPS: Caps = Caps {
   ],
 };
 
+/// No synthetic native close here: the caller falls back to the
+/// `CloseRequested` handler directly.
+pub fn request_window_close(_window: &Window) -> Result<(), String> {
+  Err("no native close request on this engine".into())
+}
+
 pub fn display_missing() -> Option<String> {
   None
 }
