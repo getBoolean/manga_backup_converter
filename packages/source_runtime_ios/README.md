@@ -20,3 +20,13 @@ bindings for iOS source runners. This is the U16 feasibility-gate package
 Regenerate bindings: `dart run tool/ffigen.dart`. Build and stage the
 runtime: `tools/tachi-source-runner/ios/README.md`. There are no platform
 channels.
+
+## Local Tachi backend (U9)
+
+`IosTachiBackend` (`lib/src/tachi_backend.dart`) runs the shared Tachi worker
+inside the embedded VM (`InVmWorkerProcess`, a native byte channel instead of
+a process) and implements `SourceProvider` over the shared supervisor, session
+and browser-bridge code. Every operation has a native deadline enforced by the
+dispatcher's watchdog. Stage the payload with
+`tools/tachi-source-runner/ios/scripts/stage_runtime.sh <sdk> [--gate] [--test]`;
+evidence and decisions are in `docs/validation/source-runners/ios/README.md`.

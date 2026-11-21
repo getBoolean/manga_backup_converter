@@ -7,7 +7,6 @@ import com.googlecode.d2j.node.DexMethodNode
 import org.objectweb.asm.MethodVisitor
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipEntry
@@ -76,10 +75,11 @@ object ApkConverter {
                 errors += "${method.owner}.${method.name}${method.desc}: ${e.javaClass.simpleName}: ${e.message}"
             }
         }
-        val tmp = Files.createTempFile("d2j-", ".jar")
+        // A plain directory, not a zip file system: the iOS runtime image has no jdk.zipfs (U9), and the
+        // classes are re-sorted into a deterministic JAR afterwards anyway.
+        val tmp = Files.createTempDirectory("d2j-")
         try {
-            Files.delete(tmp)
-            FileSystems.newFileSystem(tmp, mapOf("create" to "true")).use { fs ->
+            run {
                 Dex2jar.from(ConstructorElisionFix(com.googlecode.d2j.reader.MultiDexFileReader.open(dexBytes)))
                     .withExceptionHandler(handler)
                     // Keep Kotlin's mangled names (`constructor-impl`): renaming them breaks linking.
@@ -95,20 +95,22 @@ object ApkConverter {
                     .printIR(false)
                     .noCode(false)
                     .skipExceptions(false)
-                    .to(fs.getPath("/"))
+                    .to(tmp)
             }
             if (errors.isNotEmpty()) {
                 throw ArtifactException("$apkName/$dexName: dex2jar failed for ${errors.size} item(s): ${errors.take(5).joinToString("; ")}")
             }
-            ZipFile(tmp.toFile()).use { zip ->
-                for (entry in zip.entries()) {
-                    if (entry.isDirectory || !entry.name.endsWith(".class")) continue
-                    if (into.containsKey(entry.name)) throw ArtifactException("$apkName: duplicate class ${entry.name} across dex files")
-                    into[entry.name] = zip.getInputStream(entry).use { it.readBytes() }
+            Files.walk(tmp).use { paths ->
+                for (path in paths.sorted().toList()) {
+                    if (!Files.isRegularFile(path)) continue
+                    val name = tmp.relativize(path).toString().replace(java.io.File.separatorChar, '/')
+                    if (!name.endsWith(".class")) continue
+                    if (into.containsKey(name)) throw ArtifactException("$apkName: duplicate class $name across dex files")
+                    into[name] = Files.readAllBytes(path)
                 }
             }
         } finally {
-            Files.deleteIfExists(tmp)
+            tmp.toFile().deleteRecursively()
         }
     }
 

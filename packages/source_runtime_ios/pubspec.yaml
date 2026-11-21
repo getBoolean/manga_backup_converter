@@ -2,8 +2,9 @@ name: source_runtime_ios
 description: >-
   Embedded interpreter-only JVM (OpenJDK mobile, Zero) for iOS source runners,
   driven from Dart through FFIgen bindings to the JNI invocation interface and
-  a native dispatcher, plus FFIgen WebKit bindings for the WKWebView browser
-  port. U16 feasibility gate (KTD11, KTD23).
+  a native dispatcher, the local Tachi backend that runs the shared Tachi
+  worker inside it (U9), and FFIgen WebKit bindings for the WKWebView browser
+  port (KTD11, KTD12, KTD23).
 version: 0.0.1
 publish_to: none
 
@@ -14,11 +15,15 @@ resolution: workspace
 
 dependencies:
   code_assets: ^1.0.0
+  crypto: ^3.0.6
   ffi: ^2.2.0
   flutter:
     sdk: flutter
   hooks: ^1.0.0
+  meta: ^1.16.0
   objective_c: ^9.2.0
+  source_runtime:
+    path: ../source_runtime
 
 dev_dependencies:
   app_lints:

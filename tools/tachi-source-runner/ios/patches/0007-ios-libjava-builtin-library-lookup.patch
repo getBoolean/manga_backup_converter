@@ -1,0 +1,30 @@
+Subject: [PATCH] libjava: search every loaded image for built-in libraries on iOS
+
+Source:  manga_backup_converter source runners (U9), original work
+Licence: GPLv2 with the Classpath exception (as java.base)
+
+getProcessHandle() returns dlopen(NULL, RTLD_FIRST) on Apple platforms, which
+searches only the main executable. On iOS the VM and the JDK native libraries
+are linked into an app framework, so NativeLibraries.findBuiltinLib never
+found JNI_OnLoad_jimage/net/nio/zip and System.loadLibrary of a class-library
+library failed ("no jimage in system library path"). Patch 0002 made the same
+change for HotSpot's os::get_default_process_handle.
+---
+diff --git a/src/java.base/unix/native/libjava/jni_util_md.c b/src/java.base/unix/native/libjava/jni_util_md.c
+index 7195b3def..476888f7f 100644
+--- a/src/java.base/unix/native/libjava/jni_util_md.c
++++ b/src/java.base/unix/native/libjava/jni_util_md.c
+@@ -43,7 +43,12 @@ void* getProcessHandle() {
+     if (procHandle != NULL) {
+         return procHandle;
+     }
+-#ifdef __APPLE__
++#if defined(__IOS__)
++    // source-runner patch: the statically linked JDK native libraries live in
++    // an app framework, not the main executable, so built-in library lookups
++    // (findBuiltinLib: JNI_OnLoad_<lib>) must search every loaded image.
++    procHandle = RTLD_DEFAULT;
++#elif defined(__APPLE__)
+     procHandle = (void*)dlopen(NULL, RTLD_FIRST);
+ #else
+     procHandle = (void*)dlopen(NULL, RTLD_LAZY);

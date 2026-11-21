@@ -1,4 +1,4 @@
-# U16 iOS runtime gate — evidence and decision (simulator stage)
+# iOS Tachi runtime — U16 gate and U9 implementation evidence (simulator stage)
 
 Status: **simulator evidence only.** U16's verification needs physical-iPhone
 receipts; nothing here passes the gate. The user chose simulator evidence now
@@ -121,3 +121,151 @@ that hook (iOS 15.0, plus the simulator triple and SDK for simulator runs).
 The patch was reverted and is not committed. The swiftsoup owner needs to fix
 the hook properly: iOS 15.0, choose the triple and SDK from
 `code.iOS.targetSdk`, and include the SDK in the cache key.
+
+
+---
+
+# U9: local iOS Tachi runtime (simulator stage)
+
+Status: **simulator evidence only** (iPad Pro 13-inch (M5) Simulator, iOS
+26.5, arm64, Xcode 27.2). Every U9 receipt is labelled `evidenceClass:
+simulator`. U9's verification needs a signed physical-iPhone build; see the
+list at the end. Branch `feat/source-runners-u9`.
+
+## What runs where
+
+| Layer | Implementation |
+| --- | --- |
+| VM | One process-lifetime Zero VM (`IosJvmRuntime`), started from Dart through FFIgen JNI invocation bindings with `BundledRuntime.productionOptions`: `-Xint`, the Tachi host class path, `-Djava.library.path=`, `--illegal-native-access=deny`. Never destroyed. |
+| Worker | The desktop worker's own classes (`Worker`, class-file 65) run inside the VM via `mangabackup.tachi.ios.IosWorkerHost` on a dispatcher-owned thread, over a native byte channel (`srt_worker_*`). No helper process, no network RPC; output reaches Dart through one `NativeCallable.listener`. |
+| Dart backend | `IosTachiBackend` (`packages/source_runtime_ios/lib/src/tachi_backend.dart`) implements `SourceProvider` over the unchanged `ConversionRuntimeScope`/`WorkerSupervisor`/`WorkerSourceSession`/`BrowserReverseBridge`, with `InVmWorkerProcess` as the injected launcher. `worker()` is also a `TachiWorkerAccess` for the common `TachiRuntime`. |
+| Deadlines | Every operation arms a native deadline (`IosNatives.arm`) on the dispatcher's watchdog. When it fires the watchdog marks the thread for the rewritten back-edge polls (mechanism A), interrupts it, and runs the operation's cooperative stop (HTTP calls, browser reverse requests) on a Java helper thread. The reply is `timeout`. A supervisor restart ("kill") closes the channel and fires every deadline of that worker generation; the next generation is a new worker in the same VM. |
+| Shared code | `WorkerPlatform` hook in the shared worker (`desktop` default is a no-op): native deadlines and the artifact rewrite. ApkConverter now writes dex2jar output to a temp directory (the image has no `jdk.zipfs`). Desktop worker tests: 52/52 on Temurin 21.0.13.1 before and after. |
+
+## Decisions
+
+- **Rewrite pass** (`BackedgeRewriter`, version `ios-backedge.1`, part of
+  every prepared artifact's converter version, so KTD5 cache identities
+  change when it changes): never `<clinit>`; extension and host-library code
+  calls a poll trampoline baked into exported `java.lang`
+  (`SourceRunnerPoll`), so `jdk.internal.misc` is **not** exported to source
+  code (U16's `--add-exports` is no longer needed for production).
+- **java.base package set:** `java/util/regex/` and `java/text/` (53 classes,
+  303 back-edges). Synchronized methods and monitor regions are skipped.
+  Collections, I/O and concurrency are excluded (bounded by host data, and
+  they run under locks shared across operations).
+- **Host libraries rewritten at staging:** jsoup (298 back-edges),
+  `kotlin.text` (240), kotlinx-serialization-json (87). Coroutines, OkHttp,
+  Okio and the worker itself are not rewritten; their waits end through
+  cancellation.
+- **Baked, not patched in:** the rewritten java.base classes, the poll
+  trampoline and the native-load guard are baked into `lib/modules` by
+  `build_runtime.sh package` (`image_bake` in `u9-runtime-build-outputs.json`).
+  No `--patch-module`. Gate fixtures are staged only with `--gate`, test data
+  only with `--test`; the default (shipping) payload has neither, nor the
+  replay server JARs.
+- **R18 native code:** two layers. `--illegal-native-access=deny` refuses JNI
+  and `java.lang.foreign` library loads from every unnamed module
+  (`IllegalCallerException`). Behind it, the baked guard at
+  `ClassLoader.loadLibrary(Class, String|File)` refuses any library load not
+  requested by boot or platform classes (`UnsatisfiedLinkError`), including
+  reflective calls. The guard-only diagnostic run shows the guard stops all
+  JNI paths but not the foreign lookup, so `deny` is required.
+- **Runtime patches added by U9** (both found by running the real worker; the
+  U16 gate never reached these paths):
+  - `0007-ios-libjava-builtin-library-lookup.patch`: libjava's
+    `findBuiltinLib` searched only the main executable, so `jimage`, `net`,
+    `nio` and `zip` could not load from the app framework.
+  - `0008-ios-zero-signal-context-pc.patch`: on bsd_zero every signal
+    HotSpot handles called `ucontext_get_pc` (ShouldNotCall) before the
+    SIGPIPE/SIGXFSZ ignore branch, so a SIGPIPE from a closing socket aborted
+    the app.
+- **Limits:** no iOS sizing rule exists (KTD25 needs device benchmarks). The
+  worker reports every limit as an explicit override (`rule: null`); the
+  desktop rule is never applied. Heap is `-Xmx384m`, provisional.
+
+## Measurements (simulator)
+
+Interpreter-mode `artifact.prepare` (verification + conversion + rewrite),
+first run in a fresh VM, from `u9-simulator-receipts.jsonl`:
+
+| Source | JAR: verify + rewrite | APK: apksig + dex2jar + frames + rewrite | Search | Details + chapters |
+| --- | --- | --- | --- | --- |
+| MangaDex 1.6.4 (62 source IDs) | 1.57 s | **14.96 s** | 0.50 s / 0.19 s | 1.08 s (15 ch.) |
+| WeebCentral 1.6.27 (1) | 0.56 s | **3.01 s** | 0.27 s / 0.18 s | 4.09 s (114 ch.) |
+| MangaFire 1.6.38 (7) | 1.13 s | **11.90 s** | 0.25 s / 0.25 s | 1.05 s (86 ch.) |
+
+JAR and converted-APK results were identical for all three (titles,
+metadata, every chapter). Prepared artifacts are cached by KTD5 identity:
+re-preparing the same JAR returned the same cache path every time.
+
+Native deadlines (1,500 ms, 5 cases, one run each; full latency is from the
+Dart call to the reply, so it includes the protocol round trip):
+
+| Case | Elapsed | Overshoot |
+| --- | --- | --- |
+| Call-free CPU loop (`busy`) | 1,511 ms | 11 ms |
+| Catch `Throwable` and loop again (`catch`) | 1,512 ms | 12 ms |
+| Catastrophic regex in baked `java.util.regex` | 1,512 ms | 12 ms |
+| Host HTTP call that never answers (`hang`) | 1,524 ms | 24 ms |
+| Browser open that never completes | 1,512 ms | 12 ms |
+
+The Dart supervisor deadline was 8 s and its generation never changed, so
+every stop came from the native deadline. After each stop the fixture's
+counter read the same value twice 500 ms apart: the loop had stopped, which
+a Dart-only timeout cannot achieve.
+
+Other: VM creation 80–94 ms; worker handshake under 1 s; JNI global
+references 4 after start and 4 after every case, five package open/close
+cycles and a second backend; 0 armed deadlines afterwards; 1 VM throughout;
+loaded image count unchanged (927); no platform message from the app during
+the whole run; no replay capture miss.
+
+## Results by scenario (22/22 passed, `integration_test/source_runners_ios_test.dart`)
+
+| Scenario | Result |
+| --- | --- |
+| AE7: MangaDex, WeebCentral, MangaFire from the repository JAR and from the APK converted in the VM; exact int64 source IDs equal the index entry; search, details, chapters from fail-closed replay; rehydration from the durable reference | pass (6 cases) |
+| Tampered JAR (modified class), JAR with an appended unsigned class, tampered APK, APK against another signer: refused before loading/conversion as `artifact-incompatible` | pass (4 cases) |
+| Cached converted JAR modified on disk: refused by digest before loading | pass |
+| AE8: CPU loop, catch-and-continue, regex, never-completing network wait, delayed browser callback stopped by the native deadline | pass (5 cases) |
+| Browser port with `.androidCompatible` semantics: a throwing script reaches the source as `null` (test port; the WKWebView port is U10) | pass |
+| R18: `System.loadLibrary`, `System.load`, reflective `System.load`, `SymbolLookup.libraryLookup` all refused; no image loaded | pass (+ guard-only diagnostic run) |
+| Session/package/backend closure never destroys the VM; references back to baseline; a new backend runs in the same VM | pass |
+| No platform channel used | pass |
+| U16 gate on the rebuilt runtime and new rewriter (regression) | 14/14 pass (`u9-simulator-u16-gate-regression.json`) |
+| Desktop worker tests (shared code) | 52/52 pass, Temurin 21.0.13.1 |
+
+## Still open: needs a physical iPhone
+
+- Everything above on a signed device build (release, cold launch, no
+  debugger): no-JIT/no-executable-memory enforcement only exists on a device.
+- APK conversion time on device CPUs (the simulator runs at Mac speed; 15 s
+  for MangaDex here could be much longer on older iPhones), and whether a
+  conversion fits the device's memory with `-Xmx384m`.
+- KTD25 device benchmark to size the native deadline, pool size and heap.
+- Deadline latency and back-edge overhead on device CPUs.
+- Fixture staging: `--test` payloads bundle the data as assets, so the same
+  test runs on a device; not yet tried.
+
+## Remaining U9 work (not done here)
+
+- Live networking on iOS: the production transport is OkHttp over JDK
+  sockets/JSSE in the VM (`HostTransport.LIVE`). TLS with the bundled
+  `cacerts` is untested (tests must not contact live sites); the plan's
+  NSURLSession shim is not implemented.
+- App backgrounding (KTD12): reject new work, fence late callbacks, resume
+  after foregrounding. Not implemented.
+- Per-session reference bound assertions for Objective-C wrappers: only JNI
+  global references are counted (no Objective-C objects are created by the
+  Tachi path yet; WKWebView is U10).
+- Secret-in-preferences scenario (password never reaches app storage) is not
+  yet a test case; worker state directories are deleted when each worker
+  generation exits.
+- Operations an extension moves to other threads (`Dispatchers.IO`) are not
+  marked by the deadline; only the operation thread is. Their host waits are
+  still cancelled.
+- `docs/source-runners.md` platform section (outside this unit's owned
+  paths).
+- Protocol 1.2 features arrive with the U3b worker merge; this branch runs the
+  1.1 worker.

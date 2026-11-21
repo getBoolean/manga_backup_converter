@@ -26,6 +26,7 @@
 #include <string.h>
 #include <time.h>
 #include <os/log.h>
+#include <mach-o/dyld.h>
 
 // Patch 0004 (Zero back-edge poll switch), defined in libjvm.
 extern volatile int source_runner_zero_backedge_poll;
@@ -76,6 +77,45 @@ static pthread_cond_t g_cv = PTHREAD_COND_INITIALIZER;
 static srt_job *g_jobs = NULL;  // jobs with a deadline that have not finished
 
 static __thread srt_job *t_job = NULL;
+
+// U9: per-operation deadlines armed by the in-VM worker (IosNatives.arm).
+typedef struct srt_deadline {
+  int64_t token;
+  int64_t worker;
+  jobject thread_ref;  // global ref to the operation thread
+  uint64_t deadline_at_ns;
+  bool fired;
+  bool firing;    // guarded by g_mu; the watchdog is using thread_ref
+  bool finished;  // guarded by g_mu; disarmed
+  struct srt_deadline *next;
+} srt_deadline;
+
+static srt_deadline *g_deadlines = NULL;  // guarded by g_mu
+static int64_t g_next_token = 0;          // guarded by g_mu
+static _Atomic int64_t g_armed = 0;
+static _Atomic int64_t g_fired = 0;
+
+// U9: in-VM worker channels.
+typedef struct srt_worker {
+  int64_t id;
+  char *options;
+  pthread_mutex_t mu;
+  pthread_cond_t cv;
+  uint8_t *buf;  // guarded by mu: queued input
+  size_t head;
+  size_t len;
+  size_t cap;
+  bool closed;   // guarded by mu: input closed
+  int refs;      // guarded by g_mu
+  struct srt_worker *next;
+} srt_worker;
+
+static srt_worker *g_workers = NULL;  // guarded by g_mu; running workers
+static _Atomic int64_t g_worker_count = 0;
+static srt_stream_callback g_stream_callback = NULL;
+
+static jclass g_natives_cls;      // mangabackup/tachi/ios/IosNatives (when on the class path)
+static jmethodID g_natives_fired;
 
 // Cached classes and members (global refs).
 static jclass g_deadline_cls;
@@ -256,6 +296,189 @@ static void register_host_natives(JNIEnv *env) {
 }
 
 // ---------------------------------------------------------------------------
+// U9 worker natives (registered on mangabackup.tachi.ios.IosNatives)
+
+static srt_worker *worker_get(int64_t id) {
+  pthread_mutex_lock(&g_mu);
+  srt_worker *w = g_workers;
+  while (w != NULL && w->id != id) w = w->next;
+  if (w != NULL) w->refs++;
+  pthread_mutex_unlock(&g_mu);
+  return w;
+}
+
+static void worker_free(srt_worker *w) {
+  pthread_mutex_destroy(&w->mu);
+  pthread_cond_destroy(&w->cv);
+  free(w->buf);
+  free(w->options);
+  free(w);
+}
+
+static void worker_put(srt_worker *w) {
+  pthread_mutex_lock(&g_mu);
+  bool last = --w->refs == 0;
+  pthread_mutex_unlock(&g_mu);
+  if (last) worker_free(w);
+}
+
+static void worker_close(srt_worker *w) {
+  pthread_mutex_lock(&w->mu);
+  w->closed = true;
+  pthread_cond_broadcast(&w->cv);
+  pthread_mutex_unlock(&w->mu);
+}
+
+static void emit_stream(int64_t worker, int32_t stream, const uint8_t *data, int64_t length) {
+  srt_stream_callback cb = g_stream_callback;
+  if (cb == NULL) return;
+  uint8_t *copy = NULL;
+  if (data != NULL && length > 0) {
+    copy = malloc((size_t)length);
+    if (copy == NULL) return;
+    memcpy(copy, data, (size_t)length);
+  }
+  cb(worker, stream, copy, length);
+}
+
+static jint JNICALL natives_read(JNIEnv *env, jclass cls, jlong worker, jbyteArray buffer, jint offset, jint length) {
+  (void)cls;
+  srt_worker *w = worker_get(worker);
+  if (w == NULL) return -1;
+  jint n = -1;
+  pthread_mutex_lock(&w->mu);
+  while (w->len == 0 && !w->closed) pthread_cond_wait(&w->cv, &w->mu);
+  if (w->len > 0 && length > 0) {
+    n = (jint)(w->len < (size_t)length ? w->len : (size_t)length);
+    (*env)->SetByteArrayRegion(env, buffer, offset, n, (const jbyte *)(w->buf + w->head));
+    w->head += (size_t)n;
+    w->len -= (size_t)n;
+    if (w->len == 0) w->head = 0;
+  }
+  pthread_mutex_unlock(&w->mu);
+  worker_put(w);
+  return n;
+}
+
+static void JNICALL natives_write(JNIEnv *env, jclass cls, jlong worker, jint stream, jbyteArray buffer, jint offset,
+                                  jint length) {
+  (void)cls;
+  if (length <= 0) return;
+  uint8_t *tmp = malloc((size_t)length);
+  if (tmp == NULL) return;
+  (*env)->GetByteArrayRegion(env, buffer, offset, length, (jbyte *)tmp);
+  if ((*env)->ExceptionCheck(env)) {
+    free(tmp);
+    return;
+  }
+  srt_stream_callback cb = g_stream_callback;
+  if (cb != NULL) {
+    cb(worker, stream, tmp, length);  // ownership passes to the receiver
+  } else {
+    free(tmp);
+  }
+}
+
+static jlong JNICALL natives_arm(JNIEnv *env, jclass cls, jlong worker, jobject thread, jlong millis) {
+  (void)cls;
+  srt_deadline *d = calloc(1, sizeof *d);
+  if (d == NULL) return 0;
+  d->worker = worker;
+  d->thread_ref = new_global(env, thread);
+  pthread_mutex_lock(&g_mu);
+  d->token = ++g_next_token;
+  d->deadline_at_ns = now_ns() + (uint64_t)(millis > 0 ? millis : 0) * 1000000u;
+  d->next = g_deadlines;
+  g_deadlines = d;
+  pthread_cond_signal(&g_cv);
+  pthread_mutex_unlock(&g_mu);
+  atomic_fetch_add(&g_armed, 1);
+  return d->token;
+}
+
+static srt_deadline *deadline_find_locked(int64_t token) {
+  for (srt_deadline *d = g_deadlines; d != NULL; d = d->next) {
+    if (d->token == token) return d;
+  }
+  return NULL;
+}
+
+static void JNICALL natives_expire_now(JNIEnv *env, jclass cls, jlong token) {
+  (void)env;
+  (void)cls;
+  pthread_mutex_lock(&g_mu);
+  srt_deadline *d = deadline_find_locked(token);
+  if (d != NULL && !d->finished && !d->fired) {
+    d->deadline_at_ns = 0;
+    pthread_cond_signal(&g_cv);
+  }
+  pthread_mutex_unlock(&g_mu);
+}
+
+static jboolean JNICALL natives_disarm(JNIEnv *env, jclass cls, jlong token) {
+  (void)cls;
+  pthread_mutex_lock(&g_mu);
+  srt_deadline *d = deadline_find_locked(token);
+  if (d == NULL) {
+    pthread_mutex_unlock(&g_mu);
+    return JNI_FALSE;
+  }
+  d->finished = true;
+  for (srt_deadline **p = &g_deadlines; *p != NULL; p = &(*p)->next) {
+    if (*p == d) {
+      *p = d->next;
+      break;
+    }
+  }
+  // The watchdog may be delivering right now; wait so the mark is final
+  // before it is cleared.
+  while (d->firing) pthread_cond_wait(&g_cv, &g_mu);
+  pthread_mutex_unlock(&g_mu);
+  bool fired = d->fired;
+  if (fired) {
+    (*env)->CallStaticVoidMethod(env, g_deadline_cls, g_deadline_clear, d->thread_ref);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+  }
+  delete_global(env, d->thread_ref);
+  free(d);
+  atomic_fetch_sub(&g_armed, 1);
+  return fired ? JNI_TRUE : JNI_FALSE;
+}
+
+static void register_worker_natives(JNIEnv *env) {
+  g_natives_cls = find_global_class(env, "mangabackup/tachi/ios/IosNatives");
+  if (g_natives_cls == NULL) return;  // gate-only payload: no worker host on the class path
+  JNINativeMethod methods[] = {
+      {"read", "(J[BII)I", (void *)natives_read},
+      {"write", "(JI[BII)V", (void *)natives_write},
+      {"arm", "(JLjava/lang/Thread;J)J", (void *)natives_arm},
+      {"expireNow", "(J)V", (void *)natives_expire_now},
+      {"disarm", "(J)Z", (void *)natives_disarm},
+  };
+  if ((*env)->RegisterNatives(env, g_natives_cls, methods, 5) != JNI_OK) {
+    (*env)->ExceptionClear(env);
+    delete_global(env, g_natives_cls);
+    g_natives_cls = NULL;
+    return;
+  }
+  g_natives_fired = (*env)->GetStaticMethodID(env, g_natives_cls, "fired", "(J)V");
+  if (g_natives_fired == NULL) (*env)->ExceptionClear(env);
+}
+
+// Runs on the watchdog thread with d->firing set.
+static void fire_deadline(JNIEnv *env, srt_deadline *d) {
+  (*env)->CallStaticBooleanMethod(env, g_deadline_cls, g_deadline_expire, d->thread_ref);
+  if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+  (*env)->CallVoidMethod(env, d->thread_ref, g_thread_interrupt);
+  if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+  if (g_natives_cls != NULL && g_natives_fired != NULL) {
+    (*env)->CallStaticVoidMethod(env, g_natives_cls, g_natives_fired, (jlong)d->token);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+  }
+  atomic_fetch_add(&g_fired, 1);
+}
+
+// ---------------------------------------------------------------------------
 // Watchdog (runs on the runtime thread after VM creation)
 
 static void job_release_locked(srt_job *job);
@@ -334,6 +557,25 @@ static void watchdog_loop(JNIEnv *env) {
       if (should_fire && due == NULL) {
         due = j;
       }
+    }
+    srt_deadline *due_deadline = NULL;
+    for (srt_deadline *d = g_deadlines; d != NULL; d = d->next) {
+      if (d->finished || d->fired) continue;
+      if (now >= d->deadline_at_ns) {
+        if (due_deadline == NULL) due_deadline = d;
+      } else if (d->deadline_at_ns < next) {
+        next = d->deadline_at_ns;
+      }
+    }
+    if (due_deadline != NULL) {
+      due_deadline->firing = true;
+      due_deadline->fired = true;
+      pthread_mutex_unlock(&g_mu);
+      fire_deadline(env, due_deadline);
+      pthread_mutex_lock(&g_mu);
+      due_deadline->firing = false;
+      pthread_cond_broadcast(&g_cv);  // a disarm may wait for this
+      continue;
     }
     if (due != NULL) {
       due->refs++;
@@ -451,6 +693,7 @@ static void *runtime_main(void *arg) {
     jvmti_ok = (*g_jvmti)->AddCapabilities(g_jvmti, &caps) == JVMTI_ERROR_NONE;
   }
   register_host_natives(env);
+  register_worker_natives(env);
 
   atomic_store(&g_state, 2);
   sb_printf(&payload,
@@ -680,6 +923,170 @@ int64_t srt_global_ref_count(void) { return atomic_load(&g_global_refs); }
 
 int64_t srt_active_jobs(void) { return atomic_load(&g_active_jobs); }
 
+// ---------------------------------------------------------------------------
+// U9 worker channel API
+
+static void *worker_main(void *arg) {
+  srt_worker *w = arg;
+  JNIEnv *env = NULL;
+  char thread_name[48];
+  snprintf(thread_name, sizeof thread_name, "srt-worker-%" PRId64, w->id);
+  JavaVMAttachArgs attach = {JNI_VERSION_21, thread_name, NULL};
+  jint code = 70;
+  if ((*g_vm)->AttachCurrentThreadAsDaemon(g_vm, (void **)&env, &attach) == JNI_OK) {
+    jclass cls = (*env)->FindClass(env, "mangabackup/tachi/ios/IosWorkerHost");
+    jmethodID run = cls == NULL ? NULL : (*env)->GetStaticMethodID(env, cls, "run", "(JLjava/lang/String;)I");
+    char *error = NULL;
+    if (run == NULL) {
+      error = take_exception(env, NULL);
+    } else {
+      jstring opts = (*env)->NewStringUTF(env, w->options ? w->options : "");
+      code = (*env)->CallStaticIntMethod(env, cls, run, (jlong)w->id, opts);
+      error = take_exception(env, NULL);
+      if (error != NULL) code = 70;
+      if (opts != NULL) (*env)->DeleteLocalRef(env, opts);
+    }
+    if (cls != NULL) (*env)->DeleteLocalRef(env, cls);
+    if (error != NULL) {
+      sbuf line = {0};
+      sb_printf(&line, "[srt] worker %" PRId64 " failed: ", w->id);
+      sb_append(&line, error, strlen(error));
+      sb_append(&line, "\n", 1);
+      emit_stream(w->id, SRT_STREAM_STDERR, (const uint8_t *)line.data, (int64_t)line.len);
+      free(line.data);
+      free(error);
+    }
+    (*g_vm)->DetachCurrentThread(g_vm);
+  } else {
+    static const char msg[] = "[srt] AttachCurrentThread failed for a worker\n";
+    emit_stream(w->id, SRT_STREAM_STDERR, (const uint8_t *)msg, (int64_t)(sizeof msg - 1));
+  }
+  int64_t id = w->id;
+  worker_close(w);
+  pthread_mutex_lock(&g_mu);
+  for (srt_worker **p = &g_workers; *p != NULL; p = &(*p)->next) {
+    if (*p == w) {
+      *p = w->next;
+      w->refs--;  // the list's reference
+      break;
+    }
+  }
+  pthread_mutex_unlock(&g_mu);
+  atomic_fetch_sub(&g_worker_count, 1);
+  worker_put(w);  // the thread's reference
+  emit_stream(id, SRT_STREAM_EXIT, NULL, code);
+  return NULL;
+}
+
+int32_t srt_worker_set_callback(srt_stream_callback callback) {
+  if (callback == NULL) return SRT_ERR_ARGUMENT;
+  g_stream_callback = callback;
+  return SRT_OK;
+}
+
+int32_t srt_worker_start(int64_t worker_id, const char *options) {
+  if (atomic_load(&g_state) != 2) return SRT_ERR_STATE;
+  if (worker_id <= 0 || options == NULL || g_stream_callback == NULL) return SRT_ERR_ARGUMENT;
+  if (g_natives_cls == NULL) return SRT_ERR_STATE;  // worker host not on the class path
+  srt_worker *existing = worker_get(worker_id);
+  if (existing != NULL) {
+    worker_put(existing);
+    return SRT_ERR_ARGUMENT;
+  }
+  srt_worker *w = calloc(1, sizeof *w);
+  if (w == NULL) return SRT_ERR_THREAD;
+  w->id = worker_id;
+  w->options = dup_str(options);
+  w->refs = 2;  // the list and the worker thread
+  pthread_mutex_init(&w->mu, NULL);
+  pthread_cond_init(&w->cv, NULL);
+  pthread_mutex_lock(&g_mu);
+  w->next = g_workers;
+  g_workers = w;
+  pthread_mutex_unlock(&g_mu);
+  atomic_fetch_add(&g_worker_count, 1);
+  if (spawn(worker_main, w, JOB_STACK_BYTES) != 0) {
+    pthread_mutex_lock(&g_mu);
+    for (srt_worker **p = &g_workers; *p != NULL; p = &(*p)->next) {
+      if (*p == w) {
+        *p = w->next;
+        break;
+      }
+    }
+    pthread_mutex_unlock(&g_mu);
+    atomic_fetch_sub(&g_worker_count, 1);
+    worker_free(w);
+    return SRT_ERR_THREAD;
+  }
+  return SRT_OK;
+}
+
+int32_t srt_worker_write(int64_t worker_id, const uint8_t *data, int64_t length) {
+  if (length < 0 || (length > 0 && data == NULL)) return SRT_ERR_ARGUMENT;
+  srt_worker *w = worker_get(worker_id);
+  if (w == NULL) return SRT_ERR_STATE;
+  int32_t rc = SRT_OK;
+  pthread_mutex_lock(&w->mu);
+  if (w->closed) {
+    rc = SRT_ERR_STATE;
+  } else if (length > 0) {
+    if (w->head > 0 && w->head + w->len + (size_t)length > w->cap) {
+      memmove(w->buf, w->buf + w->head, w->len);
+      w->head = 0;
+    }
+    if (w->head + w->len + (size_t)length > w->cap) {
+      size_t cap = w->cap ? w->cap : 4096;
+      while (w->head + w->len + (size_t)length > cap) cap *= 2;
+      uint8_t *nb = realloc(w->buf, cap);
+      if (nb == NULL) {
+        rc = SRT_ERR_THREAD;
+      } else {
+        w->buf = nb;
+        w->cap = cap;
+      }
+    }
+    if (rc == SRT_OK) {
+      memcpy(w->buf + w->head + w->len, data, (size_t)length);
+      w->len += (size_t)length;
+      pthread_cond_broadcast(&w->cv);
+    }
+  }
+  pthread_mutex_unlock(&w->mu);
+  worker_put(w);
+  return rc;
+}
+
+int32_t srt_worker_close_input(int64_t worker_id) {
+  srt_worker *w = worker_get(worker_id);
+  if (w == NULL) return SRT_ERR_STATE;
+  worker_close(w);
+  worker_put(w);
+  return SRT_OK;
+}
+
+int32_t srt_worker_kill(int64_t worker_id) {
+  srt_worker *w = worker_get(worker_id);
+  if (w != NULL) {
+    worker_close(w);
+    worker_put(w);
+  }
+  pthread_mutex_lock(&g_mu);
+  for (srt_deadline *d = g_deadlines; d != NULL; d = d->next) {
+    if (d->worker == worker_id && !d->finished && !d->fired) d->deadline_at_ns = 0;
+  }
+  pthread_cond_signal(&g_cv);
+  pthread_mutex_unlock(&g_mu);
+  return w == NULL ? SRT_ERR_STATE : SRT_OK;
+}
+
+int64_t srt_worker_count(void) { return atomic_load(&g_worker_count); }
+
+int64_t srt_armed_deadlines(void) { return atomic_load(&g_armed); }
+
+int64_t srt_fired_deadlines(void) { return atomic_load(&g_fired); }
+
+int64_t srt_loaded_image_count(void) { return (int64_t)_dyld_image_count(); }
+
 #else  // !SRT_HAS_JVM
 
 int32_t srt_runtime_linked(void) { return 0; }
@@ -697,6 +1104,21 @@ int32_t srt_call(int64_t job_id, const char *class_name, const char *method_name
 int32_t srt_set_backedge_poll(int32_t enabled) { (void)enabled; return SRT_ERR_NOT_LINKED; }
 int64_t srt_global_ref_count(void) { return 0; }
 int64_t srt_active_jobs(void) { return 0; }
+int32_t srt_worker_set_callback(srt_stream_callback callback) { (void)callback; return SRT_ERR_NOT_LINKED; }
+int32_t srt_worker_start(int64_t worker_id, const char *options) {
+  (void)worker_id; (void)options;
+  return SRT_ERR_NOT_LINKED;
+}
+int32_t srt_worker_write(int64_t worker_id, const uint8_t *data, int64_t length) {
+  (void)worker_id; (void)data; (void)length;
+  return SRT_ERR_NOT_LINKED;
+}
+int32_t srt_worker_close_input(int64_t worker_id) { (void)worker_id; return SRT_ERR_NOT_LINKED; }
+int32_t srt_worker_kill(int64_t worker_id) { (void)worker_id; return SRT_ERR_NOT_LINKED; }
+int64_t srt_worker_count(void) { return 0; }
+int64_t srt_armed_deadlines(void) { return 0; }
+int64_t srt_fired_deadlines(void) { return 0; }
+int64_t srt_loaded_image_count(void) { return 0; }
 
 #endif  // SRT_HAS_JVM
 

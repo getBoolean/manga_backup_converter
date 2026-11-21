@@ -96,6 +96,10 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         @Volatile
         var job: Job? = null
 
+        /** The platform deadline of the running operation (KTD11; a no-op on desktop). */
+        @Volatile
+        var guard: OperationGuard? = null
+
         @Volatile
         override var isCancelled = false
 
@@ -117,6 +121,12 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
 
         fun cancel() {
             isCancelled = true
+            guard?.expireNow()
+            stopWork()
+        }
+
+        /** Stops the operation's host work cooperatively; also what a platform deadline calls. */
+        fun stopWork() {
             job?.cancel()
             packages[packageId]?.pkg?.environment?.cancelActiveCalls()
             browser.cancelOperation(requestId)
@@ -229,7 +239,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 put("protocolMinor", minOf(offeredMinor, Wire.MINOR_VERSION.toLong()))
                 put("worker", WorkerOptions.WORKER_NAME)
                 put("workerVersion", WorkerOptions.WORKER_VERSION)
-                put("pid", ProcessHandle.current().pid())
+                options.platform.pid()?.let { put("pid", it) }
                 put("capabilities", buildJsonObject {
                     put("apiFamilies", buildJsonArray { ExtensionLoader.apiFamilies.sorted().forEach { add(JsonPrimitive(it)) } })
                     put("browser", options.browser)
@@ -241,6 +251,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 put("javaVersion", Runtime.version().toString())
                 put("javaVendor", System.getProperty("java.vendor").orEmpty())
                 put("hostCompatibility", WorkerOptions.HOST_COMPATIBILITY)
+                put("platform", options.platform.name)
             },
         )
     }
@@ -284,6 +295,9 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         val env = state?.pkg?.environment
         var ok: JsonObject? = null
         var error: WorkerError? = null
+        var failure: Throwable? = null
+        val guard = options.platform.enterOperation(Thread.currentThread(), task::stopWork)
+        task.guard = guard
         try {
             if (task.isCancelled) throw WorkerError(ErrorCode.CANCELLED, "cancelled")
             env?.currentOperation = task
@@ -293,10 +307,21 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 if (env != null) PackageScope.bind(env) { runOp(task) } else runOp(task)
             }
         } catch (t: Throwable) {
-            error = mapError(t, task)
+            failure = t
         } finally {
+            // End the platform deadline before anything else runs on this thread: after close() no deadline
+            // check can fire here, so mapping the error and writing the reply cannot be interrupted.
+            guard.close()
+            task.guard = null
             env?.currentOperation = null
             Thread.interrupted()
+        }
+        if (failure != null) {
+            error = if (guard.expired && !task.isCancelled) {
+                WorkerError(ErrorCode.TIMEOUT, "operation stopped by its deadline", cause = failure)
+            } else {
+                mapError(failure, task)
+            }
         }
         if (task.isCancelled) error = WorkerError(ErrorCode.CANCELLED, "cancelled")
         browser.closeSessionsOf(task.frame.id)
@@ -356,24 +381,33 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 val copy = File(staging, "input.bin")
                 input.copyTo(copy, overwrite = true)
                 Digests.requireSha256(copy, artifact.sha256, "Input artifact")
+                // KTD5/KTD11: a platform rewrite pass applies identically to both paths, after verification.
+                val rewrite = options.platform.artifactRewrite
+                val unrewritten = if (rewrite == null) output else File(staging, "prepared.jar")
                 val (producer, converter) = when (artifact.kind) {
                     "jar" -> {
                         ArtifactVerifier.verifyJar(copy, trusted)
-                        ApkConverter.writeAtomically(output.toPath(), copy.readBytes())
+                        ApkConverter.writeAtomically(unrewritten.toPath(), copy.readBytes())
                         "tachi-jvm/jar-verify" to "jar-verify.1"
                     }
                     "apk" -> {
                         ArtifactVerifier.verifyApk(copy, trusted)
-                        ApkConverter.convert(copy, output)
+                        ApkConverter.convert(copy, unrewritten)
                         "tachi-jvm/apk-dex2jar" to ApkConverter.CONVERTER_VERSION
                     }
                     else -> throw ArtifactException("artifact kind '${artifact.kind}' is not a Tachi artifact (jar or apk)")
                 }
+                if (rewrite != null) {
+                    val rewritten = File(staging, "rewritten.jar")
+                    rewrite.rewrite(unrewritten, rewritten)
+                    ApkConverter.writeAtomically(output.toPath(), rewritten.readBytes())
+                }
                 val digest = Digests.sha256(output)
+                val versions = listOfNotNull(converter, rewrite?.version, WorkerOptions.HOST_COMPATIBILITY)
                 return buildJsonObject {
                     put("artifact", ArtifactBinding(digest, "jar", artifact.version).toJson())
                     put("producer", producer)
-                    put("converterVersion", "$converter+${WorkerOptions.HOST_COMPATIBILITY}")
+                    put("converterVersion", versions.joinToString("+"))
                 }
             } finally {
                 staging.deleteRecursively()

@@ -1,0 +1,34 @@
+Subject: [PATCH] bsd_zero: no pc from signal contexts on iOS instead of aborting
+
+Source:  manga_backup_converter source runners (U9), original work
+Licence: GPLv2 (as HotSpot)
+
+JVM_HANDLE_XXX_SIGNAL calls os::Posix::ucontext_get_pc() for every signal
+before its SIGPIPE/SIGXFSZ ignore branch. On bsd_zero that function is
+ShouldNotCallThis(), so a SIGPIPE (raised when a loopback replay server's peer
+closed a socket) aborted the app with "Internal Error (os_bsd_zero.cpp:92)".
+Return null on iOS: the ignore branch then runs, the pc-based branches are
+skipped, and unrecognised signals still reach VMError.
+---
+diff --git a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+index a6225fe37..a269bd879 100644
+--- a/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
++++ b/src/hotspot/os_cpu/bsd_zero/os_bsd_zero.cpp
+@@ -89,8 +89,17 @@ char* os::non_memory_address_word() {
+ }
+ 
+ address os::Posix::ucontext_get_pc(const ucontext_t* uc) {
++#ifdef __IOS__
++  // source-runner patch: the shared POSIX signal handler extracts the pc for
++  // every signal before it ignores SIGPIPE/SIGXFSZ. Zero has no meaningful
++  // pc; returning null lets those signals be ignored instead of aborting the
++  // app (a peer closing a socket raised SIGPIPE), and real faults still reach
++  // the error reporter.
++  return nullptr;
++#else
+   ShouldNotCallThis();
+   return nullptr;
++#endif
+ }
+ 
+ void os::Posix::ucontext_set_pc(ucontext_t * uc, address pc) {

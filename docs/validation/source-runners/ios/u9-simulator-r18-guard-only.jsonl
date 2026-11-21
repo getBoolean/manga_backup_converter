@@ -1,0 +1,1 @@
+{"case":"r18-native","evidenceClass":"simulator","attempts":"loadLibrary=UnsatisfiedLinkError;load=UnsatisfiedLinkError;reflective=UnsatisfiedLinkError;foreign=loaded","images":927,"denyIllegalNativeAccess":false}
