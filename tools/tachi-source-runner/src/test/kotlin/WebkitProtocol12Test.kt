@@ -137,8 +137,8 @@ class WebkitProtocol12Test {
     }
 
     @Test
-    fun `the worker negotiates minor 2, and the lower minor of an older supervisor`() {
-        WorkerHarness().use { assertEquals("2", it.handshake["protocolMinor"]!!.jsonPrimitive.content) }
+    fun `the worker negotiates minor 3, and the lower minor of an older supervisor`() {
+        WorkerHarness().use { assertEquals("3", it.handshake["protocolMinor"]!!.jsonPrimitive.content) }
         WorkerHarness(minor = 1).use { assertEquals("1", it.handshake["protocolMinor"]!!.jsonPrimitive.content) }
     }
 

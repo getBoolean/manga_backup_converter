@@ -114,7 +114,7 @@ void main() {
       final SourceOutcome<HandshakeResponse> started = await supervisor.start();
       final HandshakeResponse handshake = (started as SourceSuccess<HandshakeResponse>).value;
       check(handshake.worker).equals('tachi-jvm');
-      check(handshake.protocolMinor).equals(2);
+      check(handshake.protocolMinor).equals(3);
       check(supervisor.limits!.maxConcurrentPackages).equals(2);
       check(supervisor.limits!.operationDeadline).equals(const Duration(minutes: 1));
     });

@@ -31,6 +31,27 @@ public interface WebViewBackend {
 
     void setUserAgent(String userAgent);
 
+    /**
+     * Shows the session's window so the user can solve a challenge or log in ({@code host.browser.show}).
+     * Not an Android API: on Android a WebView becomes visible by being attached to a window, which
+     * extensions here never do, so host code reaches this through {@link WebView#hostBackend()}.
+     *
+     * <p>The show ends (protocol 1.3) when the user closes the window ({@code "closed"}), or when the
+     * extension signals completion ({@code "completed"}): a page message arrives on one of
+     * {@code completionChannels} (channels installed with {@code addJavascriptInterface}), or
+     * {@link #endInteraction()} is called. {@code onOutcome} receives the outcome on the main looper.
+     * When the interaction bound elapses the operation's failure is {@code interaction-required} and
+     * {@code WebViewClient.onReceivedError} is called instead. Later calls on this WebView do not wait
+     * for the interaction to end.
+     */
+    void showForInteraction(Set<String> completionChannels, ValueCallback<String> onOutcome);
+
+    /**
+     * Signals that the pending interaction is complete ({@code host.browser.endInteraction}, protocol 1.3).
+     * Callable from any thread; it never waits. Does nothing when no show is pending.
+     */
+    void endInteraction();
+
     void stopLoading();
 
     void destroy();

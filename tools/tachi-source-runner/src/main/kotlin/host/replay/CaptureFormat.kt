@@ -25,14 +25,99 @@ import java.time.Instant
  * (packages/source_runtime/lib/src/capture/capture_format.dart, format 1):
  * `capture.json` plus `bodies/<sha256>.bin`, matched on method, canonical URL
  * (query sorted, fragment dropped) and request-body SHA-256. Request headers
- * are never stored; responses keep only content-type, location and retry-after.
+ * are never stored; responses keep only content-type, location, retry-after and
+ * cf-mitigated (Cloudflare's header-based challenge signal).
+ *
+ * `Set-Cookie` is recorded only for the names in the manifest's
+ * `setCookieAllowList` (protocol 1.3 capture rule), sanitised to name, value,
+ * `Path` and `Domain`; a `redact` entry's value is written as `redacted`, so a
+ * replay shows that a site issued a token (Mangahub's `mhub_access`) without
+ * committing it. Replay serves each such cookie as its own `Set-Cookie` header.
  */
 object CaptureFormat {
     const val FORMAT = 1
     const val MANIFEST = "capture.json"
     const val BODIES = "bodies"
     const val VOLATILE_VALUE = "*"
-    val RECORDED_RESPONSE_HEADERS = setOf("content-type", "location", "retry-after")
+    val RECORDED_RESPONSE_HEADERS = setOf("content-type", "location", "retry-after", "cf-mitigated")
+
+    /** How an allow-listed `Set-Cookie` value is written (Dart `CapturedCookieValue`). */
+    enum class CookieMode(val wire: String) {
+        /** Recorded as the site sent it; only for values that are not credentials. */
+        KEEP("keep"),
+
+        /** Recorded as [CapturedCookie.REDACTED]; the cookie's presence and name still replay. */
+        REDACT("redact");
+
+        companion object {
+            fun fromWire(wire: String?): CookieMode = entries.firstOrNull { it.wire == wire }
+                ?: throw IllegalArgumentException("Unknown cookie capture mode $wire (expected keep or redact)")
+        }
+    }
+
+    /** A sanitised allow-listed `Set-Cookie` (Dart `CapturedCookie`): no expiry or other attributes. */
+    data class CapturedCookie(val name: String, val value: String, val path: String? = null, val domain: String? = null, val redacted: Boolean = false) {
+        /** The `Set-Cookie` header value replay serves. */
+        fun toHeader(): String = listOfNotNull("$name=$value", path?.let { "Path=$it" }, domain?.let { "Domain=$it" }).joinToString("; ")
+
+        fun toJson(): JsonObject = buildJsonObject {
+            put("name", name)
+            put("value", value)
+            path?.let { put("path", it) }
+            domain?.let { put("domain", it) }
+            if (redacted) put("redacted", true)
+        }
+
+        companion object {
+            const val REDACTED = "redacted"
+
+            fun fromJson(o: JsonObject) = CapturedCookie(
+                name = o["name"]!!.jsonPrimitive.content,
+                value = o["value"]!!.jsonPrimitive.content,
+                path = (o["path"] as? JsonPrimitive)?.contentOrNull,
+                domain = (o["domain"] as? JsonPrimitive)?.contentOrNull,
+                redacted = (o["redacted"] as? JsonPrimitive)?.content == "true",
+            )
+        }
+    }
+
+    private val COOKIE_SEPARATOR = Regex(",(?=\\s*[^;,=\\s]+=)")
+
+    /**
+     * Splits one `Set-Cookie` header value into cookies, as Dart's `parseSetCookieHeader`: a comma
+     * separates cookies only when a `name=` follows it (an `Expires` date has a comma too); attributes
+     * other than `Path` and `Domain` are dropped, and a part without `name=` is ignored.
+     */
+    fun parseSetCookieHeader(header: String): List<CapturedCookie> = header.split(COOKIE_SEPARATOR).mapNotNull { text ->
+        val parts = text.split(';')
+        val eq = parts.first().indexOf('=')
+        if (eq <= 0) return@mapNotNull null
+        val name = parts.first().substring(0, eq).trim()
+        if (name.isEmpty()) return@mapNotNull null
+        var path: String? = null
+        var domain: String? = null
+        for (attribute in parts.drop(1)) {
+            val i = attribute.indexOf('=')
+            if (i < 0) continue
+            val key = attribute.substring(0, i).trim().lowercase()
+            val value = attribute.substring(i + 1).trim()
+            if (key == "path") path = value
+            if (key == "domain") domain = value
+        }
+        CapturedCookie(name, parts.first().substring(eq + 1).trim(), path, domain)
+    }
+
+    /** The allow-listed cookies of live `Set-Cookie` header values, sanitised and redacted for a capture. */
+    fun recordedCookies(setCookieHeaders: List<String>, allowList: Map<String, CookieMode>): List<CapturedCookie> {
+        if (allowList.isEmpty()) return emptyList()
+        return setCookieHeaders.flatMap(::parseSetCookieHeader).mapNotNull { c ->
+            when (allowList[c.name]) {
+                null -> null
+                CookieMode.KEEP -> c
+                CookieMode.REDACT -> c.copy(value = CapturedCookie.REDACTED, redacted = true)
+            }
+        }
+    }
 
     /** Dart `Uri.encodeQueryComponent`: unreserved A-Z a-z 0-9 - _ . ! ~ * ' ( ), space as '+', the rest %XX. */
     fun encodeQueryComponent(s: String): String {
@@ -71,7 +156,18 @@ object CaptureFormat {
     fun key(method: String, url: HttpUrl, body: ByteArray?, volatile: Set<String>): Key =
         Key(method.uppercase(), canonicalUrl(url, volatile), body?.takeIf { it.isNotEmpty() }?.let { Digests.sha256(it) })
 
-    data class Exchange(val key: Key, val status: Int, val headers: Map<String, String>, val bodyFile: String, val sourceUrl: String, val sha256: String, val size: Int, val licence: String)
+    data class Exchange(
+        val key: Key,
+        val status: Int,
+        val headers: Map<String, String>,
+        val bodyFile: String,
+        val sourceUrl: String,
+        val sha256: String,
+        val size: Int,
+        val licence: String,
+        /** Allow-listed cookies the response set, in the order the site sent them. */
+        val setCookies: List<CapturedCookie> = emptyList(),
+    )
 
     data class Manifest(
         val ecosystem: String,
@@ -81,6 +177,8 @@ object CaptureFormat {
         val volatileQueryParameters: Set<String>,
         val exchanges: List<Exchange>,
         val recordedBy: String = "tools/tachi-source-runner capture",
+        /** Cookie names whose `Set-Cookie` the capture keeps, and how (empty: none). */
+        val setCookieAllowList: Map<String, CookieMode> = emptyMap(),
     ) {
         fun encode(): String {
             val o = buildJsonObject {
@@ -91,6 +189,9 @@ object CaptureFormat {
                 put("recordedBy", recordedBy)
                 put("notes", notes)
                 put("volatileQueryParameters", buildJsonArray { volatileQueryParameters.sorted().forEach { add(JsonPrimitive(it)) } })
+                if (setCookieAllowList.isNotEmpty()) {
+                    put("setCookieAllowList", JsonObject(setCookieAllowList.toSortedMap().mapValues { JsonPrimitive(it.value.wire) }))
+                }
                 put("exchanges", buildJsonArray {
                     for (e in exchanges) {
                         add(buildJsonObject {
@@ -103,6 +204,7 @@ object CaptureFormat {
                                 put("status", e.status)
                                 put("headers", JsonObject(e.headers.toSortedMap().mapValues { JsonPrimitive(it.value) }))
                                 put("body", e.bodyFile)
+                                if (e.setCookies.isNotEmpty()) put("setCookies", JsonArray(e.setCookies.map { it.toJson() }))
                             })
                             put("artifact", buildJsonObject {
                                 put("sourceUrl", e.sourceUrl)
@@ -153,6 +255,7 @@ object CaptureFormat {
                 sha256 = art["sha256"]!!.jsonPrimitive.content,
                 size = art["size"]!!.jsonPrimitive.long.toInt(),
                 licence = art["licence"]!!.jsonPrimitive.content,
+                setCookies = (res["setCookies"] as? JsonArray)?.map { CapturedCookie.fromJson(it.jsonObject) }.orEmpty(),
             )
         }
         val manifest = Manifest(
@@ -163,6 +266,8 @@ object CaptureFormat {
             volatileQueryParameters = volatile,
             exchanges = exchanges,
             recordedBy = (root["recordedBy"] as? JsonPrimitive)?.contentOrNull ?: "",
+            setCookieAllowList = (root["setCookieAllowList"] as? JsonObject)
+                ?.mapValues { CookieMode.fromWire((it.value as? JsonPrimitive)?.contentOrNull) }.orEmpty(),
         )
         val bodies = exchanges.associate { e ->
             val bytes = File(dir, e.bodyFile).readBytes()
@@ -172,8 +277,5 @@ object CaptureFormat {
         }
         return CaptureSet(dir, manifest, bodies)
     }
-
-    @Suppress("unused")
-    private val unused: JsonArray? = null
 }
 

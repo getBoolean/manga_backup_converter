@@ -36,6 +36,8 @@ class WorkerHarness(
     val stateRoot: File = TestSupport.tempDir("worker"),
     /** The minor version the fake supervisor offers in the handshake. */
     minor: Int = mangabackup.tachi.protocol.Wire.MINOR_VERSION,
+    /** Platform hooks; a test platform supplies operation deadlines (the desktop has none of its own). */
+    platform: mangabackup.tachi.protocol.WorkerPlatform = mangabackup.tachi.protocol.DesktopPlatform,
 ) : AutoCloseable {
     val options = WorkerOptions(
         sizing = SizingReport.resolve(limits, rule = null)!!,
@@ -43,6 +45,7 @@ class WorkerHarness(
         networkMode = "test",
         stateRoot = stateRoot,
         browser = browser,
+        platform = platform,
     )
     val client: WorkerClient
     private val thread: Thread

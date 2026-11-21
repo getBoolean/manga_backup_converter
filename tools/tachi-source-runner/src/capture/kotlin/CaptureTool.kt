@@ -54,6 +54,8 @@ data class Target(
     val sourceId: String,
     val query: String,
     val licence: String,
+    /** Cookies whose Set-Cookie the capture keeps (protocol 1.3 capture rule); none unless a scenario names one. */
+    val setCookieAllowList: Map<String, CaptureFormat.CookieMode> = emptyMap(),
 )
 
 val TARGETS = listOf(
@@ -78,7 +80,11 @@ const val KEIYOUSHI_SIGNER = "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785
 const val MIN_INTERVAL_MS = 1_500L
 
 /** Forwards to the live site once per capture key and records the decoded response. */
-class Recorder(private val licence: String, private val offline: Boolean) : ExchangeHandler {
+class Recorder(
+    private val licence: String,
+    private val offline: Boolean,
+    private val setCookieAllowList: Map<String, CaptureFormat.CookieMode> = emptyMap(),
+) : ExchangeHandler {
     data class Recorded(val exchange: CaptureFormat.Exchange, val body: ByteArray, val liveHeaders: Headers)
 
     val recorded = LinkedHashMap<CaptureFormat.Key, Recorded>()
@@ -130,7 +136,14 @@ class Recorder(private val licence: String, private val offline: Boolean) : Exch
         val digest = Digests.sha256(bytes)
         val kept = liveHeaders.names().map { it.lowercase() }.filter { it in CaptureFormat.RECORDED_RESPONSE_HEADERS }
             .associateWith { liveHeaders[it]!! }
-        val exchange = CaptureFormat.Exchange(key, status, kept, "${CaptureFormat.BODIES}/$digest.bin", key.url, digest, bytes.size, licence)
+        val setCookies = liveHeaders.values("Set-Cookie")
+        val cookies = CaptureFormat.recordedCookies(setCookies, setCookieAllowList)
+        // Fail closed: a redacted token must not reach the capture through the body instead.
+        val secrets = setCookies.flatMap(CaptureFormat::parseSetCookieHeader)
+            .filter { setCookieAllowList[it.name] == CaptureFormat.CookieMode.REDACT && it.value.isNotEmpty() }
+        val text = String(bytes, Charsets.UTF_8)
+        secrets.firstOrNull { text.contains(it.value) }?.let { error("the redacted cookie ${it.name} appears in the body of $key") }
+        val exchange = CaptureFormat.Exchange(key, status, kept, "${CaptureFormat.BODIES}/$digest.bin", key.url, digest, bytes.size, licence, cookies)
         val rec = Recorded(exchange, bytes, liveHeaders)
         recorded[key] = rec
         return respond(rec)
@@ -151,7 +164,10 @@ class Recorder(private val licence: String, private val offline: Boolean) : Exch
         bodies.deleteRecursively()
         bodies.mkdirs()
         for (r in recorded.values) File(dir, r.exchange.bodyFile).writeBytes(r.body)
-        val manifest = CaptureFormat.Manifest("tachi", target.dir, Instant.now(), notes, emptySet(), recorded.values.map { it.exchange })
+        val manifest = CaptureFormat.Manifest(
+            "tachi", target.dir, Instant.now(), notes, emptySet(), recorded.values.map { it.exchange },
+            setCookieAllowList = target.setCookieAllowList,
+        )
         File(dir, CaptureFormat.MANIFEST).writeText(manifest.encode())
     }
 
@@ -229,7 +245,7 @@ fun main(args: Array<String>) {
     }
     val out = File(args[2]).apply { mkdirs() }
     val fixtures = File("fixtures/source_captures/tachi/${target.dir}")
-    val recorder = Recorder(target.licence, offline = args[0] == "rehearse")
+    val recorder = Recorder(target.licence, offline = args[0] == "rehearse", setCookieAllowList = target.setCookieAllowList)
     val transport = LoopbackTransport(recorder)
     val limits = mapOf("poolSize" to 1L, "operationDeadlineMs" to 300_000L, "cancelGraceMs" to 5_000L, "interactionTimeoutMs" to 60_000L, "shutdownGraceMs" to 5_000L)
     val options = WorkerOptions(

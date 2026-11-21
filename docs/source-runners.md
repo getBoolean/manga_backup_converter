@@ -143,6 +143,9 @@ requests, sent for the package's in-flight operation and closed before it replie
     request is answered, and the reader is the only thread that can read that `rres`, so neither may
     wait. `respond` is sent only while one of the package's operations is in flight.
   - `evaluate`'s `scriptError` is ignored, so a throwing script reads as `"null"` as on Android.
+- With protocol 1.3 (see *Protocol 1.3* below) the shim also shows a session for interaction, reads the
+  show's `outcome`, ends it with `host.browser.endInteraction`, and passes an awaited promise's settled
+  value through `evaluate`.
 - Against a 1.1 supervisor, or a session with no observe feature, `shouldInterceptRequest` sees
   main-frame `loadUrl` navigations only (called by the shim), and `addDocumentStartJavaScript` is
   `capability-unavailable`. Synchronous `@JavascriptInterface` return values are a named capability error.
@@ -179,6 +182,47 @@ the gaps this inventory used to list:
 4. **Handshake limits.** The worker's `limits` and `sizing` are decoded by the supervisor (KTD25).
 5. **Page-to-host messages.** The browser message channel contract defines
    `window.<name>.postMessage(string)` for each enabled channel.
+
+### Protocol 1.3
+
+The worker negotiates minor 1.3 (`Wire.MINOR_VERSION`); against an older supervisor it keeps its 1.2 behaviour.
+
+- **Deadline pause.** `interaction.started {of, timeoutMs}` pauses operation `of`'s platform deadline and
+  `interaction.ended {of, pausedMs}` resumes it; the show's `rres` alone never resumes it. Handled on the
+  frame reader, leniently: an event for an operation no longer in flight, a malformed one, a repeated start,
+  an end without a start, or any event from a peer below 1.3 is dropped. Overlapping shows give one pair.
+  The accounting (`PausableDeadline`) runs over any arm/disarm timer: while paused the timer is armed for
+  the remaining budget plus `timeoutMs`, so a lost `interaction.ended` still ends the operation; a deadline
+  that fired before the pause stays fired; a `cancel` during the pause still fires; nothing re-arms after the
+  operation ends. A fire found when disarming is armed again at zero, because the iOS watchdog's disarm
+  clears the thread's stop mark. The desktop worker has no deadline of its own (the supervisor's applies),
+  so on desktop this changes nothing. The iOS embedding (`ios/host/.../IosPlatform.java`) pauses its native
+  watchdog through it; that path is compile-checked only (`javac` against the worker classes), never run on
+  a device or simulator. JVM tests cover the accounting with a scheduler-backed test platform.
+- **Interaction.** `WebViewBackend.showForInteraction(completionChannels, onOutcome)` (reached through
+  `WebView.hostBackend()`: no Android API makes a WebView visible here) sends `host.browser.show` without
+  holding the WebView's request chain, so the extension's evaluate, cookie and close calls proceed during
+  the interaction. The show completes when a page message arrives on one of `completionChannels`
+  (`endInteraction` is sent from the frame reader before the extension's handler runs) or when code calls
+  `endInteraction()` (sent from the calling thread without waiting, the same rule as `respond`). The reply's
+  `outcome` (`completed`, or `closed` when the user closed the window; absent from a 1.2 supervisor and
+  read as `closed`) reaches `onOutcome` after the session's cookies are pulled into the package jar. The
+  interaction bound is `interaction-required`, including an older peer's `timeout`, and stays the operation's
+  error even if the source then waits out the deadline. Against a 1.2 supervisor `endInteraction` cannot be
+  sent; the operation carries a warning and the show ends at a close or its bound.
+  No production caller uses `showForInteraction` yet: Cloudflare challenges are still reported
+  `interaction-required` until the U8 browser join; the qualification sources use headless WebViews.
+- **Evaluate.** The host awaits a returned promise; the shim passes the settled value through (a rejected
+  promise reads as `"null"`, like a throw). Android would report `{}` for a promise, which no source can
+  use, and Dart's `BrowserEvaluateCompat.androidCompatible` keeps the settled value too. Evaluations stay
+  ordered on the WebView's chain, so a promise that never settles holds that WebView's later calls until the
+  operation is cancelled or stopped by its deadline.
+- **Captures.** `CaptureFormat` reads and writes `setCookieAllowList` and each exchange's `setCookies`
+  (name, value, `Path`, `Domain`, `redacted`) in the Dart format's key order, and records `cf-mitigated`.
+  Replay serves each allow-listed cookie as its own `Set-Cookie` header, so it lands in the package jar and
+  goes out on the next request. The capture tool records cookies only for a `Target.setCookieAllowList`
+  (empty for the current targets) and refuses a recording whose body contains a redacted cookie's value.
+- Tests: `InteractionDeadlineTest`, `WebkitProtocol13Test` (fake 1.3 supervisor), `CaptureCookiesTest`.
 
 ## Desktop WebView capability matrix (`packages/desktop_webview`, U2)
 

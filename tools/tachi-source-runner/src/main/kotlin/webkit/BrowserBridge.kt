@@ -88,6 +88,17 @@ class BrowserBridge(private val worker: Worker) {
         worker.reverseRequest(operation.requestId, "host.browser.respond", payload).exceptionally { null }
     }
 
+    /**
+     * Sends `host.browser.endInteraction` (protocol 1.3) without waiting for its `rres`, the same rule as
+     * [respond]: the operation's `host.browser.show` is still pending, and the reader that delivers
+     * replies may be the thread sending this. Not sent when no operation of the package is in flight.
+     */
+    fun endInteraction(environment: PackageEnvironment, session: String) {
+        val operation = environment.currentOperation ?: return
+        worker.reverseRequest(operation.requestId, "host.browser.endInteraction", JsonObject(mapOf("session" to JsonPrimitive(session))))
+            .exceptionally { null }
+    }
+
     /** Closes every session an operation opened; bounded so a stuck port cannot hold the reply. */
     fun closeSessionsOf(operationId: String) {
         val views = sessionsByOperation.remove(operationId) ?: return

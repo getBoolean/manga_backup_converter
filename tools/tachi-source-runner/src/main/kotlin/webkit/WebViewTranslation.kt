@@ -54,6 +54,18 @@ import java.util.concurrent.Executors
  *   A non-null response on an observe-only session is a named capability error.
  * - `evaluate`'s `scriptError` is ignored, keeping Android's `evaluateJavascript`
  *   semantics (a throwing script yields `"null"`).
+ *
+ * Protocol 1.3:
+ * - `evaluate` awaits a returned promise on the host side, and the shim passes the settled value
+ *   through (a rejected promise reads as `"null"`, like a throw). Android's `evaluateJavascript` would
+ *   report `{}`, which no source can use; this matches Dart's `BrowserEvaluateCompat.androidCompatible`.
+ *   Evaluations run in order on the WebView's request chain, so a promise that never settles holds the
+ *   WebView's later calls until the operation is cancelled or stopped by its deadline.
+ * - [showForInteraction] sends `host.browser.show` without holding the request chain, reads the reply's
+ *   `outcome` (`closed` when absent), and sends `host.browser.endInteraction` when the extension signals
+ *   completion: from the frame reader for a completion-channel message, never from a thread waiting on
+ *   an `rres`. An interaction bound (`interaction-required`, or `timeout` from an older peer) is
+ *   recorded as the operation's `interaction-required` failure.
  * Without 1.2, or with no observe feature, interception falls back to calling
  * `shouldInterceptRequest` for main-frame `loadUrl` navigations only. A
  * synchronous `@JavascriptInterface` return value and non-http(s) schemes are
@@ -88,6 +100,14 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
 
     @Volatile
     private var closed = false
+
+    /** The pending `host.browser.show`, if any. */
+    @Volatile
+    private var interaction: Interaction? = null
+
+    private class Interaction(val session: String, val completionChannels: Set<String>) {
+        val ended = java.util.concurrent.atomic.AtomicBoolean(false)
+    }
 
     init {
         operationId?.let { bridge.register(it, this) }
@@ -292,6 +312,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
 
     override fun evaluateJavascript(script: String, callback: ValueCallback<String>?) {
         // 1.2 `scriptError` is deliberately ignored: Android reports a throwing script as "null".
+        // 1.3: a promise's settled value is passed through as the host awaited it (see the class comment).
         enqueue {
             val s = requireSession()
             val result = call("host.browser.evaluate", buildJsonObject {
@@ -301,6 +322,62 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             if (callback != null) onMain { callback.onReceiveValue(result) }
             null
         }
+    }
+
+    override fun showForInteraction(completionChannels: Set<String>, onOutcome: ValueCallback<String>?) {
+        val channels = completionChannels.toSet()
+        enqueue {
+            val s = requireSession()
+            val pending = Interaction(s, channels)
+            interaction = pending
+            // Not waited on here: calls the extension makes during the interaction (evaluate, cookies,
+            // close) must not queue behind it until the bound.
+            bridge.request(environment, "host.browser.show", buildJsonObject { put("session", s) })
+                .whenComplete { reply, failure ->
+                    if (interaction === pending) interaction = null
+                    if (failure != null) {
+                        onFailure(interactionFailure(failure))
+                    } else {
+                        // A pre-1.3 supervisor sends no outcome: its show only ever ended by a close.
+                        val outcome = reply.optStr("outcome") ?: OUTCOME_CLOSED
+                        // The cookies the interaction set (a clearance) reach the package jar before the extension hears.
+                        enqueue {
+                            val url = currentUrl
+                            if (session == s && url != null && bridge.isWebUrl(url)) pullCookies(s, url)
+                            if (onOutcome != null) onMain { onOutcome.onReceiveValue(outcome) }
+                            null
+                        }
+                    }
+                }
+            null
+        }
+    }
+
+    override fun endInteraction() {
+        interaction?.let(::sendEndInteraction)
+    }
+
+    /** Sends `host.browser.endInteraction` once per show, without waiting for its `rres`. */
+    private fun sendEndInteraction(pending: Interaction) {
+        if (!pending.ended.compareAndSet(false, true)) return
+        if (bridge.protocolMinor < 3) {
+            // The supervisor cannot be told; the show ends when the user closes the window or at its bound.
+            environment.currentOperation?.addWarning(END_INTERACTION_WARNING)
+            return
+        }
+        bridge.endInteraction(environment, pending.session)
+    }
+
+    /**
+     * The interaction bound is `interaction-required` (protocol 1.3), including an older peer's `timeout`,
+     * named as `host.browser.show` (the protocol carries `operation` only with `capability-unavailable`).
+     */
+    private fun interactionFailure(failure: Throwable): Throwable {
+        val cause = (failure as? java.util.concurrent.CompletionException)?.cause ?: failure
+        if (cause is WorkerError && (cause.code == ErrorCode.TIMEOUT || cause.code == ErrorCode.INTERACTION_REQUIRED)) {
+            return InteractionRequiredException(cause.message ?: "browser interaction timed out", cause.operation ?: "host.browser.show", cause)
+        }
+        return cause
     }
 
     override fun addJavascriptInterface(target: Any, name: String) {
@@ -432,6 +509,9 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
 
     /** A page message on channel [name]: invoke the registered interface object's handler on a bridge thread. */
     fun deliverMessage(name: String, message: String) {
+        // Called on the frame reader: a completion signal ends the pending show from here, before the
+        // extension's handler runs, because the thread that sent the show is waiting for its reply.
+        interaction?.takeIf { name in it.completionChannels }?.let(::sendEndInteraction)
         val target = interfaces[name] ?: return
         val method = messageMethod(target) ?: run {
             environment.currentOperation?.recordHostFailure(
@@ -523,6 +603,9 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             "degraded: subresource observation unavailable (shouldInterceptRequest sees the navigations the browser reports)"
         const val SCRIPT_REMOVE_WARNING =
             "androidx.webkit.ScriptHandler.remove: the browser port cannot remove a page-start script; it stays until the session closes"
+        const val OUTCOME_CLOSED = "closed"
+        const val END_INTERACTION_WARNING =
+            "host.browser.endInteraction needs protocol 1.3: the interaction ends when the user closes the window or at its bound"
         const val MODE_NONE = "none"
         const val MODE_OBSERVE = "observe"
         const val MODE_REPLACE = "replace"

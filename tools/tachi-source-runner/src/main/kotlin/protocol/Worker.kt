@@ -109,6 +109,27 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         @Volatile
         override var isCancelled = false
 
+        /** True between `interaction.started` and `interaction.ended` (protocol 1.3); guarded by [interactionLock]. */
+        private var interacting = false
+        private val interactionLock = Any()
+
+        /**
+         * `interaction.started`: pause the platform deadline. The supervisor sends one pair per operation
+         * however many shows overlap, so a repeated start is ignored rather than counted.
+         */
+        fun interactionStarted(timeoutMs: Long): Unit = synchronized(interactionLock) {
+            if (interacting || finished) return
+            interacting = true
+            guard?.pause(timeoutMs)
+        }
+
+        /** `interaction.ended`: resume the platform deadline. Never resumed on a show's `rres` alone. */
+        fun interactionEnded(): Unit = synchronized(interactionLock) {
+            if (!interacting) return
+            interacting = false
+            guard?.resume()
+        }
+
         /** Set (under [writeLock]) once the reply is being written: no reverse request may follow it. */
         @Volatile
         var finished = false
@@ -215,11 +236,27 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             "event" -> when (frame.op) {
                 "host.browser.message" -> frame.payload?.let(browser::onMessage)
                 "host.browser.request" -> frame.payload?.let(browser::onRequest)
+                "interaction.started" -> frame.payload?.let { p -> interactionTask(p)?.interactionStarted(p.optLong("timeoutMs") ?: 0L) }
+                "interaction.ended" -> frame.payload?.let { p -> interactionTask(p)?.interactionEnded() }
             }
             else -> fatal("unexpected frame type ${frame.t} from supervisor")
         }
         return true
     }
+
+    /**
+     * The in-flight operation an `interaction.*` event (protocol 1.3) names. Decoded leniently, like the
+     * other events: a malformed event, one for an operation no longer in flight, or one from a peer
+     * that did not negotiate 1.3 is dropped.
+     */
+    private fun interactionTask(p: JsonObject): OpTask? {
+        if (protocolMinor < 3) return null
+        val of = (p["of"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        return tasks[of]
+    }
+
+    private fun JsonObject.optLong(key: String): Long? =
+        (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull()
 
     private fun handshake(frame: Frame) {
         val p = frame.payload ?: return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "handshake needs a payload"))
@@ -329,7 +366,10 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             Thread.interrupted()
         }
         if (failure != null) {
-            error = if (guard.expired && !task.isCancelled) {
+            // A show that ended in interaction-required is the operation's failure even when the source then
+            // waited out the deadline (protocol 1.3: the interaction bound is interaction-required, not timeout).
+            val interaction = task.hostFailures.firstOrNull { (it as? HostOperationException)?.code == ErrorCode.INTERACTION_REQUIRED }
+            error = if (guard.expired && !task.isCancelled && interaction == null) {
                 WorkerError(ErrorCode.TIMEOUT, "operation stopped by its deadline", cause = failure)
             } else {
                 mapError(failure, task)
