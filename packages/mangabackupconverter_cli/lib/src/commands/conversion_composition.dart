@@ -24,7 +24,9 @@ FormatRegistry cliFormatRegistry() => FormatRegistry.portable()
     const Mangayomi(),
     (Uint8List bytes, {String? name}) async => MangayomiBackup.fromData(bytes),
   )
-  ..registerDirectConverter(legacyDirectConvert);
+  // Direct conversion is advertised only to formats with a verified
+  // serializer: Tachimanga and Mihon (not the other Tachi forks).
+  ..registerDirectConverter(legacyDirectConvert, targets: const <BackupFormat>[Tachimanga(), Mihon()]);
 
 /// Whether the desktop Tachi worker can be located (no worker is started).
 SourceFailure? probeTachiWorker(DesktopTachiRuntime tachi) => tachi.locate().failureOrNull;
@@ -45,13 +47,21 @@ RuntimeRegistry cliRuntimeRegistry({
   DestinationRuntime(
     ecosystem: 'aidoku',
     serves: (BackupFormat f) => f is Aidoku,
-    createLoader: () => CachingPluginLoader(AidokuPluginLoader(onSettings: onSettings), cache: cache),
+    createLoader: (RuntimeContext context) => CachingPluginLoader(
+      AidokuPluginLoader(onSettings: onSettings, settingsFor: context.settingsFor),
+      cache: cache,
+    ),
   ),
   DestinationRuntime(
     ecosystem: 'paperback',
     serves: (BackupFormat f) => f is Paperback,
-    createLoader: () => CachingPluginLoader(
-      PaperbackPluginLoader.desktop(cacheRoot: cacheRoot, onSettings: onSettings, onLog: onLog),
+    createLoader: (RuntimeContext context) => CachingPluginLoader(
+      PaperbackPluginLoader.desktop(
+        cacheRoot: cacheRoot,
+        onSettings: onSettings,
+        onLog: onLog,
+        settingsFor: context.settingsFor,
+      ),
       cache: cache,
     ),
     probe: paperbackProbe ?? paperbackWorkerUnavailable,
@@ -60,8 +70,8 @@ RuntimeRegistry cliRuntimeRegistry({
     ecosystem: tachiTrustEcosystem,
     // Tachimanga uses Tachi source identities too (it has no writer yet).
     serves: (BackupFormat f) => f is Tachiyomi || f is Tachimanga,
-    createLoader: () => CachingPluginLoader(
-      TachiPluginLoader(runtime: tachi, onSettings: onSettings),
+    createLoader: (RuntimeContext context) => CachingPluginLoader(
+      TachiPluginLoader(runtime: tachi, onSettings: onSettings, settingsFor: context.settingsFor),
       cache: cache,
     ),
     probe: tachiProbe ?? () => probeTachiWorker(tachi),

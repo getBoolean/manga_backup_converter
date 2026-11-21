@@ -212,7 +212,7 @@ void main() {
     DestinationRuntime(
       ecosystem: 'aidoku',
       serves: (BackupFormat f) => f is Aidoku,
-      createLoader: () {
+      createLoader: (_) {
         calls.add('aidoku');
         final Directory dir = findCaptureDir('aidoku', 'en.weebcentral')!;
         return _AidokuFixtureLoader(
@@ -225,7 +225,7 @@ void main() {
     DestinationRuntime(
       ecosystem: 'paperback',
       serves: (BackupFormat f) => f is Paperback,
-      createLoader: () {
+      createLoader: (_) {
         calls.add('paperback');
         return PaperbackPluginLoader(
           client: _catalogClient(paperbackFixtures),
@@ -238,7 +238,7 @@ void main() {
       ecosystem: 'tachi',
       serves: (BackupFormat f) => f is Tachiyomi,
       probe: () => probeTachiWorker(tachi),
-      createLoader: () {
+      createLoader: (_) {
         calls.add('tachi');
         return TachiPluginLoader(runtime: tachi);
       },

@@ -49,7 +49,7 @@ DestinationRuntime _runtime(
     ecosystem: ecosystem,
     serves: (BackupFormat f) => _ecosystemOf(f) == ecosystem,
     probe: probe ?? () => null,
-    createLoader: () {
+    createLoader: (_) {
       calls.add(ecosystem);
       return FakePluginLoader(
         sources: <PluginSource>[
@@ -212,7 +212,7 @@ void main() {
       DestinationRuntime(
         ecosystem: 'aidoku',
         serves: (BackupFormat f) => f is Aidoku,
-        createLoader: () => FakePluginLoader(load: (_) async => throw const MigrationException('worker died')),
+        createLoader: (_) => FakePluginLoader(load: (_) async => throw const MigrationException('worker died')),
       ),
     ]);
     final output = MemoryOutput();
@@ -263,16 +263,24 @@ void main() {
   });
 
   group('language narrowing', () {
+    /// One picked multi-language package ("mangadex": en, ja, all) and one
+    /// picked single-language package ("jaonly": ja).
     RuntimeRegistry multiLanguage(List<String> calls) => RuntimeRegistry(<DestinationRuntime>[
       DestinationRuntime(
         ecosystem: 'tachi',
         serves: (BackupFormat f) => f is Tachiyomi,
-        createLoader: () => FakePluginLoader(
+        createLoader: (_) => FakePluginLoader(
           sources: <PluginSource>[
-            for (final (String id, String lang) in <(String, String)>[('1', 'en'), ('2', 'ja'), ('3', 'all')])
+            for (final (String id, String lang, String package) in <(String, String, String)>[
+              ('1', 'en', 'mangadex'),
+              ('2', 'ja', 'mangadex'),
+              ('3', 'all', 'mangadex'),
+              ('4', 'ja', 'jaonly'),
+            ])
               FakePluginSource(
                 id,
                 language: lang,
+                packageId: package,
                 manga: <FakeManga>[FakeManga('/m', 'Onimai', chapters: destinationChapters(prefix: '/c'))],
               ),
           ],
@@ -297,9 +305,12 @@ void main() {
         multiLanguage(<String>[]),
         searched: searched,
       ).run(_request(await englishAidoku(), const Aidoku(), const Mihon()), MemoryOutput());
-      check(searched).deepEquals(<String>['Fake 1', 'Fake 3']);
+      // Inside the picked MangaDex package only en + all are searched; the
+      // picked ja-only package keeps its source (narrowing never drops a pick).
+      check(searched).deepEquals(<String>['Fake 1', 'Fake 3', 'Fake 4']);
       check(r.report.notes).any((Subject<String> it) => it.contains('Only sources in en'));
-      check(r.report.notes).any((Subject<String> it) => it.contains('1 loaded source(s) of other languages'));
+      check(r.report.notes).any((Subject<String> it) => it.contains('1 source(s) of other languages'));
+      check(r.report.notes).any((Subject<String> it) => it.contains('jaonly has no source in the searched languages'));
     });
 
     test('--languages overrides the inferred languages', () async {
@@ -309,7 +320,81 @@ void main() {
         searched: searched,
         languages: SourceLanguagePolicy.parse('ja'),
       ).run(_request(await englishAidoku(), const Aidoku(), const Mihon()), MemoryOutput());
-      check(searched).deepEquals(<String>['Fake 2', 'Fake 3']);
+      check(searched).deepEquals(<String>['Fake 2', 'Fake 3', 'Fake 4']);
+    });
+
+    test('named sources are used exactly, without language narrowing', () async {
+      final searched = <String>[];
+      final ConversionResult r = await _job(multiLanguage(<String>[]), searched: searched).run(
+        ConversionRequest(
+          input: await englishAidoku(),
+          sourceFormat: const Aidoku(),
+          targetFormat: const Mihon(),
+          repoUrls: const <String>['https://repo.invalid'],
+          sources: const <String>{'2'},
+        ),
+        MemoryOutput(),
+      );
+      check(searched).deepEquals(<String>['Fake 2']);
+      check(r.report.notes).any((Subject<String> it) => it.contains('Exactly the named sources'));
+      await check(
+        _job(multiLanguage(<String>[])).run(
+          ConversionRequest(
+            input: await englishAidoku(),
+            sourceFormat: const Aidoku(),
+            targetFormat: const Mihon(),
+            repoUrls: const <String>['https://repo.invalid'],
+            sources: const <String>{'99'},
+          ),
+          MemoryOutput(),
+        ),
+      ).throws<MigrationException>();
+    });
+
+    test("the user's settings reach the destination runtime's loader", () async {
+      SettingsSnapshot? seen;
+      final settings = UserExtensionSettings.fromJson(<String, Object?>{
+        'extensions': <String, Object?>{
+          'ext': <String, Object?>{
+            'values': <String, Object?>{
+              'quality': 'high',
+              'langs': <Object?>['ja', 'en'],
+            },
+            'secrets': <String, Object?>{'token': 's3cret'},
+            'sources': <String, Object?>{
+              '1': <String, Object?>{
+                'values': <String, Object?>{'quality': 'low'},
+              },
+            },
+          },
+        },
+      });
+      final runtimes = RuntimeRegistry(<DestinationRuntime>[
+        DestinationRuntime(
+          ecosystem: 'tachi',
+          serves: (BackupFormat f) => f is Tachiyomi,
+          createLoader: (RuntimeContext context) {
+            seen = context.settingsFor(const StubExtensionEntry(id: 'ext', name: 'Ext'));
+            return FakePluginLoader(sources: <PluginSource>[FakePluginSource('1', manga: <FakeManga>[])]);
+          },
+        ),
+      ]);
+      await ConversionJob(
+        formats: FormatRegistry.portable(),
+        runtimes: runtimes,
+        settingsFor: settings.provider,
+        selection: CallbackSelectionPort(
+          onSelectExtensions: (List<ExtensionEntry> e) async => e,
+          onConfirmMatches: confirmExactTitle,
+          acceptPartial: true,
+        ),
+      ).run(_request(await englishAidoku(), const Aidoku(), const Mihon()), MemoryOutput());
+      check(seen!.values['quality']).equals('high');
+      check(seen!.values['langs']! as List<String>).deepEquals(<String>['en', 'ja']);
+      check(seen!.valuesFor('1')['quality']).equals('low');
+      check(seen!.secrets['token']).equals('s3cret');
+      // Secrets never leave session memory: not in the snapshot's JSON or revision.
+      check(seen!.toJson().toString()).not((Subject<String> it) => it.contains('s3cret'));
     });
 
     test('a backup with no recorded language searches every source and says so', () async {
@@ -318,7 +403,7 @@ void main() {
         multiLanguage(<String>[]),
         searched: searched,
       ).run(_request(await _input(const Mihon()), const Mihon(), const Mihon()), MemoryOutput());
-      check(searched).length.equals(3);
+      check(searched).length.equals(4);
       check(r.report.notes).any((Subject<String> it) => it.contains('records no content language'));
     });
 

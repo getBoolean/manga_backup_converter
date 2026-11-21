@@ -93,6 +93,7 @@ class MigrationPipeline {
     FormatRegistry? formats,
     DirectConverter? directConverter,
     this.languagePolicy,
+    this.explicitSources = const <String>{},
     this.onOwnerOpened,
     this.journalStore,
     this.onResume,
@@ -117,6 +118,10 @@ class MigrationPipeline {
   /// Narrows sources by language; `null` infers the languages from the
   /// input backup ([SourceLanguagePolicy.inferredFrom]).
   final SourceLanguagePolicy? languagePolicy;
+
+  /// Runtime source IDs the user named: exactly these are searched, with no
+  /// language narrowing; every one must load.
+  final Set<String> explicitSources;
 
   /// Called once the conversion owner exists and before any source list is
   /// fetched; composition roots adopt their runtime scope (worker processes)
@@ -266,19 +271,25 @@ class MigrationPipeline {
 
     final ({int hidden, List<ExtensionEntry> visible}) rated = ratingPolicy.apply(availableExtensions);
     final List<SourceMangaData> mangaList = sourceBackup.sourceMangaDataEntries;
-    final SourceLanguagePolicy languages = languagePolicy ?? SourceLanguagePolicy.inferredFrom(mangaList);
-    final ({int hidden, List<ExtensionEntry> visible}) narrowed = languages.apply(rated.visible);
-    report.notes.add(languages.describe());
+    final SourceLanguagePolicy languages = explicitSources.isNotEmpty
+        ? const SourceLanguagePolicy.any()
+        : languagePolicy ?? SourceLanguagePolicy.inferredFrom(mangaList);
+    report.notes.add(
+      explicitSources.isNotEmpty
+          ? 'Exactly the named sources were searched (${(explicitSources.toList()..sort()).join(', ')}); '
+                'no language narrowing'
+          : languages.describe(),
+    );
     // Sources are always chosen afresh (a resumed run may pick other flags);
     // journaled confirmations rehydrate only against matching sessions.
     final List<ExtensionEntry> selected =
         (await selection.selectSources(
               SourceSelectionRequest(
-                available: narrowed.visible,
+                available: rated.visible,
                 hiddenByRating: rated.hidden,
-                hiddenByLanguage: narrowed.hidden,
                 languages: languages.languages,
-                previousSelection: journal.previousSelection(narrowed.visible),
+                explicitSources: explicitSources,
+                previousSelection: journal.previousSelection(rated.visible),
               ),
             ))
             // The rating policy holds even if a selection UI returns a hidden source.
@@ -298,21 +309,17 @@ class MigrationPipeline {
     for (final plugin in loaded) {
       await owner.adopt(plugin.dispose);
     }
-    // A multi-source package (Tachi) exposes one source per language: only
-    // those in the searched languages take part (the rest close with the owner).
-    final List<PluginSource> plugins = loaded.where((PluginSource p) => languages.allowsLanguage(p.language)).toList();
-    if (plugins.length < loaded.length) {
-      report.notes.add(
-        '${loaded.length - plugins.length} loaded source(s) of other languages were not searched '
-        '(${loaded.where((PluginSource p) => !plugins.contains(p)).map((PluginSource p) => p.sourceName).take(8).join(', ')}'
-        '${loaded.length - plugins.length > 8 ? ', …' : ''})',
-      );
-    }
+    final List<PluginSource> plugins = _sourcesToSearch(loaded, languages, report);
     for (final f in loadFailures) {
       report.failures.add(SourceFailureRecord.fromFailure(FailureStage.load, f.extensionId, f.failure, redact: redact));
     }
-    if (plugins.isEmpty && loaded.isNotEmpty) {
-      throw MigrationException('No loaded source matches the searched languages: ${languages.describe()}');
+    if (explicitSources.isNotEmpty) {
+      final Set<String> missing = explicitSources.difference(<String>{for (final p in plugins) p.sourceId});
+      if (missing.isNotEmpty) {
+        throw MigrationException(
+          'Named source(s) ${(missing.toList()..sort()).join(', ')} did not load from the selected extensions',
+        );
+      }
     }
     if (plugins.isEmpty) {
       throw MigrationException(
@@ -466,6 +473,50 @@ class MigrationPipeline {
       plans: plans,
       partialAccepted: partialAccepted,
     );
+  }
+
+  /// The loaded sources to search. Named sources ([explicitSources]) are
+  /// used exactly. Otherwise each picked package is narrowed to its sources
+  /// in the searched languages plus multi-language ones (a Tachi MangaDex
+  /// package exposes one source per language); a package with no such
+  /// source keeps all of its sources, since the user picked it.
+  List<PluginSource> _sourcesToSearch(
+    List<PluginSource> loaded,
+    SourceLanguagePolicy languages,
+    ConversionReport report,
+  ) {
+    if (explicitSources.isNotEmpty) {
+      return loaded.where((PluginSource p) => explicitSources.contains(p.sourceId)).toList();
+    }
+    final byPackage = <String, List<PluginSource>>{};
+    for (final p in loaded) {
+      (byPackage['${p.identity.ecosystem}|${p.identity.packageId}'] ??= <PluginSource>[]).add(p);
+    }
+    final kept = <PluginSource>[];
+    final skipped = <PluginSource>[];
+    for (final List<PluginSource> package in byPackage.values) {
+      final List<PluginSource> matching = package
+          .where((PluginSource p) => languages.allowsLanguage(p.language))
+          .toList();
+      if (matching.isEmpty) {
+        kept.addAll(package);
+        report.notes.add(
+          '${package.first.identity.packageId} has no source in the searched languages; all of its '
+          '${package.length} source(s) were searched because it was picked',
+        );
+      } else {
+        kept.addAll(matching);
+        skipped.addAll(package.where((PluginSource p) => !matching.contains(p)));
+      }
+    }
+    if (skipped.isNotEmpty) {
+      report.notes.add(
+        '${skipped.length} source(s) of other languages in the picked extensions were not searched '
+        '(${skipped.map((PluginSource p) => p.sourceName).take(8).join(', ')}${skipped.length > 8 ? ', …' : ''})',
+      );
+    }
+    // Keep the loader's order.
+    return loaded.where(kept.contains).toList();
   }
 
   static String _describeDecision(MangaMatchConfirmation c, ChapterDecision d) {

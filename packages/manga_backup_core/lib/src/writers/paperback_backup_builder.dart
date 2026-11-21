@@ -211,12 +211,13 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
     );
   }
 
+  /// Status strings as the repo's existing Paperback mapping writes them
+  /// (`PaperbackBackupMangaInfo.statusFromAidoku`); unverified against a
+  /// restore (U8).
   static String _status(MangaPublishingStatus? status) => switch (status) {
     MangaPublishingStatus.completed => 'Completed',
-    MangaPublishingStatus.cancelled => 'Cancelled',
-    MangaPublishingStatus.hiatus => 'Hiatus',
-    MangaPublishingStatus.ongoing => 'Ongoing',
-    MangaPublishingStatus.unknown || null => 'Unknown',
+    MangaPublishingStatus.cancelled => 'Finished',
+    MangaPublishingStatus.ongoing || MangaPublishingStatus.hiatus || MangaPublishingStatus.unknown || null => 'Ongoing',
   };
 
   @override

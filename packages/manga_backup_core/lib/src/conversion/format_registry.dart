@@ -56,14 +56,22 @@ final class FormatRegistry {
   final Map<String, BackupDecoder> _codecs = <String, BackupDecoder>{};
   final Map<String, TargetBackupBuilder> _writers = <String, TargetBackupBuilder>{};
   DirectConverter? _direct;
+  Set<String> _directTargets = const <String>{};
 
   void registerCodec(BackupFormat format, BackupDecoder decode) => _codecs[format.alias] = decode;
 
   void registerWriter(TargetBackupBuilder writer) => _writers[writer.format.alias] = writer;
 
-  /// Registers the converter for [DirectConversion] pairs.
-  // ignore: use_setters_to_change_properties
-  void registerDirectConverter(DirectConverter convert) => _direct = convert;
+  /// Registers the converter for [DirectConversion] pairs whose target is
+  /// one of [targets] (only formats with a verified serializer; other Tachi
+  /// forks are not advertised).
+  void registerDirectConverter(DirectConverter convert, {required Iterable<BackupFormat> targets}) {
+    _direct = convert;
+    _directTargets = <String>{for (final BackupFormat t in targets) t.alias};
+  }
+
+  /// Whether a direct conversion may produce [target].
+  bool directTarget(BackupFormat target) => _direct != null && _directTargets.contains(target.alias);
 
   BackupDecoder? codecFor(BackupFormat format) => _codecs[format.alias];
 
@@ -81,7 +89,7 @@ final class FormatRegistry {
       .where(
         (BackupFormat t) =>
             _writers.containsKey(t.alias) ||
-            (_direct != null &&
+            (directTarget(t) &&
                 BackupFormat.values.any((BackupFormat s) => determineStrategy(s, t) is DirectConversion)),
       )
       .toList();

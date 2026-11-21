@@ -1,6 +1,15 @@
 import 'package:manga_backup_core/src/conversion/backup_format.dart';
+import 'package:manga_backup_core/src/conversion/extension_settings.dart';
 import 'package:manga_backup_core/src/conversion/plugin_loader.dart';
 import 'package:source_runtime/source_contracts.dart';
+
+/// What a conversion hands a runtime when it creates its loader: the
+/// user's extension settings (the core never supplies any of its own).
+final class RuntimeContext {
+  const RuntimeContext({this.settingsFor = noExtensionSettings});
+
+  final ExtensionSettingsProvider settingsFor;
+}
 
 /// One source runtime a host can run (Aidoku, Paperback, Tachi), as the
 /// composition root registers it (KTD15).
@@ -24,7 +33,7 @@ final class DestinationRuntime {
 
   /// Whether this runtime supplies the destination identities of a format.
   final bool Function(BackupFormat format) serves;
-  final PluginLoader Function() createLoader;
+  final PluginLoader Function(RuntimeContext context) createLoader;
   final SourceFailure? Function() probe;
 
   static SourceFailure? _available() => null;
@@ -58,9 +67,9 @@ final class RuntimeRegistry {
   }
 
   /// The loader for [format]'s runtime, or the typed failure.
-  SourceOutcome<PluginLoader> loaderFor(BackupFormat format) {
+  SourceOutcome<PluginLoader> loaderFor(BackupFormat format, [RuntimeContext context = const RuntimeContext()]) {
     final SourceFailure? missing = unavailable(format);
     if (missing != null) return SourceFailed<PluginLoader>(missing);
-    return SourceSuccess<PluginLoader>(runtimeFor(format)!.createLoader());
+    return SourceSuccess<PluginLoader>(runtimeFor(format)!.createLoader(context));
   }
 }

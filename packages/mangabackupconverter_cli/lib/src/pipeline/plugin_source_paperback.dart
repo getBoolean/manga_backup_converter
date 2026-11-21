@@ -42,6 +42,7 @@ class PaperbackPluginLoader extends PluginLoader {
     required Future<SourceOutcome<WorkerSupervisor>> Function(ConversionOwner? owner) worker,
     this.onSettings,
     this._trust,
+    this.settingsFor = noExtensionSettings,
   }) {
     _provider = PaperbackSourceProvider(
       client: client,
@@ -58,6 +59,7 @@ class PaperbackPluginLoader extends PluginLoader {
     required String cacheRoot,
     void Function(SettingsSnapshot settings)? onSettings,
     void Function(String line)? onLog,
+    ExtensionSettingsProvider settingsFor = noExtensionSettings,
   }) {
     final client = http.Client();
     WorkerSupervisor? supervisor;
@@ -65,6 +67,7 @@ class PaperbackPluginLoader extends PluginLoader {
       client: client,
       cache: ArtifactCache(Directory(p.join(cacheRoot, 'paperback_artifacts'))),
       onSettings: onSettings,
+      settingsFor: settingsFor,
       worker: (ConversionOwner? owner) async {
         if (supervisor == null) {
           final SourceFailure? unavailable = paperbackWorkerUnavailable();
@@ -109,6 +112,9 @@ class PaperbackPluginLoader extends PluginLoader {
 
   final http.Client client;
   final void Function(SettingsSnapshot settings)? onSettings;
+
+  /// The user's settings for each bundle.
+  final ExtensionSettingsProvider settingsFor;
   RepositoryTrustGate? _trust;
   late final PaperbackSourceProvider _provider;
   ConversionOwner? _owner;
@@ -210,7 +216,7 @@ class PaperbackPluginLoader extends PluginLoader {
     final SourceOutcome<ArtifactLease> admitted = await _provider.admit(_catalogEntry(entry), bytes);
     final ArtifactLease? lease = admitted.valueOrNull;
     if (lease == null) return SourceFailed<List<PluginSource>>(admitted.failureOrNull!);
-    final settings = SettingsSnapshot();
+    final SettingsSnapshot settings = settingsFor(entry);
     onSettings?.call(settings);
     final SourceOutcome<SourcePackage> opened = await _provider.openPackage(lease, settings);
     final SourcePackage? package = opened.valueOrNull;

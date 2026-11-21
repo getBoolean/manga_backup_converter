@@ -52,8 +52,12 @@ class ConversionService {
       if (unavailable(source, t) == null) t,
   ];
 
-  /// Runs one conversion. [selection] is the app's decision UI adapter,
-  /// [output] its atomic file publisher, [journal] its resumable job store.
+  /// Runs one conversion. Everything source-related is the user's: the
+  /// repositories in [ConversionRequest.repoUrls], the extensions picked
+  /// through [selection] (the app's decision UI adapter) or named in
+  /// [ConversionRequest.sources], and the extension settings from
+  /// [settingsFor]. [output] is the app's atomic file publisher and
+  /// [journal] its resumable job store.
   Future<ConversionResult> convert(
     ConversionRequest request, {
     required SelectionPort selection,
@@ -61,6 +65,7 @@ class ConversionService {
     JournalStore? journal,
     SourceRatingPolicy ratingPolicy = const SourceRatingPolicy(),
     SourceLanguagePolicy? languages,
+    ExtensionSettingsProvider settingsFor = noExtensionSettings,
     void Function(int current, int total, String message)? onProgress,
   }) => ConversionJob(
     formats: formats,
@@ -69,6 +74,7 @@ class ConversionService {
     journalStore: journal,
     ratingPolicy: ratingPolicy,
     languagePolicy: languages,
+    settingsFor: settingsFor,
     trustStore: trustStore,
     redact: redact,
     onProgress: onProgress ?? (_, _, _) {},

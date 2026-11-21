@@ -8,6 +8,7 @@ import 'package:manga_backup_core/src/conversion/conversion_journal.dart';
 import 'package:manga_backup_core/src/conversion/conversion_owner.dart';
 import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/conversion_strategy.dart';
+import 'package:manga_backup_core/src/conversion/extension_settings.dart';
 import 'package:manga_backup_core/src/conversion/format_registry.dart';
 import 'package:manga_backup_core/src/conversion/migration_pipeline.dart';
 import 'package:manga_backup_core/src/conversion/plugin_loader.dart';
@@ -40,9 +41,9 @@ SourceFailure? conversionUnavailable(
     return CapabilityUnavailableFailure('codec.${source.alias}', 'No codec is registered to read $source');
   }
   if (determineStrategy(source, target) is DirectConversion && !forceMigration) {
-    return formats.directConverter == null
-        ? CapabilityUnavailableFailure('direct.${target.alias}', 'No direct converter is registered for $target')
-        : null;
+    return formats.directTarget(target)
+        ? null
+        : CapabilityUnavailableFailure('direct.${target.alias}', 'No verified direct conversion to $target');
   }
   if (formats.writerFor(target) == null) {
     return CapabilityUnavailableFailure('writer.${target.alias}', 'No backup writer is registered for $target');
@@ -58,6 +59,7 @@ final class ConversionRequest {
     required this.targetFormat,
     this.inputName,
     this.repoUrls = const <String>[],
+    this.sources = const <String>{},
     this.forceMigration = false,
   });
 
@@ -68,7 +70,14 @@ final class ConversionRequest {
   final String? inputName;
   final BackupFormat sourceFormat;
   final BackupFormat targetFormat;
+
+  /// The repositories the user supplied (never a built-in list).
   final List<String> repoUrls;
+
+  /// Runtime source IDs the user named: exactly these sources are searched
+  /// and language narrowing is skipped. Empty: the user's extension picks,
+  /// narrowed to the backup's languages.
+  final Set<String> sources;
 
   /// Use plugin migration for a pair that could convert directly.
   final bool forceMigration;
@@ -110,9 +119,13 @@ final class ConversionJob {
     this.onOwnerOpened,
     this.onResume,
     this.onDecoded,
+    this.settingsFor = noExtensionSettings,
   });
 
   final FormatRegistry formats;
+
+  /// The user's extension settings, handed to the destination runtime.
+  final ExtensionSettingsProvider settingsFor;
   final RuntimeRegistry runtimes;
   final SelectionPort selection;
   final void Function(int current, int total, String message) onProgress;
@@ -153,7 +166,10 @@ final class ConversionJob {
         determineStrategy(request.sourceFormat, request.targetFormat) is DirectConversion && !request.forceMigration;
     PluginLoader? loader;
     if (!direct) {
-      final SourceOutcome<PluginLoader> resolved = runtimes.loaderFor(request.targetFormat);
+      final SourceOutcome<PluginLoader> resolved = runtimes.loaderFor(
+        request.targetFormat,
+        RuntimeContext(settingsFor: settingsFor),
+      );
       loader = resolved.valueOrNull;
       if (loader == null) throw DestinationUnavailable(resolved.failureOrNull!);
     }
@@ -171,6 +187,7 @@ final class ConversionJob {
       pluginLoader: loader,
       formats: formats,
       languagePolicy: languagePolicy,
+      explicitSources: request.sources,
       onOwnerOpened: onOwnerOpened,
       journalStore: journalStore,
       onResume: onResume,

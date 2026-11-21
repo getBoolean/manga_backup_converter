@@ -1,13 +1,13 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:characters/characters.dart';
-import 'package:collection/collection.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';
@@ -61,14 +61,41 @@ class ConvertCommand extends Command<void> {
       ..addMultiOption(
         'repos',
         abbr: 'r',
-        help: 'Extension repo URLs for plugin-based migration.',
+        valueHelp: 'URL',
+        help:
+            'Extension repository URL for the destination ecosystem (repeatable). There is no built-in '
+            'repository: migration needs at least one (asked for interactively, required unattended).',
       )
       ..addMultiOption(
         'extensions',
         abbr: 'e',
+        valueHelp: 'EXTENSION_ID',
         help:
-            'Extension IDs to install (e.g. multi.mangadex). '
-            'Skips interactive extension selection.',
+            'Extension (package) ID from your repositories to use (repeatable). Skips interactive selection; '
+            'unattended migration needs --extensions or --sources. Their sources are narrowed to the '
+            "backup's languages (see --languages).",
+      )
+      ..addMultiOption(
+        'sources',
+        valueHelp: 'SOURCE_ID',
+        help:
+            'Runtime source ID to search (repeatable), for example one source of a multi-language package. '
+            'Exactly these sources are used, with no language narrowing; the extensions hosting them are '
+            'selected unless --extensions names them.',
+      )
+      ..addOption(
+        'settings',
+        valueHelp: 'settings.json',
+        help:
+            'Extension settings file: {"extensions": {"<extension id>": {"values": {...}, "secrets": {...}, '
+            '"sources": {"<source id>": {"values": {...}, "secrets": {...}}}}}}. Secrets stay in memory only.',
+      )
+      ..addMultiOption(
+        'setting',
+        valueHelp: 'EXTENSION_ID=KEY=VALUE',
+        help:
+            'One non-secret extension setting (repeatable; true/false and integers are typed), applied over '
+            '--settings. Put secrets in the settings file, not on the command line.',
       )
       ..addOption(
         'max-rating',
@@ -292,6 +319,14 @@ class ConvertCommand extends Command<void> {
       }
     }
 
+    // Extension picks and settings are the user's (no built-in defaults).
+    final List<String> extensionIds = results.multiOption('extensions');
+    final Set<String> sourceIds = results.multiOption('sources').toSet();
+    final UserExtensionSettings userSettings = _readUserSettings(
+      results.option('settings'),
+      results.multiOption('setting'),
+    );
+
     final ConversionStrategy strategy = determineStrategy(resolvedInputFormat, outputFormat);
     var forceMigration = false;
 
@@ -375,6 +410,17 @@ class ConvertCommand extends Command<void> {
         repoUrls = [repoInput];
       }
     }
+    if (!interactive && willMigrate) {
+      if (repoUrls.isEmpty) {
+        throw UsageException('--repos is required for unattended migration: there is no built-in repository.', usage);
+      }
+      if (extensionIds.isEmpty && sourceIds.isEmpty) {
+        throw UsageException(
+          'Unattended migration needs --extensions or --sources: extensions are never picked automatically.',
+          usage,
+        );
+      }
+    }
 
     // --- Output path ---
     final String defaultOutputPath = p.join(
@@ -444,27 +490,39 @@ class ConvertCommand extends Command<void> {
       spinner!.start(() => loadingRegion!.render(['${spinner.frame} $loadingMessage']));
     }
 
-    final List<String> extensionIds = results.multiOption('extensions');
-
     final selection = CallbackSelectionPort(
       onSelectExtensions: (List<ExtensionEntry> e) async => e,
       onSelectSources: (SourceSelectionRequest request) async {
         final List<ExtensionEntry> extensions = request.available;
         if (extensions.isEmpty) {
           throw MigrationException(
-            'No extensions available at the selected content rating and languages'
-            '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}'
-            '${request.hiddenByLanguage > 0 ? ' (${request.hiddenByLanguage} hidden by language; see --languages)' : ''}.',
+            'No extensions available in the given repositories at the selected content rating'
+            '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}.',
           );
         }
 
         // A resumed conversion reuses its journaled sources unless
-        // --extensions names others.
-        if (extensionIds.isEmpty && request.previousSelection.isNotEmpty) {
+        // --extensions or --sources name others.
+        if (extensionIds.isEmpty && sourceIds.isEmpty && request.previousSelection.isNotEmpty) {
           return request.previousSelection;
         }
 
-        // --extensions flag: filter by ID, skip TUI/auto-select. Matching
+        // --sources alone: the extensions hosting the named sources.
+        if (extensionIds.isEmpty && sourceIds.isNotEmpty) {
+          final List<ExtensionEntry> hosting = extensions
+              .where((ExtensionEntry e) => sourceIds.any((String id) => entryHostsSource(e, id)))
+              .toList();
+          if (hosting.isEmpty) {
+            throw UsageException(
+              'No extension in the given repositories hosts the named sources (or they are hidden by the '
+              'content rating).',
+              usage,
+            );
+          }
+          return hosting;
+        }
+
+        // --extensions flag: filter by ID, skip the selection screen. Matching
         // runs after the rating policy, so a hidden source cannot be named.
         if (extensionIds.isNotEmpty) {
           final Set<String> idSet = extensionIds.toSet();
@@ -494,8 +552,8 @@ class ConvertCommand extends Command<void> {
           return result;
         }
 
-        // Non-interactive fallback: auto-select MangaDex or first.
-        return [extensions.firstWhereOrNull((ExtensionEntry e) => e.id == 'multi.mangadex') ?? extensions.first];
+        // Never auto-picked: unattended runs were required to name them.
+        throw UsageException('No extensions named: pass --extensions or --sources.', usage);
       },
       onConfirmMatches: interactive
           ? (pluginNames, manga, onSearch, onFetchDetails) => paused(
@@ -538,6 +596,7 @@ class ConvertCommand extends Command<void> {
             journalStore: journalStore,
             ratingPolicy: ratingPolicy,
             languagePolicy: languagePolicy,
+            settingsFor: userSettings.provider,
             trustStore: PinnedTrustStore(
               FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
               tachiPins,
@@ -578,6 +637,7 @@ class ConvertCommand extends Command<void> {
               sourceFormat: resolvedInputFormat,
               targetFormat: outputFormat,
               repoUrls: repoUrls,
+              sources: sourceIds,
               forceMigration: forceMigration,
             ),
             FileConversionOutput(outputPath),
@@ -632,6 +692,28 @@ class ConvertCommand extends Command<void> {
         print('Logs written to $logPath');
       }
     }
+  }
+}
+
+/// The user's extension settings: the `--settings` file, then each
+/// `--setting EXTENSION_ID=KEY=VALUE` over it. Malformed input is a usage
+/// error.
+UserExtensionSettings _readUserSettings(String? path, List<String> flags) {
+  try {
+    var settings = UserExtensionSettings();
+    if (path != null) {
+      final file = io.File(path);
+      if (!file.existsSync()) throw FormatException('Settings file not found: $path');
+      final Object? json = jsonDecode(file.readAsStringSync());
+      if (json is! Map<String, Object?>) throw const FormatException('A settings file must hold a JSON object');
+      settings = UserExtensionSettings.fromJson(json);
+    }
+    for (final flag in flags) {
+      settings = settings.withFlag(flag);
+    }
+    return settings;
+  } on FormatException catch (e) {
+    throw UsageException('Invalid extension settings: ${e.message}', '');
   }
 }
 

@@ -163,7 +163,7 @@ void main() {
         DestinationRuntime(
           ecosystem: 'paperback',
           serves: (BackupFormat f) => f is Paperback,
-          createLoader: () => _DeviceLoader(source),
+          createLoader: (_) => _DeviceLoader(source),
         ),
       ]),
     );
