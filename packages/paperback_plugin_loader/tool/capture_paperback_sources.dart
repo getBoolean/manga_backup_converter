@@ -14,8 +14,10 @@
 // source returned pagination metadata, then details with chapters. Requests
 // are spaced at least 1.5 s apart. The worker writes `capture.json` and
 // `bodies/` when it shuts down; this tool also writes `scenario.json` with
-// what each bundle returned. Bundles come from the committed fixtures and
-// are admitted against their pinned SHA-256; nothing else is downloaded.
+// what each bundle returned, and `tool/sanitize_captures.dart` strips
+// client-identifying data (challenge tokens, ray IDs) from the bodies.
+// Bundles come from the committed fixtures and are admitted against their
+// pinned SHA-256; nothing else is downloaded.
 //
 // No browser port is attached, so a source that needs `executeInWebView`
 // records only the requests it makes before that call.
@@ -27,6 +29,7 @@ import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 
 import '../test/support/paperback_scenarios.dart';
+import 'sanitize_captures.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.any((String s) => !captureSites.containsKey(s))) {
@@ -107,7 +110,10 @@ Future<void> _capture(String site, String exe) async {
       'runs': <Object?>[for (final BundleRun r in runs) r.toJson()],
     });
     stdout.writeln(report);
+    // The worker writes the capture on shutdown; strip client-identifying
+    // data before anything is committed.
     await supervisor.close();
+    sanitizeCaptureDir(dir);
     File('${dir.path}/scenario.json').writeAsStringSync('$report\n');
   } finally {
     await supervisor.close();

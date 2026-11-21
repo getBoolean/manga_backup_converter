@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "ecosystem": "paperback",
+  "source": "mangafire",
+  "recordedAt": "2026-11-21T01:20:53.808421Z",
+  "recordedBy": "tool/capture_source_fixtures.dart",
+  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/home",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 302,
+        "headers": {
+          "content-type": "text/html; charset=utf-8",
+          "location": "https://mangafire.to"
+        },
+        "body": "bodies/f2748a8bff62b9a8f3122ea0713620a87d129369f40043df40c5fc5b80500eab.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/home",
+        "sha256": "f2748a8bff62b9a8f3122ea0713620a87d129369f40043df40c5fc5b80500eab",
+        "size": 693,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/d5d96aa4128c0e77ecc338e72d31268ac9fe6f091fffd3d06b558dbd3474f1a7.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to",
+        "sha256": "d5d96aa4128c0e77ecc338e72d31268ac9fe6f091fffd3d06b558dbd3474f1a7",
+        "size": 3616,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}
