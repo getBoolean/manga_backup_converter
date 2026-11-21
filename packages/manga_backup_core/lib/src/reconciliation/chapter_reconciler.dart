@@ -18,12 +18,18 @@ double? knownChapterNumber(double? number) => number != null && number.isFinite 
 double? knownVolumeNumber(double? volume) => volume != null && volume.isFinite && volume > 0 ? volume : null;
 
 /// A comparable language (lower-case primary subtag), or `null` when unknown.
+///
+/// Only language codes count: a value that is not a code (a Paperback
+/// bundle reporting a flag emoji such as `🇬🇧`) is unknown, so it never
+/// conflicts with a real code.
 String? knownLanguage(String? language) {
   if (language == null) return null;
   final String primary = language.trim().toLowerCase().split(RegExp('[-_]')).first;
-  if (primary.isEmpty || primary == 'unknown' || primary == 'und') return null;
+  if (primary == 'unknown' || primary == 'und' || !_languageCode.hasMatch(primary)) return null;
   return primary;
 }
+
+final RegExp _languageCode = RegExp(r'^[a-z]{2,3}$');
 
 /// A comparable title (case-folded, whitespace-collapsed), or `null` if empty.
 String? normalizedChapterTitle(String? title) {
@@ -181,7 +187,22 @@ List<PluginChapter> _candidatesFor(
   }).toList();
 
   if (number != null) {
-    candidates = candidates.where((PluginChapter d) => knownChapterNumber(d.chapterNumber) == number).toList();
+    final List<PluginChapter> byNumber = candidates
+        .where((PluginChapter d) => knownChapterNumber(d.chapterNumber) == number)
+        .toList();
+    // A destination that reports no numbers at all (some sources only title
+    // their chapters) can still be identified by an exact title; a number is
+    // never compared against an unknown one.
+    if (byNumber.isEmpty && title != null) {
+      candidates = candidates
+          .where(
+            (PluginChapter d) =>
+                knownChapterNumber(d.chapterNumber) == null && normalizedChapterTitle(d.title) == title,
+          )
+          .toList();
+    } else {
+      candidates = byNumber;
+    }
   } else {
     // Unknown number: only an exact title can identify the chapter.
     if (title == null) return const <PluginChapter>[];

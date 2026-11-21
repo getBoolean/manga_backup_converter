@@ -8,7 +8,6 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:characters/characters.dart';
 import 'package:collection/collection.dart';
-import 'package:crypto/crypto.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';

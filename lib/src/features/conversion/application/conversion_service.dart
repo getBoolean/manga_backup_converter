@@ -1,5 +1,6 @@
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:riverpod/riverpod.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 /// The app's conversion entry point: runs the same core [ConversionJob] as
 /// the CLI, with the runtime registry and platform adapters the app's

@@ -58,7 +58,8 @@ RuntimeRegistry cliRuntimeRegistry({
   ),
   DestinationRuntime(
     ecosystem: tachiTrustEcosystem,
-    serves: (BackupFormat f) => f is Tachiyomi,
+    // Tachimanga uses Tachi source identities too (it has no writer yet).
+    serves: (BackupFormat f) => f is Tachiyomi || f is Tachimanga,
     createLoader: () => CachingPluginLoader(
       TachiPluginLoader(runtime: tachi, onSettings: onSettings),
       cache: cache,

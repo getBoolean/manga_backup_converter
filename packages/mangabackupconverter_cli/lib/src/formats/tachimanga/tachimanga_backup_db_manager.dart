@@ -19,8 +19,22 @@ class TachimangaBackupDbManager {
 
   Future<void> insert<T>(TachimangaBackupTable<T> table, List<T> categories) async {
     tachimanga_init.initializeMappers();
+    // The sequence rows are SQLite's own; the backup's values replace the
+    // ones the inserts above produced.
+    if (identical(table, TachimangaBackupTable.sqlite_sequence) && categories.isNotEmpty) {
+      await db.delete(table.name);
+    }
     for (final category in categories) {
-      await db.insert(table.name, MapperContainer.globals.toMap(category));
+      // SQLite has no boolean type: Tachimanga's BOOLEAN columns hold 0/1.
+      final Map<String, Object?> row = <String, Object?>{
+        for (final MapEntry<String, dynamic> e in MapperContainer.globals.toMap(category).entries)
+          e.key: switch (e.value) {
+            true => 1,
+            false => 0,
+            final Object? v => v,
+          },
+      };
+      await db.insert(table.name, row);
     }
   }
 
@@ -79,7 +93,8 @@ CREATE TABLE TrackRecord(
     UNIQUE (manga_id, sync_id) ON CONFLICT REPLACE
 )
 ''',
-      'CREATE TABLE sqlite_sequence(name,seq)',
+      // `sqlite_sequence` is created by SQLite itself for AUTOINCREMENT
+      // tables; creating it explicitly is an error ("reserved for internal use").
     ];
     final indexQueries = <String>[
       'CREATE UNIQUE INDEX Migrations_name ON Migrations ("name")',

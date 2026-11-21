@@ -48,19 +48,18 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
       throw TachimangaException('Could not decode Tachimanga backup "$archiveName", contents.zip not found');
     }
     final Archive contentArchive = ZipDecoder().decodeBytes(contentZipFile.content);
+    // App preferences are optional: a converted backup carries library data
+    // only, and writes neither file (restore without them: verify in U8).
     final ArchiveFile? prefFile = contentArchive.findFile('pref.json');
-    if (prefFile == null) {
-      throw TachimangaException('Could not decode Tachimanga backup "$archiveName", pref.json not found');
-    }
-    final pref = jsonDecode(String.fromCharCodes(prefFile.content)) as Map<String, Object?>;
+    final pref = prefFile == null
+        ? null
+        : jsonDecode(String.fromCharCodes(prefFile.content)) as Map<String, Object?>;
 
     // This json file is actually a pbxproj file
     final ArchiveFile? prefAllFile = contentArchive.findFile('pref-all.json');
-    if (prefAllFile == null) {
-      throw TachimangaException('Could not decode Tachimanga backup "$archiveName", pref-all.json not found');
-    }
-    final prefAllContent = String.fromCharCodes(prefAllFile.content);
-    final prefAll = Pbxproj.parse(prefAllContent, path: 'pref-all.json');
+    final Pbxproj? prefAll = prefAllFile == null
+        ? null
+        : Pbxproj.parse(String.fromCharCodes(prefAllFile.content), path: 'pref-all.json');
 
     final List<ArchiveFile> prefsFiles = contentArchive.files.where((ArchiveFile file) {
       return file.name.startsWith('prefs/') && file.name.endsWith('.plist');

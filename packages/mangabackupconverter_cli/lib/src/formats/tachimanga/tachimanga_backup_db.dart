@@ -114,16 +114,21 @@ class TachimangaBackupDb with TachimangaBackupDbMappable {
     );
   }
 
+  static int _exports = 0;
+
   Future<Uint8List> exportDatabase() async {
     final Database db;
+    // A fresh scratch database per export: reusing one file would collide
+    // with the tables a previous export (or another export) created.
+    final name = 'tachimanga_export_${DateTime.now().microsecondsSinceEpoch}_${_exports++}.db';
     if (kIsWeb) {
       databaseFactory = databaseFactoryFfiWeb;
-      db = await databaseFactory.openDatabase('tachimanga.db');
     } else {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
-      db = await databaseFactory.openDatabase('tachimanga.db');
     }
+    await databaseFactory.deleteDatabase(name);
+    db = await databaseFactory.openDatabase(name);
     final backupDbManager = TachimangaBackupDbManager(
       db: db,
       databaseFactory: databaseFactory,
@@ -146,8 +151,9 @@ class TachimangaBackupDb with TachimangaBackupDbMappable {
     await backupDbManager.insert(TachimangaBackupTable.trackRecord, trackRecordTable);
     await backupDbManager.insert(TachimangaBackupTable.sqlite_sequence, sqliteSequenceTable);
 
-    final Uint8List dbContent = await databaseFactory.readDatabaseBytes('tachimanga.db');
+    final Uint8List dbContent = await databaseFactory.readDatabaseBytes(name);
     await db.close();
+    await databaseFactory.deleteDatabase(name);
 
     return dbContent;
   }
