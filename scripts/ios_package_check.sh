@@ -89,9 +89,12 @@ JIT = {"_pthread_jit_write_protect_np", "_sys_icache_invalidate", "_vm_protect",
 # JIT-list imports whose call sites are traced in app-store-compliance.md.
 JIT_EXPLAINED = {
     "source_runtime_ios.framework": {"_vm_remap", "_vm_protect"},  # libffi trampoline table, unreachable
+    # The stock release Flutter engine (Dart VM virtual memory; AOT on iOS
+    # never generates code). Every App Store Flutter app ships it.
+    "Flutter.framework": {"_vm_remap"},
 }
 if debug_engine:
-    JIT_EXPLAINED["Flutter.framework"] = {"_sys_icache_invalidate"}  # Dart JIT, debug engine only
+    JIT_EXPLAINED["Flutter.framework"] |= {"_sys_icache_invalidate"}  # Dart JIT, debug engine only
 # Imports allowed only where the compliance note explains them.
 PLUGINS = {"Runner", "sqlite3.framework", "super_native_extensions.framework"}  # existing app plugins
 ALLOWED = {
@@ -121,7 +124,9 @@ for label, path in binaries:
     signature = ("unsigned" if "not signed" in sig else
                  "adhoc" if "Signature=adhoc" in sig else
                  (re.search(r"Authority=(.*)", sig).group(1) if re.search(r"Authority=(.*)", sig) else "signed"))
-    links = [l.strip().split(" (")[0] for l in run("otool", "-L", path).splitlines()[1:] if l.strip()]
+    # Indented lines only: headers name the binary (one per architecture).
+    links = sorted({l.strip().split(" (")[0] for l in run("otool", "-L", path).splitlines()
+                    if l[:1].isspace() and l.strip()})
     undefined = set(run("nm", "-u", path).split())
     rec = {
         "binary": label, "sha256": sha256(path), "bytes": os.path.getsize(path),

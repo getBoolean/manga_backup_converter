@@ -500,3 +500,143 @@ U13 on Android.
   simulator).
 - An App Store Connect validation of a distribution-signed build remains
   deferred to the TestFlight setup.
+
+---
+
+# U15 — iOS conversion through the app composition root (simulator stage)
+
+Status: **simulator evidence only** (`evidenceClass: simulator`). U15's
+verification needs physical-iPhone receipts (R14, AE7 on a device); none of
+the results below stands in for them. Device: iPad Pro 13-inch (M5)
+Simulator, iOS 26.5 (23F77), arm64; Xcode 27.2; Flutter 3.50.0 / Dart 3.14.0.
+Branch `feat/source-runners-u15`, rebased on `fa0b50a` (U11).
+Receipts: `u15-simulator-receipts.jsonl`, `u15-package-iphoneos.json`,
+`u15-package-iphonesimulator.json`.
+
+## What runs
+
+`lib/src/features/conversion/application/conversion_composition.dart`
+(`IosSourceRuntimes`) registers the three local runtimes with
+`ConversionService`, which runs the core `ConversionJob`:
+
+| Runtime | Backend | Notes |
+| --- | --- | --- |
+| Aidoku | `IosAidokuBackend` over the desktop `AidokuSourceProvider` (U18) | framework admission at start; background gate |
+| Paperback | worker isolate (`isolatePaperbackLauncher`, U10) under a per-conversion `ConversionRuntimeScope` | KTD25 plan measured on the device at start (`quickjs-sizing-v2`) |
+| Tachi | `IosTachiBackend` in the process-lifetime JVM (U9), reached through the common `TachiRuntime` with `hostCompatibility: tachi-host.1+ios` | limits are explicit app config (no iOS rule yet) |
+
+Both workers share one `WKWebViewBrowserPort`, each through its own reverse
+bridge; a bridge resolves a browser source from the artifact its worker
+currently hosts (`WorkerSupervisor.artifactOf`). Per-conversion scopes are
+adopted by the job's `ConversionOwner`; the JVM is never destroyed. The
+loaders are the CLI's, moved unchanged into `packages/source_loaders`.
+Nothing is defaulted: repositories come in the request, extensions through
+the `SelectionPort`, settings through `settingsFor`. Nothing starts at app
+launch; `iosConversionServiceOverride` installs the composition for
+Riverpod (the deferred conversion UI will call it).
+
+## Results
+
+`flutter test integration_test/source_runners_ios_test.dart -d <sim> --dart-define=SRT_REPO_ROOT=$PWD`
+after `stage_runtime.sh iphonesimulator --test`: **12 passed, 2 skipped**
+(the manual case and the built-app relaunch case, both run separately below).
+Every job goes parse → local runtime fetches → reconcile → build/validate →
+atomic publication inside the app container; every source request replays a
+committed capture (0 replay misses).
+
+| Case | Result |
+| --- | --- |
+| R5 Paperback → Aidoku, Mihon → Aidoku | pass; `en.weebcentral` (the `.aix` the runtime loaded), 114 chapters; emitted ID = runtime identity |
+| R5 Aidoku → Paperback, Mihon → Paperback | pass; `WeebCentral` (inkdex 0.9 bundle, `paperback-bundle-0.9`), 114 chapters |
+| R5 Aidoku → Mihon, Paperback → Mihon | pass; exact int64 `2131019126180322627` from the verified keiyoushi JAR, source URLs, partial page 4 kept unread (AE1/AE2), 10–13 s each (worker start + prepare) |
+| Mihon inputs | partial by design (Aidoku/Paperback cannot hold a bookmark) and accepted, as in the desktop six-direction test |
+| Resources after every job | 0 browser sessions, 0 pending Aidoku calls, 0 live VM workers, 0 armed deadlines, 1 VM, JNI global refs back to 4 |
+| Main run loop | largest gap between 16 ms ticks during a job: 18–30 ms |
+| Platform channels | none used by source work (KTD23) |
+| AE8 backgrounding (programmatic) mid-search | held search answered once `cancelled: app-backgrounded`, new search refused while backgrounded, job completed in the foreground, exactly one output |
+| AE8 real backgrounding (manual, `SRT_MANUAL=true`) | agent-device `home`, then `open`: events `[backgrounded, error:cancelled:app-backgrounded, foregrounded]`, one output |
+| AE8 cancel an in-flight search | session usable at once (next result 16 ms after cancel), job completed |
+| AE8 engine deadline (Tachi, native deadline 1.5 s, replay host never answers) | search failed `timeout` ("operation stopped by its deadline"), partial declined, nothing published, no worker or deadline left |
+| AE8 repeated jobs (2 × Aidoku→Mihon, Mihon→Paperback, Paperback→Aidoku) | every job opened and closed its sessions/workers; references back to baseline |
+| AE8 late WebView callbacks | after the AE11 job every browser session was closed; the next job on the same port succeeded |
+| Kill and relaunch | built app (`--dart-define=SRT_PHASE=relaunch`), installed once; launch 1 SIGKILLed itself (FFI `raise`; `Process.killPid` on the own pid does nothing on iOS) at publication with the journal on disk and no output; launch 2 reused 1 journaled decision, asked nothing, made 0 site requests (snapshot reused), published exactly one `.aib`, cleared the journal. Re-run after the rebase: same result. `flutter test` reinstalls the app and wipes its container between runs, so this case cannot run under it |
+| AE11 MangaFire (Paperback 0.9) inside a job | `executeInWebView` opened a WKWebView session inside the job; offline the page cannot load MangaFire's scripts, so the search failed with the named source error `VRF capture timed out`, the partial conversion was declined, nothing was published. **The live challenge path is not proven; M3 stays open on it.** The Tachi MangaFire 1.6.38 artifact computes its VRF without a WebView in the captured flow |
+
+## Protocol 1.3 on the WKWebView port
+
+`integration_test/source_runners_ios_paperback_browser_test.dart`:
+**127 passed, 3 skipped** (benchmark, two manual U10 cases). The contract
+suite (55 cases at 1.3) now runs twice, both 55/55:
+
+- without interaction (the U10 harness, `allowInteraction: false`): the 1.3
+  completion cases take the no-display path;
+- with a presented sheet (`_WkHarness(interactive: true)`): page-signalled
+  completion (`completedByPage`), user dismissal (`closedByUser`, through the
+  sheet's dismissal handler), timeout → `interaction-required` after ≥ 250 ms
+  with the session usable, cancel → `cancelled` with the session usable, and
+  session close → `cancelled`. No port change was needed: the U10 port already
+  hid the sheet on cancel and timeout and reported `BrowserCompleted` only
+  for a user dismissal.
+- Deadline pause: the Paperback worker isolate ran past its 300 ms engine
+  deadline for 1,200 ms between `interaction.started` and
+  `interaction.ended`, then timed out 305 ms after the resume. The Tachi
+  worker's pause (`PausableDeadline` over the native watchdog) is in the
+  shared worker; its iOS path was not driven by an interaction here.
+
+## Regression runs on the rebased runtime (U11 `PackageRuntime` split)
+
+- `source_runners_ios_tachi_test.dart` (U9): **22/22** on payload
+  `cd474aced982` (worker from `fa0b50a`). The AE7 JAR and APK cases for
+  MangaDex, WeebCentral and MangaFire go through `Worker.prepare` →
+  `JvmPackageRuntime` prepare → iOS back-edge rewrite: each prepared JAR's
+  digest differs from its input (e.g. WeebCentral JAR `8b287c95…` →
+  `459c257d…`), and the native-deadline cases that only rewritten back-edges
+  can stop (busy loop, catch-and-continue, regex) pass. No breakage.
+- `source_runners_ios_aidoku_test.dart` (U18): 9 passed, 1 manual skip
+  (before the rebase; the rebase did not touch Aidoku).
+- `ios_runtime_gate_test.dart` (U16) was not re-run (needs a `--gate`
+  payload; nothing it covers changed).
+
+## Packaging (`scripts/ios_package_check.sh`)
+
+| Build | Result |
+| --- | --- |
+| iPhoneOS, `flutter build ios --release --no-codesign`, shipping payload (`stage_runtime.sh iphoneos`) | **pass**. Every binary arm64, platform IOS, minos 15.0 (= project target and `MinimumOSVersion`, the U16 runtime minimum); unsigned/ad hoc (no distribution or development signature, no entitlements); links only `@rpath` and system libraries; no test file, capture, extension artifact or repository reference anywhere in the bundle or the AOT snapshot; layout kinds `home`, `classpath`, `stamp` only; GPL notices present; privacy manifest in `Runner.app` covers file timestamp, boot time and disk space. Hashes: `source_runtime_ios` `a928eb03…`, `quickjs` `12cef141…` (same as U10), `wasm3` `75184e9c…`, `SwiftSoupWrapper` `b7308e33…` (full digests in the receipt) |
+| iPhoneSimulator, debug test build (`--allow-test-payload --debug-engine`) | pass; x86_64 + arm64; the test payload and the debug kernel name the fixture repositories, as expected for a test build |
+
+The R18 audit of `source_runtime_ios`'s `dlopen`/`mmap`/`mprotect` (and the
+`vm_remap`/`vm_protect` this check found) is in `app-store-compliance.md`:
+libffi's trampoline code is linked but has no caller; no `PROT_EXEC` path is
+reachable in a Zero/BSD build; library loads sit behind
+`--illegal-native-access=deny`, the baked guard and iOS library validation.
+
+## Still open: needs a physical iPhone
+
+- Development-signed release-profile build on a device, cold launch, no
+  debugger: the six directions, AE8 (iOS suspends the app ~5 s after
+  backgrounding), kill-and-relaunch, AE11. Fixtures need a test-only delivery
+  on device (this harness reads them from the host checkout via
+  `SRT_REPO_ROOT`, which only a simulator can do).
+- Receipts with build identity, OS, device architecture, entitlement profile,
+  native runtime hashes of the signed build, and the KTD25 device benchmark
+  (Paperback limits and an iOS Tachi rule).
+- Live MangaFire challenge on WebKit (tests may not contact the site).
+- Restore spot checks of iOS-built Paperback, Aidoku and Tachi backups.
+- App Store Connect validation (TestFlight setup).
+
+## Decisions
+
+- The loaders moved to `packages/source_loaders` (shared by the CLI and the
+  app) instead of the app depending on the CLI package.
+- U9's suite was renamed `source_runners_ios_tachi_test.dart` so the plan's
+  `source_runners_ios_test.dart` holds the U15 conversion suite.
+- `r18-app-store-guideline-mapping.md` was renamed `app-store-compliance.md`
+  (the plan's path).
+- The composition is not started at app launch (it starts the JVM and
+  measures the device); the conversion UI installs it.
+- Tachi and Paperback calls have no background gate yet (only Aidoku and the
+  browser port do); this is **open and untested**. iOS suspends their threads
+  with the app; a result that arrives after resume belongs to the still-open
+  job, and the job publishes only validated output once every decision is
+  made, so nothing stale can publish, but a call may end as `timeout` after a
+  long suspension.

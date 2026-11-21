@@ -54,7 +54,7 @@ to its call sites at the runtime pin:
 | `source_runtime_ios.framework` | `mprotect` | `os_bsd.o`: guard pages and uncommit (`PROT_NONE`), and `os::pd_commit_memory`, whose `exec` flag is forced off on iOS by patch 0006. The only `MEM_PROT_RWX` caller in HotSpot (`handle_assert_poison_fault`) is compiled only for Linux/Windows non-Zero builds. iOS refuses `PROT_EXEC` on anonymous memory without the JIT entitlement anyway. |
 | `source_runtime_ios.framework` | `mmap` | Reserved heap/metaspace/code-cache ranges (`PROT_NONE`, then read/write; no `MAP_JIT` on iOS), CDS/zip/file I/O mappings (read or read/write). |
 | `source_runtime_ios.framework` | `dlopen` | `os::dll_load` (behind layers 1–4 above), `print_dll_info` (diagnostics, the VM's own image), the Objective-C runtime lookup in `os::init` (system library), and `DefaultProxySelector` (fixed GNOME library names that do not exist on iOS). No path takes a file name from source code past the guards. |
-| `Flutter.framework` | `mmap`, `mprotect`, `dlopen` | The Flutter engine. The debug (simulator) engine also imports `sys_icache_invalidate` for Dart JIT; the release engine is checked separately (see the receipt). |
+| `Flutter.framework` | `mmap`, `mprotect`, `dlopen`, `vm_remap` (release) | The stock Flutter engine that every App Store Flutter app ships; under AOT on iOS the Dart VM generates no code. The debug (simulator) engine also imports `sys_icache_invalidate` for Dart JIT; debug builds are never distributed. |
 | `sqlite3.framework`, `super_native_extensions.framework`, `Runner` | `mmap`/`dlopen` | Existing app plugins, not source runtimes; unchanged by this plan. |
 | `quickjs.framework`, `wasm3.framework`, `SwiftSoupWrapper.framework` | none | — |
 
