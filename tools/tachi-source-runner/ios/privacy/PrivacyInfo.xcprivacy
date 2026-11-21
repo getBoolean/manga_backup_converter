@@ -3,7 +3,7 @@
 <!--
   Privacy manifest entries for the embedded OpenJDK Zero runtime
   (source_runtime_ios). Derived from `nm -u libsourcejvm.a` at the pin in
-  ../manifest.env; see docs/validation/source-runners/ios/r18-app-store-guideline-mapping.md.
+  ../manifest.env; see docs/validation/source-runners/ios/app-store-compliance.md.
   Merge into ios/Runner/PrivacyInfo.xcprivacy.
 -->
 <plist version="1.0">

@@ -18,6 +18,7 @@ Manga Backup Converter — a Flutter/Dart monorepo that converts manga backup fi
 - `packages/wasm3/` — Wasm3 interpreter runner implementing `WasmRunner`
 - `packages/quickjs/` — Vendored QuickJS-ng (submodule `vendor/quickjs`, pinned full commit) compiled from source by a `native_toolchain_c` hook with the `src/quickjs_dart.c` wrapper; Dart API `JsRuntime`/`JsContext`/`JsValue`, interrupt token, memory/stack limits, pending jobs (KTD24); nothing is downloaded
 - `packages/paperback_plugin_loader/` — Paperback host: per-source QuickJS runtime (`SourceJsRuntime`), promise bridge, resource limits and sizing rule, protocol v1 worker (`bin/paperback_source_worker.dart`); versioned 0.8/0.9 API adapters come in U6 via `PaperbackPackageAdapter`
+- `packages/source_loaders/` — The Aidoku/Paperback/Tachi `PluginLoader` adapters over each `SourceProvider` (pure Dart), shared by the CLI and the app composition roots; `AidokuPluginLoader(providerFactory:, client:)`, `PaperbackPluginLoader(worker:)`, `TachiPluginLoader(runtime: TachiLoaderRuntime)`. The CLI re-exports them and keeps `DesktopTachiRuntime` and `desktopPaperbackLoader`
 - `packages/app_lints/` — Shared lint rules (based on `solid_lints`)
 - `packages/jsoup/` — Jsoup-compatible HTML parsing (Rust scraper on Windows/Linux/Android, SwiftSoup on iOS/macOS, TeaVM on Web)
 - `packages/scraper/` — Rust scraper crate (html5ever/Servo) FFI bridge; build hook compiles via cargo + registers CodeAsset; for Android, auto-discovers NDK from `ANDROID_HOME/ndk/` and runs `rustup target add` before cross-compiling
@@ -93,7 +94,9 @@ lib/src/features/<feature>/
   └── presentation/   # ConsumerWidgets, screens
 ```
 
-Active features: `books`, `connectivity`, `initialization`, `settings`. The `example_feature` directory is a reference template showing the full pattern.
+Active features: `books`, `connectivity`, `conversion`, `initialization`, `settings`.
+
+`lib/src/features/conversion/application/conversion_composition.dart` is the app's runtime composition root: `IosSourceRuntimes.start(IosConversionConfig)` registers Aidoku (`IosAidokuBackend`), Paperback (worker isolate, KTD25 plan measured on device) and Tachi (embedded JVM via the common `TachiRuntime`, `hostCompatibility: iosTachiHostCompatibility`) sharing one `WKWebViewBrowserPort`; per-conversion scopes are adopted by the job's `ConversionOwner` (`ConversionService(onOwnerOpened:)`). Tachi limits are explicit app config (no iOS sizing rule). `iosConversionServiceOverride` installs it for Riverpod; nothing starts at app launch. App-local output/journal: `conversion/data/app_file_stores.dart`. iOS integration suites: `source_runners_ios_test.dart` (U15 conversions; harness in `integration_test/support/`), `_tachi_test` (U9), `_paperback_browser_test` (U10), `_aidoku_test` (U18); `scripts/ios_package_check.sh` records slices/hashes and enforces the R18 checks The `example_feature` directory is a reference template showing the full pattern.
 
 ### CLI Package Architecture
 
