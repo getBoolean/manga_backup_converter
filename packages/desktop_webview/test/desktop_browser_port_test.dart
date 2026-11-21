@@ -61,7 +61,7 @@ Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
 Future<void> _waitForNoProcessUsing(Directory dir, DateTime deadline) async {
   final String name = dir.absolute.path.replaceAll("'", "''");
   while (true) {
-    final String command =
+    final command =
         '@(Get-CimInstance Win32_Process | Where-Object { '
         r'$_.CommandLine -like '
         "'*$name*'"
