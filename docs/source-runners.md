@@ -161,9 +161,6 @@ Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.js
 
 ### Known gaps
 
-- `tachi_plugin_loader`'s development discovery (no `--tachi-runtime`) does not read
-  `tachi-runtime.json` from the install it finds, so those runs still need an explicit handshake deadline.
-
 - Only the browser surface used by the keiyoushi helper and the qualification sources is translated.
 - Heap and metaspace use per package are not reported to the supervisor.
 - No CI job runs these JVM tests or the benchmark smoke yet.
