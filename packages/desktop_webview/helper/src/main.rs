@@ -260,9 +260,14 @@ struct Wiped {
   failures: Vec<String>,
 }
 
-/// [wipe_pass] repeated with backoff until nothing fails or [retry] has
-/// passed: a dead helper's browser processes may still be releasing files.
-/// The budget comes from the client (KTD25); `None` makes one pass.
+/// Set when the helper shuts down: a retrying `wipe` stops at its next pass,
+/// so it never keeps the helper alive past `shutdown` or stdin closing.
+static WIPE_STOP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// [wipe_pass] repeated with backoff until nothing fails, [retry] has passed,
+/// or the helper shuts down: a dead helper's browser process may still be
+/// releasing files. The budget comes from the client (KTD25); `None` makes
+/// one pass.
 fn wipe_stale(root: &Path, own: Option<&Path>, retry: Option<std::time::Duration>) -> Wiped {
   let deadline = retry.map(|r| std::time::Instant::now() + r);
   let mut backoff = std::time::Duration::from_millis(50);
@@ -272,7 +277,7 @@ fn wipe_stale(root: &Path, own: Option<&Path>, retry: Option<std::time::Duration
     removed += pass.removed;
     let now = std::time::Instant::now();
     match deadline {
-      Some(d) if !pass.failures.is_empty() && now < d => {
+      Some(d) if !pass.failures.is_empty() && now < d && !WIPE_STOP.load(std::sync::atomic::Ordering::Relaxed) => {
         std::thread::sleep(backoff.min(d - now));
         backoff = (backoff * 2).min(std::time::Duration::from_millis(500));
       }
@@ -821,6 +826,7 @@ impl App {
       return;
     }
     self.shutting_down = true;
+    WIPE_STOP.store(true, std::sync::atomic::Ordering::Relaxed);
     let ids: Vec<String> = self.sessions.keys().cloned().collect();
     for sid in ids {
       if let Err(e) = self.close_session(&sid) {

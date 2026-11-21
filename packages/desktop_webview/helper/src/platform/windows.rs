@@ -72,10 +72,9 @@ pub fn display_missing() -> Option<String> {
 /// Failure (for example a parent job that forbids nesting) only loses that
 /// guarantee.
 ///
-/// Measured on WebView2 157: after a kill, the job ends the crashpad, GPU and
-/// utility processes at once, but the browser process can stay in
-/// termination for 1-110 s, holding the data directory; the client's wipe
-/// retry budget (`wipe` `retryMs`) covers that.
+/// Measured on WebView2 157: after a kill, the browser process can still
+/// stay in termination for 1-110 s (cause not identified), holding the data
+/// directory; the client's wipe retry budget (`wipe` `retryMs`) covers that.
 pub fn contain_child_processes() -> Result<(), String> {
   use windows::Win32::{
     Foundation::{SetHandleInformation, HANDLE_FLAGS, HANDLE_FLAG_INHERIT},
@@ -417,7 +416,7 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
           let deny = offline && !policy::is_loopback(&url) && url != "about:blank";
           let event = |rid: Option<u64>| {
             let headers = request_headers(&req);
-            let (body, body_omitted) = request_body(&req, &method, &headers);
+            let (body, body_omitted) = request_body(&req);
             RequestEvent {
               session: s.clone(),
               rid,
@@ -520,8 +519,19 @@ pub fn respond(rid: u64, answer: Answer) {
       Answer::Proceed => {}
       Answer::Fail(reason) => {
         eprintln!("[helper] failing held request {}: {reason}", d.url);
-        if let Ok(req) = d.args.Request() {
-          let _ = req.SetUri(&HSTRING::from(FAIL_URI));
+        let rewritten = d.args.Request().and_then(|req| req.SetUri(&HSTRING::from(FAIL_URI)));
+        if let Err(e) = rewritten {
+          // Fail closed: never let the original request go out.
+          eprintln!("[helper] cannot rewrite failed request ({e}); answering 502");
+          let r = ReplacementResponse {
+            status: 502,
+            reason: "Request failed".into(),
+            headers: vec![("Content-Type".into(), "text/plain".into())],
+            body: format!("desktop_webview failed this request: {reason}").into_bytes(),
+          };
+          if let Ok(resp) = make_response(&d.env, &r) {
+            let _ = d.args.SetResponse(&resp);
+          }
         }
       }
     }
@@ -531,16 +541,17 @@ pub fn respond(rid: u64, answer: Answer) {
 
 /// The request body (WebView2 `Request.Content`), at most
 /// [MAX_FORWARDED_BODY_BYTES], and whether a body was omitted. The stream is
-/// rewound after reading so the upload is unchanged. A missing stream on a
-/// request that declares a `Content-Type` is a body WebView2 does not expose
-/// (omitted), not an empty one.
-fn request_body(req: &ICoreWebView2WebResourceRequest, method: &str, headers: &[(String, String)]) -> (Option<Vec<u8>>, bool) {
+/// rewound after reading so the upload is unchanged. A body is omitted only
+/// when the stream cannot be read or exceeds the cap.
+///
+/// Measured on WebView2 157: `Content` carries the body of every page body
+/// type (string, Blob with and without a type, FormData with a file,
+/// URLSearchParams, Uint8Array, XHR), and is absent only for requests with
+/// no body, including a bodiless POST with a `Content-Type` header. So a
+/// missing stream means no body.
+fn request_body(req: &ICoreWebView2WebResourceRequest) -> (Option<Vec<u8>>, bool) {
   let stream: Option<IStream> = unsafe { req.Content().ok() };
-  let Some(stream) = stream else {
-    let declares_body = !matches!(method.to_ascii_uppercase().as_str(), "GET" | "HEAD")
-      && headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-type"));
-    return (None, declares_body);
-  };
+  let Some(stream) = stream else { return (None, false) };
   let mut body = Vec::new();
   let mut chunk = vec![0u8; 64 * 1024];
   let readable = loop {

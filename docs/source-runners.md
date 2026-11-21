@@ -142,17 +142,17 @@ records the SHA-256 the client verifies before launch. Protocol: `packages/deskt
 
 Status key: **pass** = ran and passed here; **compiled** = type-checks for the target, never run; **not run** =
 neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,
-`flutter test packages/desktop_webview/test --concurrency 1`: 77 passed, 0 skipped, against the protocol 1.2 contract
+`flutter test packages/desktop_webview/test --concurrency 1`: all passed, 0 skipped, against the protocol 1.2 contract
 suite with no `knownFailures`). No macOS or Linux cell is an expected value.
 
 | Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
 |---|---|---|---|
 | Build | pass (debug and `--release`; 739 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, with `CC_aarch64_apple_darwin` set to LLVM clang for one objc2 build script), including the script message handler; x64 not checked | not run. `cargo check --target x86_64-unknown-linux-gnu` cannot run on the Windows host (the build scripts need the target's system libraries through pkg-config) |
-| BrowserPort contract suite (protocol 1.2, `source_runtime_testing`) | pass, 48/48, no known failures | not run | not run |
+| BrowserPort contract suite (protocol 1.2, `source_runtime_testing`) | pass: all 47 contract cases plus the `knownFailures` check, no known failures, no skips | not run | not run |
 | Reported protocol 1.2 capabilities (`ready` `capabilities.browser`) | all eight available: `pageStartScripts`, `observeNavigations`, `observeSubresources`, `observeRequestHeaders`, `observeClientHints`, `observeRequestBodies`, `replaceRequests`, `scriptErrors` | available: `pageStartScripts`. Unavailable with WKWebView reasons: request observation (not wired), subresources, client hints (WebKit sends none), bodies, replacement, and `scriptErrors` (implemented engine-independently but not yet run on a Mac) | as macOS, with WebKitGTK reasons (`resource-load-started` not wired) |
 | Page bridge transport | pass: `window.chrome.webview.postMessage` with `WebMessageReceived`, captured at document start under a non-identifier property; no wry IPC, so `ipc`, `chrome` and `webkit` all work as channel names | compiled: WebKit script message handler `dwvHost` (`WKScriptMessage.frameInfo` gives the posting frame) | written: script message handler `dwvHost` via `UserContentManager` (no frame identity; the page script's `location.origin` is used) |
 | Script errors (`BrowserScriptError`) | pass: only a thrown script or rejected promise is `script-error`; a missing page bridge and a navigation away are separate codes that complete `null` | not run (reported unavailable) | not run (reported unavailable) |
-| Request bodies | pass: `Request.Content` up to 1 MiB, stream rewound (the upload is unchanged); larger bodies omitted whole; `bodyOmitted` without a stream only when a non-GET request declares a `Content-Type` | unavailable (no request observation) | unavailable (no request observation) |
+| Request bodies | pass: `Request.Content` up to 1 MiB, stream rewound (the upload is unchanged); larger bodies omitted whole. Probed: string, JSON string, Blob (typed and untyped), FormData (with a file), URLSearchParams, Uint8Array and XHR bodies are all exposed; `Content` is absent only for bodiless requests (including a bodiless POST or PUT with a `Content-Type`), so no stream means no body and `bodyOmitted` is set only for an unreadable stream or the cap. MangaFire's `verify` sends a JSON string body. `redirect` is always `false` (not reported) | unavailable (no request observation) | unavailable (no request observation) |
 | `mainFrame` | pass: a `document` request whose URL a top-level `NavigationStarting` announced (redirect hops included); a same-origin child frame loading the same URL is not | n/a | n/a |
 | Failing a held request (invalid replacement, redirect status, throwing replacer) | pass: the helper rewrites the request to `http://127.0.0.1:1/…` (Chromium's restricted port), so the page gets a network error and the original request never reaches the server; a failed main-frame load settles as navigation-failed | n/a (no replace tier) | n/a (no replace tier) |
 | Load page, evaluate (promises awaited), JSON results | pass | not run | not run |
@@ -160,7 +160,7 @@ suite with no `knownFailures`). No macOS or Linux cell is an expected value.
 | Origin rule (cross-origin frame, `about:blank` dropped) | pass. The page script reports the frame's origin and `top.location.origin`, which a cross-origin frame cannot read; on WebView2 the engine's document URL must agree too. Same-origin direct child frames get the channel and are delivered (frame message events are forwarded); nested frames are not subscribed | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
 | Cookies read/write; domain and path derived from the URL | pass | not run | not run |
 | Two sessions' cookie and web-storage isolation | pass (InPrivate profile per session) | not run (non-persistent `WKWebsiteDataStore` per WebView) | not run (ephemeral `WebContext` per WebView) |
-| Non-persistent store / start-up wipe | pass. InPrivate; browsing data cleared and confirmed on close. A one-off probe hard-killed the helper mid-session: 0 rows in the profile's Cookies database (a script-set cookie and a server cookie with `Max-Age`), and no localStorage or IndexedDB on disk. A directory is renamed before deletion, so a directory still in use is left whole and reported by name. The helper runs in a kill-on-close job object: after a kill the crashpad, GPU and utility processes end at once, but the browser process stays in termination for 1-110 s (measured; longer while the parent starts other processes, not caused by the GPU or by inherited stdio pipes), holding the directory. `wipe` retries within the client's `DesktopWebViewConfig.wipeRetry` budget (no product default; KTD25). Tests: planted stale directory; a killed helper's directory removed by the next helper's start-up wipe once released (10/10 consecutive runs, below); a directory held open is reported and left whole, then removed by a later wipe | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
+| Non-persistent store / start-up wipe | pass. InPrivate; browsing data cleared and confirmed on close. A one-off probe hard-killed the helper mid-session: 0 rows in the profile's Cookies database (a script-set cookie and a server cookie with `Max-Age`), and no localStorage or IndexedDB on disk. A directory is renamed before deletion, so a directory still in use is left whole and reported by name. The helper runs in a kill-on-close job object (its effect on the other WebView2 processes was not compared against a run without it). After a kill, the WebView2 browser process can stay in termination for 1-110 s (measured; cause not identified), holding the directory. `wipe` retries within the client's `DesktopWebViewConfig.wipeRetry` budget; with no budget (the product default until U8 sizes one under KTD25), `wipeAllSourceData` right after a helper crash returns capability-unavailable until that process has exited. Tests: planted stale directory; a killed helper's directory removed by the next helper's start-up wipe once released; a directory held open is reported and left whole; one wipe that keeps retrying until the directory is released | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
 | Visible window, interaction timeout, user close | pass (window shown; timeout hides it; close completes; session close cancels) | not run | not run |
 | Scheme policy in the helper (load, `loadData` base, cookies, redirects, new windows denied) | pass. A 302 to `file:` surfaces only as Chromium `REDIRECT_FAILED`, which the helper maps to the named policy failure (a redirect loop maps the same way) | not run (wry navigation handler) | not run (wry navigation handler) |
 | User-agent override at runtime | pass | not run (`setCustomUserAgent`) | not run (`WebSettings`) |
@@ -187,16 +187,18 @@ real OpenCV and a live challenge, and is unverified. On WebView2 the user-agent 
 Android Chrome. Whether MangaFire rejects that mismatch, or a Chrome user agent with no client hints on WebKit, is
 unverified until a live capture.
 
-**Start-up wipe flake (fixed).** `start-up wipe › the next helper removes a killed helper directory` failed about 2
-of 3 runs: the test started the next helper at once and then looped on `wipeAllSourceData`, while the killed helper's
-WebView2 browser process was still terminating and holding the directory. The test now waits (bound 240 s) until the
-directory can be released, then checks that the next helper's start-up wipe removed it. 10 consecutive runs on
-2026-11-20 all passed (40-143 s per run including the debug build check; the longest wait for release was about
-105 s).
+**Start-up wipe flake (bounded, cause unidentified).** `start-up wipe › the next helper removes a killed helper
+directory` failed about 2 of 3 runs: the test started the next helper at once and then looped on `wipeAllSourceData`
+for 20 s while the killed helper's WebView2 browser process was still terminating and holding the directory. The test
+now waits until the directory can be released (bound 240 s), then checks that the next helper's start-up wipe removed
+it. 10 consecutive runs on 2026-11-20 all passed (40-143 s per run including the debug build check; the longest
+release wait was about 105 s). The test is bounded rather than deterministic: how long the OS takes to finish
+terminating that process is outside the helper's control.
 
 **Still needed before U8.** Build and run everything on a Mac (arm64 and x64) and on Linux with WebKitGTK 4.1: the
 new script message handler transport (and an `ipc` channel), the bootstrap capture of the post function, and
-thrown-script reporting (then report `scriptErrors` available); Linux has never been type-checked.
+thrown-script reporting (then report `scriptErrors` available). Linux has never been type-checked (the WebKitGTK
+script message handler and the `javascriptcore-rs` dependency are written blind).
 Enforce offline replay on WebKit: candidates are a blackhole proxy with a loopback exclusion, or WebKitGTK
 `resource-load-started` plus a URI-scheme handler; none is decided. Detect failed navigations on WKWebView, which
 needs a navigation-delegate hook wry does not expose. Re-check MangaFire on both WebKit engines. The WSL Ubuntu on

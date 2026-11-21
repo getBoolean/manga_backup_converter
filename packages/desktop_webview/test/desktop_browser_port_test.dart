@@ -317,6 +317,11 @@ Future<void> main() async {
           headers: const <String, String>{'content-type': 'text/plain'},
           body: utf8.encode('plain get'),
         ),
+        manifest.keyFor('PUT', verify, null): CapturedResponse(
+          status: 200,
+          headers: const <String, String>{'content-type': 'text/plain'},
+          body: utf8.encode('bodiless put'),
+        ),
       });
       final misses = <CaptureKey>[];
       final seen = <BrowserRequest>[];
@@ -334,6 +339,14 @@ Future<void> main() async {
       check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=2')).equals('$captureMissStatus ');
       // A GET has no body (not an empty one), so it matches a bodiless capture.
       check(await fetchFrom(s, verify.path)).equals('200 plain get');
+      // A bodiless request that still sends a Content-Type has no body (not
+      // an omitted one), so it matches a bodiless capture too.
+      check(
+        (await s.evaluate(
+          'fetch(${jsonEncode(verify.path)}, {method: "PUT", headers: {"Content-Type": "text/plain"}}) '
+          '.then(function (r) { return r.text(); })',
+        )).valueOrNull,
+      ).equals('"bodiless put"');
       final BrowserRequest post = seen.firstWhere((BrowserRequest r) => r.method == 'POST');
       check(post.body).isNotNull().deepEquals(utf8.encode('answer=1'));
       check(post.bodyOmitted).isFalse();
@@ -380,8 +393,10 @@ Future<void> main() async {
       final log = <String>[];
       final DesktopBrowserPort port = await newPort(log: log);
       final DesktopBrowserSession s = await open(port, 'a');
+      final seenUrls = <Uri>[];
       check(
         await s.setRequestReplacer((BrowserRequest r) {
+          seenUrls.add(r.url);
           return switch (r.url.path) {
             '/fail/redirect' => BrowserReplacement(
               status: 302,
@@ -399,6 +414,9 @@ Future<void> main() async {
       // A failed main-frame document settles the load instead of hanging.
       check(await s.loadUrl(server.url('/fail/document'))).isA<BrowserNavigationFailed<BrowserPage>>();
       check(server.seen.where(((String, Map<String, String>) e) => e.$1.startsWith('/fail'))).isEmpty();
+      // The rewritten request (port 1) is refused by the network stack and
+      // never comes back through the replacer.
+      check(seenUrls.where((Uri u) => u.port == 1)).isEmpty();
       check(log.where((String l) => l.contains('replacer bug'))).isNotEmpty();
       // Requests the replacer lets through still work.
       check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
@@ -541,8 +559,33 @@ Future<void> main() async {
       check(port.helperInfo!.wipeFailed).equals(1);
       check(blocked).isA<BrowserCapabilityUnavailable<void>>().has((o) => o.reason, 'reason').contains('h-999998');
       check(held.readAsStringSync()).equals('held');
+      await port.dispose();
+
+      // Within a budget, one wipe keeps retrying until the directory is
+      // released (here 500 ms in).
+      final retrying = DesktopBrowserPort(
+        DesktopWebViewConfig(
+          helperExecutable: helper,
+          dataRoot: root,
+          startupTimeout: const Duration(seconds: 60),
+          shutdownGrace: const Duration(seconds: 10),
+          allowVisibleWindows: false,
+          offline: true,
+          wipeRetry: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(retrying.dispose);
+      // Start the helper first, so the wipe request is in flight when the
+      // directory is released.
+      check(
+        await retrying.openSession(BrowserSessionRequest(source: _source('a'), generation: 1)),
+      ).isA<BrowserCompleted<BrowserSession>>();
+      check(retrying.helperInfo!.wipeFailed).equals(1);
+      final Future<BrowserOutcome<void>> wiping = retrying.wipeAllSourceData();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      check(stale.existsSync()).isTrue();
       handle.closeSync();
-      check(await port.wipeAllSourceData()).isA<BrowserCompleted<void>>();
+      check(await wiping).isA<BrowserCompleted<void>>();
       check(stale.existsSync()).isFalse();
     });
   });

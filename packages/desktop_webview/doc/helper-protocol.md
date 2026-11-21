@@ -12,7 +12,7 @@
 
 | Argument | Meaning |
 |---|---|
-| `--data-root <dir>` | Parent of per-process data directories (`h-<pid>`). Stale `h-*` directories are removed at start-up before any session opens (KTD20 start-up wipe, one attempt). Each is renamed first, so a directory a live helper's browser still holds is skipped rather than partly deleted. On Windows the helper runs in a kill-on-close job object, so its WebView2 processes end with it even when it is killed; the browser process can still take 1-110 s (measured, WebView2 157) to finish terminating and release the directory, which the `wipe` request's retry budget covers. The helper tries to remove its own directory at exit; the next wipe removes what is left. Only WebView2 uses it. |
+| `--data-root <dir>` | Parent of per-process data directories (`h-<pid>`). Stale `h-*` directories are removed at start-up before any session opens (KTD20 start-up wipe, one attempt). Each is renamed first, so a directory a live helper's browser still holds is skipped rather than partly deleted. On Windows the helper runs in a kill-on-close job object for its WebView2 processes; after a kill, the browser process can still take 1-110 s (measured, WebView2 157, cause not identified) to finish terminating and release the directory, which the `wipe` request's retry budget covers. The helper tries to remove its own directory at exit; the next wipe removes what is left. Only WebView2 uses it. |
 | `--offline` | Replay mode. Every non-loopback request that no `respond` answers is blocked with a 502 (`X-Desktop-Webview-Blocked: 1`). On WebView2, interception covers all request source kinds, and `--host-resolver-rules` keeps every host except loopback from resolving, as a backstop for traffic interception misses (WebSockets). Engines that cannot block requests refuse to start (`fatal` `offline-unsupported`) instead of falling through to the network. |
 | `--test-hooks` | Enables `debugRequestClose`. |
 | `--simulate-fatal <code>` | Test hook: report `fatal` with this code at start-up. |
@@ -72,9 +72,9 @@ The key keeps other pages' frames from being accepted. It does not stop the sess
 
 ## Request bodies and frames (WebView2)
 
-- **Bodies:** read from `Request.Content`, capped at 1 MiB (a larger body is omitted whole, never truncated), and the stream is rewound so the upload is unchanged. A request without a `Content` stream that declares a `Content-Type` and is not GET or HEAD reports `bodyOmitted` (a body WebView2 does not expose); otherwise it has no body.
+- **Bodies:** read from `Request.Content`, capped at 1 MiB (a larger body is omitted whole, never truncated), and the stream is rewound so the upload is unchanged. Probed on WebView2 157: every page body type (string, Blob, FormData with a file, URLSearchParams, Uint8Array, XHR) is exposed, and `Content` is absent only for bodiless requests, so a missing stream means no body. `bodyOmitted` is set only for an unreadable stream or the cap. `redirect` is always `false`.
 - **Main frame:** `NavigationStarting` (top-level navigations and their redirect hops) precedes the document's `WebResourceRequested`; a `document` request for a URL announced that way is the main frame's, every other request is not.
-- **Failing a held request:** WebView2 has no call that aborts a request, so the helper rewrites the request URL to `http://127.0.0.1:1/…`. Port 1 is on Chromium's restricted-port list, so the network stack refuses it without connecting, and the page sees a network error (a failed main-frame document settles `load` as `navigation-failed`). The original request is never sent.
+- **Failing a held request:** WebView2 has no call that aborts a request, so the helper rewrites the request URL to `http://127.0.0.1:1/…`. Port 1 is on Chromium's restricted-port list, so the network stack refuses it without connecting, and the page sees a network error (a failed main-frame document settles `load` as `navigation-failed`). The original request is never sent. If the rewrite fails, the request is answered with a 502 instead, never let through.
 
 ## Not supported
 
