@@ -1,23 +1,26 @@
 // The app's composition root for source runtimes (KTD14, KTD15).
 //
-// iOS branch (U15): the three local runtimes run inside the app process.
-// - Aidoku (U18): the desktop `AidokuSourceProvider` behind
-//   `IosAidokuBackend` (bundled wasm3/SwiftSoup admission, background gate).
-// - Paperback (U10): the unchanged worker in a Dart isolate
-//   (`isolatePaperbackLauncher`) with limits from the KTD25 sizing rule,
-//   measured on this device.
-// - Tachi (U9): the shared worker inside the process-lifetime embedded JVM
-//   (`IosJvmRuntime`, `IosTachiBackend`), reached through the common
-//   `TachiRuntime`.
-// Both workers share one WKWebView `BrowserPort`, each through its own
-// reverse bridge.
+// Each platform registers the same three local runtimes; only the backends
+// behind them differ:
+// - iOS (U15, conversion_composition_ios.dart): Aidoku in wasm3/SwiftSoup
+//   (`IosAidokuBackend`), Paperback in a QuickJS worker isolate, Tachi in the
+//   process-lifetime embedded JVM; one WKWebView `BrowserPort`.
+// - Android (U14, conversion_composition_android.dart): Aidoku in wasm3 and
+//   the Rust scraper (`AndroidAidokuBackend`), Paperback in a QuickJS worker
+//   isolate, Tachi APK sources in the private `:source_runtime` service
+//   process (`AndroidTachiBackend`); the app-process WebView `BrowserPort`
+//   serves Paperback, while Tachi's WebViews run inside the service.
+//
+// [LocalSourceRuntimes] holds what both share: the runtime registry, the
+// per-conversion scopes adopted by the job's `ConversionOwner`, the
+// Paperback worker isolate and secret registration.
 //
 // Everything source-related is the user's: no repository, extension or
 // settings default exists here. The app passes the repositories in each
 // `ConversionRequest`, the extension picks through its `SelectionPort`, and
-// the settings through `ConversionService.convert(settingsFor:)`.
-//
-// The Android branch arrives with U14.
+// the settings through `ConversionService.convert(settingsFor:)`. Nothing
+// starts at app launch: a platform's runtimes start when the app calls its
+// `start`, and workers start when a conversion first loads a package.
 
 import 'dart:async';
 import 'dart:io';
@@ -31,47 +34,31 @@ import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:riverpod/misc.dart' show Override;
 import 'package:source_loaders/source_loaders.dart';
 import 'package:source_runtime/source_runtime.dart';
+import 'package:source_runtime_android/source_runtime_android.dart';
 import 'package:source_runtime_ios/source_runtime_ios.dart';
 import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';
 
+part 'conversion_composition_android.dart';
+part 'conversion_composition_ios.dart';
+
 /// The worker spec of the in-app Paperback isolate (no executable runs).
-const WorkerSpec iosPaperbackWorkerSpec = WorkerSpec(
+const WorkerSpec inAppPaperbackWorkerSpec = WorkerSpec(
   label: 'paperback',
   executable: 'in-app-isolate',
 );
 
-/// Tachi limits on iOS. There is no iOS sizing rule until the KTD25
-/// benchmark runs on physical iPhones, so every value is the app's explicit
-/// choice; none is invented here.
-final class IosTachiLimits {
-  const IosTachiLimits({
-    required this.supervisor,
-    required this.nativeDeadline,
-  });
-
-  /// Supervisor limits; [SupervisorLimits.operationDeadline] is the Dart
-  /// backstop and must exceed [nativeDeadline].
-  final SupervisorLimits supervisor;
-
-  /// The native per-operation deadline (the JVM watchdog, KTD12).
-  final Duration nativeDeadline;
-}
-
-/// What the iOS runtimes run with. Production passes live clients; the
-/// integration harness passes replaying ones, so no test reaches a server.
-final class IosConversionConfig {
-  IosConversionConfig({
+/// What every platform's local runtimes run with. Production passes live
+/// clients; the integration harnesses pass replaying ones, so no test
+/// reaches a server.
+abstract base class LocalRuntimeConfig {
+  LocalRuntimeConfig({
     required this.storageRoot,
-    required this.tachiLimits,
     required this.interactionTimeout,
     http.Client? client,
     this.aidokuSiteClient,
     this.paperbackSiteClient = _liveClient,
     TachiFetch? tachiFetch,
     this.tachiPolicy = const TachiArtifactPolicy(),
-    this.tachiReplay = const <String>[],
-    this.tachiReplayHang = const <String>[],
-    this.browser = const WKWebViewBrowserConfig(),
     this.paperbackPlan,
     this.onLog,
     Redactor? redactor,
@@ -82,7 +69,6 @@ final class IosConversionConfig {
 
   /// App-private directory for artifact caches and worker state.
   final Directory storageRoot;
-  final IosTachiLimits tachiLimits;
 
   /// Bound on a visible browser interaction (`host.browser.show`).
   final Duration interactionTimeout;
@@ -100,13 +86,6 @@ final class IosConversionConfig {
   /// Tachi `repo.json`/`index.json` and artifact downloads.
   late final TachiFetch tachiFetch;
   final TachiArtifactPolicy tachiPolicy;
-
-  /// Test only: capture directories the in-VM worker replays (fail-closed),
-  /// and hosts whose replayed requests never answer.
-  final List<String> tachiReplay;
-  final List<String> tachiReplayHang;
-
-  final WKWebViewBrowserConfig browser;
 
   /// The Paperback worker plan; measured on this device when `null`.
   final PaperbackWorkerPlan? paperbackPlan;
@@ -129,106 +108,54 @@ final class IosConversionConfig {
   };
 }
 
-/// The device's local source runtimes on iOS, created once per app process
-/// ([start]) and shared by every conversion. Per-conversion scopes (the
-/// Paperback worker isolate, the Tachi worker generation, their browser
-/// bridges) are created on first use and closed by the conversion's owner
-/// ([attach]); the embedded JVM, the Aidoku backend and the browser port
-/// live as long as this object.
-final class IosSourceRuntimes {
-  IosSourceRuntimes._({
+/// The device's local source runtimes, created once per app process and
+/// shared by every conversion. Per-conversion scopes (the Paperback worker
+/// isolate, the Tachi worker, their browser bridges) are created on first
+/// use and closed by the conversion's owner ([attach]).
+abstract base class LocalSourceRuntimes {
+  LocalSourceRuntimes._({
     required this.config,
-    required this._aidoku,
-    required this._jvm,
+    required SourceOutcome<SourceProvider> aidoku,
     required this.browserPort,
     required this.paperbackPlan,
-  });
+    this.browserUnavailable,
+  }) : _aidokuProvider = aidoku;
 
-  /// Starts the long-lived parts. A runtime that cannot start is reported
-  /// by its registry probe as a typed failure; the others stay usable.
-  static Future<SourceOutcome<IosSourceRuntimes>> start(
-    IosConversionConfig config,
-  ) async {
-    if (!Platform.isIOS) {
-      return const SourceFailed<IosSourceRuntimes>(
-        RuntimeUnavailableFailure('The iOS source runtimes run on iOS only'),
-      );
-    }
-    final SourceOutcome<IosAidokuBackend> aidoku = IosAidokuBackend.register(
-      AidokuSourceProvider(httpClient: config.aidokuSiteClient),
-    );
-    final WKWebViewBrowserPort? port =
-        WKWebViewBrowserPort.unavailableReason == null
-        ? WKWebViewBrowserPort(config: config.browser)
-        : null;
-    final PaperbackWorkerPlan plan =
-        config.paperbackPlan ?? await planPaperbackIsolateWorker();
-    config.onLog?.call('[paperback] sizing ${plan.sizing.toJson()}');
-    return SourceSuccess<IosSourceRuntimes>(
-      IosSourceRuntimes._(
-        config: config,
-        aidoku: aidoku,
-        jvm: await _startJvm(config),
-        browserPort: port,
-        paperbackPlan: plan,
-      ),
-    );
-  }
+  final LocalRuntimeConfig config;
+  final SourceOutcome<SourceProvider> _aidokuProvider;
 
-  static Future<SourceOutcome<IosJvmRuntime>> _startJvm(
-    IosConversionConfig config,
-  ) async {
-    try {
-      final bundle = BundledRuntime.prepare();
-      final temp = Directory(
-        '${config.storageRoot.path}/jvm-tmp',
-      )..createSync(recursive: true);
-      return SourceSuccess<IosJvmRuntime>(
-        await IosJvmRuntime.start(
-          javaHome: bundle.javaHome,
-          options: bundle.productionOptions(tempDirectory: temp.path),
-        ),
-      );
-    } on Object catch (e) {
-      return SourceFailed<IosJvmRuntime>(
-        RuntimeUnavailableFailure(
-          config.redactor.redact('The embedded JVM did not start: $e'),
-        ),
-      );
-    }
-  }
+  /// The browser port Paperback's `executeInWebView` uses, or `null` when
+  /// the platform could not start one ([browserUnavailable] says why).
+  final BrowserPort? browserPort;
 
-  final IosConversionConfig config;
-  final SourceOutcome<IosAidokuBackend> _aidoku;
-  final SourceOutcome<IosJvmRuntime> _jvm;
+  /// Why [browserPort] is `null`, when it is.
+  final SourceFailure? browserUnavailable;
 
-  /// The shared WKWebView port, or `null` off the platform thread.
-  final WKWebViewBrowserPort? browserPort;
   final PaperbackWorkerPlan paperbackPlan;
 
   _ConversionScope? _current;
 
-  /// The Aidoku backend, once registered.
-  IosAidokuBackend? get aidoku => _aidoku.valueOrNull;
-
-  /// The embedded JVM, once started.
-  IosJvmRuntime? get jvm => _jvm.valueOrNull;
-
-  /// The current conversion's Tachi backend, once a Tachi package loaded.
-  IosTachiBackend? get tachiBackend => _current?.tachi;
-
   /// The current conversion's Paperback worker scope, once started.
   ConversionRuntimeScope? get paperbackScope => _current?.paperback;
+
+  /// Why Paperback cannot run on this device, or `null`.
+  SourceFailure? _paperbackProbe() => null;
+
+  /// Why Tachi cannot run on this device, or `null`.
+  SourceFailure? _tachiProbe();
+
+  /// The current conversion's [TachiRuntime], created in [scope].
+  SourceOutcome<TachiRuntime> _openTachi(_ConversionScope scope);
 
   /// The runtime registry for [ConversionService]: one entry per ecosystem,
   /// each probed without starting anything.
   late final RuntimeRegistry registry = RuntimeRegistry(<DestinationRuntime>[
     DestinationRuntime(
-      ecosystem: IosAidokuBackend.ecosystem,
+      ecosystem: 'aidoku',
       serves: (BackupFormat f) => f is Aidoku,
-      probe: () => _aidoku.failureOrNull,
+      probe: () => _aidokuProvider.failureOrNull,
       createLoader: (RuntimeContext context) => AidokuPluginLoader(
-        providerFactory: () => _aidoku.valueOrNull!.provider,
+        providerFactory: () => _aidokuProvider.valueOrNull!,
         client: config.client,
         onSettings: _registerSecrets,
         settingsFor: context.settingsFor,
@@ -237,6 +164,7 @@ final class IosSourceRuntimes {
     DestinationRuntime(
       ecosystem: 'paperback',
       serves: (BackupFormat f) => f is Paperback,
+      probe: _paperbackProbe,
       createLoader: (RuntimeContext context) => PaperbackPluginLoader(
         client: config.client,
         cache: ArtifactCache(
@@ -250,9 +178,9 @@ final class IosSourceRuntimes {
     DestinationRuntime(
       ecosystem: tachiTrustEcosystem,
       serves: (BackupFormat f) => f is Tachiyomi,
-      probe: () => _jvm.failureOrNull,
+      probe: _tachiProbe,
       createLoader: (RuntimeContext context) => TachiPluginLoader(
-        runtime: _IosTachiLoaderRuntime(this),
+        runtime: _TachiLoaderRuntime(this),
         onSettings: _registerSecrets,
         settingsFor: context.settingsFor,
       ),
@@ -278,27 +206,11 @@ final class IosSourceRuntimes {
     });
   }
 
-  /// App backgrounding (KTD12): pending Aidoku calls and browser operations
-  /// end as cancelled, new ones are refused, late results are discarded;
-  /// everything is usable again in the foreground.
-  void setBackgrounded(bool backgrounded) {
-    _aidoku.valueOrNull?.setBackgrounded(backgrounded);
-    browserPort?.setBackgrounded(backgrounded);
-  }
-
-  /// Follows the app lifecycle with [setBackgrounded].
-  void bindToAppLifecycle() {
-    _aidoku.valueOrNull?.bindToAppLifecycle();
-    browserPort?.bindToAppLifecycle();
-  }
-
-  /// Closes the current conversion's scopes and the browser port. The JVM
-  /// is never destroyed (KTD11).
+  /// Closes the current conversion's scopes. Platform subclasses also close
+  /// their long-lived parts.
   Future<void> close() async {
     await _current?.close();
     _current = null;
-    _aidoku.valueOrNull?.dispose();
-    await browserPort?.dispose();
   }
 
   void _registerSecrets(SettingsSnapshot settings) =>
@@ -311,6 +223,16 @@ final class IosSourceRuntimes {
     return scope == null || scope.owner.isClosed ? null : scope;
   }
 
+  SourceOutcome<TachiRuntime> _tachiRuntime() {
+    final _ConversionScope? scope = _attached();
+    if (scope == null) return _notAttached<TachiRuntime>('Tachi');
+    final TachiRuntime? existing = scope.tachiRuntime;
+    if (existing != null) return SourceSuccess<TachiRuntime>(existing);
+    final SourceOutcome<TachiRuntime> opened = _openTachi(scope);
+    scope.tachiRuntime = opened.valueOrNull;
+    return opened;
+  }
+
   Future<SourceOutcome<WorkerSupervisor>> _paperbackWorker(
     ConversionOwner? owner,
   ) async {
@@ -320,7 +242,7 @@ final class IosSourceRuntimes {
     final ConversionRuntimeScope
     workers = scope.paperback ??= ConversionRuntimeScope(
       workers: const <WorkerKind, WorkerSpec>{
-        WorkerKind.paperback: iosPaperbackWorkerSpec,
+        WorkerKind.paperback: inAppPaperbackWorkerSpec,
       },
       limits: AdoptWorkerLimits(
         handshakeDeadline: plan.handshakeDeadline,
@@ -344,42 +266,6 @@ final class IosSourceRuntimes {
       redactor: config.redactor,
     );
     return workers.worker(WorkerKind.paperback);
-  }
-
-  SourceOutcome<TachiRuntime> _tachiRuntime() {
-    final _ConversionScope? scope = _attached();
-    if (scope == null) return _notAttached<TachiRuntime>('Tachi');
-    final TachiRuntime? existing = scope.tachiRuntime;
-    if (existing != null) return SourceSuccess<TachiRuntime>(existing);
-    final IosJvmRuntime? vm = _jvm.valueOrNull;
-    if (vm == null) return SourceFailed<TachiRuntime>(_jvm.failureOrNull!);
-    final cache = ArtifactCache(
-      Directory('${config.storageRoot.path}/tachi_artifacts'),
-    );
-    final IosTachiBackend backend = scope.tachi = IosTachiBackend(
-      runtime: vm,
-      config: IosTachiConfig(
-        limits: config.tachiLimits.supervisor,
-        nativeDeadline: config.tachiLimits.nativeDeadline,
-        stateRoot: Directory('${config.storageRoot.path}/tachi_state')
-          ..createSync(recursive: true),
-        cache: cache,
-        replay: config.tachiReplay,
-        replayHang: config.tachiReplayHang,
-        browser: browserPort != null,
-      ),
-      browserPort: browserPort,
-      onLog: _log,
-    );
-    final runtime = TachiRuntime(
-      worker: backend.worker,
-      store: TachiArtifactStore(cache: cache, fetch: config.tachiFetch),
-      catalog: TachiCatalog(config.tachiFetch),
-      policy: config.tachiPolicy,
-      hostCompatibility: iosTachiHostCompatibility,
-    );
-    scope.tachiRuntime = runtime;
-    return SourceSuccess<TachiRuntime>(runtime);
   }
 
   /// The identity of [sourceId] in a package the scope's worker hosts now.
@@ -416,20 +302,22 @@ final class _ConversionScope {
 
   final ConversionOwner owner;
   ConversionRuntimeScope? paperback;
-  IosTachiBackend? tachi;
   TachiRuntime? tachiRuntime;
+
+  /// Closes the platform's Tachi worker scope.
+  Future<void> Function()? closeTachi;
   Future<void>? _closing;
 
   Future<void> close() => _closing ??= () async {
     await paperback?.close();
-    await tachi?.close();
+    await closeTachi?.call();
   }();
 }
 
-final class _IosTachiLoaderRuntime implements TachiLoaderRuntime {
-  _IosTachiLoaderRuntime(this._runtimes);
+final class _TachiLoaderRuntime implements TachiLoaderRuntime {
+  _TachiLoaderRuntime(this._runtimes);
 
-  final IosSourceRuntimes _runtimes;
+  final LocalSourceRuntimes _runtimes;
 
   @override
   TachiFetch get fetch => _runtimes.config.tachiFetch;
@@ -441,11 +329,23 @@ final class _IosTachiLoaderRuntime implements TachiLoaderRuntime {
   SourceOutcome<TachiRuntime> runtime() => _runtimes._tachiRuntime();
 }
 
-/// The app's [conversionServiceProvider] on iOS: the local runtimes in
-/// [runtimes] and the app's remembered repository trust in [trustStore].
-Override iosConversionServiceOverride(
-  IosSourceRuntimes runtimes, {
+/// The app's [conversionServiceProvider] over a platform's local runtimes
+/// and the app's remembered repository trust in [trustStore].
+Override localConversionServiceOverride(
+  LocalSourceRuntimes runtimes, {
   TrustStore? trustStore,
 }) => conversionServiceProvider.overrideWithValue(
   runtimes.service(trustStore: trustStore),
 );
+
+/// The app's [conversionServiceProvider] on iOS.
+Override iosConversionServiceOverride(
+  IosSourceRuntimes runtimes, {
+  TrustStore? trustStore,
+}) => localConversionServiceOverride(runtimes, trustStore: trustStore);
+
+/// The app's [conversionServiceProvider] on Android.
+Override androidConversionServiceOverride(
+  AndroidSourceRuntimes runtimes, {
+  TrustStore? trustStore,
+}) => localConversionServiceOverride(runtimes, trustStore: trustStore);

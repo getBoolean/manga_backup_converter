@@ -52,16 +52,33 @@ final class AndroidPaperbackBackend {
   }) {
     if (paperback.ecosystem != ecosystem) {
       return SourceFailed<AndroidPaperbackBackend>(
-        RuntimeUnavailableFailure('Expected a "$ecosystem" provider, got "${paperback.ecosystem}"'),
+        RuntimeUnavailableFailure(
+          'Expected a "$ecosystem" provider, got "${paperback.ecosystem}"',
+        ),
       );
     }
+    final RuntimeUnavailableFailure? unavailable = checkNativeLibrary(
+      loadLibrary: loadLibrary,
+    );
+    if (unavailable != null) return SourceFailed<AndroidPaperbackBackend>(unavailable);
+    return SourceSuccess<AndroidPaperbackBackend>(
+      AndroidPaperbackBackend._(paperback, browser),
+    );
+  }
+
+  /// The admission check alone, for composition roots whose loader builds
+  /// its own provider: `null` when [paperbackNativeLibrary] loads in this
+  /// process, otherwise a failure naming it.
+  static RuntimeUnavailableFailure? checkNativeLibrary({
+    NativeLibraryLoader loadLibrary = _dlopen,
+  }) {
     try {
       loadLibrary(paperbackNativeLibrary);
+      return null;
     } on Object catch (e) {
-      return SourceFailed<AndroidPaperbackBackend>(
-        RuntimeUnavailableFailure('Paperback runtime unavailable: $paperbackNativeLibrary did not load ($e)'),
+      return RuntimeUnavailableFailure(
+        'Paperback runtime unavailable: $paperbackNativeLibrary did not load ($e)',
       );
     }
-    return SourceSuccess<AndroidPaperbackBackend>(AndroidPaperbackBackend._(paperback, browser));
   }
 }
