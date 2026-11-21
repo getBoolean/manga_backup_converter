@@ -53,7 +53,7 @@ const List<BundleWorkload> bundleWorkloads = <BundleWorkload>[
   BundleWorkload('numby-0.8', 'WeebCentral', _v08, 'weebcentral', 'load'),
   BundleWorkload('numby-0.8', 'WeebCentral', _v08, 'weebcentral', 'search'),
   BundleWorkload('numby-0.8', 'WeebCentral', _v08, 'weebcentral', 'details', mangaId: _onimaiWc),
-  BundleWorkload('neihc1002-0.8', 'Mangadex', _v08, 'mangadex', 'load'),
+  BundleWorkload('community-0.8', 'MangaDex', _v08, 'mangadex', 'load'),
   BundleWorkload('inkdex-0.9', 'MangaFire', _v09, 'mangafire', 'load'),
 ];
 

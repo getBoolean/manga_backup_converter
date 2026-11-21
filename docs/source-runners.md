@@ -266,11 +266,12 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 | Repository | Catalog | `builtWith.types` | API family | Licence |
 |---|---|---|---|---|
 | Inkdex `https://inkdex.github.io/extensions/0.9/stable/` | 68 sources | `1.0.0-alpha.94` | 0.9 | GPL-3.0 (source repos `inkdex/general-extensions`); the catalog repo declares none |
-| neihc1002 `https://neihc1002.github.io/paperback/0.8/` | 8 sources | `0.8.0-alpha.47` | 0.8 | none declared (flagged) |
 | GabrielCWT `https://gabrielcwt.github.io/gabe-extensions/0.8/` | 2 sources | `0.8.0-alpha.47` | 0.8 | none declared (flagged) |
 | numby `https://g2asell2019.github.io/numby-extensions/0.8/` | 2 sources | `0.8.7` | 0.8 | GPL-3.0 |
 | Netsky `https://thenetsky.github.io/netskys-extensions/0.8/` | 14 sources (catalog only) | `0.8.7` | 0.8 | see repository |
 | Paperback default `https://paperback-ios.github.io/extensions-default/0.8/` | 1 source (catalog only) | `0.8.0-alpha.47` | 0.8 | see repository |
+| Netsky community `https://thenetsky.github.io/community-extensions/0.8/` | 5 sources | `0.8.7` | 0.8 | GPL-3.0 |
+| kittycatgit `https://paperback.samipmainali.dev/kitty-0.8/` (source repo `kittycatgit/kitty-extensions-0.8`) | 8 sources | `0.8.7` | 0.8 | no licence file; source headers say GPL-3.0-or-later |
 
 - **API family** comes from `builtWith.types`: `0.8.x` is the 0.8 API, `1.0.0-alpha.x` is the app's 0.9 API.
   Any other version is refused as `unsupported-api`.
@@ -283,19 +284,60 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 
 | Qualification source | `paperback-0.8` | `paperback-0.9` |
 |---|---|---|
-| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed). Search and details ran, but MangaDex answered both with its edge browser challenge (`302` to `mangadex.org/edge/challenge`, POWBlock proof of work), and the source fails on the HTML. **Open cell** (below) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
+| MangaDex | Netsky community `MangaDex` 3.0.6 (GPL-3.0): search (2 hits, first the Onimai title), next page (empty), details, 223 chapters (replayed). Chapter IDs are identical to the 0.9 bundle's | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
 | WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
-| MangaFire | **Missing cell.** No surveyed 0.8 catalog lists MangaFire: Paperback default 0.8, Netsky 0.8, neihc1002 0.8, GabrielCWT 0.8 and numby 0.8 (SHA-256 in each `artifacts.json`). Not substituted; it needs an explicit coverage revision | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
+| MangaFire | **Substitute:** no surveyed 0.8 catalog lists MangaFire, so the cell is kittycatgit `Mangahub` 4.0.0, a Cloudflare-fronted site (`CLOUDFLARE_BYPASS_REQUIRED`). Search, details of the Onimai title, 176 chapters (replayed); Cloudflare did not challenge either capture session. The challenge and bypass paths are proven with synthetic challenge answers and a scripted `BrowserPort` (below) | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
 
 Chapter identities are the site's own and identical across families: WeebCentral's first chapter is
 `01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
 
-**MangaDex 0.8 cell.** The 0.8 bundle sets `user-agent` to the host's `getDefaultUserAgent()` (a mobile Safari
-string) and `referer: https://mangadex.org`. The 0.9 bundle also sends a `referer` but no user agent (so the
-HTTP client's default), and was not challenged in the same
-capture session. The likely trigger is a browser user agent on a client that runs no JavaScript; this is not
-verified, because one capture run per source was authorised. Re-capture with a different `getDefaultUserAgent()`
-once a second run is approved, or treat MangaDex's challenge as `interaction-required` at the U8 browser join.
+**MangaDex 0.8 cell.** The cell first used neihc1002 `Mangadex` 1.0.0, an unlicensed bundle configured for
+Vietnamese that returned no search hit for Onimai. It was replaced on 2026-11-21 by Netsky community `MangaDex`
+3.0.6, and the neihc1002 repository was removed from the fixtures (no test used it any more). The community bundle
+sets only a `referer`, so the host sends `Paperback-iOS`; its single capture session was not challenged. The
+first neihc1002 run had met MangaDex's edge challenge (`302` to `mangadex.org/edge/challenge`) while its
+interceptor echoed `getDefaultUserAgent()`, a mobile Safari string; a re-run without that user agent was not
+challenged. That is why the 0.8 adapter sends no user agent when a source echoes `getDefaultUserAgent()` (a
+missing one becomes `Paperback-iOS`, a source-chosen one is sent unchanged). `getDefaultUserAgent()` still reports
+the browser string in both families.
+
+**Mangahub (0.8 Cloudflare substitute).** kittycatgit `Mangahub` 4.0.0 talks to `https://mangahub.io/graphql`.
+Every query carries an access token twice, as the `mhub_access` cookie and the `x-mhub-access` header, and the API
+rejects a request where they differ. The source mints a token until the site sets one, then uses the site's. Its
+interceptor echoes `getDefaultUserAgent()`, throws `Error("CLOUDFLARE BYPASS ERROR: …")` on a challenge page
+(`cf-mitigated: challenge`, or 403/503 with challenge markers), and reads `set-cookie` from `response.headers`.
+The captures search `Oshimai`, a word of Mangahub's title "Onii-Chan wa Oshimai" (`Onimai` was not tried). The 11
+hits start with another title (`oshimai`), so the Mangahub bundle names its hit (`PinnedBundle.targetMangaId`) and
+the scenario fetches `onii-chan-wa-oshimai` by ID, not the first hit: "Onii-Chan wa Oshimai", Nekotoufu, ongoing,
+176 chapters (chapters 1–117 and 59 fractional entries, a few titled `<deleted>`), the first being chapter
+`117`. Both capture sessions (2026-11-21, 3 requests each, at least 1.5 s apart) were not challenged. Replay keys
+ignore request headers and captures drop `Set-Cookie`, so in replay the source runs on its own minted token.
+
+Tests (`cloudflare08_test.dart` with handwritten bundles, and the Mangahub group in `source_execution_test.dart`
+with the real bundle over the committed capture) show:
+
+- a challenge without a browser fails as `interaction-required`, both when the bundle throws its Cloudflare error
+  and when it just fails to parse the challenge page (the host flags the challenge for the operation);
+- with the intent, a browser channel and `getCloudflareBypassRequestAsync()`, the host loads the bypass request in
+  a browser session (headers kept, an echoed default user agent dropped so the browser keeps its own), seeds the
+  cookies it holds for that domain, waits for the challenge to clear (8 s on its own, then `host.browser.show`),
+  reads back the session's cookies and `navigator.userAgent`, closes the session, and retries the operation once.
+  A scripted port that "solves" the challenge lets Mangahub's search, details and chapters complete against a
+  synthetic gate that challenges until a request carries `cf_clearance` and the browser's user agent;
+- the clearance stays for the runtime: later operations need no browser;
+- an unsolved challenge, no display, or a retry challenged again ends as `interaction-required` with one browser
+  session and at most one retry; without the intent the browser is never used;
+- the same holds on the desktop path (provider, supervisor, worker reverse requests): a challenged search ends the
+  scenario as `interaction-required`, and with a solving port the scenario completes, `show` being served under
+  the supervisor's interaction timeout;
+- with a `Set-Cookie: mhub_access=…` added to the first replayed answer, every request carries exactly one
+  `mhub_access` cookie equal to its `x-mhub-access` header, and the site's token replaces the minted one; after a
+  bypass whose browser also holds an `mhub_access`, the request's own token still wins.
+
+Not yet proven: a real challenge solved in a real browser (U8), whether the site accepts the browser's user agent
+when the engine's client hints disagree, and when `host.browser.show` completes (window close or only the bound).
+The worker's engine deadline keeps running during `show` (only the supervisor's deadline pauses), so a slow user
+can exceed it.
 
 ### Trust and admission (KTD6)
 
@@ -324,15 +366,15 @@ reference runtime, `@paperback/runtime-polyfills` 0.8.7 and 1.0.0-alpha.94 (MIT)
 
 | Capability | 0.8 (`App`) | 0.9 (`Application`) |
 |---|---|---|
-| Requests | `createRequestManager().schedule`: `interceptRequest`, then `url + param`, then `interceptResponse` on the packed `Response` (`data` as UTF-8, `rawData` as bytes). Object bodies are form-encoded when the content type says so, otherwise JSON. A non-2xx status resolves, since sources check `status` | `scheduleRequest` returns `[Response, ArrayBuffer]`. Request interceptors run in registration order, each given the previous result; response interceptors run in reverse order. Object bodies are sent as multipart form data |
+| Requests | `createRequestManager().schedule`: `interceptRequest`, then `url + param`, then `interceptResponse` on the packed `Response` (`data` as UTF-8, `rawData` as bytes, `headers['set-cookie']` as an array, as axios reports it). A missing user agent becomes `Paperback-iOS`; an echoed `getDefaultUserAgent()` is not sent, except on a domain cleared through the browser, where a missing or echoed user agent becomes the browser's (the clearance is bound to it). Object bodies are form-encoded when the content type says so, otherwise JSON. A non-2xx status resolves, since sources check `status` | `scheduleRequest` returns `[Response, ArrayBuffer]`. Request interceptors run in registration order, each given the previous result; response interceptors run in reverse order. Object bodies are sent as multipart form data |
 | Redirects | followed hop by hop (at most 5) | followed hop by hop through `setRedirectHandler`, which may replace or cancel the next hop |
-| Cookies | `request.cookies` plus an in-memory manager cookie store (`cookieStore`), fed by every hop's `Set-Cookie` | `request.cookies` becomes one `Cookie` header; `Set-Cookie` becomes `response.cookies`; cookies set by a redirect hop travel with the next hop |
+| Cookies | one value per name: a browser clearance's cookies, then an in-memory manager cookie store (`cookieStore`, fed by every hop's `Set-Cookie`), then `request.cookies`, which win (a source that pairs a cookie with a header never sends a stale second copy) | `request.cookies` becomes one `Cookie` header; `Set-Cookie` becomes `response.cookies`; cookies set by a redirect hop travel with the next hop |
 | Rate limits | `requestsPerSecond` spacing on JS timers | the bundles' own `BasicRateLimiter` over `Application.sleep` |
 | Timers | `setTimeout`, `setInterval`, `clear*`, `queueMicrotask`. State lives in JS and the host call is a re-armable wake-up, so a sleep parked at the end of one operation settles in the next | same |
 | State | `createSourceStateManager` (`store`, `retrieve`, `keychain`) | `get/setState`, `get/setSecureState`, `resetAllState` |
 | Settings | protocol 1.1 settings seed state per source: string sets as arrays, source scopes override package values. Secrets seed only the keychain/secure state, in memory (KTD9) | same |
 | Parser | pinned Cheerio 1.0.0-rc.12 injected (the toolchain's `^1.0.0-rc.12`), `entities` 4.5.0 | the bundles' own Cheerio; `decodeHTMLEntities` is `entities.decodeHTMLStrict` |
-| Browser | not part of the 0.8 API | `executeInWebView`: open a source-scoped session, seed the context's cookies, `loadData(html, baseUrl)`, run `inject` as an async function, return its result and the session's cookies, close (storage deleted). The result travels back on the 1.1 message channel, because `BrowserPort.evaluate` does not promise to await a promise |
+| Browser | Cloudflare only: a challenge (bundle error `CLOUDFLARE BYPASS ERROR…`, or a 403/503 challenge page or `cf-mitigated: challenge` seen by the operation) is `interaction-required`. With `SourceIntents.CLOUDFLARE_BYPASS_REQUIRED` and a browser channel, `getCloudflareBypassRequestAsync()` runs in a source-scoped session (host cookies seeded, cookies and `navigator.userAgent` read back, storage deleted), the clearance is kept for the runtime, and the operation is retried once | `executeInWebView`: open a source-scoped session, seed the context's cookies, `loadData(html, baseUrl)`, run `inject` as an async function, return its result and the session's cookies, close (storage deleted). The result travels back on the 1.1 message channel, because `BrowserPort.evaluate` does not promise to await a promise |
 | Other members | `create*` factories return their argument; `createDUI*` rows carry `type` | any other `Application` member exists but throws a named `capability-unavailable` |
 | Not provided | Node `fs` and process, QuickJS `std`/`os` | same; WebCrypto (`crypto_digest` and friends) is a named capability failure |
 
@@ -348,13 +390,28 @@ absolute URLs themselves, and a test pins that behaviour.
 
 ### Captures
 
-`fixtures/source_captures/paperback/{mangadex,weebcentral,mangafire}/` were recorded on 2026-11-21 by
+`fixtures/source_captures/paperback/{mangadex,weebcentral,mangafire,mangahub}/` were recorded on 2026-11-21 by
 `tool/capture_paperback_sources.dart` through the worker's `--record` mode. One worker session per site ran every
-pinned bundle of that site, from both families, for the fixed query `Onimai`, with requests at least 1.5 s apart.
+pinned bundle of that site, from both families, for the fixed query `Onimai` (Mangahub: `Oshimai`, below), with requests at least 1.5 s apart.
 `scenario.json` beside each capture records what each bundle returned. Bodies were sanitised
 (`tool/sanitize_captures.dart`): MangaDex's challenge page embedded a token carrying the recording client's network
 address, and Cloudflare snippets carried ray IDs. Tests and the e2e suite replay with `--replay`; a request without
 a capture fails the operation loudly, even when the source catches the error.
+
+`mangahub/` was first recorded on 2026-11-21 in one session (3 exchanges, JSON API responses) whose details and
+chapters were those of the first hit, `oshimai`. After the scenario was changed to select `onii-chan-wa-oshimai`, a
+second session (`--only=kittycatgit-0.8/Mangahub --out=<temp>`, then `--merge=<temp>`; 3 requests, no challenge)
+re-recorded the search (an identical body) and added that title's details and chapters, and `--prune` deleted the 2
+`oshimai` exchanges. The sanitiser found nothing to strip in either session, and no token, address or ray ID is in
+the bodies. The sanitiser now also blanks Cloudflare interstitial
+tokens (`cRay`, `__cf_chl_*`, and the opaque `_cf_chl_opt` values) in case a later session is challenged.
+
+The MangaDex 0.8 cell's exchanges come from second sessions that ran one bundle each
+(`capture_paperback_sources.dart mangadex --only=<repo>/<id> --out=<temp>`, then `--merge=<temp>`). The
+community `MangaDex` 3.0.6 session (2026-11-21, 4 requests, no challenge) was merged in; it re-requested the
+details exchange the Inkdex bundle shares, whose body was replaced (the Inkdex assertions still hold). The retired
+neihc1002 bundle's run was then removed from `scenario.json` (`--drop`), and `--prune` replayed the remaining
+bundles offline and deleted the 2 exchanges no bundle requests any more. `capture.json` notes each step.
 
 ### Limits (KTD25)
 
@@ -370,7 +427,7 @@ instant for CPU timing (they are host waits). Reference device: Windows 11 x64, 
 | WeebCentral 0.9 load / search / details | 119 / 29 / 1,143 ms | 134 / 39 / 1,701 ms | 4.6 / 4.6 / 6.5 MB | 67 / 212 / 212 KB |
 | WeebCentral 0.8 (GabrielCWT) load / search / details | 90 / 52 / 1,205 ms | 112 / 79 / 2,389 ms | 3.7 / 3.8 / 5.8 MB | 133 / 212 / 212 KB |
 | WeebCentral 0.8 (numby) load / search / details | 683 / 83 / 1,152 ms | 1,118 / 176 / 1,856 ms | 6.3 / 6.4 / 7.5 MB | 71 / 212 / 212 KB |
-| MangaDex 0.8 load, MangaFire 0.9 load | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
+| MangaDex 0.8 load (the retired neihc1002 bundle; the workload now loads community 3.0.6, not yet re-run), MangaFire 0.9 load | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
 
 - **Profile** (`paperbackBundleProfile`, replacing U5's synthetic one): peak heap 9.71 MB (MangaDex details mapping
   a 1 MB chapter feed), peak stack 217 KB (Cheerio and parse5 over WeebCentral pages), slowest operation 2.39 s

@@ -10,23 +10,71 @@
   const plain = globalThis.__pbPlain;
   const sources = {};
 
+  // 0.9 throws `CloudflareError`; 0.8 sources throw a plain error whose
+  // message starts with the conventional "CLOUDFLARE BYPASS ERROR" (the 0.8
+  // app's own wording, which bundles copy).
+  function isCloudflareError(e) {
+    if (e && (e.type === 'cloudflareError' || e.name === 'CloudflareError')) return true;
+    return /^\s*cloudflare bypass error/i.test(String((e && e.message) || e));
+  }
+
   function failureOf(e) {
     const message = String((e && e.message) || e);
-    if (e && (e.type === 'cloudflareError' || e.name === 'CloudflareError')) {
+    if (isCloudflareError(e)) {
       return { code: 'interaction-required', message: 'The source requires a Cloudflare bypass: ' + message };
     }
     const tagged = /^\[([a-z-]+)\]\s*(.*)$/s.exec(message);
     if (tagged) return { code: tagged[1], message: tagged[2] };
     const name = (e && e.name) || 'Error';
+    // A failure in an operation that met a challenge page is the challenge,
+    // whatever the source made of the page ("not JSON", a parse error).
+    const challenge = globalThis.__pbApi.challenge ? globalThis.__pbApi.challenge() : null;
+    if (challenge) {
+      return {
+        code: 'interaction-required',
+        message: 'Cloudflare challenged ' + challenge.url + ' (HTTP ' + challenge.status + '); the source failed with ' +
+          name + ': ' + message,
+      };
+    }
     return { code: 'source-error', message: name + ': ' + message, stack: e && e.stack ? String(e.stack) : undefined };
+  }
+
+  function resetChallenge() {
+    if (globalThis.__pbApi.resetChallenge) globalThis.__pbApi.resetChallenge();
   }
 
   async function guard(body) {
     globalThis.__pbTimers.rearm();
+    resetChallenge();
     try {
       return { ok: plain(await body()) };
     } catch (e) {
       return { failure: failureOf(e) };
+    } finally {
+      resetChallenge();
+    }
+  }
+
+  // 0.8 `SourceIntents.CLOUDFLARE_BYPASS_REQUIRED`.
+  const CLOUDFLARE_BYPASS_REQUIRED = 16;
+  const intents = {};
+
+  // Runs [body]; when it fails on a Cloudflare challenge and the source
+  // declares the bypass intent, runs the source's bypass request through the
+  // host browser once and retries once. A second challenge is final.
+  async function withBypass(id, body) {
+    try {
+      return await body();
+    } catch (e) {
+      const api = globalThis.__pbApi;
+      const source = sources[id];
+      const challenged = isCloudflareError(e) || (api.challenge && api.challenge() !== null);
+      if (!challenged || !api.canBypass || !((intents[id] || 0) & CLOUDFLARE_BYPASS_REQUIRED) || !api.canBypass(source)) {
+        throw e;
+      }
+      await api.bypass(source);
+      resetChallenge();
+      return await body();
     }
   }
 
@@ -70,6 +118,7 @@
         if (typeof lib[key] !== 'function' || !info || typeof info !== 'object') continue;
         const instance = new lib[key](globalThis.__pbLib.cheerio);
         sources[key] = instance;
+        if (typeof info.intents === 'number') intents[key] = info.intents;
         out.push({
           sourceId: key,
           name: str(info.name) || key,
@@ -222,6 +271,10 @@
         return list;
       });
   globalThis.__pbOpsSearch = (id, title, metadataJson) =>
-    guard(() => family().search(sourceFor(id), title, metadataJson == null ? undefined : JSON.parse(metadataJson)));
-  globalThis.__pbOpsDetails = (id, mangaId) => guard(() => family().details(sourceFor(id), mangaId));
+    guard(() =>
+      withBypass(id, () =>
+        family().search(sourceFor(id), title, metadataJson == null ? undefined : JSON.parse(metadataJson)),
+      ),
+    );
+  globalThis.__pbOpsDetails = (id, mangaId) => guard(() => withBypass(id, () => family().details(sourceFor(id), mangaId)));
 })();

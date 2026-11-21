@@ -45,21 +45,52 @@
       }
     },
     {
-      "bundle": "neihc1002-0.8/Mangadex",
+      "bundle": "community-0.8/MangaDex",
       "apiFamily": "paperback-0.8",
-      "sha256": "20a21b1400675cbd830cff42357dd81f2b751f90da5f1599d2e4a5de0d08f8db",
+      "sha256": "46b05f31335349aeacc410df264e9f211e23da5d11c131a18883935e84627b68",
       "search": {
-        "failure": {
-          "code": "source-error",
-          "message": "SyntaxError: unexpected token: '<'"
-        }
+        "hits": 2,
+        "first": {
+          "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+          "title": "Onii-chan wa Oshimai!"
+        },
+        "nextCursor": "{\"offset\":100}"
+      },
+      "searchPage2": {
+        "hits": 0,
+        "nextCursor": null
       },
       "details": {
-        "failure": {
-          "code": "source-error",
-          "message": "SyntaxError: unexpected token: '<'"
+        "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+        "title": "Onii-chan wa Oshimai!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 223,
+        "firstChapter": {
+          "chapterId": "3d1ff2d6-d917-4b81-b69e-44c41867e356",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 223,
+            "group": "daily multivitamin",
+            "langCode": "🇬🇧"
+          },
+          "title": "Mahiro and a Manly Job",
+          "chapterNumber": 117.0,
+          "volumeNumber": 0.0,
+          "scanlators": [
+            "daily multivitamin"
+          ],
+          "language": "🇬🇧",
+          "dateUploaded": "2026-10-30T23:59:31.000Z",
+          "url": null
         }
       }
     }
-  ]
+  ],
+  "rerecorded": {
+    "community-0.8/MangaDex": "2026-11-21T07:57:28.954211Z"
+  }
 }

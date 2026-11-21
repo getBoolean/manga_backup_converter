@@ -45,7 +45,9 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
       request.settings,
       cancel: cancel,
     );
-    final bool usesBrowser = _mentionsWebView(bytes);
+    final bool usesBrowser = _mentions(bytes, 'executeInWebView');
+    // A 0.8 Cloudflare bypass needs the browser only when a challenge appears.
+    final bool bypasses = _mentions(bytes, 'getCloudflareBypassRequestAsync');
     _packages[runtime] = _Package(host, request.settings.revision);
     return PackageLoadResponse(
       sources: <LoadedSource>[
@@ -60,7 +62,7 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
                 SourceOperation.mangaDetails,
                 SourceOperation.chapterList,
                 SourceOperation.settings,
-                if (usesBrowser && browser != null) SourceOperation.browser,
+                if ((usesBrowser || bypasses) && browser != null) SourceOperation.browser,
               },
               apiFamilies: <String>{host.family.wire},
               requiresBrowser: usesBrowser,
@@ -157,8 +159,7 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
     }
   }
 
-  static bool _mentionsWebView(Uint8List bytes) {
-    const needle = 'executeInWebView';
+  static bool _mentions(Uint8List bytes, String needle) {
     final List<int> n = needle.codeUnits;
     outer:
     for (var i = 0; i + n.length <= bytes.length; i++) {

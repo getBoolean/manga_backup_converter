@@ -27,6 +27,16 @@ final List<(RegExp, String)> _rules = <(RegExp, String)>[
   (RegExp('(<pre id=c style=display:none>)[^<]*(</pre>)'), r'$1REDACTED-CLIENT-TOKEN$2'),
   (RegExp(r"(__CF\$cv\$params=\{r:')[0-9a-f]+(')"), r'$10000000000000000$2'),
   (RegExp(r'(\bray=)[0-9a-f]{16}\b'), r'$10000000000000000'),
+  // Cloudflare interstitials (`window._cf_chl_opt`): the ray ID, and the
+  // per-request challenge tokens, which are bound to the requesting client.
+  (RegExp(r"""(\bcRay\s*:\s*['"])[0-9a-f]+(['"])"""), r'$10000000000000000$2'),
+  (
+    RegExp(
+      r"""(\b(?:cH|md|cUPMDTk|chlApiRcV|chlApivId|cFPWv|cTplB|cTplC|cTplO|cvId|cZone|cType|cITimeS)\s*:\s*['"])[^'"]*(['"])""",
+    ),
+    r'$1REDACTED$2',
+  ),
+  (RegExp('(__cf_chl_(?:tk|rt_tk|f_tk|jschl_tk__|captcha_tk__|managed_tk__)=)[A-Za-z0-9._~-]+'), r'$1REDACTED'),
 ];
 
 final RegExp _ipv4 = RegExp(r'(?<![\d.])(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?![\d.])');

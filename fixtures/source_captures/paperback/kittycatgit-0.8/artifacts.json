@@ -1,0 +1,28 @@
+{
+  "repository": "https://paperback.samipmainali.dev/kitty-0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T07:20:19Z",
+  "licence": "no licence file (github.com/kittycatgit/kitty-extensions-0.8); the source headers declare GPL-3.0-or-later (SPDX-License-Identifier in src/Mangahub/*.ts); held only as interoperability test evidence",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://paperback.samipmainali.dev/kitty-0.8/versioning.json",
+    "sha256": "905f741c08e4a22a092ac16e8f2f34f90d43df819de9f584f7633ffde283ec69",
+    "size": 2314,
+    "builtWith": {
+      "toolchain": "0.8.7",
+      "types": "0.8.7"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "Mangahub",
+      "version": "4.0.0",
+      "contentRating": "ADULT",
+      "path": "Mangahub/source.js",
+      "sourceUrl": "https://paperback.samipmainali.dev/kitty-0.8/Mangahub/source.js",
+      "sha256": "557bb6eca3576b4f90bab83fb14212c2022b90cb97d740562a9107aece671390",
+      "size": 66395,
+      "licence": "no licence file (github.com/kittycatgit/kitty-extensions-0.8); the source headers declare GPL-3.0-or-later (SPDX-License-Identifier in src/Mangahub/*.ts); held only as interoperability test evidence"
+    }
+  ]
+}

@@ -12,10 +12,15 @@ import 'package:source_runtime/source_runtime.dart';
 /// cannot express it would.
 final class ScriptedBrowserPort implements BrowserPort {
   ScriptedBrowserPort({
-    required this.respond,
+    this.respond = _noResult,
     this.evaluateUnavailable = false,
     this.setCookiesOnLoad = const <BrowserCookie>[],
+    this.probe,
+    this.onShow,
+    this.userAgent = 'ScriptedBrowser/1.0',
   });
+
+  static Object? _noResult(ScriptedPage page) => null;
 
   /// The injected function's result for a page, as JSON-able data.
   final Object? Function(ScriptedPage page) respond;
@@ -23,6 +28,19 @@ final class ScriptedBrowserPort implements BrowserPort {
 
   /// Cookies the "page" sets while loading (for example a challenge cookie).
   final List<BrowserCookie> setCookiesOnLoad;
+
+  /// The value a plain `evaluate` (no result channel) returns for a page,
+  /// as JSON-able data: what a page-inspecting script would compute (for
+  /// example whether a challenge is still shown). `null` evaluates to `null`.
+  final Object? Function(ScriptedPage page)? probe;
+
+  /// Runs when the host shows the page for an interaction; the user's
+  /// actions (solving a challenge, closing the window) mutate the page. The
+  /// default reports that no display is available.
+  final BrowserOutcome<void> Function(ScriptedPage page)? onShow;
+
+  /// The engine's own user agent (`navigator.userAgent` without an override).
+  final String userAgent;
 
   final List<ScriptedPage> pages = <ScriptedPage>[];
   final List<String> closed = <String>[];
@@ -48,6 +66,15 @@ final class ScriptedPage {
   final String? userAgent;
   String? html;
   Uri? baseUrl;
+
+  /// URLs loaded with `loadUrl`, with the headers sent.
+  final List<(Uri, Map<String, String>)> loads = <(Uri, Map<String, String>)>[];
+
+  /// Free-form page state for scripted probes (for example `challenged`).
+  final Map<String, Object?> state = <String, Object?>{};
+
+  /// Times the page was shown for an interaction.
+  int shown = 0;
   final Map<String, BrowserCookie> cookies = <String, BrowserCookie>{};
   final List<String> scripts = <String>[];
 }
@@ -87,7 +114,13 @@ final class _Session implements BrowserSession {
     Uri url, {
     Map<String, String> headers = const <String, String>{},
     CancellationToken? cancel,
-  }) async => BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: url, statusCode: 200));
+  }) async {
+    _page.loads.add((url, Map<String, String>.of(headers)));
+    for (final BrowserCookie c in _port.setCookiesOnLoad) {
+      _page.cookies[c.name] = c;
+    }
+    return BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: url, statusCode: 200));
+  }
 
   @override
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel}) async {
@@ -99,8 +132,10 @@ final class _Session implements BrowserSession {
     if (post != null) {
       final Object? result = _port.respond(_page);
       Future<void>.delayed(const Duration(milliseconds: 5), () => post(jsonEncode(<String, Object?>{'ok': result})));
+      return const BrowserCompleted<String>('true');
     }
-    return const BrowserCompleted<String>('true');
+    final Object? Function(ScriptedPage page)? probe = _port.probe;
+    return BrowserCompleted<String>(jsonEncode(probe == null ? null : probe(_page)));
   }
 
   /// The scripted engine reports no optional protocol 1.2 features.
@@ -144,8 +179,11 @@ final class _Session implements BrowserSession {
       const BrowserCompleted<void>(null);
 
   @override
-  Future<BrowserOutcome<void>> showForInteraction({required Duration timeout, CancellationToken? cancel}) async =>
-      const BrowserInteractionRequired<void>('no display in tests');
+  Future<BrowserOutcome<void>> showForInteraction({required Duration timeout, CancellationToken? cancel}) async {
+    _page.shown++;
+    final BrowserOutcome<void> Function(ScriptedPage page)? onShow = _port.onShow;
+    return onShow == null ? const BrowserInteractionRequired<void>('no display in tests') : onShow(_page);
+  }
 
   @override
   Future<BrowserOutcome<void>> close() async {

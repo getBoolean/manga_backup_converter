@@ -9,9 +9,21 @@ import 'package:source_runtime/source_runtime.dart';
 /// same title the Aidoku and Tachi captures use).
 const String qualificationQuery = 'Onimai';
 
+/// Sites whose catalogue does not answer [qualificationQuery] search the
+/// same title by another of its names.
+const Map<String, String> siteQueries = <String, String>{
+  // Mangahub lists the title as "Onii-Chan wa Oshimai". "Onimai" was not
+  // tried; "Oshimai" was chosen as a word of that title. It also matches other
+  // titles, so the Mangahub bundle names its hit ([PinnedBundle.targetMangaId]).
+  'mangahub': 'Oshimai',
+};
+
+/// The query [site]'s scenario searches.
+String queryFor(String site) => siteQueries[site] ?? qualificationQuery;
+
 /// A pinned bundle under `fixtures/source_captures/paperback/<repoDir>/`.
 final class PinnedBundle {
-  const PinnedBundle(this.repoDir, this.sourceId, {required this.fallbackMangaId});
+  const PinnedBundle(this.repoDir, this.sourceId, {required this.fallbackMangaId, this.targetMangaId});
 
   final String repoDir;
   final String sourceId;
@@ -19,6 +31,11 @@ final class PinnedBundle {
   /// The manga fetched when search yields no hit (the capture still records
   /// a details run).
   final String fallbackMangaId;
+
+  /// When set, the scenario fetches details for the search hit with this ID
+  /// (or this ID directly when search does not list it) instead of the first
+  /// hit: for a query that also matches other titles.
+  final String? targetMangaId;
 
   String get label => '$repoDir/$sourceId';
 }
@@ -28,7 +45,7 @@ final class PinnedBundle {
 const Map<String, List<PinnedBundle>> captureSites = <String, List<PinnedBundle>>{
   'mangadex': <PinnedBundle>[
     PinnedBundle('inkdex-0.9', 'MangaDex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
-    PinnedBundle('neihc1002-0.8', 'Mangadex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
+    PinnedBundle('community-0.8', 'MangaDex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
   ],
   'weebcentral': <PinnedBundle>[
     PinnedBundle('inkdex-0.9', 'WeebCentral', fallbackMangaId: '01J76XYF0TGKQ7XJ4XVPV1C0BP'),
@@ -36,6 +53,16 @@ const Map<String, List<PinnedBundle>> captureSites = <String, List<PinnedBundle>
     PinnedBundle('numby-0.8', 'WeebCentral', fallbackMangaId: '01J76XYF0TGKQ7XJ4XVPV1C0BP'),
   ],
   'mangafire': <PinnedBundle>[PinnedBundle('inkdex-0.9', 'MangaFire', fallbackMangaId: '72k68')],
+  // The 0.8 substitute for the MangaFire cell: a Cloudflare-fronted site
+  // (`CLOUDFLARE_BYPASS_REQUIRED`).
+  'mangahub': <PinnedBundle>[
+    PinnedBundle(
+      'kittycatgit-0.8',
+      'Mangahub',
+      fallbackMangaId: 'onii-chan-wa-oshimai',
+      targetMangaId: 'onii-chan-wa-oshimai',
+    ),
+  ],
 };
 
 /// Terms recorded for each site's captured responses.
@@ -46,6 +73,8 @@ const Map<String, String> captureTerms = <String, String>{
       'Third-party WeebCentral page content; not openly licensed; retained only as an interoperability test fixture.',
   'mangafire':
       'Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture.',
+  'mangahub':
+      'Third-party Mangahub API response; not openly licensed; retained only as an interoperability test fixture.',
 };
 
 /// The repository root: the first ancestor holding `fixtures/source_captures`.
@@ -157,14 +186,21 @@ final class BundleRun {
 }
 
 /// Runs the qualification scenario for every bundle of [site] through
-/// [provider]: admit the pinned bytes, open, search [qualificationQuery],
+/// [provider]: admit the pinned bytes, open, search [queryFor] the site,
 /// fetch the next page when the source returned pagination metadata, then
-/// fetch details with chapters for the first hit (or the bundle's fallback
-/// manga). The capture run and the replay tests call exactly this, so they
-/// make exactly the same requests.
-Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String site) async {
+/// fetch details with chapters for the first hit (the hit with the bundle's
+/// [PinnedBundle.targetMangaId] when it names one; the bundle's fallback
+/// manga when there is no hit). A search that needs an interaction (a Cloudflare challenge) ends
+/// the bundle's run: nothing more is asked of a challenged site. The capture
+/// run and the replay tests call exactly this, so they make exactly the same
+/// requests.
+///
+/// [only] restricts the run to the bundle with that label (a re-recording of
+/// one bundle, `capture_paperback_sources.dart --only`).
+Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String site, {String? only}) async {
   final runs = <BundleRun>[];
   for (final PinnedBundle b in captureSites[site]!) {
+    if (only != null && b.label != only) continue;
     final repo = PinnedRepository.load(b.repoDir);
     final PaperbackCatalogEntry entry = repo.entry(b.sourceId);
     final run = BundleRun(b, entry.family, repo.pinnedSha256(b.sourceId));
@@ -184,15 +220,21 @@ Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String
     final SourcePackage package = (opened as SourceSuccess<SourcePackage>).value;
     try {
       final SourceSession session = package.sessions.single;
-      run.page1 = await session.search(const SearchRequest(query: qualificationQuery));
+      final String query = queryFor(site);
+      run.page1 = await session.search(SearchRequest(query: query));
+      if (run.page1 case SourceFailed<SearchPage>(failure: InteractionRequiredFailure())) continue;
       final String? cursor = run.page1!.valueOrNull?.nextCursor;
-      if (cursor != null) run.page2 = await session.search(SearchRequest(query: qualificationQuery, cursor: cursor));
-      final SearchHit? hit = run.page1!.valueOrNull?.hits.firstOrNull;
+      if (cursor != null) run.page2 = await session.search(SearchRequest(query: query, cursor: cursor));
+      final List<SearchHit> hits = run.page1!.valueOrNull?.hits ?? const <SearchHit>[];
+      final String? target = b.targetMangaId;
+      final SearchHit? hit = target == null
+          ? hits.firstOrNull
+          : hits.where((SearchHit h) => h.ref.mangaId == target).firstOrNull;
       run.detailsRef =
           hit?.ref ??
           NativeMangaRef(
             source: session.identity,
-            mangaId: b.fallbackMangaId,
+            mangaId: target ?? b.fallbackMangaId,
             settingsRevision: session.settingsRevision,
           );
       run.details = await session.fetchManga(run.detailsRef!);
