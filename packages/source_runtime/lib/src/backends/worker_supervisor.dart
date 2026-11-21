@@ -136,7 +136,7 @@ final class AdoptWorkerLimits extends SupervisorLimitsPolicy {
 /// A package hosted by the worker, retained so a restart can reload it from
 /// its verified artifact with its current settings.
 final class WorkerPackage {
-  WorkerPackage({required this.packageId, required this.artifact, required this.settings});
+  WorkerPackage({required this.packageId, required this.artifact, required this.settings, this.apiFamily});
 
   final String packageId;
 
@@ -146,9 +146,14 @@ final class WorkerPackage {
   /// Settings snapshot; secrets are sent to the worker but never logged.
   final SettingsSnapshot settings;
 
+  /// The API family bound to the artifact by its trust decision (KTD6),
+  /// sent as `package.load` `apiFamily` to a worker that negotiated 1.3,
+  /// on the first load and on every restart reload.
+  final String? apiFamily;
+
   /// The same package with [settings] replaced.
   WorkerPackage withSettings(SettingsSnapshot settings) =>
-      WorkerPackage(packageId: packageId, artifact: artifact, settings: settings);
+      WorkerPackage(packageId: packageId, artifact: artifact, settings: settings, apiFamily: apiFamily);
 }
 
 /// A worker-initiated `host.browser.*` request (KTD4 reverse request).
@@ -281,6 +286,9 @@ class _Call {
   Timer? graceTimer;
   Timer? interactionTimer;
   int interactions = 0;
+
+  /// Time since the current run of overlapping interactions began.
+  final Stopwatch interactionClock = Stopwatch();
 
   Timer? _deadlineTimer;
   Duration _remaining = Duration.zero;
@@ -558,7 +566,10 @@ class WorkerSupervisor {
   }) async {
     if (trust.signerFingerprints.isEmpty) {
       return SourceFailed<ArtifactLease>(
-        ArtifactIncompatibleFailure('No trusted signer is stored for $packageId; approve its repository first'),
+        TrustFailure(
+          TrustFailureReason.firstSeen,
+          'No trusted signer is stored for $packageId; approve its repository first',
+        ),
       );
     }
     final SourceOutcome<HandshakeResponse> started = await start();
@@ -656,6 +667,8 @@ class WorkerSupervisor {
       artifact: package.artifact.binding,
       path: path,
       settings: SettingsPayload.fromSnapshot(package.settings),
+      // A pre-1.3 worker would ignore it; it keeps its own fallback.
+      apiFamily: protocolMinor >= 3 ? package.apiFamily : null,
     );
   }
 
@@ -988,11 +1001,7 @@ class WorkerSupervisor {
   void _log(String line) => _onLog(redactor.redact(line));
 
   /// [failure] with its worker-derived message redacted.
-  SourceFailure _redacted(SourceFailure failure) => SourceFailure.fromWire(
-    failure.code,
-    redactor.redact(failure.message),
-    operation: failure is CapabilityUnavailableFailure ? failure.operation : null,
-  );
+  SourceFailure _redacted(SourceFailure failure) => failure.withMessage(redactor.redact(failure.message));
 
   void _onFrame(WorkerProcess process, ProtocolFrame frame) {
     if (!identical(_process, process)) return;
@@ -1030,15 +1039,7 @@ class WorkerSupervisor {
     final Map<String, Object?>? error = frame.error;
     final SourceOutcome<Map<String, Object?>> outcome = error == null
         ? SourceSuccess<Map<String, Object?>>(frame.ok ?? const <String, Object?>{})
-        : SourceFailed<Map<String, Object?>>(
-            _redacted(
-              SourceFailure.fromWire(
-                error['code'] as String? ?? '',
-                error['message'] as String? ?? '',
-                operation: error['operation'] as String?,
-              ),
-            ),
-          );
+        : SourceFailed<Map<String, Object?>>(_redacted(SourceFailure.fromJson(error)));
     if (c.timedOut) {
       c.answer(SourceFailed<Map<String, Object?>>(TimeoutFailure('${c.op} exceeded its deadline')));
     } else {
@@ -1066,7 +1067,23 @@ class WorkerSupervisor {
       origin
         ..interactions += 1
         ..pauseDeadline();
-      origin.interactionTimer ??= Timer(_limits!.interactionTimeout, () => _onDeadline(origin));
+      if (origin.interactions == 1) {
+        final SupervisorLimits limits = _limits!;
+        origin.interactionClock
+          ..reset()
+          ..start();
+        // The show's own bound ends the interaction as interaction-required
+        // (showBrowserInteraction). This backstop only escalates a show that
+        // overruns that bound by a whole cancel grace, like a deadline.
+        origin.interactionTimer ??= Timer(limits.interactionTimeout + limits.cancelGrace, () => _onDeadline(origin));
+        if (protocolMinor >= 3) {
+          sendEvent(
+            WorkerInteractionStarted.op,
+            WorkerInteractionStarted(of: frame.originId!, timeout: limits.interactionTimeout).toJson(),
+            generation: generation,
+          );
+        }
+      }
     }
     SourceOutcome<Map<String, Object?>> outcome;
     try {
@@ -1082,7 +1099,17 @@ class WorkerSupervisor {
       if (origin.interactions == 0) {
         origin.interactionTimer?.cancel();
         origin.interactionTimer = null;
+        origin.interactionClock.stop();
         origin.resumeDeadline();
+        // Written before this show's rres, so the worker resumes its engine
+        // deadline before it sees the reply. Dropped for a fenced generation.
+        if (protocolMinor >= 3) {
+          sendEvent(
+            WorkerInteractionEnded.op,
+            WorkerInteractionEnded(of: frame.originId!, paused: origin.interactionClock.elapsed).toJson(),
+            generation: generation,
+          );
+        }
       }
     }
     // A late reply after a generation change is discarded, never delivered

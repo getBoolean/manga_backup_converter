@@ -58,7 +58,9 @@ class BrowserReverseBridge {
   /// How long a held request (replace tier) waits for the worker's
   /// `host.browser.respond` before it proceeds unchanged. Without it the
   /// replace tier is refused as `capability-unavailable`; no default is
-  /// invented (KTD25).
+  /// invented (KTD25). The refusal names the engine's own
+  /// [BrowserFeature.replaceRequests] reason when the session lacks the
+  /// feature, and the missing timeout only when the engine has it.
   final Duration? replacementTimeout;
   WorkerEventSink? emitEvent;
 
@@ -183,8 +185,9 @@ class BrowserReverseBridge {
         null => SourceFailed<ProtocolPayload>(
           CapabilityUnavailableFailure(request.op, 'No interaction timeout is configured'),
         ),
-        final Duration timeout => _map(await s.showForInteraction(timeout: timeout, cancel: request.cancel), _empty),
+        final Duration timeout => await _show(entry, timeout, request),
       },
+      HostBrowserEndInteraction() => _endInteraction(entry),
       HostBrowserClose() => _map(await _closeSession(s.id, s), _empty),
       HostBrowserAddPageStartScript(:final String script) => _map(await s.addPageStartScript(script), _empty),
       HostBrowserSetRequestInterception(:final HostBrowserInterception mode) => await _setInterception(
@@ -198,6 +201,39 @@ class BrowserReverseBridge {
         response,
       ),
     };
+  }
+
+  /// Runs `host.browser.show` with the 1.3 completion rules
+  /// ([showBrowserInteraction]): the user closing the window answers
+  /// `outcome: closed`, a `host.browser.endInteraction` for the session
+  /// answers `outcome: completed`, the bound answers `interaction-required`.
+  /// A pre-1.3 worker gets the `{}` it always got.
+  Future<SourceOutcome<ProtocolPayload>> _show(_Entry entry, Duration timeout, ReverseRequest request) async {
+    final completion = Completer<void>();
+    entry.completions.add(completion);
+    try {
+      return _map(
+        await showBrowserInteraction(
+          entry.session,
+          timeout: timeout,
+          completion: completion.future,
+          cancel: request.cancel,
+        ),
+        (BrowserInteractionEnd end) => HostBrowserShown(outcome: request.protocolMinor >= 3 ? end : null),
+      );
+    } finally {
+      entry.completions.remove(completion);
+    }
+  }
+
+  SourceOutcome<ProtocolPayload> _endInteraction(_Entry entry) {
+    if (entry.completions.isEmpty) {
+      return SourceFailed<ProtocolPayload>(CancelledFailure('No interaction is shown in session ${entry.session.id}'));
+    }
+    for (final Completer<void> c in entry.completions.toList()) {
+      if (!c.isCompleted) c.complete();
+    }
+    return const SourceSuccess<ProtocolPayload>(EmptyPayload());
   }
 
   SourceOutcome<ProtocolPayload> _evaluated(BrowserOutcome<String> outcome, ReverseRequest request) =>
@@ -228,8 +264,17 @@ class BrowserReverseBridge {
       case HostBrowserInterception.replace:
         final Duration? timeout = replacementTimeout;
         if (timeout == null) {
-          return SourceFailed<ProtocolPayload>(
-            CapabilityUnavailableFailure(request.op, 'No replacement timeout is configured'),
+          // Ask the port first, through the session's reported features:
+          // an engine without the replace tier names its own reason, which
+          // is the one the worker needs. Installing a replacer to find out
+          // would remove an observer the worker set.
+          return _map(
+            s.capabilities.check<void>(BrowserFeature.replaceRequests, 'setRequestReplacer') ??
+                const BrowserCapabilityUnavailable<void>(
+                  'setRequestReplacer',
+                  'No replacement timeout is configured on the supervisor',
+                ),
+            _empty,
           );
         }
         outcome = await s.setRequestReplacer(_replacerSink(s.id, request.generation, timeout));
@@ -386,6 +431,10 @@ final class _Entry {
   final BrowserSession session;
   final String? packageId;
   HostBrowserInterception interception = HostBrowserInterception.none;
+
+  /// Completion signals of the `host.browser.show` calls pending in this
+  /// session; `host.browser.endInteraction` completes them.
+  final Set<Completer<void>> completions = <Completer<void>>{};
 }
 
 /// A request held for the worker's `host.browser.respond`.
