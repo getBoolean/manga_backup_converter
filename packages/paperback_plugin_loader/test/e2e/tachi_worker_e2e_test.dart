@@ -1,4 +1,4 @@
-/// End-to-end: the `source_runtime` supervisor speaking protocol 1.1 to the
+/// End-to-end: the `source_runtime` supervisor speaking protocol 1.2 to the
 /// real Tachi JVM worker (`./gradlew installDist`). It lives here because
 /// `tools/tachi-source-runner` is not a Dart package; this package already
 /// hosts the Paperback end-to-end tests.
@@ -100,7 +100,7 @@ const ArtifactProfile _rawProfile = ArtifactProfile(
 
 void main() {
   final String? skip = _skipReason();
-  group('Tachi worker over protocol 1.1', skip: skip, () {
+  group('Tachi worker over protocol 1.2', skip: skip, () {
     late Directory temp;
     late ArtifactCache cache;
     late WorkerSupervisor supervisor;
@@ -112,7 +112,7 @@ void main() {
       final SourceOutcome<HandshakeResponse> started = await supervisor.start();
       final HandshakeResponse handshake = (started as SourceSuccess<HandshakeResponse>).value;
       check(handshake.worker).equals('tachi-jvm');
-      check(handshake.protocolMinor).equals(1);
+      check(handshake.protocolMinor).equals(2);
       check(supervisor.limits!.maxConcurrentPackages).equals(2);
       check(supervisor.limits!.operationDeadline).equals(const Duration(minutes: 1));
     });
