@@ -47,8 +47,9 @@ that every external class, method and field the six qualification artifacts refe
   (it cannot occur in verified JAR class files), and `FrameComputer` recomputes stack map frames with the
   extension's own class hierarchy, because dex2jar's frame pass falls back to `Object`. dex2jar must also
   keep Kotlin's mangled names (`constructor-impl`). All of this is in the converter version
-  `dex2jar-2.4.39+ctorfix.1+frames.1+ordered.1`, which is part of the prepared artifact's cache identity
+  `dex2jar-2.4.39+ctorfix.1+frames.1+ordered.1+casesafe.1`, which is part of the prepared artifact's cache identity
   (`converterVersion` in the `artifact.prepare` reply, with host compatibility `tachi-host.1`).
+- **Case safety.** dex2jar writes classes to memory, never to a directory or `jdk.zipfs`, so R8 names that differ only by case (`a`/`A`) both survive on case-insensitive volumes; a JAR whose class count differs from the DEX headers' `class_defs_size` fails as `artifact-incompatible` (`CaseCollisionConversionTest`).
 - **Determinism.** Preparing the same APK always gives the same bytes, so a resumed conversion on the
   APK path keeps its session identity (the prepared digest). dex2jar's IR passes kept working sets in
   `HashMap`/`HashSet` keyed by identity-hashed IR objects, so register assignment changed between
@@ -58,7 +59,7 @@ that every external class, method and field the six qualification artifacts refe
   stamped with a fixed DOS time that does not depend on the JVM's time zone. `DeterministicConversionTest`
   checks MangaDex, Weeb Central and MangaFire twice in one JVM (other thread, other order) and in two
   worker processes started with different time zones, collectors and heaps. Prepared digests (converter
-  `+ordered.1`, Corretto 21.0.13):
+  `+casesafe.1`, unchanged from `+ordered.1`, Corretto 21.0.13):
   - MangaDex `b7dda66c5c901aa23d172173d54c12f04d64bdc20bd0da58748ce7f095da28d0`
   - Weeb Central `546c4a615158c44bf656d9bb45f7555e9d31638a77d977d3f8a5a7e01dceb143`
   - MangaFire `19bd52b03b7dc17fa9aac1220ac729902d0d5ff03e536df6c1f73dcda8ec5630`
