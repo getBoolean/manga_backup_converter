@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "ecosystem": "aidoku",
+  "source": "en.weebcentral",
+  "recordedAt": "2026-11-21T00:45:38.989526Z",
+  "recordedBy": "tool/capture_source_fixtures.dart",
+  "notes": "Replayed by integration_test/source_runners_android_test.dart (U13)",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/search/data?display_mode=Full+Display&limit=24&offset=0&text=Onimai",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/6a4b8fb0d304ad6228d3147d319082ac0bbeb04374a6dde52f2873a4f2a138bc.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/search/data?display_mode=Full+Display&limit=24&offset=0&text=Onimai",
+        "sha256": "6a4b8fb0d304ad6228d3147d319082ac0bbeb04374a6dde52f2873a4f2a138bc",
+        "size": 8913,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/ONIMAI-Im-Now-Your-Sister",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/e0784730b65df5084ca11b941d76eaaa01e84dd0afbb774b7623fb363b8647d7.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/ONIMAI-Im-Now-Your-Sister",
+        "sha256": "e0784730b65df5084ca11b941d76eaaa01e84dd0afbb774b7623fb363b8647d7",
+        "size": 76945,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/full-chapter-list",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8"
+        },
+        "body": "bodies/73543c21c2d087dcfb2452fb69f3e4d97feedfce5597b247b015531eae824d9e.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://weebcentral.com/series/01J76XYF0TGKQ7XJ4XVPV1C0BP/full-chapter-list",
+        "sha256": "73543c21c2d087dcfb2452fb69f3e4d97feedfce5597b247b015531eae824d9e",
+        "size": 212259,
+        "licence": "Third-party Weeb Central page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}
