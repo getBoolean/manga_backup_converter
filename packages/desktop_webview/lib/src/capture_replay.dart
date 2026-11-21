@@ -11,7 +11,7 @@ BrowserRequestReplacer captureReplayHandler(CaptureSet captures, {void Function(
       final CaptureKey key = captures.manifest.keyFor(request.method, request.url, null);
       if (!captures.contains(key)) {
         onMiss?.call(key);
-        return const BrowserReplacement(status: 599, reason: 'No committed capture');
+        return BrowserReplacement(status: 599, reason: 'No committed capture');
       }
       final CapturedResponse r = captures.lookup(key);
       return BrowserReplacement(status: r.status, headers: r.headers, body: r.body);

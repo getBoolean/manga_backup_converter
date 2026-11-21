@@ -86,7 +86,7 @@ Future<void> main() async {
 
     check(await s.setUserAgent(_androidChromeUa)).isA<BrowserCompleted<void>>();
     check(
-      await s.replaceRequests((BrowserRequest r) {
+      await s.setRequestReplacer((BrowserRequest r) {
         requests.add(r);
         return replay(r);
       }),
@@ -94,7 +94,7 @@ Future<void> main() async {
     check(
       await s.setCookie(Uri.parse('https://mangafire.to/'), const BrowserCookie(name: 'pushed', value: 'from-jar')),
     ).isA<BrowserCompleted<void>>();
-    check(await s.addStartScript('window.__pageStart = document.readyState;')).isA<BrowserCompleted<void>>();
+    check(await s.addPageStartScript('window.__pageStart = document.readyState;')).isA<BrowserCompleted<void>>();
     final message = Completer<String>();
     check(await s.setMessageHandler('bridge', message.complete)).isA<BrowserCompleted<void>>();
 

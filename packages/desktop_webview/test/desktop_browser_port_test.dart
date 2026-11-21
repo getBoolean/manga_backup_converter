@@ -210,15 +210,15 @@ Future<void> main() async {
         return;
       }
       final seen = <BrowserRequest>[];
-      check(await s.observeRequests(seen.add)).isA<BrowserCompleted<void>>();
+      check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
       await s.evaluate('fetch("/observed").then(function (r) { return r.status; })');
       final BrowserRequest observed = seen.firstWhere((BrowserRequest r) => r.url.path == '/observed');
       // WebView2 reports fetch() with its XML_HTTP_REQUEST resource context.
-      check(<String>['fetch', 'xhr']).contains(observed.context);
+      check(<BrowserRequestContext>[BrowserRequestContext.fetch, BrowserRequestContext.xhr]).contains(observed.context);
       check(observed.headers.keys.map((String k) => k.toLowerCase())).contains('sec-ch-ua');
 
       check(
-        await s.replaceRequests(
+        await s.setRequestReplacer(
           (BrowserRequest r) => r.url.path == '/replaced'
               ? BrowserReplacement(
                   status: 200,
@@ -237,7 +237,7 @@ Future<void> main() async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
       final seen = <BrowserRequest>[];
-      check(await s.observeRequests(seen.add)).isA<BrowserCompleted<void>>();
+      check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
       check(
         await s.loadData(
           '<html><body><iframe src="https://frame-probe.invalid/x"></iframe></body></html>',

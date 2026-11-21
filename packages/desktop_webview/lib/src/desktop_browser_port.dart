@@ -56,44 +56,13 @@ final class DesktopWebViewConfig {
   final List<String> extraArguments;
 }
 
-/// A request the page made, reported by the helper.
-@immutable
-final class BrowserRequest {
-  const BrowserRequest({required this.url, required this.method, required this.headers, required this.context});
-
-  final Uri url;
-  final String method;
-  final Map<String, String> headers;
-
-  /// `document`, `script`, `fetch`, `xhr`, `image`, `stylesheet` or `other`.
-  final String context;
-}
-
-/// A response substituted for a [BrowserRequest] (replace tier, WebView2 only).
-@immutable
-final class BrowserReplacement {
-  const BrowserReplacement({
-    required this.status,
-    this.reason = 'OK',
-    this.headers = const <String, String>{},
-    this.body = const <int>[],
-  });
-
-  final int status;
-  final String reason;
-  final Map<String, String> headers;
-  final List<int> body;
-
-  Map<String, Object?> toJson() => <String, Object?>{
-    'status': status,
-    'reason': reason,
-    'headers': headers,
-    'bodyBase64': base64Encode(body),
-  };
-}
-
-/// Answers a held request; `null` lets it proceed (blocked when offline).
-typedef BrowserRequestReplacer = FutureOr<BrowserReplacement?> Function(BrowserRequest request);
+/// The helper's JSON for a replacement (`respond` command).
+Map<String, Object?> _replacementJson(BrowserReplacement r) => <String, Object?>{
+  'status': r.status,
+  'reason': r.reason,
+  'headers': r.headers,
+  'bodyBase64': base64Encode(r.body),
+};
 
 /// Settles exactly once; later results (late callbacks) are ignored.
 final class _Settle<T> {
@@ -281,7 +250,42 @@ class DesktopBrowserPort implements BrowserPort {
 
 /// One source-scoped WebView session in the helper.
 class DesktopBrowserSession implements BrowserSession {
-  DesktopBrowserSession._(this._port, this._helper, this.id, this.source, this.generation);
+  DesktopBrowserSession._(this._port, this._helper, this.id, this.source, this.generation)
+    : capabilities = capabilitiesFor(_helper.info);
+
+  /// Reason given for features the helper's protocol 1.1 transport cannot
+  /// provide yet; the helper transport follow-up lane adds them.
+  static const String _followUp = 'not provided by desktop helper protocol 1.1 (helper transport follow-up lane)';
+
+  /// The protocol 1.2 [BrowserCapabilities] each session of a helper
+  /// reporting [info] has: derived from what the helper reports, never
+  /// assumed.
+  @visibleForTesting
+  static BrowserCapabilities capabilitiesFor(HelperInfo info) {
+    final HelperCapabilities c = info.capabilities;
+    final observeAny = c.requestObserve != 'none';
+    return BrowserCapabilities(
+      available: <BrowserFeature>{
+        BrowserFeature.pageStartScripts,
+        if (observeAny) BrowserFeature.observeNavigations,
+        if (c.requestObserve == 'all') BrowserFeature.observeSubresources,
+        if (observeAny) BrowserFeature.observeRequestHeaders,
+        if (observeAny && info.engine == 'webview2') BrowserFeature.observeClientHints,
+        if (c.requestReplace) BrowserFeature.replaceRequests,
+      },
+      unavailable: <BrowserFeature, String>{
+        BrowserFeature.observeNavigations: 'the ${info.engine} helper reports no request observation',
+        BrowserFeature.observeSubresources: 'the ${info.engine} helper observes no subresource requests',
+        BrowserFeature.observeRequestHeaders: 'the ${info.engine} helper reports no request observation',
+        BrowserFeature.observeClientHints: '${info.engine} sends no Chromium client hints',
+        BrowserFeature.observeRequestBodies: 'request bodies are $_followUp',
+        BrowserFeature.replaceRequests: 'the ${info.engine} helper cannot substitute responses (WebView2 only)',
+        // The helper's `script-error` reply also covers "no script bridge" and
+        // "navigated away", so it cannot be reported as a thrown script.
+        BrowserFeature.scriptErrors: 'thrown-script reporting is $_followUp',
+      },
+    );
+  }
 
   final DesktopBrowserPort _port;
   final HelperProcess _helper;
@@ -295,10 +299,13 @@ class DesktopBrowserSession implements BrowserSession {
   @override
   final int generation;
 
+  @override
+  final BrowserCapabilities capabilities;
+
   /// Cancels each pending operation with a reason.
   final Set<void Function(String reason)> _pending = <void Function(String reason)>{};
   final Map<String, void Function(String message)> _handlers = <String, void Function(String message)>{};
-  void Function(BrowserRequest request)? _observer;
+  BrowserRequestObserver? _observer;
   BrowserRequestReplacer? _replacer;
   _Settle<void>? _interaction;
   String? _closedReason;
@@ -411,8 +418,9 @@ class DesktopBrowserSession implements BrowserSession {
 
   /// Evaluates [script]; a promise result is awaited. A script that throws
   /// completes with `null`, as Android's `evaluateJavascript` does, and the
-  /// error is logged: the contract has no script-error outcome, and a
-  /// capability failure would cancel the source's whole operation.
+  /// error is logged. [capabilities] lack [BrowserFeature.scriptErrors]
+  /// (the helper's `script-error` reply also covers a missing script
+  /// bridge), so [BrowserScriptError] is never returned.
   @override
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel}) async {
     final BrowserCancelled<String>? dead = _dead<String>(cancel);
@@ -570,18 +578,34 @@ class DesktopBrowserSession implements BrowserSession {
     if (!isClosed) unawaited(_helper.request('hide', <String, Object?>{'session': id}));
   }
 
-  // --- Desktop extensions beyond the BrowserPort contract -----------------
-
-  /// Adds a script that runs at document start in every later document of
-  /// this session (Android `WebViewCompat.addDocumentStartJavaScript`-like).
-  Future<BrowserOutcome<void>> addStartScript(String script) =>
-      _call<void>('startScript', <String, Object?>{'script': script}, null, _done, operation: 'addStartScript');
+  @override
+  Future<BrowserOutcome<void>> addPageStartScript(String script) async =>
+      _dead<void>(null) ??
+      capabilities.check<void>(BrowserFeature.pageStartScripts, 'addPageStartScript') ??
+      await _call<void>(
+        'startScript',
+        <String, Object?>{'script': script},
+        null,
+        _done,
+        operation: 'addPageStartScript',
+      );
 
   /// Observe tier: reports every request the page makes, with its request
   /// headers (including `sec-ch-ua*` on WebView2); requests proceed
   /// unchanged. Pass `null` to stop.
-  Future<BrowserOutcome<void>> observeRequests(void Function(BrowserRequest request)? observer) async {
-    final BrowserOutcome<void> outcome = await _setIntercept(observer == null ? 'none' : 'observe');
+  ///
+  /// Helper protocol 1.1 reports no frame and no body:
+  /// [BrowserRequest.mainFrame] is set for every `document` request (child
+  /// frame documents included), and [BrowserRequest.bodyOmitted] for every
+  /// method other than GET and HEAD.
+  @override
+  Future<BrowserOutcome<void>> setRequestObserver(BrowserRequestObserver? observer) async {
+    final BrowserOutcome<void> outcome = await _intercept(
+      observer == null ? 'none' : 'observe',
+      'setRequestObserver',
+      available: capabilities.interceptionTier != BrowserInterceptionTier.none,
+      feature: BrowserFeature.observeNavigations,
+    );
     if (outcome is BrowserCompleted<void>) {
       _observer = observer;
       _replacer = null;
@@ -591,8 +615,18 @@ class DesktopBrowserSession implements BrowserSession {
 
   /// Replace tier (WebView2 only): holds every request until [replacer]
   /// answers. Elsewhere this is [BrowserCapabilityUnavailable].
-  Future<BrowserOutcome<void>> replaceRequests(BrowserRequestReplacer? replacer) async {
-    final BrowserOutcome<void> outcome = await _setIntercept(replacer == null ? 'none' : 'replace');
+  ///
+  /// Helper protocol 1.1 cannot fail a held request: an invalid replacement
+  /// or a throwing replacer lets the request proceed (blocked when offline)
+  /// instead of failing it.
+  @override
+  Future<BrowserOutcome<void>> setRequestReplacer(BrowserRequestReplacer? replacer) async {
+    final BrowserOutcome<void> outcome = await _intercept(
+      replacer == null ? 'none' : 'replace',
+      'setRequestReplacer',
+      available: capabilities.supports(BrowserFeature.replaceRequests),
+      feature: BrowserFeature.replaceRequests,
+    );
     if (outcome is BrowserCompleted<void>) {
       _replacer = replacer;
       _observer = null;
@@ -600,8 +634,28 @@ class DesktopBrowserSession implements BrowserSession {
     return outcome;
   }
 
-  Future<BrowserOutcome<void>> _setIntercept(String mode) =>
-      _call<void>('intercept', <String, Object?>{'mode': mode}, null, _done, operation: 'interceptRequest.$mode');
+  /// Sets the helper's interception [mode] for [operation]. When the tier is
+  /// not [available], enabling it is refused and removal (`none`) completes
+  /// without asking the helper.
+  Future<BrowserOutcome<void>> _intercept(
+    String mode,
+    String operation, {
+    required bool available,
+    required BrowserFeature feature,
+  }) async {
+    final BrowserCancelled<void>? dead = _dead<void>(null);
+    if (dead != null) return dead;
+    if (!available) {
+      return mode == 'none' ? const BrowserCompleted<void>(null) : capabilities.check<void>(feature, operation)!;
+    }
+    return switch (await _call<void>('intercept', <String, Object?>{'mode': mode}, null, _done, operation: operation)) {
+      // Report the contract operation, not the helper's internal name.
+      BrowserCapabilityUnavailable<void>(:final String reason) => BrowserCapabilityUnavailable<void>(operation, reason),
+      final BrowserOutcome<void> other => other,
+    };
+  }
+
+  // --- Desktop extensions beyond the BrowserPort contract -----------------
 
   /// Hides a shown window without ending the session.
   Future<BrowserOutcome<void>> hide() => _call<void>('hide', const <String, Object?>{}, null, _done);
@@ -627,16 +681,26 @@ class DesktopBrowserSession implements BrowserSession {
               : BrowserCancelled<void>('Interaction ended: $reason'),
         );
       case 'request':
+        final Object? rid = event['rid'];
+        final Uri? url = Uri.tryParse(event['url'] as String? ?? '');
+        if (url == null || !BrowserUrlPolicy.isAllowedBaseUrl(url)) {
+          // Only http(s) requests are reported; a held one still proceeds.
+          if (rid is int) unawaited(_helper.request('respond', <String, Object?>{'rid': rid, 'response': null}));
+          return;
+        }
+        final String method = (event['method'] as String? ?? 'GET').toUpperCase();
+        final BrowserRequestContext context = BrowserRequestContext.fromWire(event['context'] as String?);
         final request = BrowserRequest(
-          url: Uri.parse(event['url']! as String),
-          method: event['method'] as String? ?? 'GET',
+          url: url,
+          method: method,
           headers: <String, String>{
             for (final MapEntry<String, Object?> h in (event['headers'] as Map<String, Object?>? ?? const {}).entries)
               h.key: h.value! as String,
           },
-          context: event['context'] as String? ?? 'other',
+          bodyOmitted: method != 'GET' && method != 'HEAD',
+          mainFrame: context == BrowserRequestContext.document,
+          context: context,
         );
-        final Object? rid = event['rid'];
         if (rid is int) {
           unawaited(_answer(rid, request));
         } else {
@@ -652,7 +716,15 @@ class DesktopBrowserSession implements BrowserSession {
     } on Object catch (e) {
       _port.config.onLog?.call('[desktop_webview] request handler failed for ${request.url}: $e');
     }
-    await _helper.request('respond', <String, Object?>{'rid': rid, 'response': replacement?.toJson()});
+    final String? invalid = replacement?.invalidReason;
+    if (invalid != null) {
+      _port.config.onLog?.call('[desktop_webview] refused replacement for ${request.url}: $invalid');
+      replacement = null;
+    }
+    await _helper.request('respond', <String, Object?>{
+      'rid': rid,
+      'response': replacement == null ? null : _replacementJson(replacement),
+    });
   }
 
   /// Settles every pending operation as cancelled and stops accepting new

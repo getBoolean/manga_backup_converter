@@ -152,6 +152,13 @@ addEventListener('message', function (e) {
         case '/same-framed':
           r.headers.contentType = ContentType.html;
           r.write('<html><head><title>same</title></head><body><iframe src="/page"></iframe></body></html>');
+        case '/echo':
+          // Protocol 1.2 contract endpoint: `<METHOD> <request body>`.
+          final String body = await utf8.decoder.bind(request).join();
+          r.headers
+            ..contentType = ContentType.text
+            ..set('Access-Control-Allow-Origin', '*');
+          r.write('${request.method} $body');
         case '/set-cookie':
           r.headers.add(HttpHeaders.setCookieHeader, 'server=1; Path=/');
           r.headers.contentType = ContentType.html;
@@ -234,6 +241,15 @@ class DesktopBrowserPortHarness implements BrowserPortHarness {
 
   @override
   Uri get crossOriginFramePageUrl => server.url('/framed');
+
+  @override
+  Uri get sameOriginFramePageUrl => server.url('/same-framed');
+
+  @override
+  Uri get sameOriginFrameUrl => server.url('/page');
+
+  @override
+  Uri get echoUrl => server.url('/echo');
 
   /// Completes once the cross-origin child frame has called
   /// `window.<name>.postMessage(message)`.
