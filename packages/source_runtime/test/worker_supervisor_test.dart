@@ -1477,6 +1477,37 @@ void main() {
       check(ofs).length.equals(2);
     });
 
+    test('a show interrupted by a restart leaves the re-sent operation with fresh interaction bookkeeping', () async {
+      final firstShow = Completer<void>();
+      var shows = 0;
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=3'],
+        onReverseRequest: (ReverseRequest r) async {
+          if (++shows == 1) {
+            firstShow.complete();
+            // Settles only when the restart cancels it, after the call was
+            // reset for its re-send.
+            await r.cancel.whenCancelled;
+            return SourceFailed<Map<String, Object?>>(CancelledFailure(r.cancel.reason ?? 'cancelled'));
+          }
+          return const SourceSuccess<Map<String, Object?>>(<String, Object?>{'outcome': 'closed'});
+        },
+      );
+      final Future<SourceOutcome<Map<String, Object?>>> a = s.call('a', 'echo', showRequest());
+      await firstShow.future;
+      check((await s.call('b', 'echo', <String, Object?>{'value': 'b', 'fake': crashOnce()})).valueOrNull!['echo'])
+          .equals('b');
+      final SourceOutcome<Map<String, Object?>> resent = await a;
+      check(s.generation).equals(2);
+      check(resent.valueOrNull!['reverse'])
+          .isA<Map<String, Object?>>()
+          .deepEquals(<String, Object?>{'outcome': 'closed'});
+      check(resent.valueOrNull!['eventsAtReply']).isA<List<Object?>>().deepEquals(<Object?>[
+        WorkerInteractionStarted.op,
+        WorkerInteractionEnded.op,
+      ]);
+    });
+
     test('a 1.2 worker gets no interaction events', () async {
       final WorkerSupervisor s = supervisor(
         arguments: <String>['--minor=2'],

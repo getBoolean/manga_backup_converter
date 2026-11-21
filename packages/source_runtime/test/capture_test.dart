@@ -240,16 +240,29 @@ void main() {
       check(json['format']).equals(captureFormatVersion);
     });
 
-    test('committed captures re-encode unchanged', () {
-      for (final (String ecosystem, String source) in <(String, String)>[
-        ('aidoku', 'multi.mangadex'),
-        ('aidoku', 'multi.mangafire'),
-      ]) {
-        final file = File(p.join(findCaptureDir(ecosystem, source)!.path, captureManifestFileName));
-        final String text = file.readAsStringSync();
-        final manifest = CaptureManifest.fromJson(jsonDecode(text) as Map<String, Object?>);
-        check(jsonDecode(manifest.encode()) as Map<String, Object?>)
-            .deepEquals(jsonDecode(text) as Map<String, Object?>);
+    test('every committed capture loads, verifies and re-encodes unchanged', () {
+      final Directory root = findCaptureDir('aidoku', 'multi.mangadex')!.parent.parent;
+      final dirs = <Directory>[
+        for (final FileSystemEntity eco in root.listSync().whereType<Directory>())
+          for (final FileSystemEntity src in (eco as Directory).listSync().whereType<Directory>())
+            if (File(p.join(src.path, captureManifestFileName)).existsSync()) src as Directory,
+      ];
+      check(because: 'Aidoku, Paperback and Tachi captures', dirs.length).isGreaterOrEqual(9);
+      for (final dir in dirs) {
+        final CaptureSet set = loadCaptureSet(dir);
+        check(because: dir.path, set.manifest.exchanges).isNotEmpty();
+        final String text = File(p.join(dir.path, captureManifestFileName)).readAsStringSync();
+        final committed = jsonDecode(text) as Map<String, Object?>;
+        final reencoded = jsonDecode(set.manifest.encode()) as Map<String, Object?>;
+        // Other recorders (the Kotlin and Paperback tools) sign their own name.
+        reencoded['recordedBy'] = committed['recordedBy'];
+        // They also write timestamps with other precision; compare instants.
+        check(
+          because: dir.path,
+          DateTime.parse(reencoded['recordedAt']! as String),
+        ).equals(DateTime.parse(committed['recordedAt']! as String));
+        reencoded['recordedAt'] = committed['recordedAt'];
+        check(because: dir.path, reencoded).deepEquals(committed);
       }
     });
 

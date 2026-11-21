@@ -254,7 +254,7 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 - **No value:** `undefined`, and values JSON cannot encode, read as `null`.
 - **Never settles:** the reply waits until the operation is cancelled, the session closes, or a fence. The operation deadline bounds it.
 
-This is what the desktop helper's eval wrapper and WKWebView's `callAsyncJavaScript` already do. Android's `evaluateJavascript` would report `{}`, so an Android port wraps the script to await it, as it already must to detect throws. `BrowserEvaluateCompat.androidCompatible` still maps a script error to `null`, but a promise result keeps its settled value. The contract suite checks both rules with real JavaScript (`BrowserContractScripts.resolvedPromise`, `delayedPromise` and `rejectedPromise`).
+The desktop helper's eval wrapper already does this. An iOS port can use WKWebView's `callAsyncJavaScript`, which awaits natively. Android's `evaluateJavascript` would report `{}`, so an Android port wraps the script to await it, as it already must to detect throws. `BrowserEvaluateCompat.androidCompatible` still maps a script error to `null`, but a promise result keeps its settled value. The contract suite checks both rules with real JavaScript (`BrowserContractScripts.resolvedPromise`, `delayedPromise` and `rejectedPromise`).
 
 ### Browser message channel (1.1)
 

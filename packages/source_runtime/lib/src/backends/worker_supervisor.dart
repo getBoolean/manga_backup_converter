@@ -353,6 +353,10 @@ class _Call {
     requestId = null;
     timedOut = false;
     interactions = 0;
+    interactionTimer = null;
+    interactionClock
+      ..stop()
+      ..reset();
     _onExpire = null;
   }
 }
@@ -1068,18 +1072,18 @@ class WorkerSupervisor {
       protocolMinor: protocolMinor,
     );
     if (request.isInteraction) {
+      final SupervisorLimits limits = _limits!;
       origin
         ..interactions += 1
         ..pauseDeadline();
+      // The show's own bound ends the interaction as interaction-required
+      // (showBrowserInteraction). This backstop only escalates a show that
+      // overruns that bound by a whole cancel grace, like a deadline.
+      origin.interactionTimer ??= Timer(limits.interactionTimeout + limits.cancelGrace, () => _onDeadline(origin));
       if (origin.interactions == 1) {
-        final SupervisorLimits limits = _limits!;
         origin.interactionClock
           ..reset()
           ..start();
-        // The show's own bound ends the interaction as interaction-required
-        // (showBrowserInteraction). This backstop only escalates a show that
-        // overruns that bound by a whole cancel grace, like a deadline.
-        origin.interactionTimer ??= Timer(limits.interactionTimeout + limits.cancelGrace, () => _onDeadline(origin));
         if (protocolMinor >= 3) {
           sendEvent(
             WorkerInteractionStarted.op,
@@ -1098,7 +1102,10 @@ class WorkerSupervisor {
       outcome = SourceFailed<Map<String, Object?>>(SourceErrorFailure('Reverse request failed: $e'));
     }
     origin.reverseCancels.remove(cancel);
-    if (request.isInteraction) {
+    // A handler of a fenced generation settles after a restart reset the
+    // call for its re-send: its bookkeeping belongs to the old generation
+    // and must not touch the re-sent call's interaction count or timers.
+    if (request.isInteraction && generation == _generation) {
       origin.interactions -= 1;
       if (origin.interactions == 0) {
         origin.interactionTimer?.cancel();

@@ -607,9 +607,9 @@ abstract interface class BrowserSession {
   /// the settled value; a rejected promise is a throwing script. `undefined`
   /// and values JSON cannot encode read as `null`. A promise that never
   /// settles keeps `evaluate` pending until [cancel], the session closing,
-  /// or a fence; the caller's deadline bounds it. This is what the desktop
-  /// helper and WKWebView's `callAsyncJavaScript` do; an Android port wraps
-  /// `evaluateJavascript` (which would report `{}`) to await it.
+  /// or a fence; the caller's deadline bounds it. The desktop helper already
+  /// does this; an iOS port can use WKWebView's `callAsyncJavaScript`, and
+  /// an Android port wraps `evaluateJavascript` (which would report `{}`).
   ///
   /// A script that throws completes with [BrowserScriptError] when
   /// [capabilities] support [BrowserFeature.scriptErrors], and with `null`
