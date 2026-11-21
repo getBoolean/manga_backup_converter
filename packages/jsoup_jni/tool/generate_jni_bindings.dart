@@ -1,5 +1,5 @@
-// Runs `dart run jnigen --config jnigen.yaml` or `dart run jni:setup` using
-// the JDK downloaded by the build hook.
+// Runs `dart run tool/jnigen.dart` or `dart run jni:setup` using the JDK
+// downloaded by the build hook (or JAVA_HOME when it points at a full JDK).
 //
 // The build hook downloads an Adoptium JDK 17 into .dart_tool/. This script
 // finds it and uses it for both jnigen (needs javadoc) and jni:setup (needs
@@ -43,7 +43,7 @@ Future<void> _runJnigen() async {
   print('Running jnigen ...');
   final Process process = await Process.start(
     'dart',
-    ['run', 'jnigen', '--config', 'jnigen.yaml'],
+    ['run', 'tool/jnigen.dart'],
     workingDirectory: Directory.current.path,
     environment: env,
     mode: ProcessStartMode.inheritStdio,

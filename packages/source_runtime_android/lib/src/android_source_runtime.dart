@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:jni/jni.dart';
+import 'package:jni_flutter/jni_flutter.dart';
 
 import 'package:source_runtime_android/src/bindings/source_runtime_bindings.g.dart';
 
@@ -80,7 +81,7 @@ final class SourceRuntimeDiedException implements Exception {
 final class AndroidSourceRuntime {
   /// Creates the client facade for the application context.
   factory AndroidSourceRuntime() {
-    final JObject context = Jni.androidApplicationContext;
+    final JObject context = androidApplicationContext;
     // The listener closures hold the runtime weakly so the Java proxy does
     // not keep the Dart object (and its JNI wrappers) alive (KTD23).
     final target = _ListenerTarget();
