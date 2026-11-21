@@ -142,14 +142,13 @@ records the SHA-256 the client verifies before launch. Protocol: `packages/deskt
 
 Status key: **pass** = ran and passed here; **compiled** = type-checks for the target, never run; **not run** =
 neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,
-`flutter test packages/desktop_webview/test`: 46 passed both with `--concurrency 1` and in parallel). No macOS or
-Linux cell is an expected value.
+`flutter test packages/desktop_webview/test`: 57 passed with `--concurrency 1` after the switch to the 1.1 contract
+suite). No macOS or Linux cell is an expected value.
 
 | Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
 |---|---|---|---|
 | Build | pass (debug and `--release`; 715 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, LLVM clang for one objc2 build script); x64 not checked | not run (no WebKitGTK dev files or Rust in WSL) |
-| BrowserPort contract suite (feat/source-runners) | pass, 23/23 | not run | not run |
-| BrowserPort contract suite (proto 1.1, `aaaf2b2`) | pass, 34/34 against the committed helper (temporary local copy of the suite, not committed) | not run | not run |
+| BrowserPort contract suite (protocol 1.1, `source_runtime_testing`) | pass, 34/34 | not run | not run |
 | Load page, evaluate (promises awaited), JSON results | pass | not run | not run |
 | Message channel `window.<name>.postMessage(string)` | pass: document start of every later document, plus the current page on registration; non-strings dropped | not run | not run |
 | Origin rule (cross-origin frame, `about:blank` dropped) | pass. The page script reports the frame's origin and `top.location.origin`, which a cross-origin frame cannot read; on WebView2 the engine's document URL must agree too. Same-origin direct child frames get the channel and are delivered (frame message events are forwarded); nested frames are not subscribed | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
