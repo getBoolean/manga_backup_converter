@@ -8,7 +8,9 @@
 //    files, and that no test fixture shipped.
 // 3. Runs with a scrubbed environment: PATH holds only the OS directories,
 //    and JAVA_HOME, TACHI_JAVA_HOME, DART/FLUTTER and cargo variables are
-//    removed; java, dart, gradle and cargo must not resolve on that PATH.
+//    removed; java, dart, gradle and cargo must not resolve on that PATH
+//    (on macOS `/usr/bin/java` is the OS's launcher stub, always present; it
+//    is recorded, and the runtime check shows the bundled JRE ran instead).
 // 4. `--help`; the bundled JRE's version against the security floor.
 // 5. `__runtime-check`: the JVM worker, the Paperback worker and the WebView
 //    helper start offline and close; afterwards none of their processes run.
@@ -115,9 +117,45 @@ Future<void> main(List<String> args) async {
       fixtures.isEmpty ? null : fixtures,
     );
 
+    if (Platform.isMacOS) {
+      final unsigned = <String>[];
+      final quarantined = <String>[];
+      var machO = 0;
+      for (final File f in pkg.listSync(recursive: true).whereType<File>()) {
+        final String rel = p.relative(f.path, from: pkg.path);
+        final ProcessResult x = await Process.run('xattr', <String>[
+          '-p',
+          'com.apple.quarantine',
+          f.path,
+        ]);
+        if (x.exitCode == 0) quarantined.add(rel);
+        final ProcessResult kind = await Process.run('file', <String>[
+          '-b',
+          f.path,
+        ]);
+        if (!(kind.stdout as String).startsWith('Mach-O')) continue;
+        machO++;
+        final ProcessResult verify = await Process.run('codesign', <String>[
+          '-v',
+          f.path,
+        ]);
+        if (verify.exitCode != 0) unsigned.add(rel);
+      }
+      _record(
+        'every Mach-O file has a valid signature and nothing is quarantined',
+        machO > 0 && unsigned.isEmpty && quarantined.isEmpty,
+        <String, Object?>{
+          'machO': machO,
+          if (unsigned.isNotEmpty) 'invalid': unsigned,
+          if (quarantined.isNotEmpty) 'quarantined': quarantined,
+        },
+      );
+    }
+
     // Scrubbed environment.
     final Map<String, String> env = _scrubbedEnvironment();
     final found = <String>[];
+    final osStubs = <String>[];
     for (final tool in <String>[
       'java',
       'dart',
@@ -134,12 +172,21 @@ Future<void> main(List<String> args) async {
         includeParentEnvironment: false,
         runInShell: Platform.isWindows,
       );
-      if (r.exitCode == 0) found.add(tool);
+      if (r.exitCode != 0) continue;
+      final String at = (r.stdout as String).trim();
+      if (Platform.isMacOS && tool == 'java' && at == '/usr/bin/java') {
+        osStubs.add(at);
+      } else {
+        found.add(tool);
+      }
     }
     _record(
       'no system java/dart/gradle/rust/node on the scrubbed PATH',
       found.isEmpty,
-      found.isEmpty ? null : found,
+      <String, Object?>{
+        if (found.isNotEmpty) 'found': found,
+        if (osStubs.isNotEmpty) 'osLauncherStubs': osStubs,
+      },
     );
 
     final String cli = p.join(pkg.path, 'bin', 'mangabackupconverter_cli$_exe');
@@ -196,15 +243,27 @@ Future<void> main(List<String> args) async {
     );
 
     // Kill the CLI mid-session.
-    final ({List<int> pids, List<int> left, List<int> webviewLeft}) killed =
-        await _killMidSession(cli, env);
+    final ({
+      List<int> pids,
+      List<int> left,
+      List<int> webview,
+      List<int> webviewLeft,
+    })
+    killed = await _killMidSession(cli, env);
     _record(
       'killing the CLI leaves no owned worker or helper process',
-      killed.pids.length == 3 && killed.left.isEmpty,
+      killed.pids.length == 3 &&
+          killed.left.isEmpty &&
+          (!Platform.isMacOS || killed.webviewLeft.isEmpty),
       <String, Object?>{
         'owned': killed.pids.length,
         'left': killed.left,
-        'webview2ChildrenStillTerminating': killed.webviewLeft.length,
+        if (Platform.isWindows)
+          'webview2ChildrenStillTerminating': killed.webviewLeft.length,
+        if (Platform.isMacOS) ...<String, Object?>{
+          'webkitProcessesStarted': killed.webview.length,
+          'webkitProcessesLeft': killed.webviewLeft.length,
+        },
       },
     );
   } finally {
@@ -322,11 +381,16 @@ Future<({int code, Map<String, Object?>? report, String stderr})> _runtimeCheck(
   return (code: code, report: report, stderr: stderrText.toString());
 }
 
-Future<({List<int> pids, List<int> left, List<int> webviewLeft})>
+Future<
+  ({List<int> pids, List<int> left, List<int> webview, List<int> webviewLeft})
+>
 _killMidSession(
   String cli,
   Map<String, String> env,
 ) async {
+  final Set<int> webkitBefore = Platform.isMacOS
+      ? (await _webkitProcesses()).toSet()
+      : <int>{};
   final Process process = await Process.start(
     cli,
     <String>[
@@ -345,6 +409,11 @@ _killMidSession(
   final List<int> pids = _pids(jsonDecode(line) as Map<String, Object?>);
   final List<int> webview = Platform.isWindows
       ? await _webviewChildren(pids)
+      : Platform.isMacOS
+      ? <int>[
+          for (final int pid in await _webkitProcesses())
+            if (!webkitBefore.contains(pid)) pid,
+        ]
       : const <int>[];
   process.kill(ProcessSignal.sigkill);
   await process.exitCode;
@@ -353,7 +422,7 @@ _killMidSession(
     webview,
     const Duration(seconds: 120),
   );
-  return (pids: pids, left: left, webviewLeft: webviewLeft);
+  return (pids: pids, left: left, webview: webview, webviewLeft: webviewLeft);
 }
 
 List<int> _pids(Map<String, Object?>? report) => <int>[
@@ -373,6 +442,25 @@ Future<List<int>> _webviewChildren(List<int> pids) async {
       if (l.trim().split(' ') case [final String pid, final String parent]
           when pids.contains(int.tryParse(parent)))
         int.parse(pid),
+  ];
+}
+
+/// WebKit's XPC service processes (WebContent, Networking, GPU). launchd
+/// owns them, not the helper, so the ones that appeared while the helper ran
+/// are taken as its own (another WebKit app starting meanwhile would add
+/// noise, never hide a leftover).
+Future<List<int>> _webkitProcesses() async {
+  final ProcessResult r = await Process.run('ps', <String>[
+    '-axo',
+    'pid=,command=',
+  ]);
+  return <int>[
+    for (final String l in (r.stdout as String).split('\n'))
+      if (RegExp(
+            r'^\s*(\d+)\s+\S*/com\.apple\.WebKit\.(WebContent|Networking|GPU)\b',
+          ).firstMatch(l)
+          case final RegExpMatch m)
+        int.parse(m.group(1)!),
   ];
 }
 
@@ -413,13 +501,17 @@ bool _atLeast(String line, String floor) {
   return true;
 }
 
-/// [value] with the package path replaced by `<package>`.
-Object? _strip(Object? value, String pkg) => value == null
-    ? null
-    : jsonDecode(
-        jsonEncode(value)
-            .replaceAll(jsonEncode(pkg).replaceAll('"', ''), '<package>'),
-      );
+/// [value] with the package path (as given and as resolved: macOS reports
+/// `/private/var/...` for `/var/...`) replaced by `<package>`.
+Object? _strip(Object? value, String pkg) {
+  if (value == null) return null;
+  String json = jsonEncode(value);
+  final String resolved = Directory(pkg).resolveSymbolicLinksSync();
+  for (final path in <String>{resolved, pkg}) {
+    json = json.replaceAll(jsonEncode(path).replaceAll('"', ''), '<package>');
+  }
+  return jsonDecode(json);
+}
 
 String _tail(String text) =>
     text.length > 2000 ? text.substring(text.length - 2000) : text;
