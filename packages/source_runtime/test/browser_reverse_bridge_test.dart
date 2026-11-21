@@ -1,5 +1,6 @@
-// Protocol 1.2 behaviour of BrowserReverseBridge: version gating,
-// capabilities, script errors, page-start scripts and request interception.
+// Protocol 1.2 and 1.3 behaviour of BrowserReverseBridge: version gating,
+// capabilities, script errors, page-start scripts, request interception, and
+// interaction completion.
 import 'dart:async';
 import 'dart:convert';
 
@@ -22,17 +23,23 @@ SourceIdentity _identity(String? pkg, String sourceId) => SourceIdentity(
 typedef _Event = ({String op, Map<String, Object?> payload, int generation});
 
 final class _Rig {
-  _Rig({BrowserCapabilities? capabilities, Duration? replacementTimeout})
-    : port = FakeBrowserPort(
-        capabilities: capabilities,
-        pages: (Uri url) => url == _page ? const FakeWebPage(html: '<title>page</title>') : null,
-        requests: (BrowserRequest r) =>
-            r.url.path == '/api' ? FakeWebPage(html: 'network ${utf8.decode(r.body ?? const <int>[])}') : null,
-      ) {
+  _Rig({
+    BrowserCapabilities? capabilities,
+    Duration? replacementTimeout,
+    bool hasDisplay = false,
+    Duration interactionTimeout = const Duration(seconds: 1),
+  }) : port = FakeBrowserPort(
+         capabilities: capabilities,
+         hasDisplay: hasDisplay,
+         userClosesInteraction: false,
+         pages: (Uri url) => url == _page ? const FakeWebPage(html: '<title>page</title>') : null,
+         requests: (BrowserRequest r) =>
+             r.url.path == '/api' ? FakeWebPage(html: 'network ${utf8.decode(r.body ?? const <int>[])}') : null,
+       ) {
     bridge = BrowserReverseBridge(
       port: port,
       resolveSource: _identity,
-      interactionTimeout: const Duration(seconds: 1),
+      interactionTimeout: interactionTimeout,
       replacementTimeout: replacementTimeout,
       emitEvent: (String op, Map<String, Object?> payload, {required int generation}) =>
           events.add((op: op, payload: payload, generation: generation)),
@@ -50,13 +57,14 @@ final class _Rig {
     Map<String, Object?> payload, {
     int minor = 2,
     int generation = 1,
+    CancellationToken? cancel,
   }) => bridge.handle(
     ReverseRequest(
       op: op,
       payload: payload,
       packageId: 'pkg',
       generation: generation,
-      cancel: CancellationToken.none,
+      cancel: cancel ?? CancellationToken.none,
       protocolMinor: minor,
     ),
   );
@@ -304,6 +312,126 @@ void main() {
           'requestId': 'q1',
         })).failureOrNull,
       ).isA<CancelledFailure>();
+    });
+  });
+
+  group('protocol 1.3: replace tier without a replacement timeout', () {
+    test('an engine without the replace tier names its own reason first', () async {
+      final rig = _Rig(capabilities: FakeBrowserPort.degradedCapabilities);
+      final String session = await rig.open();
+      check(
+          (await rig.call('host.browser.setRequestInterception', <String, Object?>{
+            'session': session,
+            'mode': 'replace',
+          })).failureOrNull,
+        ).isA<CapabilityUnavailableFailure>()
+        ..has((CapabilityUnavailableFailure f) => f.operation, 'operation').equals('setRequestReplacer')
+        ..has(
+          (CapabilityUnavailableFailure f) => f.message,
+          'message',
+        ).equals('replaceRequests: The engine cannot substitute http(s) responses');
+    });
+
+    test('a capable engine names the missing timeout and keeps its observer', () async {
+      final rig = _Rig();
+      final String session = await rig.open();
+      await rig.ok('host.browser.setRequestInterception', <String, Object?>{'session': session, 'mode': 'observe'});
+      check(
+          (await rig.call('host.browser.setRequestInterception', <String, Object?>{
+            'session': session,
+            'mode': 'replace',
+          })).failureOrNull,
+        ).isA<CapabilityUnavailableFailure>()
+        ..has((CapabilityUnavailableFailure f) => f.operation, 'operation').equals('setRequestReplacer')
+        ..has((CapabilityUnavailableFailure f) => f.message, 'message').contains('replacement timeout');
+      await rig.ok('host.browser.load', <String, Object?>{'session': session, 'url': '$_page'});
+      check(rig.eventsOf(HostBrowserRequestEvent.op)).length.equals(1);
+    });
+  });
+
+  group('protocol 1.3: host.browser.show completion', () {
+    Future<SourceOutcome<Map<String, Object?>>> show(
+      _Rig rig,
+      String session, {
+      int minor = 3,
+      CancellationToken? cancel,
+    }) => rig.call('host.browser.show', <String, Object?>{'session': session}, minor: minor, cancel: cancel);
+
+    Future<void> shown(_Rig rig) async {
+      while (rig.port.shownInteractions == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    test('the user closing the window answers outcome closed', () async {
+      final rig = _Rig(hasDisplay: true, interactionTimeout: const Duration(seconds: 10));
+      final String session = await rig.open(minor: 3);
+      final Future<SourceOutcome<Map<String, Object?>>> pending = show(rig, session);
+      await shown(rig);
+      rig.port.closeInteraction();
+      check((await pending).valueOrNull).isNotNull().deepEquals(<String, Object?>{'outcome': 'closed'});
+    });
+
+    test('a 1.2 worker gets the empty reply it always got', () async {
+      final rig = _Rig(hasDisplay: true, interactionTimeout: const Duration(seconds: 10));
+      final String session = await rig.open();
+      final Future<SourceOutcome<Map<String, Object?>>> pending = show(rig, session, minor: 2);
+      await shown(rig);
+      rig.port.closeInteraction();
+      check((await pending).valueOrNull).isNotNull().isEmpty();
+    });
+
+    test('endInteraction ends the show as completed, hides the window and leaves the session usable', () async {
+      final rig = _Rig(hasDisplay: true, interactionTimeout: const Duration(seconds: 10));
+      final String session = await rig.open(minor: 3);
+      final Future<SourceOutcome<Map<String, Object?>>> pending = show(rig, session);
+      await shown(rig);
+      await rig.ok('host.browser.endInteraction', <String, Object?>{'session': session}, minor: 3);
+      check((await pending).valueOrNull).isNotNull().deepEquals(<String, Object?>{'outcome': 'completed'});
+      check(rig.port.shownInteractions).equals(0);
+      check(
+        (await rig.ok('host.browser.evaluate', <String, Object?>{
+          'session': session,
+          'script': '1 + 1',
+        }, minor: 3))['result'],
+      ).equals('2');
+    });
+
+    test('the interaction bound answers interaction-required', () async {
+      final rig = _Rig(hasDisplay: true, interactionTimeout: const Duration(milliseconds: 100));
+      final String session = await rig.open(minor: 3);
+      check((await show(rig, session)).failureOrNull)
+          .isA<InteractionRequiredFailure>()
+          .has((InteractionRequiredFailure f) => f.message, 'message')
+          .contains('not completed within');
+      check(rig.port.shownInteractions).equals(0);
+    });
+
+    test('cancelling the operation answers cancelled', () async {
+      final rig = _Rig(hasDisplay: true, interactionTimeout: const Duration(seconds: 10));
+      final String session = await rig.open(minor: 3);
+      final cancel = CancellationSource();
+      final Future<SourceOutcome<Map<String, Object?>>> pending = show(rig, session, cancel: cancel.token);
+      await shown(rig);
+      cancel.cancel('deadline');
+      check((await pending).failureOrNull).isA<CancelledFailure>();
+    });
+
+    test('endInteraction with nothing shown is cancelled, and needs 1.3', () async {
+      final rig = _Rig(hasDisplay: true);
+      final String session = await rig.open(minor: 3);
+      check(
+        (await rig.call('host.browser.endInteraction', <String, Object?>{'session': session}, minor: 3)).failureOrNull,
+      ).isA<CancelledFailure>();
+      check(
+        (await rig.call('host.browser.endInteraction', <String, Object?>{'session': session})).failureOrNull,
+      ).isA<ProtocolViolationFailure>();
+    });
+
+    test('without a display the show is interaction-required at once', () async {
+      final rig = _Rig();
+      final String session = await rig.open(minor: 3);
+      check((await show(rig, session)).failureOrNull).isA<InteractionRequiredFailure>();
     });
   });
 }

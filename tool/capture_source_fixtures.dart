@@ -47,7 +47,8 @@ typedef _Scenario = ({
 });
 
 /// No cookie is recorded unless a scenario names it.
-const Map<String, CapturedCookieValue> _noCookies = <String, CapturedCookieValue>{};
+const Map<String, CapturedCookieValue> _noCookies =
+    <String, CapturedCookieValue>{};
 
 const String _mangadexTerms =
     'Third-party MangaDex API response; not openly licensed; retained only as an '
@@ -81,8 +82,9 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
         await plugin.searchManga('Onimai', 1);
         final Manga? manga = await plugin.getMangaDetails(mangaId);
         await plugin.getMangaDetails(mangaId, includeChapters: true);
-        if (manga != null)
+        if (manga != null) {
           await plugin.getPageList(manga, const Chapter(key: chapterId));
+        }
         await plugin.getMangaList(1, listing: plugin.sourceInfo.listings[1]);
         await plugin.getListings();
         await plugin.getHome();
@@ -104,10 +106,11 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
       try {
         final MangaPageResult result = await plugin.searchManga('Onimai', 1);
         final String? key = result.manga.firstOrNull?.key;
-        if (key == null)
+        if (key == null) {
           throw StateError(
             'MangaFire search returned no results; nothing to capture',
           );
+        }
         await plugin.getMangaDetails(key);
         await plugin.getMangaDetails(key, includeChapters: true);
       } finally {
@@ -128,14 +131,16 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
       try {
         final MangaPageResult result = await plugin.searchManga('Onimai', 1);
         final String? key = result.manga.firstOrNull?.key;
-        if (key == null)
+        if (key == null) {
           throw StateError(
             'Weeb Central search returned no results; nothing to capture',
           );
+        }
         await plugin.getMangaDetails(key, includeChapters: true);
         final List<String> warnings = plugin.drainWarnings();
-        if (warnings.isNotEmpty)
+        if (warnings.isNotEmpty) {
           throw StateError('Weeb Central produced host warnings: $warnings');
+        }
       } finally {
         plugin.dispose();
       }

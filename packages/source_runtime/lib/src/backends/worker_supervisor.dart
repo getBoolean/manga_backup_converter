@@ -65,7 +65,10 @@ final class SupervisorLimits extends SupervisorLimitsPolicy {
   final Duration cancelGrace;
 
   /// Bound on a visible user browser interaction; that time is excluded from
-  /// [operationDeadline].
+  /// [operationDeadline]. The show itself answers `interaction-required` at
+  /// this bound; the supervisor escalates only a show still pending a
+  /// [cancelGrace] later. A 1.3 worker is told when the exclusion starts and
+  /// ends (`interaction.started`, `interaction.ended`).
   final Duration interactionTimeout;
 
   /// Bound on graceful shutdown before the process is killed.
@@ -180,7 +183,8 @@ final class ReverseRequest {
   final CancellationToken cancel;
 
   /// The supervisor's bound on a visible interaction, from its effective
-  /// limits; a handler uses it for `host.browser.show`.
+  /// limits; a handler passes it to `showBrowserInteraction` for
+  /// `host.browser.show`.
   final Duration? interactionTimeout;
 
   /// The minor protocol version the worker negotiated. A handler refuses

@@ -20,6 +20,10 @@ void main() {
     'FakeBrowserPort (nothing optional reported)',
     () => FakeBrowserPortHarness(capabilities: BrowserCapabilities.unreported()),
   );
+  runBrowserPortContractSuite(
+    'FakeBrowserPort (with a display and a user)',
+    () => FakeBrowserPortHarness(interactive: true),
+  );
 
   group('FakeBrowserPort specifics', () {
     const source = SourceIdentity(

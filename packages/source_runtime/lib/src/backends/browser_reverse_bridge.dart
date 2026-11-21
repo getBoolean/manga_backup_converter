@@ -25,7 +25,13 @@ typedef WorkerEventSink = void Function(String op, Map<String, Object?> payload,
 /// Versions: an operation newer than the minor the worker negotiated
 /// ([ReverseRequest.protocolMinor]) is answered `protocol-violation`. A
 /// pre-1.2 worker gets no capabilities in the open reply, and a script
-/// error as the plain `null` result.
+/// error as the plain `null` result. A pre-1.3 worker gets `{}` as the
+/// `host.browser.show` reply instead of its `outcome`.
+///
+/// Interaction (1.3): `host.browser.show` runs [showBrowserInteraction];
+/// `host.browser.endInteraction` for the session completes it as
+/// `outcome: completed`, the user closing the window as `outcome: closed`,
+/// and its bound answers `interaction-required`.
 ///
 /// Lifetime (KTD4, KTD20):
 /// - [fence] closes every session opened in a generation below the given
