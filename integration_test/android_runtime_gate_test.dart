@@ -132,13 +132,25 @@ void main() {
         reason: 'SourceFactory must be the parent-owned host type',
       );
       final construction = load['construction']! as Map<String, Object?>;
-      // The pinned source API (mihonapp/extensions-lib 1.6.0) is a stub library;
-      // MangaDex's HttpSource constructor therefore throws "Stub!". Source IDs
-      // are compared with the index by U11 with its real host. If construction
-      // ever succeeds here, extend this test to compare IDs with
-      // fixtures/source_captures/tachi/all.mangadex/index-entry.json.
-      expect(construction['ok'], isFalse);
-      expect(construction['rootMessage'], 'Stub!');
+      // Since U11 the service's parent class path carries the real Tachi host
+      // (tools/tachi-source-runner/android) instead of the extensions-lib stub,
+      // so MangaDex's HttpSource constructors run. Source IDs are compared with
+      // the index by U11's own scenarios (source_runners_android_test.dart);
+      // here construction only has to succeed with well-formed IDs.
+      expect(
+        construction['ok'],
+        isTrue,
+        reason: 'construction failed: ${construction['rootMessage']}',
+      );
+      final sources = construction['sources']! as List<Object?>;
+      expect(sources, isNotEmpty);
+      for (final source in sources) {
+        expect(
+          int.tryParse((source! as Map<String, Object?>)['id']! as String),
+          isNotNull,
+          reason: 'source IDs are int64 strings',
+        );
+      }
 
       final Uint8List bytes = stagedFile.readAsBytesSync();
       final String dir = runtime.stagingDirectory;
