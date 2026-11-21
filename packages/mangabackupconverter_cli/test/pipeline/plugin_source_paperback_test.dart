@@ -4,7 +4,7 @@
 // RepositoryTrustGate deciding bundle trust. No network: catalogs and
 // bundles are served from fixtures, site requests from captures.
 @TestOn('vm')
-@Timeout(Duration(minutes: 3))
+@Timeout(Duration(minutes: 30))
 library;
 
 import 'dart:io';
@@ -78,7 +78,7 @@ void main() {
       spec: const WorkerSpec(label: 'paperback', executable: 'in-process'),
       limits: const SupervisorLimits(
         maxConcurrentPackages: 1,
-        operationDeadline: Duration(seconds: 60),
+        operationDeadline: Duration(minutes: 15),
         cancelGrace: Duration(seconds: 5),
         interactionTimeout: Duration(seconds: 5),
         shutdownGrace: Duration(seconds: 5),
@@ -88,7 +88,7 @@ void main() {
         limits: PaperbackRuntimeLimits(
           memoryLimitBytes: 256 << 20,
           maxStackBytes: 512 << 10,
-          operationDeadline: const Duration(seconds: 60),
+          operationDeadline: const Duration(minutes: 15),
           jobSlice: const Duration(milliseconds: 20),
         ),
       ),

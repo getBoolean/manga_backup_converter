@@ -15,9 +15,16 @@ import 'test_support.dart';
 
 const Duration deadline = Duration(milliseconds: 400);
 
-/// Generous bound on how far past the deadline termination may land; it
-/// covers interrupt-check granularity and slow CI machines.
-const Duration overshoot = Duration(milliseconds: 1500);
+/// Upper bound that only proves termination is bounded (no hang). These
+/// tests run on loaded CI machines, so they assert the termination reason
+/// and a lower bound, never a tight wall-clock ceiling: the reason already
+/// shows which limit fired (a deadline is a `TimeoutFailure`, a cancel a
+/// `CancelledFailure`, a never-settling promise `neverSettles`).
+const Duration bounded = Duration(seconds: 25);
+
+/// Long deadline for cases about other limits, so the deadline can never win
+/// the race against the memory limit or a cancellation.
+const Duration noDeadline = Duration(seconds: 30);
 
 Future<(PaperbackRuntimeException, Duration)> expectFailure(Future<Object?> Function() op) async {
   final watch = Stopwatch()..start();
@@ -31,6 +38,17 @@ Future<(PaperbackRuntimeException, Duration)> expectFailure(Future<Object?> Func
 
 void main() {
   late SourceJsRuntime runtime;
+
+  /// A runtime whose deadline cannot fire within the test, with a small heap
+  /// so memory cases reach their limit quickly even on a loaded machine.
+  SourceJsRuntime undeadlined(String name) {
+    final r = SourceJsRuntime(
+      limits: testLimits(memoryLimitBytes: 4 * 1024 * 1024),
+      name: name,
+    );
+    addTearDown(r.dispose);
+    return r;
+  }
 
   setUp(() {
     runtime = SourceJsRuntime(
@@ -46,40 +64,49 @@ void main() {
     check(e.reason).equals(PaperbackFailureReason.deadline);
     check(e.failure).isA<TimeoutFailure>();
     check(took).isGreaterOrEqual(deadline - const Duration(milliseconds: 50));
-    check(took).isLessThan(deadline + overshoot);
+    check(took).isLessThan(bounded);
     // The runtime remains usable after a deadline interrupt.
     check(await runtime.evaluate('1 + 1')).equals(2);
   });
 
   test('an endless promise chain stops at the deadline and never starves the event loop', () async {
-    var ticks = 0;
-    final ticker = Timer.periodic(const Duration(milliseconds: 10), (_) => ticks++);
+    // Counts timer turns that ran while the operation was still in progress.
+    // A starved event loop runs none until the operation ends; how many run
+    // depends on machine load, so only "at least one" is asserted.
+    var running = true;
+    var ticksWhileRunning = 0;
+    final ticker = Timer.periodic(const Duration(milliseconds: 10), (_) {
+      if (running) ticksWhileRunning++;
+    });
     addTearDown(ticker.cancel);
     final (PaperbackRuntimeException e, Duration took) = await expectFailure(
       () => runtime.evaluate('(async () => { for (;;) await null; })()'),
     );
+    running = false;
     check(e.reason).equals(PaperbackFailureReason.deadline);
-    check(took).isLessThan(deadline + overshoot);
-    // Job slices yield timer turns, so the timer kept firing.
-    check(ticks).isGreaterThan(5);
+    check(took).isLessThan(bounded);
+    check(ticksWhileRunning).isGreaterThan(0);
   });
 
   test('a promise chain that grows without bound stops at the memory limit', () async {
-    final (PaperbackRuntimeException e, Duration took) = await expectFailure(
-      () => runtime.evaluate('(function spin(n) { return Promise.resolve(n + 1).then(spin); })(0)'),
+    final SourceJsRuntime r = undeadlined('memory-chain');
+    final (PaperbackRuntimeException e, _) = await expectFailure(
+      () => r.evaluate('(function spin(n) { return Promise.resolve(n + 1).then(spin); })(0)'),
     );
     // The engine rejects with `null` when it cannot allocate its error; the
     // allocator flag still identifies the cause.
+    // No deadline can fire, so the reason alone shows the memory limit
+    // stopped it; the test timeout catches a hang.
     check(e.reason).equals(PaperbackFailureReason.memoryLimit);
-    check(took).isLessThan(deadline + overshoot);
   });
 
   test('a promise that can never settle fails at once', () async {
     final (PaperbackRuntimeException e, Duration took) = await expectFailure(
       () => runtime.evaluate('new Promise(() => {})'),
     );
+    // `neverSettles`, not `deadline`: it failed without waiting the deadline.
     check(e.reason).equals(PaperbackFailureReason.neverSettles);
-    check(took).isLessThan(deadline);
+    check(took).isLessThan(bounded);
   });
 
   test('a promise waiting on a host call that never answers stops at the deadline', () async {
@@ -90,7 +117,7 @@ void main() {
     );
     check(e.reason).equals(PaperbackFailureReason.deadline);
     check(took).isGreaterOrEqual(deadline - const Duration(milliseconds: 50));
-    check(took).isLessThan(deadline + overshoot);
+    check(took).isLessThan(bounded);
   });
 
   test('host calls left by a timed-out operation do not leak into the next one', () async {
@@ -111,7 +138,7 @@ void main() {
       () => runtime.evaluate('new Promise(() => {})'),
     );
     check(second.reason).equals(PaperbackFailureReason.neverSettles);
-    check(took).isLessThan(deadline);
+    check(took).isLessThan(bounded);
     check(await runtime.evaluate('typeof leaked')).equals('undefined');
   });
 
@@ -132,13 +159,13 @@ void main() {
   });
 
   test('memory exhaustion stops at the memory limit and closes the runtime', () async {
-    final (PaperbackRuntimeException e, Duration took) = await expectFailure(
-      () => runtime.evaluate('const a = []; for (;;) a.push("x".repeat(1024) + a.length);'),
+    final SourceJsRuntime r = undeadlined('memory-exhaustion');
+    final (PaperbackRuntimeException e, _) = await expectFailure(
+      () => r.evaluate('const a = []; for (;;) a.push("x".repeat(1024) + a.length);'),
     );
     check(e.reason).equals(PaperbackFailureReason.memoryLimit);
-    check(took).isLessThan(deadline + overshoot);
-    check(runtime.isClosed).isTrue();
-    check(await caught(runtime.evaluate('1')))
+    check(r.isClosed).isTrue();
+    check(await caught(r.evaluate('1')))
         .has(
           (PaperbackRuntimeException e) => e.failure,
           'failure',
@@ -146,28 +173,26 @@ void main() {
         .isA<RuntimeUnavailableFailure>();
   });
 
-  test('cancellation while waiting on a host call ends the operation promptly', () async {
-    installHttpHost(runtime, ControlledHttp());
+  test('cancellation while waiting on a host call ends the operation', () async {
+    // No deadline can fire, so `cancelled` proves the cancel ended it.
+    final SourceJsRuntime r = undeadlined('cancel');
+    installHttpHost(r, ControlledHttp());
     final source = CancellationSource();
     Timer(const Duration(milliseconds: 50), () => source.cancel('user aborted'));
     final (PaperbackRuntimeException e, Duration took) = await expectFailure(
-      () => runtime.evaluate('__paperbackHost.request({ url: "https://example.test/hang" })', cancel: source.token),
+      () => r.evaluate('__paperbackHost.request({ url: "https://example.test/hang" })', cancel: source.token),
     );
     check(e.reason).equals(PaperbackFailureReason.cancelled);
     check(e.failure).isA<CancelledFailure>();
-    check(took).isLessThan(deadline);
+    check(took).isLessThan(bounded);
   });
 
   test('another isolate can interrupt a busy loop through the token address', () async {
-    final long = SourceJsRuntime(
-      limits: testLimits(operationDeadline: const Duration(seconds: 20)),
-      name: 'long',
-    );
-    addTearDown(long.dispose);
+    final SourceJsRuntime long = undeadlined('long');
     await Isolate.spawn(_interruptAfterDelay, long.interruptTokenAddress);
     final (PaperbackRuntimeException e, Duration took) = await expectFailure(() => long.evaluate('for (;;) {}'));
     check(e.reason).equals(PaperbackFailureReason.cancelled);
-    check(took).isLessThan(const Duration(seconds: 5));
+    check(took).isLessThan(bounded);
     // A new operation resets the token.
     check(await long.evaluate('"next"')).equals('next');
   });

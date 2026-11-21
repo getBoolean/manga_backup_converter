@@ -62,7 +62,7 @@ final class WorkerHarness {
     worker = PaperbackSourceWorker(
       input: _input.stream,
       output: _output,
-      limits: limits ?? testLimits(operationDeadline: const Duration(milliseconds: 500)),
+      limits: limits ?? testLimits(),
       adapter: adapter,
       pid: 4242,
       log: logs.add,
@@ -155,7 +155,7 @@ void main() {
     check(response.capabilities.apiFamilies).isEmpty();
     final WorkerReportedLimits limits = response.limits!;
     check(limits.fields).containsKey('memoryLimitBytes');
-    check(limits.operationDeadline).equals(const Duration(milliseconds: 500));
+    check(limits.operationDeadline).equals(const Duration(seconds: 30));
     // No benchmark evidence for these, so they are not reported.
     check(limits.poolSize).isNull();
     check(limits.cancelGrace).isNull();
@@ -221,7 +221,10 @@ void main() {
   });
 
   test('a busy loop replies timeout at the deadline, and the package keeps serving', () async {
-    final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
+    final harness = WorkerHarness(
+      adapter: ScriptAdapter(fakeHttp()),
+      limits: testLimits(operationDeadline: const Duration(milliseconds: 500)),
+    );
     final String path = script('function search(q) { if (q === "spin") for (;;) {} return q; }');
     await harness.request('package.load', pkg: 'pkg.test', payload: loadPayload(path));
     final ProtocolFrame spin = await harness.request('search', pkg: 'pkg.test', payload: searchPayload('spin'));

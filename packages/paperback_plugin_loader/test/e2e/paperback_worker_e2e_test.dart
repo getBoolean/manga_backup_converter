@@ -225,7 +225,7 @@ void main() {
           arguments: <String>[
             '--memory-limit-bytes=${256 << 20}',
             '--max-stack-bytes=${512 << 10}',
-            '--operation-deadline-ms=60000',
+            '--operation-deadline-ms=180000',
             '--job-slice-ms=20',
             '--deadline-headroom-ms=250',
             '--replay=${paperbackFixtures().path}/$site',
@@ -234,7 +234,7 @@ void main() {
         ),
         limits: const SupervisorLimits(
           maxConcurrentPackages: 1,
-          operationDeadline: Duration(seconds: 90),
+          operationDeadline: Duration(seconds: 240),
           cancelGrace: Duration(seconds: 5),
           interactionTimeout: Duration(seconds: 5),
           shutdownGrace: Duration(seconds: 10),

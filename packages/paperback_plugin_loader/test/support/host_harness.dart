@@ -7,7 +7,7 @@ import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 
 /// Generous test limits; resource-limit behaviour has its own tests.
-PaperbackRuntimeLimits testLimits({Duration deadline = const Duration(seconds: 20)}) => PaperbackRuntimeLimits(
+PaperbackRuntimeLimits testLimits({Duration deadline = const Duration(seconds: 60)}) => PaperbackRuntimeLimits(
   memoryLimitBytes: 256 << 20,
   maxStackBytes: 512 << 10,
   operationDeadline: deadline,
@@ -39,7 +39,7 @@ final class HostUnderTest {
     http.Client? client,
     PaperbackBrowserChannel? browser,
     SettingsPayload? settings,
-    Duration deadline = const Duration(seconds: 20),
+    Duration deadline = const Duration(seconds: 60),
   }) async {
     final requests = <http.Request>[];
     final logs = <String>[];

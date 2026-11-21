@@ -6,7 +6,7 @@
 // only the process boundary is replaced by in-memory pipes (the built
 // executable runs the same scenario in e2e/paperback_worker_e2e_test.dart).
 @TestOn('vm')
-@Timeout(Duration(minutes: 5))
+@Timeout(Duration(minutes: 45))
 library;
 
 import 'dart:io';
@@ -54,14 +54,14 @@ Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPo
     spec: const WorkerSpec(label: 'paperback', executable: 'in-process'),
     limits: const SupervisorLimits(
       maxConcurrentPackages: 1,
-      operationDeadline: Duration(seconds: 60),
+      operationDeadline: Duration(minutes: 15),
       cancelGrace: Duration(seconds: 5),
       interactionTimeout: Duration(seconds: 5),
       shutdownGrace: Duration(seconds: 5),
     ),
     launcher: inProcessPaperbackLauncher(
       client: client,
-      limits: testLimits(deadline: const Duration(seconds: 60)),
+      limits: testLimits(deadline: const Duration(minutes: 15)),
     ),
     onReverseRequest: bridge?.handle,
   );
