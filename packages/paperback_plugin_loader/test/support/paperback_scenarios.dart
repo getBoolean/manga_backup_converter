@@ -62,14 +62,14 @@ Directory repoRootDir() {
 /// `fixtures/source_captures/paperback`.
 Directory paperbackFixtures() => Directory('${repoRootDir().path}/fixtures/source_captures/paperback');
 
-/// The committed catalog and pinned artifact digests of [repoDir].
+/// The committed catalog and pinned artifact digests of one repository.
 final class PinnedRepository {
   PinnedRepository._(this.dir, this.catalog, this.pins);
 
   factory PinnedRepository.load(String repoDir) {
     final dir = Directory('${paperbackFixtures().path}/$repoDir');
     final manifest = jsonDecode(File('${dir.path}/artifacts.json').readAsStringSync()) as Map<String, Object?>;
-    final repository = Uri.parse(manifest['repository']! as String);
+    final Uri repository = Uri.parse(manifest['repository']! as String);
     final PaperbackCatalog catalog = PaperbackCatalog.parse(
       repository,
       File('${dir.path}/versioning.json').readAsStringSync(),
@@ -97,8 +97,7 @@ final class PinnedRepository {
     final allowed = <String>{
       for (final PinnedRepository r in repos)
         for (final MapEntry<String, Map<String, Object?>> p in r.pins.entries)
-          '${bundleTrustKey(r.catalog.repository, p.key)}|'
-              '${bundleTrustFingerprint(r.catalog.family, p.value['sha256']! as String)}',
+          '${bundleTrustKey(r.catalog.repository, p.key)}|${bundleTrustFingerprint(r.catalog.family, p.value['sha256']! as String)}',
     };
     return (Uri key, String fingerprint) async => allowed.contains('$key|$fingerprint');
   }
@@ -122,20 +121,32 @@ final class BundleRun {
     'apiFamily': family.wire,
     'sha256': sha256,
     if (openFailure != null) 'openFailure': openFailure!.toWire(),
-    'search': _summary(page1, (SearchPage p) => <String, Object?>{
-      'hits': p.hits.length,
-      'first': p.hits.isEmpty ? null : <String, Object?>{'mangaId': p.hits.first.ref.mangaId, 'title': p.hits.first.title},
-      'nextCursor': p.nextCursor,
-    }),
-    if (page2 != null) 'searchPage2': _summary(page2, (SearchPage p) => <String, Object?>{'hits': p.hits.length, 'nextCursor': p.nextCursor}),
-    'details': _summary(details, (MangaSnapshot s) => <String, Object?>{
-      'mangaId': s.ref.mangaId,
-      'title': s.metadata.title,
-      'authors': s.metadata.authors,
-      'status': s.metadata.status.name,
-      'chapters': s.chapters.length,
-      'firstChapter': s.chapters.isEmpty ? null : s.chapters.first.toJson(),
-    }),
+    'search': _summary(
+      page1,
+      (SearchPage p) => <String, Object?>{
+        'hits': p.hits.length,
+        'first': p.hits.isEmpty
+            ? null
+            : <String, Object?>{'mangaId': p.hits.first.ref.mangaId, 'title': p.hits.first.title},
+        'nextCursor': p.nextCursor,
+      },
+    ),
+    if (page2 != null)
+      'searchPage2': _summary(
+        page2,
+        (SearchPage p) => <String, Object?>{'hits': p.hits.length, 'nextCursor': p.nextCursor},
+      ),
+    'details': _summary(
+      details,
+      (MangaSnapshot s) => <String, Object?>{
+        'mangaId': s.ref.mangaId,
+        'title': s.metadata.title,
+        'authors': s.metadata.authors,
+        'status': s.metadata.status.name,
+        'chapters': s.chapters.length,
+        'firstChapter': s.chapters.isEmpty ? null : s.chapters.first.toJson(),
+      },
+    ),
   };
 
   static Object? _summary<T>(SourceOutcome<T>? o, Map<String, Object?> Function(T value) ok) => switch (o) {
@@ -179,7 +190,11 @@ Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String
       final SearchHit? hit = run.page1!.valueOrNull?.hits.firstOrNull;
       run.detailsRef =
           hit?.ref ??
-          NativeMangaRef(source: session.identity, mangaId: b.fallbackMangaId, settingsRevision: session.settingsRevision);
+          NativeMangaRef(
+            source: session.identity,
+            mangaId: b.fallbackMangaId,
+            settingsRevision: session.settingsRevision,
+          );
       run.details = await session.fetchManga(run.detailsRef!);
     } finally {
       await package.close();

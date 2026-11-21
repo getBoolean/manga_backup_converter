@@ -35,6 +35,7 @@ const List<String> _limitArgs = <String>[
   '--max-stack-bytes=262144',
   '--operation-deadline-ms=4000',
   '--job-slice-ms=5',
+  '--deadline-headroom-ms=250',
 ];
 
 const ArtifactBinding _bundle = ArtifactBinding(sha256: '', kind: 'paperback-bundle', version: '1.0.0');
@@ -123,13 +124,16 @@ void main() {
       check(handshake.worker).equals('paperback');
       check(handshake.protocolMinor).equals(1);
       check(supervisor.protocolMinor).equals(1);
-      check(handshake.limits!.operationDeadline).equals(const Duration(seconds: 4));
+      // The supervisor-side deadline: engine deadline plus headroom.
+      check(handshake.limits!.operationDeadline).equals(const Duration(milliseconds: 4250));
+      check(handshake.limits!.fields['operationDeadlineMicros']).equals(4000000);
+      check(handshake.limits!.fields['deadlineHeadroomMicros']).equals(250000);
       check(handshake.limits!.fields['memoryLimitBytes']).equals(33554432);
       check(handshake.limits!.poolSize).isNull();
       check(handshake.capabilities.apiFamilies).deepEquals(<String>{'paperback-0.8', 'paperback-0.9'});
       check(handshake.capabilities.browser).isTrue();
       // Adopted from the worker: the caller supplied no operation deadline.
-      check(supervisor.limits!.operationDeadline).equals(const Duration(seconds: 4));
+      check(supervisor.limits!.operationDeadline).equals(const Duration(milliseconds: 4250));
 
       final SourceOutcome<EmptyPayload> unload = await supervisor.send('pkg.none', const PackageUnloadRequest());
       check((unload as SourceFailed<EmptyPayload>).failure).isA<RuntimeUnavailableFailure>();
@@ -223,6 +227,7 @@ void main() {
             '--max-stack-bytes=${512 << 10}',
             '--operation-deadline-ms=60000',
             '--job-slice-ms=20',
+            '--deadline-headroom-ms=250',
             '--replay=${paperbackFixtures().path}/$site',
           ],
           environment: scrubbedEnvironment(),
@@ -236,7 +241,9 @@ void main() {
         ),
         onLog: (String line) => stderr.writeln('[paperback-e2e] $line'),
       );
-      final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
+      final repos = <PinnedRepository>[
+        for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir),
+      ];
       final provider = PaperbackSourceProvider(
         client: http.Client(),
         cache: ArtifactCache(Directory('${temp.path}/$site-cache')),
@@ -251,12 +258,13 @@ void main() {
     }
 
     final List<BundleRun> weebcentral = await run('weebcentral');
-    for (final BundleRun r in weebcentral) {
+    for (final r in weebcentral) {
       final MangaSnapshot s = (r.details! as SourceSuccess<MangaSnapshot>).value;
       check(s.chapters).length.equals(114);
       check(s.chapters.first.chapterId).equals('01KWM07QYFJMAP46S1A3ZVDWYG');
     }
-    check(weebcentral.map((BundleRun r) => r.family.wire).toSet()).deepEquals(<String>{'paperback-0.8', 'paperback-0.9'});
+    check(weebcentral.map((BundleRun r) => r.family.wire).toSet())
+        .deepEquals(<String>{'paperback-0.8', 'paperback-0.9'});
     final BundleRun mangadex = (await run('mangadex')).firstWhere((BundleRun r) => r.family.wire == 'paperback-0.9');
     check((mangadex.details! as SourceSuccess<MangaSnapshot>).value.chapters).length.equals(223);
   });

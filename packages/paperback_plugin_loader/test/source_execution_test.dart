@@ -30,7 +30,7 @@ Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPo
       : BrowserReverseBridge(
           port: port,
           resolveSource: (String? packageId, String sourceId) {
-            for (final PinnedRepository r in repos) {
+            for (final r in repos) {
               for (final MapEntry<String, Map<String, Object?>> pin in r.pins.entries) {
                 final PaperbackCatalogEntry e = r.entry(pin.key);
                 if (e.packageId == packageId && e.sourceId == sourceId) {
@@ -38,7 +38,11 @@ Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPo
                     ecosystem: 'paperback',
                     packageId: e.packageId,
                     sourceId: sourceId,
-                    artifact: ArtifactBinding(sha256: pin.value['sha256']! as String, kind: e.family.artifactKind, version: e.version),
+                    artifact: ArtifactBinding(
+                      sha256: pin.value['sha256']! as String,
+                      kind: e.family.artifactKind,
+                      version: e.version,
+                    ),
                   );
                 }
               }
@@ -55,11 +59,14 @@ Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPo
       interactionTimeout: Duration(seconds: 5),
       shutdownGrace: Duration(seconds: 5),
     ),
-    launcher: inProcessPaperbackLauncher(client: client, limits: testLimits(deadline: const Duration(seconds: 60))),
+    launcher: inProcessPaperbackLauncher(
+      client: client,
+      limits: testLimits(deadline: const Duration(seconds: 60)),
+    ),
     onReverseRequest: bridge?.handle,
   );
   bridge?.emitEvent = supervisor.sendEvent;
-  final cache = Directory.systemTemp.createTempSync('paperback_exec');
+  final Directory cache = Directory.systemTemp.createTempSync('paperback_exec');
   final provider = PaperbackSourceProvider(
     client: client,
     cache: ArtifactCache(cache),
@@ -83,7 +90,8 @@ void _checkChapters(MangaSnapshot s, {required int count}) {
   check(s.chapters).length.equals(count);
   final ids = <String>{for (final NativeChapter c in s.chapters) c.chapterId};
   check(ids).length.equals(count);
-  check(<int>[for (final NativeChapter c in s.chapters) c.sourceOrder]).deepEquals(List<int>.generate(count, (int i) => i));
+  check(<int>[for (final NativeChapter c in s.chapters) c.sourceOrder])
+      .deepEquals(List<int>.generate(count, (int i) => i));
   check(s.chapters.every((NativeChapter c) => c.chapterId.isNotEmpty)).isTrue();
 }
 
@@ -129,7 +137,7 @@ void main() {
     check(s.chapters.first.dateUploaded).isNotNull();
   });
 
-  test('MangaDex 0.8 (neihc1002): the recorded run met MangaDex\'s browser challenge, and it fails visibly', () async {
+  test("MangaDex 0.8 (neihc1002): the recorded run met MangaDex's browser challenge, and it fails visibly", () async {
     // The capture recorded MangaDex's edge challenge (302 to
     // /edge/challenge) for this bundle's requests, which send the host's
     // browser user agent. The source parses the challenge page as JSON and
@@ -138,7 +146,10 @@ void main() {
     final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay('mangadex');
     check(client.misses).isEmpty();
     final BundleRun neihc = runs.firstWhere((BundleRun r) => r.family == PaperbackApiFamily.v08);
-    check(neihc.page1).isA<SourceFailed<SearchPage>>().has((SourceFailed<SearchPage> f) => f.failure, 'failure').isA<SourceErrorFailure>();
+    check(neihc.page1)
+        .isA<SourceFailed<SearchPage>>()
+        .has((SourceFailed<SearchPage> f) => f.failure, 'failure')
+        .isA<SourceErrorFailure>();
     check(neihc.details).isA<SourceFailed<MangaSnapshot>>();
     check(client.served.map((CaptureKey k) => k.url).where((String u) => u.contains('/edge/challenge'))).isNotEmpty();
   });
@@ -147,15 +158,22 @@ void main() {
     final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay('mangafire');
     check(client.misses).isEmpty();
     final BundleRun run = runs.single;
-    check(run.page1).isA<SourceFailed<SearchPage>>().has((SourceFailed<SearchPage> f) => f.failure, 'failure').isA<CapabilityUnavailableFailure>()
-      ..has((CapabilityUnavailableFailure f) => f.operation, 'operation').equals('executeInWebView');
+    check(run.page1)
+        .isA<SourceFailed<SearchPage>>()
+        .has((SourceFailed<SearchPage> f) => f.failure, 'failure')
+        .isA<CapabilityUnavailableFailure>()
+        .has((CapabilityUnavailableFailure f) => f.operation, 'operation')
+        .equals('executeInWebView');
     // The source's own redirect (/home -> /) went through the host hop by
     // hop; the source caches the page in its own state for later operations.
     check(client.served.map((CaptureKey k) => k.url).toList()).deepEquals(<String>[
       'https://mangafire.to/home',
       'https://mangafire.to',
     ]);
-    check(run.details).isA<SourceFailed<MangaSnapshot>>().has((SourceFailed<MangaSnapshot> f) => f.failure, 'failure').isA<CapabilityUnavailableFailure>();
+    check(run.details)
+        .isA<SourceFailed<MangaSnapshot>>()
+        .has((SourceFailed<MangaSnapshot> f) => f.failure, 'failure')
+        .isA<CapabilityUnavailableFailure>();
   });
 
   test('MangaFire 0.9 executeInWebView completes through a BrowserPort over worker reverse requests', () async {
@@ -167,8 +185,12 @@ void main() {
     final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay('mangafire', port: port);
     check(client.misses).isEmpty();
     final BundleRun run = runs.single;
-    check(run.page1).isA<SourceFailed<SearchPage>>().has((SourceFailed<SearchPage> f) => f.failure, 'failure').isA<SourceErrorFailure>()
-      ..has((SourceErrorFailure f) => f.message, 'message').contains('VRF capture timed out');
+    check(run.page1)
+        .isA<SourceFailed<SearchPage>>()
+        .has((SourceFailed<SearchPage> f) => f.failure, 'failure')
+        .isA<SourceErrorFailure>()
+        .has((SourceErrorFailure f) => f.message, 'message')
+        .contains('VRF capture timed out');
     check(port.pages).isNotEmpty();
     final ScriptedPage page = port.pages.first;
     check(page.baseUrl.toString()).startsWith('https://mangafire.to');

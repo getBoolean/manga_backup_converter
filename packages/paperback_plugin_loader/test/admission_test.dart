@@ -19,15 +19,16 @@ import 'support/host_harness.dart';
 import 'support/paperback_scenarios.dart';
 
 void main() {
-  final PinnedRepository inkdex = PinnedRepository.load('inkdex-0.9');
-  final PinnedRepository numby = PinnedRepository.load('numby-0.8');
+  final inkdex = PinnedRepository.load('inkdex-0.9');
+  final numby = PinnedRepository.load('numby-0.8');
   final Uint8List mangadex09 = inkdex.bundle('MangaDex');
   final Uint8List weebcentral08 = numby.bundle('WeebCentral');
 
   group('admitBundle', () {
     test('accepts the pinned bytes under their family', () {
       check(admitBundle(mangadex09, bindingFor(mangadex09, PaperbackApiFamily.v09))).equals(PaperbackApiFamily.v09);
-      check(admitBundle(weebcentral08, bindingFor(weebcentral08, PaperbackApiFamily.v08))).equals(PaperbackApiFamily.v08);
+      check(admitBundle(weebcentral08, bindingFor(weebcentral08, PaperbackApiFamily.v08)))
+          .equals(PaperbackApiFamily.v08);
     });
 
     test('refuses changed bytes', () {
@@ -46,7 +47,12 @@ void main() {
     });
 
     test('refuses an unsupported artifact kind as unsupported-api', () {
-      check(() => admitBundle(mangadex09, ArtifactBinding(sha256: bundleDigest(mangadex09), kind: 'paperback-bundle-0.7', version: '1')))
+      check(
+            () => admitBundle(
+              mangadex09,
+              ArtifactBinding(sha256: bundleDigest(mangadex09), kind: 'paperback-bundle-0.7', version: '1'),
+            ),
+          )
           .throws<BundleAdmissionException>()
           .has((BundleAdmissionException e) => e.failure, 'failure')
           .isA<UnsupportedApiFailure>();
@@ -58,10 +64,12 @@ void main() {
     final runtime = SourceJsRuntime(limits: testLimits());
     final host = PaperbackSourceHost(
       runtime: runtime,
-      http: PaperbackHttp(MockClient((http.Request r) async {
-        requests.add(r);
-        return http.Response('', 200);
-      })),
+      http: PaperbackHttp(
+        MockClient((http.Request r) async {
+          requests.add(r);
+          return http.Response('', 200);
+        }),
+      ),
     );
     try {
       Object? error;
@@ -109,7 +117,10 @@ void main() {
 
     test('binds the trust decision to the digest and family under a per-bundle key', () async {
       final SourceOutcome<ArtifactLease> a = await provider.admit(inkdex.entry('MangaDex'), mangadex09);
-      final SourceOutcome<ArtifactLease> b = await provider.admit(inkdex.entry('WeebCentral'), inkdex.bundle('WeebCentral'));
+      final SourceOutcome<ArtifactLease> b = await provider.admit(
+        inkdex.entry('WeebCentral'),
+        inkdex.bundle('WeebCentral'),
+      );
       check(a).isA<SourceSuccess<ArtifactLease>>();
       check(b).isA<SourceSuccess<ArtifactLease>>();
       check(asked.map(((Uri, String) q) => q.$1.toString()).toList()).deepEquals(<String>[
@@ -123,34 +134,46 @@ void main() {
     test('an untrusted bundle is refused before it is staged', () async {
       answer = false;
       final SourceOutcome<ArtifactLease> a = await provider.admit(inkdex.entry('MangaDex'), mangadex09);
-      check(a).isA<SourceFailed<ArtifactLease>>().has((SourceFailed<ArtifactLease> f) => f.failure, 'failure').isA<ArtifactIncompatibleFailure>();
+      check(a)
+          .isA<SourceFailed<ArtifactLease>>()
+          .has((SourceFailed<ArtifactLease> f) => f.failure, 'failure')
+          .isA<ArtifactIncompatibleFailure>();
       check(Directory('${cacheDir.path}/objects').existsSync()).isFalse();
     });
 
     test('bytes catalogued for one family are refused for the other', () async {
       // numby's 0.8 bundle presented as if the 0.9 catalog listed it.
       final SourceOutcome<ArtifactLease> a = await provider.admit(inkdex.entry('WeebCentral'), weebcentral08);
-      check(a).isA<SourceFailed<ArtifactLease>>().has((SourceFailed<ArtifactLease> f) => f.failure, 'failure').isA<ArtifactIncompatibleFailure>();
+      check(a)
+          .isA<SourceFailed<ArtifactLease>>()
+          .has((SourceFailed<ArtifactLease> f) => f.failure, 'failure')
+          .isA<ArtifactIncompatibleFailure>();
       check(asked).isEmpty();
     });
 
     test('a cache hit re-hashes and re-asks trust; modified cached bytes are dropped', () async {
-      final lease = (await provider.admit(inkdex.entry('MangaDex'), mangadex09) as SourceSuccess<ArtifactLease>).value;
+      final ArtifactLease lease =
+          (await provider.admit(inkdex.entry('MangaDex'), mangadex09) as SourceSuccess<ArtifactLease>).value;
       final String path = lease.path;
       lease.release();
       asked.clear();
-      final SourceOutcome<ArtifactLease>? hit = await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex'));
+      final SourceOutcome<ArtifactLease>? hit = await provider.cached(
+        inkdex.entry('MangaDex'),
+        inkdex.pinnedSha256('MangaDex'),
+      );
       check(hit).isNotNull().isA<SourceSuccess<ArtifactLease>>();
       check(asked).length.equals(1);
       (hit! as SourceSuccess<ArtifactLease>).value.release();
 
       // Trust withdrawn: the cached bytes are not served.
       answer = false;
-      check(await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex'))).isNotNull().isA<SourceFailed<ArtifactLease>>();
+      check(await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex')))
+          .isNotNull()
+          .isA<SourceFailed<ArtifactLease>>();
 
       // Tampered on disk: the entry is dropped, never loaded.
       answer = true;
-      final bytes = File(path).readAsBytesSync()..[10] ^= 1;
+      final Uint8List bytes = File(path).readAsBytesSync()..[10] ^= 1;
       File(path).writeAsBytesSync(bytes);
       check(await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex'))).isNull();
       check(File(path).existsSync()).isFalse();
@@ -180,11 +203,15 @@ void main() {
         worker: () async => (await supervisor.start()).map((_) => supervisor),
       );
       try {
-        final lease = (await p.admit(inkdex.entry('MangaDex'), mangadex09) as SourceSuccess<ArtifactLease>).value;
-        final bytes = File(lease.path).readAsBytesSync()..[10] ^= 1;
+        final ArtifactLease lease =
+            (await p.admit(inkdex.entry('MangaDex'), mangadex09) as SourceSuccess<ArtifactLease>).value;
+        final Uint8List bytes = File(lease.path).readAsBytesSync()..[10] ^= 1;
         File(lease.path).writeAsBytesSync(bytes);
         final SourceOutcome<SourcePackage> opened = await p.openPackage(lease, SettingsSnapshot());
-        check(opened).isA<SourceFailed<SourcePackage>>().has((SourceFailed<SourcePackage> f) => f.failure, 'failure').isA<ArtifactIncompatibleFailure>();
+        check(opened)
+            .isA<SourceFailed<SourcePackage>>()
+            .has((SourceFailed<SourcePackage> f) => f.failure, 'failure')
+            .isA<ArtifactIncompatibleFailure>();
         check(requests).isEmpty();
         lease.release();
       } finally {
@@ -193,8 +220,14 @@ void main() {
     });
 
     test('an artifact not admitted by the provider is refused', () async {
-      final SourceOutcome<SourcePackage> opened = await provider.openPackage(_ForeignArtifact(mangadex09), SettingsSnapshot());
-      check(opened).isA<SourceFailed<SourcePackage>>().has((SourceFailed<SourcePackage> f) => f.failure, 'failure').isA<ArtifactIncompatibleFailure>();
+      final SourceOutcome<SourcePackage> opened = await provider.openPackage(
+        _ForeignArtifact(mangadex09),
+        SettingsSnapshot(),
+      );
+      check(opened)
+          .isA<SourceFailed<SourcePackage>>()
+          .has((SourceFailed<SourcePackage> f) => f.failure, 'failure')
+          .isA<ArtifactIncompatibleFailure>();
     });
   });
 }

@@ -87,7 +87,9 @@ final class PaperbackSourceProvider implements SourceProvider {
     try {
       final http.Response response = await client.get(entry.bundleUrl);
       if (response.statusCode != 200) {
-        return SourceFailed<Uint8List>(SourceErrorFailure('Bundle ${entry.bundleUrl} answered HTTP ${response.statusCode}'));
+        return SourceFailed<Uint8List>(
+          SourceErrorFailure('Bundle ${entry.bundleUrl} answered HTTP ${response.statusCode}'),
+        );
       }
       return SourceSuccess<Uint8List>(response.bodyBytes);
     } on Object catch (e) {
@@ -99,7 +101,11 @@ final class PaperbackSourceProvider implements SourceProvider {
   /// digest and family, then the static family check, then staging in the
   /// cache. Nothing is evaluated.
   Future<SourceOutcome<ArtifactLease>> admit(PaperbackCatalogEntry entry, Uint8List bytes) async {
-    final binding = ArtifactBinding(sha256: bundleDigest(bytes), kind: entry.family.artifactKind, version: entry.version);
+    final binding = ArtifactBinding(
+      sha256: bundleDigest(bytes),
+      kind: entry.family.artifactKind,
+      version: entry.version,
+    );
     try {
       final ArtifactLease lease = await cache.admit(
         bytes,

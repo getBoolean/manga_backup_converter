@@ -37,6 +37,42 @@ class AidokuExtensionEntry extends ExtensionEntry {
   String get cacheKey => '$id-v$version';
 }
 
+/// A source bundle listed by a Paperback repository catalog (U6).
+///
+/// [id] is the package ID, `<repository>#<sourceId>`, unique across
+/// repositories (several repositories publish a `WeebCentral`). The bundle's
+/// trust decision binds its digest and [apiFamily] when it is loaded.
+class PaperbackExtensionEntry extends ExtensionEntry {
+  const PaperbackExtensionEntry({
+    required super.id,
+    required super.name,
+    required this.sourceId,
+    required this.version,
+    required this.repository,
+    required this.bundleUrl,
+    required this.apiFamily,
+    super.languages,
+    super.contentRating,
+  });
+
+  /// The catalog source ID (bundle directory and exported source name).
+  final String sourceId;
+  final String version;
+
+  /// Repository base URL.
+  final String repository;
+
+  /// Installation entry point of the bundle.
+  final String bundleUrl;
+
+  /// `paperback-0.8` or `paperback-0.9`.
+  final String apiFamily;
+
+  /// A file-name-safe key (the package ID is a URL).
+  @override
+  String get cacheKey => '${id.replaceAll(RegExp('[^A-Za-z0-9._-]'), '_')}-v$version-$apiFamily';
+}
+
 class StubExtensionEntry extends ExtensionEntry {
   const StubExtensionEntry({
     required super.id,

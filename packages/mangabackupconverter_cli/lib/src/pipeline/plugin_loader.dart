@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart' show RemoteSourceList, SourceEntry, SourceListManager;
@@ -5,8 +6,12 @@ import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvi
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
+import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
+
+export 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart' show PaperbackPluginLoader;
 
 /// Artifact bytes held in memory, verified against the digest computed when
 /// they were admitted.
@@ -192,10 +197,6 @@ class StubPluginLoader extends PluginLoader {
   ];
 }
 
-class PaperbackPluginLoader extends StubPluginLoader {
-  const PaperbackPluginLoader() : super('paperback');
-}
-
 class TachiPluginLoader extends StubPluginLoader {
   const TachiPluginLoader() : super('tachi');
 }
@@ -206,10 +207,21 @@ class MangayomiPluginLoader extends StubPluginLoader {
 
 /// The plugin loader the composition root registers for a target [format]
 /// (KTD15: formats describe files, not how sources execute).
-PluginLoader pluginLoaderFor(BackupFormat format, {void Function(SettingsSnapshot settings)? onSettings}) =>
-    switch (format) {
-      Aidoku() => AidokuPluginLoader(onSettings: onSettings),
-      Paperback() => const PaperbackPluginLoader(),
-      Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
-      Mangayomi() => const MangayomiPluginLoader(),
-    };
+///
+/// [cacheRoot] holds verified source artifacts (Paperback bundles);
+/// [onLog] receives redacted worker diagnostics.
+PluginLoader pluginLoaderFor(
+  BackupFormat format, {
+  void Function(SettingsSnapshot settings)? onSettings,
+  String? cacheRoot,
+  void Function(String line)? onLog,
+}) => switch (format) {
+  Aidoku() => AidokuPluginLoader(onSettings: onSettings),
+  Paperback() => PaperbackPluginLoader.desktop(
+    cacheRoot: cacheRoot ?? p.join(Directory.systemTemp.path, 'manga_backup_converter'),
+    onSettings: onSettings,
+    onLog: onLog,
+  ),
+  Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
+  Mangayomi() => const MangayomiPluginLoader(),
+};

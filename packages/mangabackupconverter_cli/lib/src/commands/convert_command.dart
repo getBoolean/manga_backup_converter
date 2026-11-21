@@ -466,7 +466,12 @@ class ConvertCommand extends Command<void> {
           final pipeline = MigrationPipeline(
             repoUrls: repoUrls,
             pluginLoader: CachingPluginLoader(
-              pluginLoaderFor(outputFormat, onSettings: log.addSecrets),
+              pluginLoaderFor(
+                outputFormat,
+                onSettings: log.addSecrets,
+                cacheRoot: userConfigDirectory(),
+                onLog: log.writeln,
+              ),
               cache: pluginCache,
             ),
             selection: selection,

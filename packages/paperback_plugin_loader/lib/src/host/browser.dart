@@ -9,7 +9,10 @@ import 'package:source_runtime/source_runtime.dart';
 /// [BrowserPort] ([InProcessBrowserChannel]). Both therefore have identical
 /// session scoping, scheme policy and failure codes.
 abstract interface class PaperbackBrowserChannel {
-  Future<SourceOutcome<Map<String, Object?>>> send(HostBrowserRequest<ProtocolPayload> request, CancellationToken cancel);
+  Future<SourceOutcome<Map<String, Object?>>> send(
+    HostBrowserRequest<ProtocolPayload> request,
+    CancellationToken cancel,
+  );
 
   /// Page messages (`host.browser.message` events) for this channel's
   /// sessions.
@@ -88,7 +91,10 @@ final class PaperbackBrowser {
     final Uri? base = Uri.tryParse(context.baseUrl);
     if (base == null || !BrowserUrlPolicy.isAllowedBaseUrl(base)) {
       throw PaperbackBrowserException(
-        CapabilityUnavailableFailure('host.browser.loadData', 'executeInWebView needs an http(s) baseUrl, got "${context.baseUrl}"'),
+        CapabilityUnavailableFailure(
+          'host.browser.loadData',
+          'executeInWebView needs an http(s) baseUrl, got "${context.baseUrl}"',
+        ),
       );
     }
     final HostBrowserOpened opened = await _send(
@@ -110,15 +116,18 @@ final class PaperbackBrowser {
         await _send(HostBrowserSetMessageHandler(session: session, name: resultChannel, enabled: true), cancel);
         await _send(HostBrowserLoadData(session: session, html: context.html, baseUrl: base), cancel);
         await _send(HostBrowserEvaluate(session: session, script: _runner(context.inject)), cancel);
-        final String message = await Future.any(<Future<String>>[
-          result.future,
-          cancel.whenCancelled.then<String>((_) => throw PaperbackBrowserException(CancelledFailure(cancel.reason ?? 'cancelled'))),
-        ]).timeout(
-          resultTimeout,
-          onTimeout: () => throw PaperbackBrowserException(
-            TimeoutFailure('executeInWebView produced no result within ${resultTimeout.inMilliseconds} ms'),
-          ),
-        );
+        final String message =
+            await Future.any(<Future<String>>[
+              result.future,
+              cancel.whenCancelled.then<String>(
+                (_) => throw PaperbackBrowserException(CancelledFailure(cancel.reason ?? 'cancelled')),
+              ),
+            ]).timeout(
+              resultTimeout,
+              onTimeout: () => throw PaperbackBrowserException(
+                TimeoutFailure('executeInWebView produced no result within ${resultTimeout.inMilliseconds} ms'),
+              ),
+            );
         final Object? decoded = jsonDecode(message);
         if (decoded is! Map<String, Object?>) {
           throw const PaperbackBrowserException(SourceErrorFailure('executeInWebView returned a malformed result'));
@@ -196,16 +205,18 @@ final class InProcessBrowserChannel implements PaperbackBrowserChannel {
   Stream<HostBrowserMessage> get messages => _messages.stream;
 
   @override
-  Future<SourceOutcome<Map<String, Object?>>> send(HostBrowserRequest<ProtocolPayload> request, CancellationToken cancel) =>
-      _bridge.handle(
-        ReverseRequest(
-          op: request.operation.wire,
-          payload: request.toJson(),
-          packageId: _packageId,
-          generation: generation,
-          cancel: cancel,
-        ),
-      );
+  Future<SourceOutcome<Map<String, Object?>>> send(
+    HostBrowserRequest<ProtocolPayload> request,
+    CancellationToken cancel,
+  ) => _bridge.handle(
+    ReverseRequest(
+      op: request.operation.wire,
+      payload: request.toJson(),
+      packageId: _packageId,
+      generation: generation,
+      cancel: cancel,
+    ),
+  );
 
   /// Closes every session this channel opened.
   Future<void> close() async {

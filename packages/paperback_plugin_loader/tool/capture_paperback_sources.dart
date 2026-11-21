@@ -40,7 +40,7 @@ Future<void> main(List<String> args) async {
   final Directory build = Directory.systemTemp.createTempSync('paperback_worker_build');
   final String exe = await _buildWorker(build);
   try {
-    for (final String site in args) {
+    for (final site in args) {
       await _capture(site, exe);
     }
   } finally {
@@ -74,6 +74,7 @@ Future<void> _capture(String site, String exe) async {
         '--max-stack-bytes=${512 << 10}',
         '--operation-deadline-ms=600000',
         '--job-slice-ms=20',
+        '--deadline-headroom-ms=1000',
         '--record=${dir.path}',
         '--record-source=$site',
         '--record-min-interval-ms=1500',

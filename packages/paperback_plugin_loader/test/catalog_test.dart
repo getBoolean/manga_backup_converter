@@ -43,7 +43,7 @@ void main() {
   });
 
   test('installation entry points: 0.8 <id>/source.js, 0.9 <id>/index.js, matching the pinned artifacts', () {
-    for (final String d in <String>['inkdex-0.9', 'neihc1002-0.8', 'gabrielcwt-0.8', 'numby-0.8']) {
+    for (final d in <String>['inkdex-0.9', 'neihc1002-0.8', 'gabrielcwt-0.8', 'numby-0.8']) {
       final repo = PinnedRepository.load(d);
       for (final MapEntry<String, Map<String, Object?>> pin in repo.pins.entries) {
         final PaperbackCatalogEntry entry = repo.entry(pin.key);
@@ -65,14 +65,20 @@ void main() {
     check(PaperbackCatalog.ratingOf(null)).equals(2);
     final PaperbackCatalog netsky = PinnedRepository.load('netsky-0.8').catalog;
     check(netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'DynastyScans').contentRating).equals(2);
-    check(netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'ReadAllComics').contentRating).equals(0);
+    check(netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'ReadAllComics').contentRating)
+        .equals(0);
   });
 
   test('a catalog for another API version is refused', () {
-    check(() => PaperbackCatalog.parse(Uri.parse('https://x.test/0.7/'), jsonEncode(<String, Object?>{
-      'builtWith': <String, Object?>{'toolchain': '0.7.0', 'types': '0.7.0'},
-      'sources': <Object?>[],
-    }))).throws<FormatException>();
+    check(
+      () => PaperbackCatalog.parse(
+        Uri.parse('https://x.test/0.7/'),
+        jsonEncode(<String, Object?>{
+          'builtWith': <String, Object?>{'toolchain': '0.7.0', 'types': '0.7.0'},
+          'sources': <Object?>[],
+        }),
+      ),
+    ).throws<FormatException>();
   });
 
   test('repository URLs normalise to a base with a trailing slash', () {
@@ -82,22 +88,27 @@ void main() {
         .equals('https://a.test/repo/0.9/stable/versioning.json');
   });
 
-  test('qualification-source availability per API family (real catalogs; the missing cell is recorded, not substituted)', () {
-    // MangaDex, WeebCentral and MangaFire, by catalog source ID, across every
-    // surveyed catalog of each family.
-    bool listed(PaperbackApiFamily family, String site) => _surveyed.any((String d) {
-      final PaperbackCatalog c = PinnedRepository.load(d).catalog;
-      return c.family == family && c.entries.any((PaperbackCatalogEntry e) => e.sourceId.toLowerCase() == site);
-    });
-    final matrix = <String, Map<String, bool>>{
-      for (final PaperbackApiFamily f in PaperbackApiFamily.values)
-        f.wire: <String, bool>{for (final site in <String>['mangadex', 'weebcentral', 'mangafire']) site: listed(f, site)},
-    };
-    check(matrix).deepEquals(<String, Map<String, bool>>{
-      'paperback-0.8': <String, bool>{'mangadex': true, 'weebcentral': true, 'mangafire': false},
-      'paperback-0.9': <String, bool>{'mangadex': true, 'weebcentral': true, 'mangafire': true},
-    });
-    // The 0.8 MangaFire cell is open: no surveyed 0.8 catalog lists it.
-    check(Directory('${paperbackFixtures().path}/inkdex-0.9/MangaFire').existsSync()).isTrue();
-  });
+  test(
+    'qualification-source availability per API family (real catalogs; the missing cell is recorded, not substituted)',
+    () {
+      // MangaDex, WeebCentral and MangaFire, by catalog source ID, across every
+      // surveyed catalog of each family.
+      bool listed(PaperbackApiFamily family, String site) => _surveyed.any((String d) {
+        final PaperbackCatalog c = PinnedRepository.load(d).catalog;
+        return c.family == family && c.entries.any((PaperbackCatalogEntry e) => e.sourceId.toLowerCase() == site);
+      });
+      final matrix = <String, Map<String, bool>>{
+        for (final PaperbackApiFamily f in PaperbackApiFamily.values)
+          f.wire: <String, bool>{
+            for (final site in <String>['mangadex', 'weebcentral', 'mangafire']) site: listed(f, site),
+          },
+      };
+      check(matrix).deepEquals(<String, Map<String, bool>>{
+        'paperback-0.8': <String, bool>{'mangadex': true, 'weebcentral': true, 'mangafire': false},
+        'paperback-0.9': <String, bool>{'mangadex': true, 'weebcentral': true, 'mangafire': true},
+      });
+      // The 0.8 MangaFire cell is open: no surveyed 0.8 catalog lists it.
+      check(Directory('${paperbackFixtures().path}/inkdex-0.9/MangaFire').existsSync()).isTrue();
+    },
+  );
 }

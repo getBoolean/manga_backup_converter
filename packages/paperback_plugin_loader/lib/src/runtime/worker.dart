@@ -35,17 +35,27 @@ const int paperbackProtocolMinor = 1;
 
 /// The limits this worker reports in its handshake (protocol 1.1, KTD25):
 /// the QuickJS limits as runtime-specific fields, plus the standard limit
-/// names the QuickJS benchmark backs.
+/// names the benchmark backs.
 ///
-/// Only `operationDeadlineMs` is backed: it is the sizing rule's operation
-/// deadline (`deriveQuickJsLimits`), rounded up to whole milliseconds. The
-/// benchmark measures nothing for `poolSize`, `cancelGraceMs`,
-/// `interactionTimeoutMs` or `shutdownGraceMs`, so they are left out rather
+/// `operationDeadlineMs` is the deadline a supervisor should enforce: the
+/// engine's operation deadline plus [deadlineHeadroom], the measured time an
+/// operation can still take after the engine deadline fires (interrupt
+/// overshoot, then converting and encoding the reply). Reporting the engine
+/// deadline itself would let a supervisor that adopts it time out, and kill,
+/// a worker that is already stopping the operation. The engine deadline
+/// stays in `fields` as `operationDeadlineMicros`, with
+/// `deadlineHeadroomMicros`.
+///
+/// `poolSize`, `cancelGraceMs`, `interactionTimeoutMs` and `shutdownGraceMs`
+/// are not measured by the QuickJS benchmark, so they are left out rather
 /// than invented.
-WorkerReportedLimits reportedLimits(PaperbackRuntimeLimits limits) => WorkerReportedLimits(
-  operationDeadline: Duration(milliseconds: (limits.operationDeadline.inMicroseconds + 999) ~/ 1000),
-  fields: limits.toJson(),
-);
+WorkerReportedLimits reportedLimits(PaperbackRuntimeLimits limits, {Duration deadlineHeadroom = Duration.zero}) =>
+    WorkerReportedLimits(
+      operationDeadline: Duration(
+        milliseconds: (limits.operationDeadline.inMicroseconds + deadlineHeadroom.inMicroseconds + 999) ~/ 1000,
+      ),
+      fields: <String, Object?>{...limits.toJson(), 'deadlineHeadroomMicros': deadlineHeadroom.inMicroseconds},
+    );
 
 /// The Paperback worker: speaks protocol 1.1 over `input`/`output` (KTD4) and
 /// owns one QuickJS runtime per loaded package on this isolate (KTD2).
@@ -60,6 +70,7 @@ final class PaperbackSourceWorker {
     required this._input,
     required this._output,
     required this.limits,
+    this.deadlineHeadroom = Duration.zero,
     PaperbackPackageAdapter? adapter,
     PaperbackPackageAdapter Function(PaperbackBrowserChannel browser)? adapterFactory,
     this.browserEnabled = false,
@@ -75,6 +86,10 @@ final class PaperbackSourceWorker {
   final Stream<List<int>> _input;
   final StreamSink<List<int>> _output;
   final PaperbackRuntimeLimits limits;
+
+  /// Added to the engine deadline in the handshake's `operationDeadlineMs`
+  /// (see [reportedLimits]); from the sizing rule.
+  final Duration deadlineHeadroom;
 
   /// The API adapter; built by `adapterFactory` when that is given, so it
   /// can send browser reverse requests through this worker.
@@ -195,7 +210,7 @@ final class PaperbackSourceWorker {
               apiFamilies: adapter?.apiFamilies ?? const <String>{},
               browser: browserEnabled,
             ),
-            limits: reportedLimits(limits),
+            limits: reportedLimits(limits, deadlineHeadroom: deadlineHeadroom),
           ).toJson(),
         );
       case ShutdownRequest():
@@ -281,7 +296,7 @@ final class PaperbackSourceWorker {
   }
 
   void _cancelReverse(String originId) {
-    final List<String> ids = <String>[
+    final ids = <String>[
       for (final MapEntry<String, _PendingReverse> e in _reverse.entries)
         if (e.value.originId == originId) e.key,
     ];

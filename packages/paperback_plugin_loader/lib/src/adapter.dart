@@ -30,12 +30,21 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
   Set<String> get apiFamilies => <String>{for (final PaperbackApiFamily f in PaperbackApiFamily.values) f.wire};
 
   @override
-  Future<PackageLoadResponse> load(SourceJsRuntime runtime, PackageLoadRequest request, CancellationToken cancel) async {
+  Future<PackageLoadResponse> load(
+    SourceJsRuntime runtime,
+    PackageLoadRequest request,
+    CancellationToken cancel,
+  ) async {
     // Re-read and re-hash the staged bytes here, immediately before
     // evaluation: the digest checked is the artifact executed (KTD6).
     final Uint8List bytes = await File(request.path).readAsBytes();
     final host = PaperbackSourceHost(runtime: runtime, http: http, browser: browser, log: log);
-    final List<PaperbackLoadedSource> sources = await host.load(bytes, request.artifact, request.settings, cancel: cancel);
+    final List<PaperbackLoadedSource> sources = await host.load(
+      bytes,
+      request.artifact,
+      request.settings,
+      cancel: cancel,
+    );
     final bool usesBrowser = _mentionsWebView(bytes);
     _packages[runtime] = _Package(host, request.settings.revision);
     return PackageLoadResponse(
@@ -74,7 +83,11 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
         await host.updateSettings(settings, cancel: cancel);
         package.revision = settings.revision;
         return const EmptyPayload();
-      case WorkerSearchRequest(:final SourceIdentity source, :final String settingsRevision, request: final SearchRequest search):
+      case WorkerSearchRequest(
+        :final SourceIdentity source,
+        :final String settingsRevision,
+        request: final SearchRequest search,
+      ):
         _check(package, source.sourceId, settingsRevision);
         final PaperbackSearchPage page = await host.withCancel(
           cancel,
@@ -101,7 +114,11 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
           ],
           nextCursor: page.items.isEmpty ? null : page.nextCursor,
         );
-      case WorkerDetailsRequest(:final SourceIdentity source, :final String settingsRevision, :final NativeMangaRef ref):
+      case WorkerDetailsRequest(
+        :final SourceIdentity source,
+        :final String settingsRevision,
+        :final NativeMangaRef ref,
+      ):
         _check(package, source.sourceId, settingsRevision);
         if (ref.source != source) {
           throw PaperbackRuntimeException(
@@ -188,7 +205,8 @@ List<NativeChapter> chaptersOf(Map<String, Object?> details, PaperbackApiFamily 
         sourceOrder: c['sourceOrder']! as int,
         context: <String, Object?>{
           'apiFamily': family.wire,
-          for (final MapEntry<String, Object?> e in (c['context'] as Map<String, Object?>? ?? const <String, Object?>{}).entries)
+          for (final MapEntry<String, Object?> e
+              in (c['context'] as Map<String, Object?>? ?? const <String, Object?>{}).entries)
             if (e.value != null) e.key: e.value,
         },
         title: c['title'] as String?,
@@ -210,4 +228,9 @@ PublishingStatus publishingStatusOf(String? status) {
   return PublishingStatus.unknown;
 }
 
-List<String> _strings(Object? v) => v is List<Object?> ? <String>[for (final Object? s in v) if (s is String) s] : const <String>[];
+List<String> _strings(Object? v) => v is List<Object?>
+    ? <String>[
+        for (final Object? s in v)
+          if (s is String) s,
+      ]
+    : const <String>[];

@@ -45,19 +45,22 @@ final class PaperbackHttp {
       throw HostCallError('Invalid URL: ${e.message}', details: <String, Object?>{'url': url});
     }
     if (uri.scheme != 'http' && uri.scheme != 'https') {
-      throw HostCallError('[capability-unavailable] Only http and https URLs are allowed', details: <String, Object?>{
-        'url': url,
-      });
+      throw HostCallError(
+        '[capability-unavailable] Only http and https URLs are allowed',
+        details: <String, Object?>{
+          'url': url,
+        },
+      );
     }
     final http.BaseRequest request = _request(method, uri, wire);
     request.followRedirects = false;
-    final headers = wire['headers'];
+    final Object? headers = wire['headers'];
     if (headers is Map<String, Object?>) {
       headers.forEach((String k, Object? v) {
         if (v != null) request.headers[k] = '$v';
       });
     }
-    final cookies = wire['cookies'];
+    final Object? cookies = wire['cookies'];
     if (cookies is Map<String, Object?> && cookies.isNotEmpty) {
       // The 0.9 reference host's format: " a=1; b=2;" trimmed. Header names
       // are case-insensitive, so a source's own `cookie` header is extended
@@ -79,10 +82,13 @@ final class PaperbackHttp {
       captureMisses.add(e.key.toString());
       throw HostCallError('[capture-miss] No committed capture for ${e.key}', details: <String, Object?>{'url': url});
     } on TimeoutException {
-      throw HostCallError('Request timed out after ${timeout.inMilliseconds} ms', details: <String, Object?>{
-        'url': url,
-        'method': method,
-      });
+      throw HostCallError(
+        'Request timed out after ${timeout.inMilliseconds} ms',
+        details: <String, Object?>{
+          'url': url,
+          'method': method,
+        },
+      );
     } on Object catch (e) {
       throw HostCallError('Request failed: $e', details: <String, Object?>{'url': url, 'method': method});
     }
@@ -111,8 +117,10 @@ final class PaperbackHttp {
       case final Uint8List bytes:
         return http.Request(method, uri)..bodyBytes = bytes;
       case {'__form': final Map<String, Object?> form}:
-        return http.MultipartRequest(method, uri)
-          ..fields.addAll(<String, String>{for (final MapEntry<String, Object?> e in form.entries) e.key: '${e.value}'});
+        return http.MultipartRequest(
+          method,
+          uri,
+        )..fields.addAll(<String, String>{for (final MapEntry<String, Object?> e in form.entries) e.key: '${e.value}'});
       default:
         throw HostCallError('fetch: unsupported body type', details: <String, Object?>{'url': uri.toString()});
     }

@@ -14,8 +14,7 @@ PaperbackRuntimeLimits testLimits({Duration deadline = const Duration(seconds: 2
   jobSlice: const Duration(milliseconds: 20),
 );
 
-SettingsPayload emptySettings() =>
-    SettingsPayload.fromSnapshot(SettingsSnapshot());
+SettingsPayload emptySettings() => SettingsPayload.fromSnapshot(SettingsSnapshot());
 
 /// A handwritten 0.9 bundle: [body] runs inside the module function and must
 /// set `e.<id>` to the source instance, exactly like a rolldown bundle.
@@ -23,12 +22,13 @@ Uint8List bundle09(String body) => utf8.encode('var source=(function(e){$body\nr
 
 /// A handwritten 0.8 bundle exporting `Sources.<id>` and `Sources.<id>Info`,
 /// assigned the way an esbuild 0.8.7 bundle does.
-Uint8List bundle08(String body) => utf8.encode('var _Sources=(function(){var exports={};$body\nreturn exports})();this.Sources=_Sources;');
+Uint8List bundle08(String body) =>
+    utf8.encode('var _Sources=(function(){var exports={};$body\nreturn exports})();this.Sources=_Sources;');
 
 ArtifactBinding bindingFor(Uint8List bytes, PaperbackApiFamily family) =>
     ArtifactBinding(sha256: bundleDigest(bytes), kind: family.artifactKind, version: 'test');
 
-/// A loaded host over [handler], with the runtime it owns.
+/// A loaded host over a fake HTTP handler, with the runtime it owns.
 final class HostUnderTest {
   HostUnderTest._(this.runtime, this.host, this.requests, this.logs);
 
@@ -43,7 +43,10 @@ final class HostUnderTest {
   }) async {
     final requests = <http.Request>[];
     final logs = <String>[];
-    final runtime = SourceJsRuntime(limits: testLimits(deadline: deadline), log: logs.add);
+    final runtime = SourceJsRuntime(
+      limits: testLimits(deadline: deadline),
+      log: logs.add,
+    );
     final http.Client c =
         client ??
         MockClient((http.Request r) async {

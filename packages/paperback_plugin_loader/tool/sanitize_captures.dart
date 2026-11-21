@@ -17,14 +17,14 @@ import 'dart:typed_data';
 import 'package:source_runtime/source_runtime.dart';
 
 void main(List<String> args) {
-  for (final String path in args) {
+  for (final path in args) {
     final int changed = sanitizeCaptureDir(Directory(path));
     stdout.writeln('$path: $changed body(ies) sanitized');
   }
 }
 
 final List<(RegExp, String)> _rules = <(RegExp, String)>[
-  (RegExp(r'(<pre id=c style=display:none>)[^<]*(</pre>)'), r'$1REDACTED-CLIENT-TOKEN$2'),
+  (RegExp('(<pre id=c style=display:none>)[^<]*(</pre>)'), r'$1REDACTED-CLIENT-TOKEN$2'),
   (RegExp(r"(__CF\$cv\$params=\{r:')[0-9a-f]+(')"), r'$10000000000000000$2'),
   (RegExp(r'(\bray=)[0-9a-f]{16}\b'), r'$10000000000000000'),
 ];
@@ -41,15 +41,22 @@ int sanitizeCaptureDir(Directory dir) {
     final bodyFile = File('${dir.path}/${e.bodyFile}');
     final Uint8List bytes = bodyFile.readAsBytesSync();
     final String text = utf8.decode(bytes, allowMalformed: true);
-    String cleaned = text;
+    var cleaned = text;
     for (final (RegExp pattern, String replacement) in _rules) {
-      cleaned = cleaned.replaceAllMapped(pattern, (Match m) => replacement.replaceAllMapped(RegExp(r'\$(\d)'), (Match r) => m.group(int.parse(r.group(1)!)) ?? ''));
+      cleaned = cleaned.replaceAllMapped(
+        pattern,
+        (Match m) =>
+            replacement.replaceAllMapped(RegExp(r'\$(\d)'), (Match r) => m.group(int.parse(r.group(1)!)) ?? ''),
+      );
     }
     // JSON API bodies carry version strings like 1.2.3.4 rarely; only HTML
     // and text bodies are expected to hold addresses.
-    final bool isText = (e.headers['content-type'] ?? '').contains('html') || (e.headers['content-type'] ?? '').contains('text');
+    final bool isText =
+        (e.headers['content-type'] ?? '').contains('html') || (e.headers['content-type'] ?? '').contains('text');
     if (isText && _ipv4.hasMatch(cleaned)) {
-      throw StateError('${e.bodyFile} (${e.key.url}) still contains an IPv4 address: ${_ipv4.firstMatch(cleaned)!.group(0)}');
+      throw StateError(
+        '${e.bodyFile} (${e.key.url}) still contains an IPv4 address: ${_ipv4.firstMatch(cleaned)!.group(0)}',
+      );
     }
     if (cleaned == text) {
       exchanges.add(e);
@@ -69,7 +76,12 @@ int sanitizeCaptureDir(Directory dir) {
         status: e.status,
         headers: e.headers,
         bodyFile: newBody,
-        artifact: CaptureArtifact(sourceUrl: e.artifact.sourceUrl, sha256: digest, size: out.length, licence: e.artifact.licence),
+        artifact: CaptureArtifact(
+          sourceUrl: e.artifact.sourceUrl,
+          sha256: digest,
+          size: out.length,
+          licence: e.artifact.licence,
+        ),
       ),
     );
   }

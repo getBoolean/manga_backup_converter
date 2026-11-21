@@ -11,7 +11,11 @@ import 'package:source_runtime/source_runtime.dart';
 /// With [evaluateUnavailable] set, `evaluate` fails as a platform that
 /// cannot express it would.
 final class ScriptedBrowserPort implements BrowserPort {
-  ScriptedBrowserPort({required this.respond, this.evaluateUnavailable = false, this.setCookiesOnLoad = const <BrowserCookie>[]});
+  ScriptedBrowserPort({
+    required this.respond,
+    this.evaluateUnavailable = false,
+    this.setCookiesOnLoad = const <BrowserCookie>[],
+  });
 
   /// The injected function's result for a page, as JSON-able data.
   final Object? Function(ScriptedPage page) respond;
@@ -31,8 +35,10 @@ final class ScriptedBrowserPort implements BrowserPort {
   Future<void> fence(int generation) async {}
 
   @override
-  Future<BrowserOutcome<BrowserSession>> openSession(BrowserSessionRequest request, {CancellationToken? cancel}) async =>
-      BrowserCompleted<BrowserSession>(_Session(this, 's${++_n}', request));
+  Future<BrowserOutcome<BrowserSession>> openSession(
+    BrowserSessionRequest request, {
+    CancellationToken? cancel,
+  }) async => BrowserCompleted<BrowserSession>(_Session(this, 's${++_n}', request));
 }
 
 /// What one session loaded.
@@ -77,8 +83,11 @@ final class _Session implements BrowserSession {
   }
 
   @override
-  Future<BrowserOutcome<BrowserPage>> loadUrl(Uri url, {Map<String, String> headers = const <String, String>{}, CancellationToken? cancel}) async =>
-      BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: url, statusCode: 200));
+  Future<BrowserOutcome<BrowserPage>> loadUrl(
+    Uri url, {
+    Map<String, String> headers = const <String, String>{},
+    CancellationToken? cancel,
+  }) async => BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: url, statusCode: 200));
 
   @override
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel}) async {

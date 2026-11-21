@@ -98,7 +98,7 @@ final class PaperbackSourceHost {
     await _seed(settings, cancel);
     final Object? loaded = await _op('__pbOpsLoad', const <Object?>[], cancel);
     _sources.clear();
-    for (final Object? s in loaded! as List<Object?>) {
+    for (final s in loaded! as List<Object?>) {
       final m = s! as Map<String, Object?>;
       final source = PaperbackLoadedSource(
         sourceId: m['sourceId']! as String,
@@ -127,7 +127,9 @@ final class PaperbackSourceHost {
     final String? only = _sources.length == 1
         ? _sources.keys.single
         : (settings.sources.length == 1 ? settings.sources.keys.single : null);
-    final Map<String, Object> values = only == null ? settings.values : _effective(settings.values, settings.sources[only]?.values);
+    final Map<String, Object> values = only == null
+        ? settings.values
+        : _effective(settings.values, settings.sources[only]?.values);
     final Map<String, String> secrets = only == null
         ? settings.secrets
         : <String, String>{...settings.secrets, ...?settings.sources[only]?.secrets};
@@ -135,8 +137,10 @@ final class PaperbackSourceHost {
     await runtime.evaluate(seed, filename: 'paperback/seed.js', cancel: cancel);
   }
 
-  static Map<String, Object> _effective(Map<String, Object> base, Map<String, Object>? scoped) =>
-      <String, Object>{...base, ...?scoped};
+  static Map<String, Object> _effective(Map<String, Object> base, Map<String, Object>? scoped) => <String, Object>{
+    ...base,
+    ...?scoped,
+  };
 
   /// Searches [sourceId]. [cursor] is the source's own pagination metadata
   /// from a previous page, JSON-encoded; `null` asks for the first page.
@@ -171,7 +175,11 @@ final class PaperbackSourceHost {
       final String code = failure['code'] as String? ?? 'source-error';
       final String message = failure['message'] as String? ?? 'unknown failure';
       throw PaperbackRuntimeException(
-        SourceFailure.fromWire(code, message, operation: code == 'capability-unavailable' ? _capabilityName(message) : null),
+        SourceFailure.fromWire(
+          code,
+          message,
+          operation: code == 'capability-unavailable' ? _capabilityName(message) : null,
+        ),
         reason: PaperbackFailureReason.sourceError,
         stack: failure['stack'] as String?,
       );
@@ -216,7 +224,10 @@ final class PaperbackSourceHost {
         throw HostCallError('[$tag] executeInWebView: ${f.message}');
       }
     });
-    _sync('__pbHost.utf8Decode', (JsContext c, List<JsValue> a) => c.string(utf8.decode(_bytes(a), allowMalformed: true)));
+    _sync(
+      '__pbHost.utf8Decode',
+      (JsContext c, List<JsValue> a) => c.string(utf8.decode(_bytes(a), allowMalformed: true)),
+    );
     _sync('__pbHost.utf8DecodeStrict', (JsContext c, List<JsValue> a) => c.string(utf8.decode(_bytes(a))));
     _sync('__pbHost.utf8Encode', (JsContext c, List<JsValue> a) => c.uint8Array(utf8.encode(_string(a))));
     _sync('__pbHost.latin1Decode', (JsContext c, List<JsValue> a) => c.string(latin1.decode(_bytes(a))));
@@ -243,7 +254,10 @@ final class PaperbackSourceHost {
   void _sync(String name, JsValue Function(JsContext c, List<JsValue> args) fn) {
     runtime.installGlobal(
       name,
-      runtime.context.newHostFunction(name.split('.').last, (JsContext c, JsValue self, List<JsValue> args) => fn(c, args)),
+      runtime.context.newHostFunction(
+        name.split('.').last,
+        (JsContext c, JsValue self, List<JsValue> args) => fn(c, args),
+      ),
     );
   }
 

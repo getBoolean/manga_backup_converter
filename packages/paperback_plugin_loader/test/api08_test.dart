@@ -40,13 +40,17 @@ Future<HostUnderTest> _load08(
   settings: settings,
 );
 
-PaperbackSearchPage _one(String id, [String title = 't']) => PaperbackSearchPage(items: <Map<String, Object?>>[
-  <String, Object?>{'mangaId': id, 'title': title},
-]);
+PaperbackSearchPage _one(String id, [String title = 't']) => PaperbackSearchPage(
+  items: <Map<String, Object?>>[
+    <String, Object?>{'mangaId': id, 'title': title},
+  ],
+);
 
 void main() {
   test('the source is constructed with the injected Cheerio and its Info is enumerated', () async {
-    final HostUnderTest h = await _load08("return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: typeof this.cheerio.load, title: 'x', image: '' })] });");
+    final HostUnderTest h = await _load08(
+      "return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: typeof this.cheerio.load, title: 'x', image: '' })] });",
+    );
     try {
       check(h.host.sources.values.single)
         ..has((PaperbackLoadedSource s) => s.sourceId, 'sourceId').equals('Test')
@@ -60,16 +64,18 @@ void main() {
 
   test('schedule runs interceptRequest, sends url+param, then interceptResponse on the packed response', () async {
     final HostUnderTest h = await _load08(
-      r'''
+      '''
       const res = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/s', param: '?q=1', method: 'GET' }), 1);
       return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: res.data, title: String(res.status) + ' ' + res.request.headers['x-intercepted'], image: '' })] });''',
-      manager: r'''{
+      manager: '''
+{
         interceptor: {
           interceptRequest: async (r) => { r.headers = { ...r.headers, 'x-intercepted': 'yes' }; return r; },
           interceptResponse: async (res) => ({ ...res, data: res.data + '+intercepted' }),
         },
       }''',
-      handler: (http.Request r) async => http.Response('${r.url.query}|${r.headers['x-intercepted']}|${r.headers['user-agent']}', 201),
+      handler: (http.Request r) async =>
+          http.Response('${r.url.query}|${r.headers['x-intercepted']}|${r.headers['user-agent']}', 201),
     );
     try {
       final PaperbackSearchPage page = await h.search('q');
@@ -82,7 +88,7 @@ void main() {
 
   test('bodies: form-urlencoded objects, JSON objects, raw strings', () async {
     final HostUnderTest h = await _load08(
-      r'''
+      '''
       const a = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/form', method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, data: { a: '1', b: 'two' } }), 0);
       const b = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/json', method: 'POST', data: { x: [1, 2] } }), 0);
       const c = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/raw', method: 'POST', data: 'plain' }), 0);
@@ -104,7 +110,7 @@ void main() {
   test('redirects are followed, cookies persist in the manager store, binary and UTF-8 survive', () async {
     final binary = <int>[0, 255, 128, 7];
     final HostUnderTest h = await _load08(
-      r'''
+      '''
       const r1 = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/login', method: 'GET', cookies: [App.createCookie({ name: 'pref', value: 'x', domain: 'example.test' })] }), 0);
       const r2 = await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/bin', method: 'GET' }), 0);
       const bytes = Array.from(r2.rawData);
@@ -112,7 +118,11 @@ void main() {
         results: [App.createPartialSourceManga({ mangaId: r1.data, title: JSON.stringify(bytes), image: '', subtitle: this.requestManager.cookieStore.getAllCookies().map((c) => c.name).join(',') })],
       });''',
       handler: (http.Request r) async => switch (r.url.path) {
-        '/login' => http.Response('', 301, headers: <String, String>{'location': 'https://example.test/home', 'set-cookie': 'sid=1; Path=/'}),
+        '/login' => http.Response(
+          '',
+          301,
+          headers: <String, String>{'location': 'https://example.test/home', 'set-cookie': 'sid=1; Path=/'},
+        ),
         '/home' => http.Response.bytes(utf8.encode('ようこそ ${r.headers['cookie']}'), 200),
         '/bin' => http.Response.bytes(binary, 200, headers: <String, String>{'x-cookie': r.headers['cookie'] ?? ''}),
         _ => http.Response('', 404),
@@ -133,7 +143,7 @@ void main() {
 
   test('requestsPerSecond spaces requests through JS timers', () async {
     final HostUnderTest h = await _load08(
-      r'''
+      '''
       const start = Date.now();
       for (let i = 0; i < 3; i++) await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/r' + i, method: 'GET' }), 0);
       return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: String(Date.now() - start), title: 't', image: '' })] });''',
@@ -150,17 +160,28 @@ void main() {
 
   test('state manager and keychain are seeded from settings, secrets only in the keychain', () async {
     final HostUnderTest h = await _load08(
-      r'''
+      '''
       const v = [await this.stateManager.retrieve('languages'), await this.stateManager.retrieve('password'), await this.stateManager.keychain.retrieve('password')];
       await this.stateManager.store('later', 1);
       return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: JSON.stringify(v), title: String(await this.stateManager.retrieve('later')), image: '' })] });''',
       settings: SettingsPayload.fromSnapshot(
-        SettingsSnapshot(values: <String, Object>{'languages': <String>['vi', 'en']}, secrets: <String, String>{'password': 'hunter2'}),
+        SettingsSnapshot(
+          values: const <String, Object>{
+            'languages': <String>['vi', 'en'],
+          },
+          secrets: const <String, String>{'password': 'hunter2'},
+        ),
       ),
     );
     try {
       final Map<String, Object?> item = (await h.search('q')).items.single;
-      check(item['mangaId']).equals(jsonEncode(<Object?>[<Object?>['en', 'vi'], null, 'hunter2']));
+      check(item['mangaId']).equals(
+        jsonEncode(<Object?>[
+          <Object?>['en', 'vi'],
+          null,
+          'hunter2',
+        ]),
+      );
       check(item['title']).equals('1');
     } finally {
       h.dispose();
@@ -168,9 +189,11 @@ void main() {
   });
 
   test('PagedResults.metadata round-trips exactly as the source wrote it', () async {
-    final HostUnderTest h = await _load08(r'''
+    final HostUnderTest h = await _load08(
+      '''
       const page = (metadata && metadata.page) || 0;
-      return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: 'p' + page, title: 't', image: '' })], metadata: { page: page + 20, cursor: 'ç' } });''');
+      return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: 'p' + page, title: 't', image: '' })], metadata: { page: page + 20, cursor: 'ç' } });''',
+    );
     try {
       final PaperbackSearchPage first = await h.search('q');
       check(first.nextCursor).equals('{"page":20,"cursor":"ç"}');
@@ -202,13 +225,15 @@ void main() {
         const hrefs = $('div.card a').map((i, a) => $(a).attr('href')).get();
         const absolute = hrefs.map((h) => 'https://example.test' + h);
         return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: JSON.stringify({ withBadge, more, absolute, text: $('#enc').text() }), title: 't', image: '' })] });''',
-        handler: (http.Request r) async => http.Response.bytes(utf8.encode(html), 200, headers: <String, String>{'content-type': 'text/html'}),
+        handler: (http.Request r) async =>
+            http.Response.bytes(utf8.encode(html), 200, headers: <String, String>{'content-type': 'text/html'}),
       );
       try {
         final result = jsonDecode((await h.search('q')).items.single['mangaId']! as String) as Map<String, Object?>;
         check(result['withBadge']! as List<Object?>).deepEquals(<Object?>['One']);
         check(result['more']).equals(1);
-        check(result['absolute']! as List<Object?>).deepEquals(<Object?>['https://example.test/series/1/one', 'https://example.test/series/2/two']);
+        check(result['absolute']! as List<Object?>)
+            .deepEquals(<Object?>['https://example.test/series/1/one', 'https://example.test/series/2/two']);
         check(result['text']).equals('été & ok');
       } finally {
         h.dispose();
@@ -232,10 +257,12 @@ void main() {
   });
 
   test('createDUI* rows carry their type; other create* factories return their argument', () async {
-    final HostUnderTest h = await _load08(r'''
+    final HostUnderTest h = await _load08(
+      '''
       const row = App.createDUISwitch({ id: 's', label: 'L' });
       const tag = App.createTag({ id: 't', label: 'T' });
-      return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: row.type + '/' + tag.label, title: 't', image: '' })] });''');
+      return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: row.type + '/' + tag.label, title: 't', image: '' })] });''',
+    );
     try {
       check((await h.search('q')).items.single['mangaId']).equals('DUISwitch/T');
     } finally {
@@ -252,7 +279,10 @@ void main() {
       } on PaperbackRuntimeException catch (e) {
         error = e.failure;
       }
-      check(error).isA<SourceErrorFailure>().has((SourceErrorFailure f) => f.message, 'message').contains('site changed');
+      check(error)
+          .isA<SourceErrorFailure>()
+          .has((SourceErrorFailure f) => f.message, 'message')
+          .contains('site changed');
     } finally {
       h.dispose();
     }

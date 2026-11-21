@@ -91,7 +91,9 @@ PaperbackApiFamily admitBundle(Uint8List bytes, ArtifactBinding binding) {
   final String digest = bundleDigest(bytes);
   if (digest != binding.sha256) {
     throw BundleAdmissionException(
-      ArtifactIncompatibleFailure('Bundle bytes changed: SHA-256 $digest does not match the admitted ${binding.sha256}'),
+      ArtifactIncompatibleFailure(
+        'Bundle bytes changed: SHA-256 $digest does not match the admitted ${binding.sha256}',
+      ),
     );
   }
   final PaperbackApiFamily? family = PaperbackApiFamily.fromArtifactKind(binding.kind);

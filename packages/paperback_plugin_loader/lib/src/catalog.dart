@@ -95,16 +95,18 @@ final class PaperbackCatalog {
   /// selects the API family; 0.8 entries also carry `author`/`desc`/
   /// `websiteBaseURL`, 0.9 entries `language`/`capabilities`/`developers`.
   /// A catalog for any other API version is a [FormatException].
+  // A parser with validation; a factory constructor would hide the throw.
+  // ignore: prefer_constructors_over_static_methods
   static PaperbackCatalog parse(Uri repository, String json) {
     final Object? decoded = jsonDecode(json);
     if (decoded is! Map<String, Object?>) throw const FormatException('versioning.json is not an object');
-    final builtWith = decoded['builtWith'] as Map<String, Object?>? ?? const <String, Object?>{};
+    final Map<String, Object?> builtWith = decoded['builtWith'] as Map<String, Object?>? ?? const <String, Object?>{};
     final types = builtWith['types'] as String?;
     final PaperbackApiFamily family =
         PaperbackApiFamily.fromTypesVersion(types) ??
         (throw FormatException('Unsupported Paperback API version: builtWith.types = ${types ?? 'missing'}'));
     final Uri base = normalizeRepository(repository);
-    final sources = decoded['sources'] as List<Object?>? ?? const <Object?>[];
+    final List<Object?> sources = decoded['sources'] as List<Object?>? ?? const <Object?>[];
     final entries = <PaperbackCatalogEntry>[
       for (final Object? s in sources)
         if (s is Map<String, Object?> && s['id'] is String && s['version'] is String)
