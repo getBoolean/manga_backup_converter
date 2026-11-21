@@ -191,6 +191,9 @@ final class IosJvmRuntime {
   });
 }
 
+// ignore: do_not_use_environment
+const bool _isProduct = bool.fromEnvironment('dart.vm.product');
+
 /// The staged runtime image, host class path and (in gate or test payloads
 /// only) fixtures, shipped as package assets.
 final class BundledRuntime {
@@ -289,6 +292,14 @@ final class BundledRuntime {
         default:
           break;
       }
+    }
+    // The product never ships extensions, repositories or gate fixtures: a
+    // release build refuses a payload staged with --gate or --test.
+    if (_isProduct && (fixtures.isNotEmpty || hasData)) {
+      throw IosJvmRuntimeException(
+        'runtime payload $stamp contains test fixtures or test data; restage with '
+        'stage_runtime.sh <sdk> (no --gate/--test) before a release build',
+      );
     }
     return BundledRuntime._(home, fixtures, classPath, hasData ? data : null, stamp);
   }

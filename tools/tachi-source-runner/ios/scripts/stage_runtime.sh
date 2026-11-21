@@ -20,7 +20,9 @@
 #   replay JARs, the committed captures and artifacts under fixtures/
 #   source_captures/tachi, and the busy/webview fixture extensions signed with
 #   a throwaway test key (its fingerprint in test-signer.txt).
-# Never ship a --gate or --test payload; BundledRuntime reports both.
+# The product never provides extensions or repositories: the default payload
+# holds no extension artifact, capture or repository reference. Never ship a
+# --gate or --test payload; BundledRuntime refuses one in release builds.
 
 set -euo pipefail
 
@@ -170,5 +172,10 @@ stamp="$(cat "$image/lib/modules" "$work/classpath/"*.jar | shasum -a 256 | cut 
   fi
 } >"$dest/layout.txt"
 cp "$work/rewrite-summary.txt" "$dest/rewrite-summary.txt"
+if ((!gate && !test)); then
+  if grep -qE '^(fixture|data)'$'\t' "$dest/layout.txt"; then
+    echo "shipping payload contains fixtures or test data" >&2; exit 1
+  fi
+fi
 log "staged $(grep -c '^home' "$dest/layout.txt") java.home files, $(grep -c '^classpath' "$dest/layout.txt") class path JARs," \
   "$(grep -c '^fixture' "$dest/layout.txt") fixtures, $(grep -c '^data' "$dest/layout.txt") test data files (stamp $stamp)"

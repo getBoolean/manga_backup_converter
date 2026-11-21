@@ -180,6 +180,17 @@ list at the end. Branch `feat/source-runners-u9`.
     HotSpot handles called `ucontext_get_pc` (ShouldNotCall) before the
     SIGPIPE/SIGXFSZ ignore branch, so a SIGPIPE from a closing socket aborted
     the app.
+- **No built-in extensions or repositories:** the runtime image holds only
+  the JDK class library and the baked additions; the shipping payload holds
+  the image and the host class path (worker, libraries, iOS host), with no
+  extension artifact, capture, gate fixture or repository reference
+  (`stage_runtime.sh` fails a default payload that contains any). Product code
+  in `source_runtime_ios` and `ios/host` names no extension or repository.
+  The real keiyoushi artifacts and captures under `fixtures/source_captures/`
+  are test-only (staged with `--test`) until a follow-up replaces them with
+  mocked extensions; a release build refuses a `--gate`/`--test` payload at
+  start (`BundledRuntime.prepare`; not yet exercised, since release builds
+  cannot run on the simulator).
 - **Limits:** no iOS sizing rule exists (KTD25 needs device benchmarks). The
   worker reports every limit as an explicit override (`rule: null`); the
   desktop rule is never applied. Heap is `-Xmx384m`, provisional.
