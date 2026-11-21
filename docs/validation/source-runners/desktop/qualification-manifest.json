@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "milestone": "M1 desktop",
+  "unit": "U8",
+  "updated": "2026-11-21",
+  "comment": "One cell per runner, qualification source and desktop OS (plan U8, R11/R12). A cell is passed only for what ran; replayed-capture, live capture-run and restore evidence are recorded separately. Receipts named here live in receipts/ and pass tool/check_evidence_receipts.dart. Blocked and not-run cells stay visible; a MangaFire cell that is not passed keeps M1 open.",
+  "publicQueries": ["Onimai", "Oshimai"],
+  "evidenceKinds": {
+    "replayed": "operations replayed from committed captures by the package test suites on this OS",
+    "live": "a manual, rate-limited capture run against the site (none recorded in U8)",
+    "restore": "a generated backup restored in a clean destination app (separate lane; none recorded in U8)"
+  },
+  "cells": [
+    {"runner": "tachi (repository JAR and APK via dex2jar)", "source": "MangaDex all.mangadex 1.6.4", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "tools/tachi-source-runner CapturedProofTest (Gradle suite, U8 verification run); receipts/windows-tachi-two-repositories-one-worker.json"},
+    {"runner": "tachi (repository JAR and APK via dex2jar)", "source": "WeebCentral en.weebcentral 1.6.27", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "CapturedProofTest; receipts/windows-tachi-two-repositories-one-worker.json (conversion Paperback to Mihon through two repositories and one JVM worker)"},
+    {"runner": "tachi (repository JAR and APK via dex2jar)", "source": "MangaFire all.mangafire 1.6.38", "os": "windows", "replayed": "passed (search, details, chapters; no challenge in the capture)", "browserPath": "blocked: the Cloudflare interceptor does not yet show a WebView; the captcha helper path runs only against a fake port", "live": "not run", "evidence": "CapturedProofTest"},
+    {"runner": "paperback-0.9", "source": "MangaDex (Inkdex 1.0.0-alpha.28)", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "paperback_plugin_loader suite (U8 verification run)"},
+    {"runner": "paperback-0.9", "source": "WeebCentral (Inkdex 1.0.0-alpha.25)", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "paperback_plugin_loader suite; CLI six-directions replay test"},
+    {"runner": "paperback-0.9", "source": "MangaFire (Inkdex 1.0.0-alpha.24)", "os": "windows", "replayed": "blocked: executeInWebView reaches the real helper, but the page's site scripts have no capture, so the VRF capture times out in the page", "live": "not run: no browser recorder exists to capture the helper's subresource traffic", "evidence": "receipts/windows-paperback-executeinwebview-helper.json"},
+    {"runner": "paperback-0.8", "source": "MangaDex (Netsky community 3.0.6)", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "paperback_plugin_loader suite"},
+    {"runner": "paperback-0.8", "source": "WeebCentral (GabrielCWT 1.1.1, numby 2.0.12)", "os": "windows", "replayed": "passed", "live": "not run", "evidence": "paperback_plugin_loader suite"},
+    {"runner": "paperback-0.8", "source": "MangaFire substitute: Mangahub (kittycatgit 4.0.0)", "os": "windows", "replayed": "passed (no Cloudflare challenge in the capture)", "live": "not run", "evidence": "paperback_plugin_loader suite"},
+    {"runner": "every runner", "source": "every source", "os": "macos", "replayed": "not run", "live": "not run", "evidence": "none: separate lane"},
+    {"runner": "every runner", "source": "every source", "os": "linux", "replayed": "not run", "live": "not run", "evidence": "none: separate lane"}
+  ],
+  "package": [
+    {"os": "windows", "arch": "x64", "smoke": "passed", "evidence": "receipts/windows-package-smoke.json"},
+    {"os": "macos", "arch": "arm64", "smoke": "not run (CI wired, non-gating)"},
+    {"os": "linux", "arch": "x64", "smoke": "not run (CI wired, non-gating)"}
+  ],
+  "restore": [
+    {"destination": "Paperback, Aidoku, Tachi apps", "status": "not run: needs a disposable app profile or test device and the user's authorization (plan U8, restore prerequisites)"}
+  ]
+}

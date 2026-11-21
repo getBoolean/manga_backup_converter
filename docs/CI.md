@@ -184,3 +184,25 @@ jobs:
 ```
 
 Thanks for reading, hope it helps. I previously used an older version of this process for a Godot project, so most of this should be reusable in other languages/frameworks.
+
+## Desktop CLI packaging and source-runner reports (`ci.yml`)
+
+These jobs live in `.github/workflows/ci.yml`, not in the GitHub Pages workflows above.
+
+| Job | What it does | Gating |
+|---|---|---|
+| `build_cli_windows` | `dart run scripts/package_cli.dart` (the `dart build cli` bundle, the JVM worker, a JRE jlinked from the Corretto archive pinned in `tools/tachi-source-runner/runtime/jre-pins.json`, the WebView helper, licences, `runtime/runtime-manifest.json`), then `dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-windows.json` and `tool/check_evidence_receipts.dart` on the receipt; the installer is compiled from the package | yes |
+| `build_cli_linux`, `build_cli_macos` | the plain `dart build cli` bundle (gating, as before), then the same packaging and smoke steps with `continue-on-error` (Linux installs WebKitGTK 4.1 and runs the smoke under `xvfb-run`) | packaging and smoke are non-gating until the WebView helper has been built and run on those hosts |
+| `benchmarks` | the KTD25 benchmarks per desktop OS (Ubuntu, Windows, macOS arm64): the Paperback real-bundle benchmark under JIT and AOT, and the Tachi worker benchmark in `--quick` mode; results are uploaded as `ktd25-benchmarks-<os>` | non-gating report (`continue-on-error`); timing is never asserted |
+
+The JDK archive is cached by the hash of `jre-pins.json` (`build/runtime-cache/`). Raising the JRE pin means editing
+that file (version and every SHA-256) and `JRE_FLOOR` in the worker together.
+
+**Comparing benchmark reports.** Neither result file carries a machine-checkable rule version, so whether the
+committed results (`docs/validation/source-runners/desktop/benchmark-*.json`,
+`packages/paperback_plugin_loader/benchmark/results/`) still match the current worker and sizing rule is a manual
+comparison of the uploaded report with the committed one; re-run the full benchmark when the rule, the worker's
+host libraries or the QuickJS pin changes.
+
+None of these jobs contacts a source site: the benchmarks and the smoke test replay committed captures or run
+offline. The packaging step downloads only the pinned JDK archive (checked against its SHA-256).
