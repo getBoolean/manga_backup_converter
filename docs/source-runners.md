@@ -290,3 +290,46 @@ pinned bundle of that site, from both families, for the fixed query `Onimai`, wi
 (`tool/sanitize_captures.dart`): MangaDex's challenge page embedded a token carrying the recording client's network
 address, and Cloudflare snippets carried ray IDs. Tests and the e2e suite replay with `--replay`; a request without
 a capture fails the operation loudly, even when the source catches the error.
+
+### Limits (KTD25)
+
+`benchmark/bundle_benchmark.dart` measures the pinned bundles on the replayed captures: each bundle's load, and
+search and details for the four bundles whose captures complete them. It runs under `flutter test` and as an AOT
+executable (`benchmark/bundle_benchmark_main.dart`), because the worker ships AOT. Rate-limiter sleeps are made
+instant for CPU timing (they are host waits). Reference device: Windows 11 x64, MSVC `/O2` QuickJS-ng 0.18.0,
+16 logical processors, 128 GiB. Results: `benchmark/results/2026-11-21-windows-x64-bundles-{aot,jit}.json`.
+
+| AOT workload | Median | p95 | Minimal heap | Minimal stack |
+|---|---|---|---|---|
+| MangaDex 0.9 load / search / details | 160 / 2.9 / 45 ms | 202 / 3.7 / 46 ms | 5.5 / 5.5 / 9.7 MB | 67 / 90 / 71 KB |
+| WeebCentral 0.9 load / search / details | 119 / 29 / 1,143 ms | 134 / 39 / 1,701 ms | 4.6 / 4.6 / 6.5 MB | 67 / 212 / 212 KB |
+| WeebCentral 0.8 (GabrielCWT) load / search / details | 90 / 52 / 1,205 ms | 112 / 79 / 2,389 ms | 3.7 / 3.8 / 5.8 MB | 133 / 212 / 212 KB |
+| WeebCentral 0.8 (numby) load / search / details | 683 / 83 / 1,152 ms | 1,118 / 176 / 1,856 ms | 6.3 / 6.4 / 7.5 MB | 71 / 212 / 212 KB |
+| MangaDex 0.8 load, MangaFire 0.9 load | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
+
+- **Profile** (`paperbackBundleProfile`, replacing U5's synthetic one): peak heap 9.71 MB (MangaDex details mapping
+  a 1 MB chapter feed), peak stack 217 KB (Cheerio and parse5 over WeebCentral pages), slowest operation 2.39 s
+  (WeebCentral 0.8 details, p95), reference calibration 122 ms.
+- **Sizing rule** (`quickjs-sizing-v2`: U5's formulas, policy factors unchanged at heap 2x, stack 2x, deadline
+  4x, memory share 0.25, stack share 0.5, 50 slices per deadline). Derived on the reference device for one
+  runtime: memory 19.4 MB, stack 434 KB (below the 522 KB cap), engine deadline 9.56 s plus the host-wait
+  allowance, job slice 191 ms. The host-wait allowance (186 s) is 6 requests per operation (the most one
+  qualification operation made, rounded up) at the host's 30 s request timeout, plus 1 s of rate-limiter sleep per
+  request. It is the supervisor's policy, not a QuickJS property.
+- **Deadline race.** The worker used to report the engine deadline as `operationDeadlineMs`, so an adopting
+  supervisor timed operations out at the same instant the engine did and could kill a worker that was already
+  stopping. The longest a single operation ran past its engine deadline (deadlines placed at 20 to 105 % of the
+  operation) was 64.2 ms (WeebCentral 0.8 details); encoding the largest reply frame (MangaDex details, 223
+  chapters) takes 2.5 ms more. The worker now takes `--deadline-headroom-ms` (that 66.6 ms tail, scaled by the
+  device calibration, times 4: 267 ms on the reference device) and reports `operationDeadlineMs` = engine deadline
+  + headroom, with both parts in the limit fields. The CLI uses the same headroom as its cancel grace.
+- **Recursion (Windows MSVC).** The AOT worker thread has 1,044,208 bytes of stack; QuickJS uses 4,834 bytes per
+  JS frame, so the 50 % stack share allows 108 frames. The real bundles need at most 217 KB, about 45 frames; with
+  the 2x stack headroom, about 90 frames. That fits, so the qualification bundles do not need a larger-stack native
+  thread. The margin over the headroomed need is only 1.2x: deeper HTML could exceed it, and fails as a
+  stack-limit source error rather than a crash. JIT (`flutter_tester`) shows the same ceiling (107 frames).
+- **JIT outliers.** The JIT run had multi-second stalls that AOT did not reproduce (WeebCentral 0.9 details p95
+  10.1 s, one 5.75 s deadline overshoot). Their cause is unexplained (machine contention is suspected). The AOT
+  figures size the shipped worker.
+- **Not measured:** Clang targets (Android, Apple, Linux), slower reference devices, worker start-up to handshake
+  (the CLI allows 30 s, an unmeasured policy value), and concurrency above one runtime.

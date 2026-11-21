@@ -2,7 +2,21 @@
 
 `quickjs_limits_benchmark.dart` measures what Paperback-like workloads need from a QuickJS runtime on the device it runs on, then applies the sizing rule in `lib/src/runtime/limit_sizing.dart`.
 
-**Status: provisional.** The workloads are synthetic stand-ins. U6 replaces them with real Paperback 0.8/0.9 bundles (with bundled Cheerio) and re-derives the profile and policy. Results exist for one desktop so far (below). Reference devices of different capability, including Android and iOS hardware, still have to be measured.
+**Status: superseded by the real-bundle benchmark** (`bundle_benchmark.dart`, below). This synthetic harness is kept for comparison. The sizing rule's profile now comes from real Paperback 0.8/0.9 bundles (`paperbackBundleProfile` in `lib/src/worker_plan.dart`). Reference devices of different capability, including Android and iOS hardware, still have to be measured.
+
+## Real-bundle benchmark (U6)
+
+`bundle_benchmark.dart` runs the pinned Paperback bundles (`fixtures/source_captures/paperback`) on the committed captures: each bundle's load, and search and details where the capture completes them. It measures median/p95 time (rate-limiter sleeps made instant), peak and minimal heap, minimal stack, the JS frame size, how far each operation runs past an engine deadline placed inside it, and the reply conversion and frame-encoding tail.
+
+```bash
+# JIT (flutter_tester), from the repository root:
+QJS_BENCH_OUT=packages/paperback_plugin_loader/benchmark/results/<date>-<os>-bundles-jit.json   flutter test packages/paperback_plugin_loader/benchmark/paperback_bundles_benchmark_test.dart
+# AOT, as the worker ships (from packages/paperback_plugin_loader):
+dart build cli -t benchmark/bundle_benchmark_main.dart -o <dir>
+<dir>/bundle/bin/bundle_benchmark_main <repo>/fixtures/source_captures/paperback results/<date>-<os>-bundles-aot.json
+```
+
+Results and the derived limits are in `docs/source-runners.md` (Paperback host, Limits). 2026-11-21, Windows 11 x64 (MSVC): `results/2026-11-21-windows-x64-bundles-aot.json` (sizes the shipped worker) and `...-bundles-jit.json`.
 
 ## Running
 
