@@ -13,7 +13,7 @@
 // request missed the captures. Each case prints one `U13_RECEIPT {json}`
 // line, collected under docs/validation/source-runners/android/.
 
-// ignore_for_file: avoid_print, implementation_imports
+// ignore_for_file: avoid_print
 
 import 'dart:async';
 import 'dart:convert';
@@ -28,7 +28,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:source_runtime/source_runtime.dart';
-import 'package:source_runtime_android/src/aidoku_backend.dart';
+import 'package:source_runtime_android/source_runtime_android.dart';
 
 import 'aidoku_fixture_bundle.g.dart';
 

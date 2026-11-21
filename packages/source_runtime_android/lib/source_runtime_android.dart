@@ -3,4 +3,5 @@
 /// (KTD17, KTD18, KTD23). No platform channel carries any call.
 library;
 
+export 'src/aidoku_backend.dart';
 export 'src/android_source_runtime.dart';
