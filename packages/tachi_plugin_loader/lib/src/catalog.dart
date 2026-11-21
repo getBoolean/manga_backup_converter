@@ -70,7 +70,9 @@ final class TachiRepository {
     };
     final String fingerprint;
     try {
-      fingerprint = ArtifactTrustAnchor.normalizeFingerprint(_requireString(meta, 'signingKeyFingerprint', 'repo.json'));
+      fingerprint = ArtifactTrustAnchor.normalizeFingerprint(
+        _requireString(meta, 'signingKeyFingerprint', 'repo.json'),
+      );
     } on FormatException catch (e) {
       throw TachiCatalogException('repo.json signingKeyFingerprint: ${e.message}');
     }

@@ -89,7 +89,8 @@ final class TachiWorkerLocation {
       if (java == null) 'java (set TACHI_JAVA_HOME or JAVA_HOME, or a runtime manifest)',
       if (classpath == null)
         'worker classpath (a runtime manifest, a configured install directory, or $tachiWorkerDevelopmentInstall)',
-      if (deadline == null) 'handshakeDeadline (handshakeDeadlineMs in the runtime manifest, or explicit configuration)',
+      if (deadline == null)
+        'handshakeDeadline (handshakeDeadlineMs in the runtime manifest, or explicit configuration)',
     ];
     if (missing.isNotEmpty) {
       return SourceFailed<TachiWorkerLocation>(
@@ -105,7 +106,12 @@ final class TachiWorkerLocation {
       );
     }
     return SourceSuccess<TachiWorkerLocation>(
-      TachiWorkerLocation(java: java, classpathDirectory: classpath, handshakeDeadline: deadline!, mainClass: mainClass),
+      TachiWorkerLocation(
+        java: java,
+        classpathDirectory: classpath,
+        handshakeDeadline: deadline!,
+        mainClass: mainClass,
+      ),
     );
   }
 
@@ -171,7 +177,9 @@ final class _Manifest {
     try {
       json = jsonDecode(file.readAsStringSync());
     } on FormatException catch (e) {
-      return SourceFailed<_Manifest>(RuntimeUnavailableFailure('Tachi runtime manifest $path is not JSON: ${e.message}'));
+      return SourceFailed<_Manifest>(
+        RuntimeUnavailableFailure('Tachi runtime manifest $path is not JSON: ${e.message}'),
+      );
     }
     if (json is! Map<String, Object?> ||
         json['format'] != TachiWorkerLocation.manifestFormat ||

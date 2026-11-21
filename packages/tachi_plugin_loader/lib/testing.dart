@@ -128,11 +128,20 @@ final class FixtureRepository {
   ];
 }
 
+/// A URL had no committed fixture; no server is ever contacted instead.
+final class FixtureMissException implements Exception {
+  const FixtureMissException(this.url);
+
+  final Uri url;
+
+  @override
+  String toString() => 'FixtureMissException: no fixture for $url (tests never contact a server)';
+}
+
 /// Serves [repositories] and their artifacts; counts every request. Any
-/// other URL throws (no server is ever contacted).
+/// other URL throws [FixtureMissException] (no server is ever contacted).
 final class FixtureFetch {
-  FixtureFetch(this.repositories, {Map<Uri, Uint8List>? overrides})
-    : overrides = overrides ?? <Uri, Uint8List>{};
+  FixtureFetch(this.repositories, {Map<Uri, Uint8List>? overrides}) : overrides = overrides ?? <Uri, Uint8List>{};
 
   final List<FixtureRepository> repositories;
 
@@ -159,7 +168,7 @@ final class FixtureFetch {
         }
       }
     }
-    throw StateError('No fixture for $url (tests never contact a server)');
+    throw FixtureMissException(url);
   }
 }
 

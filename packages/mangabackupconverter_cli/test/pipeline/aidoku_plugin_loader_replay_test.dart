@@ -10,6 +10,8 @@ import 'dart:typed_data';
 import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvider;
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
+import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
@@ -117,6 +119,22 @@ void main() {
       );
       check(outcome).isA<DetailsFailed>();
       replay.misses.clear();
+      await owner.close();
+    });
+
+    test('cached byte-loading still returns the singleton source of an Aidoku package', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('aidoku_cache_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final cache = PluginCache(cacheDir: temp)..put(_entry, aix.readAsBytesSync());
+      final owner = ConversionOwner();
+      final failures = <PluginLoadFailure>[];
+      final List<PluginSource> sources = await CachingPluginLoader(
+        loader,
+        cache: cache,
+      ).loadPlugins(const <ExtensionEntry>[_entry], owner: owner, onFailure: failures.add);
+      check(failures).isEmpty();
+      check(sources).length.equals(1);
+      check(sources.single.identity.ecosystem).equals('aidoku');
       await owner.close();
     });
 

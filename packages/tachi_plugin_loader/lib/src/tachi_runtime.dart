@@ -292,12 +292,11 @@ class TachiRuntime implements SourceProvider {
   }
 
   /// Called by a hosted package when its last session closed.
-  Future<void> _released(_HostedPackage hosted) =>
-      _serialized(hosted.artifact.packageId, () async {
-        if (hosted.liveSessions == 0 && identical(_hosted[hosted.artifact.packageId], hosted)) {
-          await _unload(hosted, reason: 'Package ${hosted.artifact.packageId} was unloaded');
-        }
-      });
+  Future<void> _released(_HostedPackage hosted) => _serialized(hosted.artifact.packageId, () async {
+    if (hosted.liveSessions == 0 && identical(_hosted[hosted.artifact.packageId], hosted)) {
+      await _unload(hosted, reason: 'Package ${hosted.artifact.packageId} was unloaded');
+    }
+  });
 
   Future<void> _unload(_HostedPackage hosted, {required String reason}) async {
     _hosted.remove(hosted.artifact.packageId);
