@@ -84,6 +84,10 @@ pub enum UserEvent {
   Ipc { session: String, uri: String, body: String },
   EvalDispatched { session: String, seq: u64, ok: bool },
   NavStarting { session: String, uri: String, rejected: bool },
+  /// A new main-frame document committed (engines with
+  /// `platform::DRAIN_EVALS_ON_COMMIT`): the old document's evaluations end.
+  #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+  Committed { session: String },
   NavFinished { session: String, url: String, ok: bool, status: Option<i64>, error: Option<String> },
   RedirectRejected { session: String, location: String },
   Request(RequestEvent),
@@ -757,8 +761,10 @@ impl App {
       UserEvent::NavStarting { session, uri, rejected } => {
         let Some(s) = self.sessions.get_mut(&session) else { return };
         // A new document discards pending evaluations of the old one.
-        for (_, req) in s.pending_evals.drain() {
-          self.out.err(req, "navigated", "the page navigated away before the script completed", None);
+        if !platform::DRAIN_EVALS_ON_COMMIT {
+          for (_, req) in s.pending_evals.drain() {
+            self.out.err(req, "navigated", "the page navigated away before the script completed", None);
+          }
         }
         if rejected {
           if let Some(p) = s.pending_load.as_mut() {
@@ -766,6 +772,12 @@ impl App {
           }
         } else {
           s.shared.borrow_mut().load_chain.push(uri);
+        }
+      }
+      UserEvent::Committed { session } => {
+        let Some(s) = self.sessions.get_mut(&session) else { return };
+        for (_, req) in s.pending_evals.drain() {
+          self.out.err(req, "navigated", "the page navigated away before the script completed", None);
         }
       }
       UserEvent::RedirectRejected { session, location } => {

@@ -160,6 +160,15 @@ addEventListener('message', function (e) {
             ..contentType = ContentType.text
             ..set('Access-Control-Allow-Origin', '*');
           r.write('${request.method} $body');
+        case '/missing':
+          r.statusCode = HttpStatus.notFound;
+          r.headers.contentType = ContentType.html;
+          r.write('<html><head><title>missing</title></head></html>');
+        case '/drop':
+          // Closes the connection without a response: a failed navigation.
+          final Socket socket = await r.detachSocket(writeHeaders: false);
+          socket.destroy();
+          return;
         case '/set-cookie':
           r.headers.add(HttpHeaders.setCookieHeader, 'server=1; Path=/');
           r.headers.contentType = ContentType.html;

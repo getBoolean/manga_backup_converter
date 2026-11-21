@@ -551,6 +551,24 @@ Future<void> main() async {
       },
     );
 
+    test('a load reports the main document status, and a dropped connection fails the load', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final HelperCapabilities caps = port.helperInfo!.capabilities;
+      final BrowserOutcome<BrowserPage> missing = await s.loadUrl(server.url('/missing'));
+      check(missing).isA<BrowserCompleted<BrowserPage>>();
+      check(missing.valueOrNull!.statusCode).equals(caps.statusCodes ? 404 : null);
+      if (caps.statusCodes) {
+        check((await s.loadUrl(server.url('/page'))).valueOrNull!.statusCode).equals(200);
+      }
+      if (!caps.navigationFailures) {
+        markTestSkipped('engine reports no failed navigations');
+        return;
+      }
+      check(await s.loadUrl(server.url('/drop'))).isA<BrowserNavigationFailed<BrowserPage>>();
+      check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
+    });
+
     test('offline mode blocks non-loopback requests nobody answers', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');

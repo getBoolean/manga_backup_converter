@@ -53,6 +53,11 @@ pub fn generic_navigation_hooks<'a>(
   })
 }
 
+/// Whether pending evaluations end when a new document commits (WKWebView)
+/// rather than when a navigation starts.
+#[cfg(not(target_os = "macos"))]
+pub const DRAIN_EVALS_ON_COMMIT: bool = false;
+
 /// Channel names the engine reserves, with the reason (WKWebView only).
 #[cfg(not(target_os = "macos"))]
 pub const RESERVED_CHANNELS: &[(&str, &str)] = &[];

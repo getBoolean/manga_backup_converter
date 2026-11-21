@@ -55,6 +55,13 @@ pub const IPC_URI_IS_POSTING_FRAME: bool = true;
 /// `window` global.
 const HOST_HANDLER: &str = "dwvHost";
 
+/// A navigation that never commits (refused, blocked offline by the content
+/// rules, failed provisionally) leaves the document and its running scripts
+/// in place, so pending evaluations end only when a new main-frame document
+/// commits (measured: a captured page's meta refresh to a blocked URL would
+/// otherwise cancel the evaluation while the page kept running).
+pub const DRAIN_EVALS_ON_COMMIT: bool = true;
+
 /// Channel names WKWebView itself defines as non-configurable, non-writable
 /// `window` properties (measured: `window.webkit`); a channel cannot replace
 /// them, so the helper refuses them by name.
@@ -343,6 +350,9 @@ define_class!(
 
     #[unsafe(method(webView:didCommitNavigation:))]
     fn did_commit(&self, webview: &WKWebView, nav: Option<&WKNavigation>) {
+      let ivars = self.ivars();
+      let session = ivars.shared.borrow().id.clone();
+      let _ = ivars.proxy.send_event(UserEvent::Committed { session });
       if let (Some(inner), Some(nav)) = (self.ivars().inner.as_ref(), nav) {
         unsafe {
           let _: () = msg_send![&**inner, webView: webview, didCommitNavigation: nav];
