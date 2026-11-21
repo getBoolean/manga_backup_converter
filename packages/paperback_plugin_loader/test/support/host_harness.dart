@@ -40,6 +40,7 @@ final class HostUnderTest {
     PaperbackBrowserChannel? browser,
     SettingsPayload? settings,
     Duration deadline = const Duration(seconds: 60),
+    Duration cloudflareAutoSolveWait = Duration.zero,
   }) async {
     final requests = <http.Request>[];
     final logs = <String>[];
@@ -53,7 +54,13 @@ final class HostUnderTest {
           requests.add(r);
           return handler == null ? http.Response('not stubbed', 404) : handler(r);
         });
-    final host = PaperbackSourceHost(runtime: runtime, http: PaperbackHttp(c), browser: browser, log: logs.add);
+    final host = PaperbackSourceHost(
+      runtime: runtime,
+      http: PaperbackHttp(c),
+      browser: browser,
+      cloudflareAutoSolveWait: cloudflareAutoSolveWait,
+      log: logs.add,
+    );
     try {
       await host.load(bytes, bindingFor(bytes, family), settings ?? emptySettings());
     } on Object {

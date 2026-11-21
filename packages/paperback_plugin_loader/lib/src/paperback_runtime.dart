@@ -42,8 +42,13 @@ final class PaperbackSourceHost {
     required this.http,
     this.browser,
     this.userAgent = paperbackDefaultUserAgent,
+    this.cloudflareAutoSolveWait = const Duration(seconds: 8),
     void Function(String line)? log,
   }) : _log = log ?? ((String _) {});
+
+  /// How long a Cloudflare bypass waits for a challenge to clear on its own
+  /// before showing the page to the user.
+  final Duration cloudflareAutoSolveWait;
 
   final SourceJsRuntime runtime;
   final PaperbackHttp http;
@@ -222,6 +227,35 @@ final class PaperbackSourceHost {
         final SourceFailure f = e.failure;
         final String tag = f is CapabilityUnavailableFailure ? 'capability-unavailable' : f.code;
         throw HostCallError('[$tag] executeInWebView: ${f.message}');
+      }
+    });
+    runtime.installGlobal('__pbHost.hasBrowser', c.boolean(browser != null));
+    runtime.bridge.registerAsync('__pbHost.cloudflareBypass', (List<Object?> args) async {
+      final PaperbackBrowserChannel? channel = browser;
+      if (channel == null) {
+        throw const HostCallError(
+          '[interaction-required] The source needs a Cloudflare bypass and this host has no browser',
+        );
+      }
+      final Object? spec = args.isEmpty ? null : args.first;
+      if (spec is! Map<String, Object?>) throw const HostCallError('cloudflareBypass expects an object');
+      final String sourceId = _sources.length == 1 ? _sources.keys.single : '';
+      try {
+        return await PaperbackBrowser(
+          channel,
+          sourceId: sourceId,
+          resultTimeout: runtime.limits.operationDeadline,
+        ).bypassCloudflare(
+          CloudflareBypass.fromJs(spec),
+          _currentCancel ?? CancellationToken.none,
+          autoSolveWait: cloudflareAutoSolveWait,
+        );
+      } on PaperbackBrowserException catch (e) {
+        final SourceFailure f = e.failure;
+        // A browser that cannot run the bypass leaves the challenge for the
+        // user: the operation still needs an interaction, not a capability.
+        final String tag = f is CapabilityUnavailableFailure ? 'interaction-required' : f.code;
+        throw HostCallError('[$tag] Cloudflare bypass: ${f.message}');
       }
     });
     _sync(

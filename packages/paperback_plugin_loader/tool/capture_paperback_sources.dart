@@ -5,7 +5,7 @@
 // the committed captures through the same worker in `--replay` mode.
 //
 // Usage (from packages/paperback_plugin_loader):
-//   dart run tool/capture_paperback_sources.dart <site>...      (mangadex, weebcentral, mangafire)
+//   dart run tool/capture_paperback_sources.dart <site>...      (mangadex, weebcentral, mangafire, mangahub)
 //
 // Re-recording one bundle without touching the other bundles' exchanges:
 //   dart run tool/capture_paperback_sources.dart <site> --only=<repo>/<id> --out=<empty dir>
@@ -15,7 +15,16 @@
 // `--merge` replaces the committed exchanges the new recording also holds,
 // and the redirect chains they started, with the new ones; drops orphaned
 // bodies; replaces that bundle's entry in `scenario.json`; and notes the
-// second session in `capture.json`.
+// second session in `capture.json`. A bundle new to the site has its
+// `scenario.json` entry appended.
+//
+// Retiring a bundle from a site's capture (after removing it from
+// `captureSites`):
+//   dart run tool/capture_paperback_sources.dart <site> --drop=<repo>/<id> --prune
+// `--drop` removes that bundle's `scenario.json` entry; `--prune` replays
+// the site's scenario offline against the committed capture and deletes the
+// exchanges (and bodies) no remaining bundle requested. Neither contacts a
+// server.
 //
 // For each site it builds the worker executable once (`dart build cli`),
 // starts it with `--record=fixtures/source_captures/paperback/<site>`, and
@@ -48,18 +57,27 @@ Future<void> main(List<String> args) async {
   final String? only = flag('only');
   final String? out = flag('out');
   final String? merge = flag('merge');
+  final String? drop = flag('drop');
+  final bool prune = args.contains('--prune');
   final bool usage =
       sites.isEmpty ||
       sites.any((String s) => !captureSites.containsKey(s)) ||
       (only != null && (sites.length != 1 || !captureSites[sites.single]!.any((PinnedBundle b) => b.label == only))) ||
       ((out != null || merge != null) && only == null) ||
-      (out != null && merge != null);
+      (out != null && merge != null) ||
+      ((drop != null || prune) && (sites.length != 1 || only != null || out != null || merge != null));
   if (usage) {
     stderr.writeln(
       'usage: capture_paperback_sources.dart <${captureSites.keys.join('|')}>... '
-      '[--only=<repo>/<id> (--out=<dir> | --merge=<dir>)]',
+      '[--only=<repo>/<id> (--out=<dir> | --merge=<dir>)] | <site> [--drop=<repo>/<id>] [--prune]',
     );
     exitCode = 64;
+    return;
+  }
+  if (drop != null || prune) {
+    final dir = Directory('${paperbackFixtures().path}/${sites.single}');
+    if (drop != null) _drop(dir, drop);
+    if (prune) await _prune(dir, sites.single);
     return;
   }
   if (merge != null) {
@@ -139,7 +157,7 @@ Future<void> _capture(String site, String exe, {String? only, Directory? out}) a
     final List<BundleRun> runs = await runSiteScenario(provider, site, only: only);
     final String report = const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'site': site,
-      'query': qualificationQuery,
+      'query': queryFor(site),
       'recordedAt': DateTime.now().toUtc().toIso8601String(),
       'runs': <Object?>[for (final BundleRun r in runs) r.toJson()],
     });
@@ -209,9 +227,12 @@ void _merge(Directory into, Directory from, String only) {
   final scenario = jsonDecode(scenarioFile.readAsStringSync()) as Map<String, Object?>;
   final freshScenario = jsonDecode(File('${from.path}/scenario.json').readAsStringSync()) as Map<String, Object?>;
   final Object? freshRun = (freshScenario['runs']! as List<Object?>).single;
+  final runs = scenario['runs']! as List<Object?>;
+  final bool known = runs.any((Object? r) => (r! as Map<String, Object?>)['bundle'] == only);
   scenario['runs'] = <Object?>[
-    for (final Object? r in scenario['runs']! as List<Object?>)
+    for (final Object? r in runs)
       if ((r! as Map<String, Object?>)['bundle'] == only) freshRun else r,
+    if (!known) freshRun,
   ];
   scenario['rerecorded'] = <String, Object?>{
     ...?(scenario['rerecorded'] as Map<String, Object?>?),
@@ -220,6 +241,90 @@ void _merge(Directory into, Directory from, String only) {
   const encoder = JsonEncoder.withIndent('  ');
   scenarioFile.writeAsStringSync('${encoder.convert(scenario)}\n');
   stdout.writeln('merged ${fresh.exchanges.length} exchanges into ${into.path}, replaced ${dropped.length}');
+}
+
+/// Removes [label]'s run (and re-recording note) from [dir]'s `scenario.json`.
+void _drop(Directory dir, String label) {
+  final scenarioFile = File('${dir.path}/scenario.json');
+  final scenario = jsonDecode(scenarioFile.readAsStringSync()) as Map<String, Object?>;
+  final runs = scenario['runs']! as List<Object?>;
+  scenario['runs'] = <Object?>[
+    for (final Object? r in runs)
+      if ((r! as Map<String, Object?>)['bundle'] != label) r,
+  ];
+  final rerecorded = scenario['rerecorded'] as Map<String, Object?>?;
+  rerecorded?.remove(label);
+  if (rerecorded != null && rerecorded.isEmpty) scenario.remove('rerecorded');
+  const encoder = JsonEncoder.withIndent('  ');
+  scenarioFile.writeAsStringSync('${encoder.convert(scenario)}\n');
+  stdout.writeln('dropped ${runs.length - (scenario['runs']! as List<Object?>).length} run(s) of $label');
+}
+
+/// Replays [site]'s scenario offline (in-process worker, committed capture
+/// only) and deletes the exchanges and bodies it never requested.
+Future<void> _prune(Directory dir, String site) async {
+  final client = MultiReplayHttpClient.load(<Directory>[dir]);
+  final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
+  final supervisor = WorkerSupervisor(
+    spec: const WorkerSpec(label: 'paperback-prune', executable: 'in-process'),
+    limits: const SupervisorLimits(
+      maxConcurrentPackages: 1,
+      operationDeadline: Duration(minutes: 15),
+      cancelGrace: Duration(seconds: 5),
+      interactionTimeout: Duration(seconds: 5),
+      shutdownGrace: Duration(seconds: 5),
+    ),
+    launcher: inProcessPaperbackLauncher(
+      client: client,
+      limits: PaperbackRuntimeLimits(
+        memoryLimitBytes: 256 << 20,
+        maxStackBytes: 512 << 10,
+        operationDeadline: const Duration(minutes: 15),
+        jobSlice: const Duration(milliseconds: 20),
+      ),
+    ),
+  );
+  final Directory cache = Directory.systemTemp.createTempSync('paperback_prune');
+  try {
+    await runSiteScenario(
+      PaperbackSourceProvider(
+        client: client,
+        cache: ArtifactCache(cache),
+        trust: PinnedRepository.pinnedTrust(repos),
+        worker: () async => (await supervisor.start()).map((_) => supervisor),
+      ),
+      site,
+    );
+  } finally {
+    await supervisor.close();
+    cache.deleteSync(recursive: true);
+  }
+  if (client.misses.isNotEmpty) throw StateError('Replay missed ${client.misses}; not pruning');
+  final Set<CaptureKey> served = client.served.toSet();
+  final manifestFile = File('${dir.path}/$captureManifestFileName');
+  final CaptureManifest committed = _readManifest(manifestFile);
+  final kept = <CaptureExchange>[
+    for (final CaptureExchange e in committed.exchanges)
+      if (served.contains(e.key)) e,
+  ];
+  final keptBodies = <String>{for (final CaptureExchange e in kept) e.bodyFile};
+  for (final CaptureExchange e in committed.exchanges) {
+    final body = File('${dir.path}/${e.bodyFile}');
+    if (!keptBodies.contains(e.bodyFile) && body.existsSync()) body.deleteSync();
+  }
+  manifestFile.writeAsStringSync(
+    CaptureManifest(
+      ecosystem: committed.ecosystem,
+      source: committed.source,
+      recordedAt: committed.recordedAt,
+      notes:
+          '${committed.notes}; pruned to the exchanges the current bundles request '
+          '(${committed.exchanges.length - kept.length} removed)',
+      volatileQueryParameters: committed.volatileQueryParameters,
+      exchanges: kept,
+    ).encode(),
+  );
+  stdout.writeln('pruned ${committed.exchanges.length - kept.length} of ${committed.exchanges.length} exchanges');
 }
 
 CaptureManifest _readManifest(File f) =>

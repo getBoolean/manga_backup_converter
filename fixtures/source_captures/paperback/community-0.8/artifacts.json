@@ -1,0 +1,28 @@
+{
+  "repository": "https://thenetsky.github.io/community-extensions/0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T07:20:16Z",
+  "licence": "GPL-3.0 (github.com/TheNetsky/community-extensions)",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://thenetsky.github.io/community-extensions/0.8/versioning.json",
+    "sha256": "21935f613f3daa3217ca79ec6de02b11f8a1375461f90a8d60c3ad05ce75d52b",
+    "size": 1604,
+    "builtWith": {
+      "toolchain": "0.8.7",
+      "types": "0.8.7"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "MangaDex",
+      "version": "3.0.6",
+      "contentRating": "EVERYONE",
+      "path": "MangaDex/source.js",
+      "sourceUrl": "https://thenetsky.github.io/community-extensions/0.8/MangaDex/source.js",
+      "sha256": "46b05f31335349aeacc410df264e9f211e23da5d11c131a18883935e84627b68",
+      "size": 267982,
+      "licence": "GPL-3.0 (github.com/TheNetsky/community-extensions)"
+    }
+  ]
+}

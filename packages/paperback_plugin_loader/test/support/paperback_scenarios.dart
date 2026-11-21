@@ -9,6 +9,17 @@ import 'package:source_runtime/source_runtime.dart';
 /// same title the Aidoku and Tachi captures use).
 const String qualificationQuery = 'Onimai';
 
+/// Sites whose catalogue does not answer [qualificationQuery] search the
+/// same title by another of its names.
+const Map<String, String> siteQueries = <String, String>{
+  // Mangahub lists the title as "Onii-chan wa Oshimai!"; its search matches
+  // words of the title, so the "Onimai" short form finds nothing.
+  'mangahub': 'Oshimai',
+};
+
+/// The query [site]'s scenario searches.
+String queryFor(String site) => siteQueries[site] ?? qualificationQuery;
+
 /// A pinned bundle under `fixtures/source_captures/paperback/<repoDir>/`.
 final class PinnedBundle {
   const PinnedBundle(this.repoDir, this.sourceId, {required this.fallbackMangaId});
@@ -28,7 +39,7 @@ final class PinnedBundle {
 const Map<String, List<PinnedBundle>> captureSites = <String, List<PinnedBundle>>{
   'mangadex': <PinnedBundle>[
     PinnedBundle('inkdex-0.9', 'MangaDex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
-    PinnedBundle('neihc1002-0.8', 'Mangadex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
+    PinnedBundle('community-0.8', 'MangaDex', fallbackMangaId: 'ed996855-70de-449f-bba2-e8e24224c14d'),
   ],
   'weebcentral': <PinnedBundle>[
     PinnedBundle('inkdex-0.9', 'WeebCentral', fallbackMangaId: '01J76XYF0TGKQ7XJ4XVPV1C0BP'),
@@ -36,6 +47,9 @@ const Map<String, List<PinnedBundle>> captureSites = <String, List<PinnedBundle>
     PinnedBundle('numby-0.8', 'WeebCentral', fallbackMangaId: '01J76XYF0TGKQ7XJ4XVPV1C0BP'),
   ],
   'mangafire': <PinnedBundle>[PinnedBundle('inkdex-0.9', 'MangaFire', fallbackMangaId: '72k68')],
+  // The 0.8 substitute for the MangaFire cell: a Cloudflare-fronted site
+  // (`CLOUDFLARE_BYPASS_REQUIRED`).
+  'mangahub': <PinnedBundle>[PinnedBundle('kittycatgit-0.8', 'Mangahub', fallbackMangaId: 'onii-chan-wa-oshimai')],
 };
 
 /// Terms recorded for each site's captured responses.
@@ -46,6 +60,8 @@ const Map<String, String> captureTerms = <String, String>{
       'Third-party WeebCentral page content; not openly licensed; retained only as an interoperability test fixture.',
   'mangafire':
       'Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture.',
+  'mangahub':
+      'Third-party Mangahub API response; not openly licensed; retained only as an interoperability test fixture.',
 };
 
 /// The repository root: the first ancestor holding `fixtures/source_captures`.
@@ -157,11 +173,13 @@ final class BundleRun {
 }
 
 /// Runs the qualification scenario for every bundle of [site] through
-/// [provider]: admit the pinned bytes, open, search [qualificationQuery],
+/// [provider]: admit the pinned bytes, open, search [queryFor] the site,
 /// fetch the next page when the source returned pagination metadata, then
 /// fetch details with chapters for the first hit (or the bundle's fallback
-/// manga). The capture run and the replay tests call exactly this, so they
-/// make exactly the same requests.
+/// manga). A search that needs an interaction (a Cloudflare challenge) ends
+/// the bundle's run: nothing more is asked of a challenged site. The capture
+/// run and the replay tests call exactly this, so they make exactly the same
+/// requests.
 ///
 /// [only] restricts the run to the bundle with that label (a re-recording of
 /// one bundle, `capture_paperback_sources.dart --only`).
@@ -188,9 +206,11 @@ Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String
     final SourcePackage package = (opened as SourceSuccess<SourcePackage>).value;
     try {
       final SourceSession session = package.sessions.single;
-      run.page1 = await session.search(const SearchRequest(query: qualificationQuery));
+      final String query = queryFor(site);
+      run.page1 = await session.search(SearchRequest(query: query));
+      if (run.page1 case SourceFailed<SearchPage>(failure: InteractionRequiredFailure())) continue;
       final String? cursor = run.page1!.valueOrNull?.nextCursor;
-      if (cursor != null) run.page2 = await session.search(SearchRequest(query: qualificationQuery, cursor: cursor));
+      if (cursor != null) run.page2 = await session.search(SearchRequest(query: query, cursor: cursor));
       final SearchHit? hit = run.page1!.valueOrNull?.hits.firstOrNull;
       run.detailsRef =
           hit?.ref ??
