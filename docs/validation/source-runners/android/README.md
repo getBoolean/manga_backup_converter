@@ -142,10 +142,10 @@ Command: `flutter test integration_test/source_runners_android_test.dart -d <emu
 | MangaDex `multi.mangadex` v12 | search "Onimai" 2 hits; details and 223 chapters; 3 replayed requests, 0 misses, 0 host warnings |
 | Weeb Central `en.weebcentral` v6 | 1 hit; details and 114 chapters, parsed from HTML by the scraper backend; 0 misses, no "HTML parser unavailable" log |
 | MangaFire `multi.mangafire` v8 | 50 hits; details and 86 chapters (VRF computed in WASM, `html::parse_fragment` through scraper); 0 misses |
-| Cancel in flight (responses delayed 2 s) | `cancelled` answered after 312 ms; the next call on the same session returns hits |
+| Cancel in flight (responses delayed 2 s) | `cancelled` answered after 328 ms; the next call on the same session returns hits |
 | WASM trap in `get_search_manga_list` | `source-error` (message names `unreachable`) twice; the session survives |
-| Isolate death (trap in `start` kills the isolate) | `runtime-unavailable` twice, within 59 ms; no `port.first` hang |
-| Response headers and rate limiting (synthetic probe) | `net::get_header("x-probe")` reads `X-Probe` values 1–5 through the native shared-state header slots; with `set_rate_limit(2, 1 s)`, the sliding-window gaps were 995/1025/1003 ms. The desktop test asserts the same |
+| Isolate death (trap in `start` kills the isolate) | `runtime-unavailable` twice, within 21 ms; no `port.first` hang |
+| Response headers and rate limiting (synthetic probe) | `net::get_header("x-probe")` reads `X-Probe` values 1–5 through the native shared-state header slots; with `set_rate_limit(2, 1 s)`, the sliding-window gaps were 1009/1052/1002 ms. The desktop test asserts the same |
 
 **Browser imports.** None of the three qualification sources imports `js::webview_*`. MangaDex uses `net`/`defaults`/`std`/`env`; Weeb Central adds `html`; MangaFire adds `html::parse_fragment`. The imports therefore stay named failure stubs and nothing is routed to a `BrowserPort`.
 

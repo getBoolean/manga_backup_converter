@@ -10,6 +10,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
+import 'package:aidoku_plugin_loader/src/aidoku/aidoku_user_agent.dart';
 import 'package:checks/checks.dart';
 import 'package:http/http.dart' as http;
 import 'package:source_runtime/source_runtime.dart';

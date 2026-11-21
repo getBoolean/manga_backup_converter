@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/src/aidoku/_aidoku_decode.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/aidoku_isolate_exited_exception.dart';
+import 'package:aidoku_plugin_loader/src/aidoku/aidoku_user_agent.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/aix_parser.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/libs/host_store.dart';
 import 'package:aidoku_plugin_loader/src/codec/postcard_reader.dart';
@@ -587,11 +588,6 @@ class AidokuPlugin {
     return data;
   }
 }
-
-/// User agent sent when a source request carries none, matching the WebKit
-/// user agent that Aidoku's host supplies.
-const String aidokuDefaultUserAgent =
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
 
 /// Watches the WASM isolate's exit and error notifications.
 final class _IsolateExit {

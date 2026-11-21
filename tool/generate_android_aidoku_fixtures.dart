@@ -93,15 +93,19 @@ String _generate() {
       'const Map<String, String> aidokuFixtureBundle = <String, String>{',
     );
   for (final String path in files.keys.toList()..sort()) {
-    buffer.writeln("  '$path':");
     final String b64 = base64.encode(files[path]!);
     const chunk = 4000;
+    // Matches `dart format` output, so `verify_format` accepts the file.
+    if (b64.length <= chunk) {
+      buffer.writeln("  '$path': '$b64',");
+      continue;
+    }
+    buffer.writeln("  '$path':");
     for (var i = 0; i < b64.length; i += chunk) {
-      final String part = b64.substring(
-        i,
-        i + chunk > b64.length ? b64.length : i + chunk,
+      final bool last = i + chunk >= b64.length;
+      buffer.writeln(
+        "      '${b64.substring(i, last ? b64.length : i + chunk)}'${last ? ',' : ''}",
       );
-      buffer.writeln("      '$part'${i + chunk >= b64.length ? ',' : ''}");
     }
   }
   buffer.writeln('};');

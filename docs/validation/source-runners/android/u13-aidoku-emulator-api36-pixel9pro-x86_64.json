@@ -35,9 +35,9 @@
       "requestsServed": 3,
       "replayMisses": 0,
       "hostWarnings": 0,
-      "openMs": 531,
-      "searchMs": 379,
-      "detailsMs": 256
+      "openMs": 357,
+      "searchMs": 1655,
+      "detailsMs": 312
     },
     {
       "scenario": "source",
@@ -50,9 +50,9 @@
       "requestsServed": 3,
       "replayMisses": 0,
       "hostWarnings": 0,
-      "openMs": 67,
-      "searchMs": 136,
-      "detailsMs": 333
+      "openMs": 27,
+      "searchMs": 256,
+      "detailsMs": 255
     },
     {
       "scenario": "source",
@@ -65,14 +65,14 @@
       "requestsServed": 3,
       "replayMisses": 0,
       "hostWarnings": 0,
-      "openMs": 105,
-      "searchMs": 128,
-      "detailsMs": 53
+      "openMs": 82,
+      "searchMs": 25,
+      "detailsMs": 82
     },
     {
       "scenario": "cancel-in-flight",
       "failure": "cancelled",
-      "answeredAfterMs": 312,
+      "answeredAfterMs": 328,
       "nextCallHits": 2
     },
     {
@@ -88,7 +88,7 @@
         "runtime-unavailable",
         "runtime-unavailable"
       ],
-      "elapsedMs": 59
+      "elapsedMs": 21
     },
     {
       "scenario": "headers-rate-limit",
@@ -101,9 +101,9 @@
       ],
       "rateLimit": "2/1s",
       "windowGapsMs": [
-        995,
-        1025,
-        1003
+        1009,
+        1052,
+        1002
       ]
     }
   ]

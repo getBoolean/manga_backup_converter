@@ -9,6 +9,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
@@ -31,6 +32,27 @@ final class _Artifact implements VerifiedArtifact {
   ArtifactBinding get binding => const ArtifactBinding(sha256: 'synthetic', kind: 'aix', version: '1');
   @override
   Future<Uint8List> readVerified() async => bytes;
+}
+
+/// Answers the header probe. Stamps each request synchronously on entry to
+/// `send`, which the host calls right after the rate limiter records the
+/// request (`MockClient` would stamp only after reading the body
+/// asynchronously, which drifts under load).
+final class _ProbeServer extends http.BaseClient {
+  final List<DateTime> sent = <DateTime>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    sent.add(DateTime.now());
+    return Future<http.StreamedResponse>.value(
+      http.StreamedResponse(
+        Stream<List<int>>.value(utf8.encode('ok')),
+        200,
+        request: request,
+        headers: <String, String>{'X-Probe': 'value-${sent.length}'},
+      ),
+    );
+  }
 }
 
 const Duration _noHang = Duration(seconds: 20);
@@ -66,11 +88,8 @@ void main() {
   });
 
   test('response headers reach net::get_header (case-insensitive) and the rate limit spaces requests', () async {
-    final sent = <DateTime>[];
-    final client = MockClient((http.Request r) async {
-      sent.add(DateTime.now());
-      return http.Response('ok', 200, headers: <String, String>{'X-Probe': 'value-${sent.length}'});
-    });
+    final client = _ProbeServer();
+    final List<DateTime> sent = client.sent;
     final printed = <String>[];
     final AidokuPlugin plugin = await runZoned(
       () => AidokuPlugin.fromAix(SyntheticAix.headerProbe(), httpClient: client),
