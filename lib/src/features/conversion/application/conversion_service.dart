@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:source_runtime/source_contracts.dart';
@@ -16,6 +18,7 @@ class ConversionService {
     FormatRegistry? formats,
     this.trustStore,
     this.redact = _identity,
+    this.onOwnerOpened,
   }) : formats = formats ?? FormatRegistry.portable();
 
   /// Source runtimes available on this device.
@@ -29,6 +32,11 @@ class ConversionService {
 
   /// Applied to failure messages before they reach a report (KTD9).
   final String Function(String text) redact;
+
+  /// Called with each conversion's owner before any runtime starts, so the
+  /// composition root can adopt the per-conversion runtime scopes it creates
+  /// (workers, browser bridges); the owner closes them when the job ends.
+  final FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened;
 
   static String _identity(String s) => s;
 
@@ -57,7 +65,8 @@ class ConversionService {
   /// through [selection] (the app's decision UI adapter) or named in
   /// [ConversionRequest.sources], and the extension settings from
   /// [settingsFor]. [output] is the app's atomic file publisher and
-  /// [journal] its resumable job store.
+  /// [journal] its resumable job store; [onResume] is told how many
+  /// journaled decisions a resumed job reuses.
   Future<ConversionResult> convert(
     ConversionRequest request, {
     required SelectionPort selection,
@@ -67,6 +76,7 @@ class ConversionService {
     SourceLanguagePolicy? languages,
     ExtensionSettingsProvider settingsFor = noExtensionSettings,
     void Function(int current, int total, String message)? onProgress,
+    void Function(int decisions)? onResume,
   }) => ConversionJob(
     formats: formats,
     runtimes: runtimes,
@@ -77,6 +87,8 @@ class ConversionService {
     settingsFor: settingsFor,
     trustStore: trustStore,
     redact: redact,
+    onOwnerOpened: onOwnerOpened,
+    onResume: onResume,
     onProgress: onProgress ?? (_, _, _) {},
   ).run(request, output);
 }

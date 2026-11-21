@@ -7,6 +7,7 @@ library;
 export 'src/aidoku_backend.dart';
 export 'src/in_vm_worker.dart';
 export 'src/ios_jvm_runtime.dart';
+export 'src/runtime_licenses.dart';
 export 'src/tachi_backend.dart';
 export 'src/wkwebview_browser_port.dart';
 export 'src/wkwebview_replay.dart';

@@ -20,6 +20,10 @@ dependencies:
     path: packages/assets
   scraper:
     path: packages/scraper
+  paperback_plugin_loader:
+    path: packages/paperback_plugin_loader
+  source_loaders:
+    path: packages/source_loaders
   source_runtime_android:
     path: packages/source_runtime_android
   source_runtime_ios:
@@ -67,6 +71,8 @@ dependencies:
   source_runtime:
     path: packages/source_runtime
   super_clipboard: ^0.9.1
+  tachi_plugin_loader:
+    path: packages/tachi_plugin_loader
   universal_html: ^2.2.4
   url_launcher: ^6.2.6
   window_manager: ^0.5.1
@@ -99,8 +105,6 @@ dev_dependencies:
   # U10 iOS device cases (integration_test/source_runners_ios_paperback_browser_test.dart);
   # dev-only, so nothing of the Paperback host or test captures enters a
   # shipping build through the root app.
-  paperback_plugin_loader:
-    path: packages/paperback_plugin_loader
   patrol: ^4.1.1
   riverpod_generator: ^4.0.0
   riverpod_lint: ^3.2.0

@@ -6,6 +6,8 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:mangabackupconverter/app.dart';
+import 'package:mangabackupconverter/src/features/conversion/application/source_runtime_licenses_stub.dart'
+    if (dart.library.ffi) 'package:mangabackupconverter/src/features/conversion/application/source_runtime_licenses_ffi.dart';
 import 'package:mangabackupconverter/src/features/initialization/presentation/app_startup_widget.dart';
 
 void main() async {
@@ -15,6 +17,7 @@ void main() async {
   // * https://docs.flutter.dev/testing/errors
   registerErrorHandlers();
   initLogger();
+  registerPlatformSourceRuntimeLicenses();
   // ignore: do_not_use_environment
   if (const String.fromEnvironment('USE_PATH_URL_STRATEGY') == 'true') {
     usePathUrlStrategy();
