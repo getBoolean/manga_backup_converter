@@ -81,6 +81,7 @@ dev_dependencies:
     path: packages/app_lints
   build_runner: any
   build_verify: ^3.1.0
+  checks: ^0.3.0
   change_app_package_name: ^1.1.0
   dart_mappable_builder: ^4.2.3
   flutter_launcher_icons: ^0.14.3
@@ -93,9 +94,16 @@ dev_dependencies:
   melos: ^7.4.0
   mocktail: ^1.0.3
   msix: ^3.16.7
+  # U10 iOS device cases (integration_test/source_runners_ios_paperback_browser_test.dart);
+  # dev-only, so nothing of the Paperback host or test captures enters a
+  # shipping build through the root app.
+  paperback_plugin_loader:
+    path: packages/paperback_plugin_loader
   patrol: ^4.1.1
   riverpod_generator: ^4.0.0
   riverpod_lint: ^3.2.0
+  source_runtime_testing:
+    path: packages/source_runtime_testing
   sqflite_common_ffi_web: ^0.4.3+1
 
 flutter:

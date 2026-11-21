@@ -121,3 +121,119 @@ that hook (iOS 15.0, plus the simulator triple and SDK for simulator runs).
 The patch was reverted and is not committed. The swiftsoup owner needs to fix
 the hook properly: iOS 15.0, choose the triple and SDK from
 `code.iOS.targetSdk`, and include the SDK in the cache key.
+
+# U10 — local Paperback execution and the WKWebView BrowserPort (simulator stage)
+
+Status: **simulator evidence only** (`evidenceClass: simulator`). U10's
+verification needs a signed physical-iPhone run; nothing here passes R14.
+Device: iPad Pro 13-inch (M5) Simulator, iOS 26.5, arm64; Xcode 27.2;
+Flutter 3.50.0 (`flutter test` integration runs are debug builds: Dart JIT,
+QuickJS native).
+
+Run: `flutter test integration_test/source_runners_ios_paperback_browser_test.dart -d <udid> --dart-define=SRT_REPO_ROOT=$PWD`
+(add `--dart-define=SRT_BENCH=true` for the benchmark). Result:
+**64 passed, 3 skipped**: the benchmark (ran separately, passed) and the two manual AE8 cases (ran separately with device automation, passed).
+Receipt: `u10-simulator-receipt.json`. The desktop VM runs the in-app worker
+cases in `packages/paperback_plugin_loader/test/in_app_backend_contract_test.dart`
+(7/7 on macOS).
+
+## What runs where
+
+| Piece | Implementation |
+| --- | --- |
+| Paperback host | `isolatePaperbackLauncher` (`packages/paperback_plugin_loader/lib/src/runtime/isolate_worker.dart`): the unchanged `PaperbackSourceWorker` (U5 promise bridge, U6 0.8/0.9 adapters, pinned Cheerio) in a Dart isolate of the app, speaking protocol v1 over isolate ports to the normal `WorkerSupervisor`. No Dart subprocess. |
+| Termination | Engine deadline checked natively by the QuickJS interrupt handler (fires while the isolate is blocked in JS). Each runtime's interrupt token is published to the launching isolate and adopted there (native reference, handed over without a free window), so `WorkerProcess.kill` stops running JS before `Isolate.kill`. |
+| QuickJS | `packages/quickjs` hook, unchanged: it built for the iOS Simulator and for iPhoneOS without any change (see below). |
+| Browser | `WKWebViewBrowserPort` (`packages/source_runtime_ios/lib/src/wkwebview_browser_port.dart`), Dart over FFIgen WebKit/UIKit bindings; no platform channel, no hand-written Objective-C. Paperback `executeInWebView` and the Tachi `android.webkit` translation both reach it through `BrowserReverseBridge`. |
+| Aidoku WebView imports | Unchanged: `webview_*` imports return `-1` (failure). No qualification source needs them. |
+
+## QuickJS iOS build
+
+- Built from the pinned submodule (`dce8c0bb…`) by the existing hook; no hook change was needed for iOS.
+- Simulator slice: arm64, `IOSSIMULATOR`, minos 15.0, SDK 27.2, 1,121,456 bytes, SHA-256 `e3677a16b2f5ee0f8b4d5b53a147aa5aef65c0b62c9073b115fb1ace4843cac3`.
+- Device slice (`flutter build ios --release --no-codesign`, unsigned): arm64, `IOS`, minos 15.0, 1,067,568 bytes, SHA-256 `12cef14164cfae439fe4fbe04b600a4b55533306c382baff1e1a683cfa009ec6`. The release app contains no capture, bundle or fixture file, and no Paperback host code (the root app depends on `paperback_plugin_loader` only as a dev dependency for the integration test). (`source_runtime_ios.framework` imports `dlopen`/`mmap`/`mprotect` only because this clone links U16's staged JVM archive; that is U9/U16's R18 item, unchanged by U10.)
+- Linkage: only `libSystem`; no `mmap`/`mprotect`/JIT/`dlopen` imports (interpreter only, R18).
+- Native stack: root isolate thread 8 MiB, worker isolate thread about 1.0 MiB (1,057,423 bytes).
+
+## QuickJS limits (KTD25), provisional
+
+Derived on the simulator by `planPaperbackIsolateWorker` (device measured on a
+worker-isolate thread, rule `quickjs-sizing-v2`, profile and policy unchanged
+from U6):
+
+| Limit | Value | From |
+| --- | --- | --- |
+| memory | 19,420,946 B | peak heap 9.71 MB × 2 (the RAM cap does not bind: the simulator reports the host Mac's 16 GiB) |
+| stack | 433,936 B | U6 peak stack 216,968 B × 2; cap 0.5 × 1,057,423 B thread stack = 528,711 B |
+| operation deadline | 188.3 s | 2.389 s × (29.7 ms / 122.2 ms) × 4 + 186 s host-wait allowance |
+| job slice | 46.4 ms | CPU part ÷ 50 |
+| supervisor headroom / cancel grace | 266.5 ms / 313.0 ms | deadline tail × max(1, speed) × 4 |
+
+Benchmark (`packages/paperback_plugin_loader/benchmark/results/2026-11-21-ios-simulator-arm64-bundles-jit.json`,
+3 runs per workload): calibration 30.2 ms (Windows reference 122.2 ms);
+slowest operation numby-0.8/WeebCentral details, p95 270.6 ms; peak heap
+9,710,458 B (same as Windows); minimal stack 48,848 B (Windows MSVC 216,968 B;
+clang frames are smaller, about 1,010 B per JS frame); deadline overshoot at
+most 39.3 ms. The rule keeps the Windows profile, so the iOS stack and
+deadline are conservative. These numbers are a simulator on an Apple-silicon
+Mac and say nothing about iPhone CPUs; they are recorded as provisional and
+must be re-measured on physical iPhones of different capability.
+
+## Test results by scenario
+
+| Scenario | Result (simulator) |
+| --- | --- |
+| AE4/AE7 WeebCentral: inkdex 0.9, gabrielcwt 0.8, numby 0.8 search → details → 114 chapters (Cheerio, HTML) | pass |
+| AE4/AE7 MangaDex: inkdex 0.9 JSON feed, 223 chapters; neihc1002 0.8 meets the recorded edge challenge and fails visibly | pass |
+| QuickJS sync loop ends at the native deadline while the worker isolate cannot read the cancel frame | pass (`timeout` after 402 ms, deadline 400 ms) |
+| QuickJS job loop | pass (cancelled at a job-slice boundary after 106 ms, or deadline) |
+| Kill from the root isolate stops JS through the adopted token | pass (exit −9 immediately) |
+| Never-completing host call bounded by the deadline | pass |
+| AE8 creation on the platform thread, completion (status 200/404), navigation failure (closed port), offline block | pass |
+| AE8 visible interaction: presented sheet, user dismissal → completed once (a second dismissal changes nothing), timeout → interaction-required, cancel → cancelled | pass. Automated run: `debugUserDismiss` (same handler as the sheet delegate). Manual case (`--dart-define=SRT_MANUAL=true`): a real swipe-down driven with the T3 device tools on the simulator settled `BrowserCompleted` through `presentationControllerDidDismiss:` |
+| AE8 backgrounding: pending evaluation cancelled once, new work refused, late callback discarded, work resumes in the foreground | pass. Automated run: `setBackgrounded`. Manual case: real backgrounding (Settings opened, then the app reopened, via the device tools) through `bindToAppLifecycle`: the pending evaluation settled `BrowserCancelled(The app entered the background)` once and a load completed after returning |
+| AE8 late callbacks after supersession, close and fencing | pass |
+| Session disposal: pending load/evaluate cancelled, no message after close, `pendingOperations` 0 | pass |
+| Cookies (server-set and port-set both ways, per source), UA (page and server agree, `setUserAgent`), language (`en-US` / `en-US,en;q=0.9`), binary (256-byte fetch), UTF-8 (title, body, evaluate, channel, loadData) | pass |
+| Tachi `android.webkit` translation through the bridge: open with capabilities, `ipc` channel, page-start script, observe accepted, replace refused naming `replaceRequests`, `loadData` on `https://mangafire.to/`, throwing evaluate → `result: "null"` + `scriptError`, messages delivered | pass |
+| AE11 MangaFire 0.9 on WKWebView, offline replay | recorded: `executeInWebView` ran on WKWebView with every network load blocked; the page's own scripts could not load, so the source reports `VRF capture timed out` for search and details (a named source error, not an empty result); all browser sessions closed. Same outcome as the desktop scripted port. **The live challenge path is not proven; M3 stays open on it.** |
+
+## Contract suite (`runBrowserPortContractSuite`, 48 cases): all pass, no skips, no known failures
+
+- Allowed schemes (13): http(s) page, about:blank, loadData with http(s) base; refuses `file:` ×2, `content:`, `app:`, `javascript:`, `data:`; refuses a redirect to `file:` (WebKit refuses it in the network layer, `NSURLErrorNoPermissionsToReadFile`, mapped to capability-unavailable); refuses loadData bases `file:`, `about:blank`, `app:`.
+- Storage (4): nothing left after close; nothing after kill and restart; per-source scope (two sources); closed-session operations cancelled.
+- Fencing and cancellation (3).
+- Scripts, messages, interaction (15): evaluate JSON; channel delivery on a page and on loadData content; registration before load; removal; cross-origin frame drop; about:blank drop; six invalid names; interaction-required without interaction; `ipc` channel beside a second channel and evaluation, surviving navigation.
+- Protocol 1.2 capabilities (2): every unavailable feature has a reason; throwing script → `BrowserScriptError` (and `androidCompatible` → `null`).
+- Page-start scripts (3): document start in top and same-origin child frames; later documents incl. loadData, not the current one; cross-origin frame posts dropped.
+- Request interception (7): degraded observe tier — main-frame navigation observed (no headers, reason given); POST subresource proceeds unobserved (reason given); removed observer; replace refused naming `replaceRequests`; redirect replacement case returns early (no replace tier); scheme policy not widened; replacer/observer exclusivity.
+- Known-failure bookkeeping (1).
+
+## Capability report (`wkWebViewCapabilities`)
+
+| Feature | Status |
+| --- | --- |
+| pageStartScripts | available (`WKUserScript`, document start, all frames) |
+| observeNavigations | available (main-frame `decidePolicyForNavigationAction`, redirects flagged) |
+| scriptErrors | available (`callAsyncJavaScript` wrapper) |
+| observeSubresources | unavailable: WKURLSchemeHandler may not claim http(s); no public API reports subresource or child-frame requests (degraded observe tier) |
+| observeRequestHeaders | unavailable: only the navigation request's own headers are visible, not what the network process sends |
+| observeClientHints | unavailable: WebKit sends no `sec-ch-ua*` |
+| observeRequestBodies | unavailable |
+| replaceRequests | unavailable: WKURLSchemeHandler cannot handle http(s) |
+
+## Findings worth keeping
+
+- A WKWebView outside any window is treated as hidden: timers are throttled and cross-origin frames can stall. Each session's web view is parked in the key window outside its visible bounds, and moved into a presented sheet for interaction.
+- `UIViewController.setView:` throws for a WKWebView created outside a controller; the sheet hosts it as a subview.
+- WebKit content-rule regular expressions have no `|`; the offline rule list uses one rule per scheme and host.
+- FFIgen's generated listener blocks assert on nil object arguments in debug builds; `nullable_blocks.dart` builds the same listener with nullable arguments.
+- dart:io `HttpServer` sends `X-Frame-Options: SAMEORIGIN` by default (test servers must clear it for cross-origin frames).
+
+## Needs a physical iPhone
+
+- R14: a signed device build running the same cases (fixtures need a test-only delivery on device: the simulator reads them from the host path; no capture or bundle is packaged into the app).
+- KTD25: re-run the benchmark (release/profile build) on iPhones of different capability; replace the provisional profile.
+- Backgrounding on a device, where iOS suspends the app and WebContent process (the simulator keeps running them), and a swipe-down by hand.
+- WKWebView behaviour with an iPhone's memory pressure and web-process jetsam.
+- The live MangaFire challenge on WebKit (no client hints, Chrome UA): out of scope for tests that may not contact a server.
