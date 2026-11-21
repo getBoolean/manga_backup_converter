@@ -64,7 +64,10 @@ Future<void> main() async {
     );
     final misses = <CaptureKey>[];
     final requests = <BrowserRequest>[];
-    final BrowserRequestReplacer replay = captureReplayHandler(captures, onMiss: misses.add);
+    final BrowserRequestReplacer replay = browserCaptureReplayReplacer(
+      captures,
+      onMiss: (CaptureKey key, BrowserRequest _) => misses.add(key),
+    );
 
     final BrowserOutcome<BrowserSession> opened = await port.openSession(
       const BrowserSessionRequest(

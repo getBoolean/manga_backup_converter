@@ -50,6 +50,9 @@ pub enum InterceptMode {
 pub struct Shared {
   pub id: String,
   pub key: String,
+  /// Non-identifier `window` property holding the engine's captured post
+  /// function (see `scripts::bootstrap_script`).
+  pub bridge: String,
   pub channels: HashSet<String>,
   pub mode: InterceptMode,
   pub offline: bool,
@@ -63,6 +66,10 @@ pub struct Shared {
   pub awaiting_start: bool,
   /// Engine navigation ID of the current load, where the engine has one.
   pub nav_id: Option<u64>,
+  /// URLs of top-level navigations (and their redirect hops) that the engine
+  /// announced and whose document request has not been seen yet: a document
+  /// request for one of them is the main frame's (`mainFrame`).
+  pub main_frame_pending: Vec<String>,
 }
 
 /// Events delivered to the main loop from the stdin thread and from
@@ -79,8 +86,32 @@ pub enum UserEvent {
   NavStarting { session: String, uri: String, rejected: bool },
   NavFinished { session: String, url: String, ok: bool, status: Option<i64>, error: Option<String> },
   RedirectRejected { session: String, location: String },
-  Request { session: String, rid: Option<u64>, url: String, method: String, headers: Vec<(String, String)>, context: String },
+  Request(RequestEvent),
 }
+
+/// A request the engine reported (`request` event).
+#[derive(Debug)]
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub struct RequestEvent {
+  pub session: String,
+  /// Set when the request is held for `respond`.
+  pub rid: Option<u64>,
+  pub url: String,
+  pub method: String,
+  pub headers: Vec<(String, String)>,
+  /// The body, when the request had one the engine exposed (at most
+  /// [MAX_FORWARDED_BODY_BYTES]).
+  pub body: Option<Vec<u8>>,
+  /// The request had a body that [body] does not carry.
+  pub body_omitted: bool,
+  pub main_frame: bool,
+  pub redirect: bool,
+  pub context: String,
+}
+
+/// Largest request body forwarded in a `request` event (protocol 1.2
+/// `hostBrowserMaxForwardedBodyBytes`); larger bodies are omitted whole.
+pub const MAX_FORWARDED_BODY_BYTES: usize = 1024 * 1024;
 
 struct PendingLoad {
   req: u64,
@@ -222,40 +253,65 @@ fn spawn_stdin(proxy: EventLoopProxy<UserEvent>) {
   });
 }
 
+/// Outcome of a wipe: directories removed, and each one that could not be
+/// removed with the reason.
+struct Wiped {
+  removed: u32,
+  failures: Vec<String>,
+}
+
+/// [wipe_pass] repeated with backoff until nothing fails or [retry] has
+/// passed: a dead helper's browser processes may still be releasing files.
+/// The budget comes from the client (KTD25); `None` makes one pass.
+fn wipe_stale(root: &Path, own: Option<&Path>, retry: Option<std::time::Duration>) -> Wiped {
+  let deadline = retry.map(|r| std::time::Instant::now() + r);
+  let mut backoff = std::time::Duration::from_millis(50);
+  let mut removed = 0;
+  loop {
+    let pass = wipe_pass(root, own);
+    removed += pass.removed;
+    let now = std::time::Instant::now();
+    match deadline {
+      Some(d) if !pass.failures.is_empty() && now < d => {
+        std::thread::sleep(backoff.min(d - now));
+        backoff = (backoff * 2).min(std::time::Duration::from_millis(500));
+      }
+      _ => return Wiped { removed, failures: pass.failures },
+    }
+  }
+}
+
 /// Startup wipe (KTD20): removes every helper data directory under [root]
 /// that a previous (crashed or killed) helper left behind. Directories that
 /// cannot be removed are still in use by a running helper's browser process.
-fn wipe_stale(root: &Path, own: Option<&Path>) -> (u32, u32) {
-  let (mut removed, mut failed) = (0, 0);
-  if let Ok(entries) = std::fs::read_dir(root) {
-    for e in entries.flatten() {
-      let p = e.path();
-      if Some(p.as_path()) == own || !e.file_name().to_string_lossy().starts_with("h-") {
-        continue;
-      }
-      // Rename first: a live helper's browser process holds files open, so
-      // its directory cannot be renamed (Windows) and is left untouched
-      // instead of being partly deleted. Only renamed directories are removed.
-      let name = e.file_name().to_string_lossy().into_owned();
-      if name.ends_with(".wipe") {
-        match std::fs::remove_dir_all(&p) {
-          Ok(()) => removed += 1,
-          Err(_) => failed += 1,
-        }
-        continue;
-      }
+fn wipe_pass(root: &Path, own: Option<&Path>) -> Wiped {
+  let mut w = Wiped { removed: 0, failures: Vec::new() };
+  let Ok(entries) = std::fs::read_dir(root) else { return w };
+  for e in entries.flatten() {
+    let p = e.path();
+    let name = e.file_name().to_string_lossy().into_owned();
+    if own.and_then(Path::file_name).is_some_and(|o| o == e.file_name()) || !name.starts_with("h-") {
+      continue;
+    }
+    // Rename first: a live helper's browser process holds files open, so
+    // its directory cannot be renamed (Windows) and is left untouched
+    // instead of being partly deleted. Only renamed directories are removed.
+    let doomed = if name.ends_with(".wipe") {
+      p
+    } else {
       let doomed = root.join(format!("{name}.wipe"));
-      if std::fs::rename(&p, &doomed).is_err() {
-        failed += 1;
+      if let Err(err) = std::fs::rename(&p, &doomed) {
+        w.failures.push(format!("{name}: {err}"));
         continue;
       }
-      match std::fs::remove_dir_all(&doomed) {
-        Ok(()) => removed += 1,
-        Err(_) => failed += 1,
-      }
+      doomed
+    };
+    match std::fs::remove_dir_all(&doomed) {
+      Ok(()) => w.removed += 1,
+      Err(err) => w.failures.push(format!("{name}: {err}")),
     }
   }
-  (removed, failed)
+  w
 }
 
 fn nonce() -> String {
@@ -299,27 +355,46 @@ impl App {
         return false;
       }
       "wipe" => {
-        let (removed, failed) = match &self.opts.data_root {
-          Some(root) => wipe_stale(root, self.data_dir.as_deref()),
-          None => (0, 0),
+        let Some(root) = self.opts.data_root.clone() else {
+          self.out.ok(id, json!({"removed": 0}));
+          return true;
         };
-        if failed > 0 {
-          self.out.err(id, "capability-unavailable", format!("{failed} stale browser data directories could not be removed"), Some(("operation", json!("wipe"))));
-        } else {
-          self.out.ok(id, json!({"removed": removed}));
-        }
+        // Off the event loop: retrying must not stall other sessions.
+        let retry = cmd.get("retryMs").and_then(Value::as_u64).map(std::time::Duration::from_millis);
+        let (own, out) = (self.data_dir.clone(), self.out.clone());
+        std::thread::spawn(move || {
+          let w = wipe_stale(&root, own.as_deref(), retry);
+          if w.failures.is_empty() {
+            out.ok(id, json!({"removed": w.removed}));
+          } else {
+            let message = format!("{} stale browser data directories could not be removed ({})", w.failures.len(), w.failures.join("; "));
+            out.err(id, "capability-unavailable", message, Some(("operation", json!("wipe"))));
+          }
+        });
       }
       "respond" => {
         let rid = cmd.get("rid").and_then(Value::as_u64).unwrap_or(0);
+        if let Some(reason) = str_field(&cmd, "fail") {
+          // The client refused the replacement or its handler threw: the
+          // page sees a network error.
+          platform::respond(rid, platform::Answer::Fail(reason.to_string()));
+          self.out.ok(id, json!({}));
+          return true;
+        }
         let response = cmd.get("response").filter(|r| !r.is_null()).map(platform::ReplacementResponse::from_json);
         match response {
-          Some(Err(e)) => self.out.err(id, "invalid", e, None),
+          Some(Err(e)) => {
+            // Never serve an invalid replacement, and never let the request
+            // proceed in its place: fail it.
+            platform::respond(rid, platform::Answer::Fail(e.clone()));
+            self.out.err(id, "invalid", e, None);
+          }
           Some(Ok(r)) => {
-            platform::respond(rid, Some(r));
+            platform::respond(rid, platform::Answer::Replace(r));
             self.out.ok(id, json!({}));
           }
           None => {
-            platform::respond(rid, None);
+            platform::respond(rid, platform::Answer::Proceed);
             self.out.ok(id, json!({}));
           }
         }
@@ -353,6 +428,7 @@ impl App {
     let shared = Rc::new(RefCell::new(Shared {
       id: sid.clone(),
       key: nonce(),
+      bridge: format!("dwv:{}", &nonce()[..16]),
       channels: HashSet::new(),
       mode,
       offline: self.opts.offline,
@@ -360,6 +436,7 @@ impl App {
       load_chain: Vec::new(),
       awaiting_start: false,
       nav_id: None,
+      main_frame_pending: Vec::new(),
     }));
     let window = match WindowBuilder::new()
       .with_title(str_field(cmd, "title").unwrap_or("Source browser"))
@@ -371,17 +448,14 @@ impl App {
     };
 
     let proxy = self.proxy.clone();
-    let ipc_sid = sid.clone();
-    let ipc_proxy = proxy.clone();
+    // No wry IPC handler: it would define a frozen `window.ipc`. Page
+    // messages use the engine's own channel (`platform::install`).
     let mut builder = match self.web_context.as_mut() {
       Some(ctx) => WebViewBuilder::new_with_web_context(ctx),
       None => WebViewBuilder::new(),
     }
     .with_incognito(true)
     .with_devtools(false)
-    .with_ipc_handler(move |req| {
-      let _ = ipc_proxy.send_event(UserEvent::Ipc { session: ipc_sid.clone(), uri: req.uri().to_string(), body: req.body().clone() });
-    })
     .with_new_window_req_handler(|_, _| NewWindowResponse::Deny);
     if let Some(ua) = str_field(cmd, "userAgent") {
       builder = builder.with_user_agent(ua);
@@ -395,6 +469,12 @@ impl App {
       Ok(n) => n,
       Err(e) => return self.out.err(id, "capability-unavailable", format!("cannot hook the WebView: {e}"), Some(("operation", json!("openSession")))),
     };
+    // The engine bridge comes first, before any channel or page-start
+    // script, in every later document.
+    let bootstrap = scripts::bootstrap_script(&shared.borrow().bridge, platform::POST_EXPR);
+    if let Err(e) = platform::add_start_script(&webview, &bootstrap) {
+      return self.out.err(id, "capability-unavailable", format!("cannot install the page bridge: {e}"), Some(("operation", json!("openSession"))));
+    }
     // Start the initial document only now that the hooks are installed, and
     // reply to `open` when it settles.
     shared.borrow_mut().awaiting_start = true;
@@ -484,8 +564,11 @@ impl App {
         let script = str_field(cmd, "script").unwrap_or("");
         s.eval_seq += 1;
         let seq = s.eval_seq;
-        let key = s.shared.borrow().key.clone();
-        let wrapped = scripts::eval_wrapper(&key, seq, script);
+        let (key, bridge) = {
+          let sh = s.shared.borrow();
+          (sh.key.clone(), sh.bridge.clone())
+        };
+        let wrapped = scripts::eval_wrapper(&bridge, &key, seq, script);
         s.pending_evals.insert(seq, id);
         let proxy = self.proxy.clone();
         let session = sid.to_string();
@@ -494,17 +577,19 @@ impl App {
         });
         if let Err(e) = r {
           s.pending_evals.remove(&seq);
-          out.err(id, "script-error", format!("evaluate failed: {e}"), None);
+          out.err(id, "no-script-bridge", format!("evaluate failed: {e}"), None);
         }
       }
       "channel" => {
         let name = str_field(cmd, "name").unwrap_or("");
-        if !policy::is_js_identifier(name) || name == "ipc" {
+        if !policy::is_js_identifier(name) {
           return out.err(id, "capability-unavailable", format!("channel name {name:?} is not a JavaScript identifier"), Some(("operation", json!("setMessageHandler"))));
         }
         let enabled = cmd.get("enabled").and_then(Value::as_bool).unwrap_or(true);
-        let key = s.shared.borrow().key.clone();
-        let js = scripts::channel_script(&key, name);
+        let js = {
+          let sh = s.shared.borrow();
+          scripts::channel_script(&sh.bridge, &sh.key, name)
+        };
         if enabled {
           s.shared.borrow_mut().channels.insert(name.to_string());
           if s.installed_channels.insert(name.to_string()) {
@@ -631,7 +716,7 @@ impl App {
         }
         if let Some(s) = self.sessions.get_mut(&session) {
           if let Some(req) = s.pending_evals.remove(&seq) {
-            self.out.err(req, "script-error", "the page has no script bridge (no document loaded?)", None);
+            self.out.err(req, "no-script-bridge", "the page has no script bridge (no document loaded?)", None);
           }
         }
       }
@@ -639,7 +724,7 @@ impl App {
         let Some(s) = self.sessions.get_mut(&session) else { return };
         // A new document discards pending evaluations of the old one.
         for (_, req) in s.pending_evals.drain() {
-          self.out.err(req, "script-error", "the page navigated away before the script completed", None);
+          self.out.err(req, "navigated", "the page navigated away before the script completed", None);
         }
         if rejected {
           if let Some(p) = s.pending_load.as_mut() {
@@ -668,9 +753,23 @@ impl App {
           self.out.err(p.req, "navigation-failed", error.unwrap_or_else(|| "navigation failed".into()), Some(("url", json!(url))));
         }
       }
-      UserEvent::Request { session, rid, url, method, headers, context } => {
-        let hs: Map<String, Value> = headers.into_iter().map(|(k, v)| (k, Value::String(v))).collect();
-        self.out.send(json!({"ev": "request", "session": session, "rid": rid, "url": url, "method": method, "headers": hs, "context": context}));
+      UserEvent::Request(r) => {
+        use base64::Engine as _;
+        let hs: Map<String, Value> = r.headers.into_iter().map(|(k, v)| (k, Value::String(v))).collect();
+        let body = r.body.map(|b| base64::engine::general_purpose::STANDARD.encode(b));
+        self.out.send(json!({
+          "ev": "request",
+          "session": r.session,
+          "rid": r.rid,
+          "url": r.url,
+          "method": r.method,
+          "headers": hs,
+          "bodyBase64": body,
+          "bodyOmitted": r.body_omitted,
+          "mainFrame": r.main_frame,
+          "redirect": r.redirect,
+          "context": r.context,
+        }));
       }
       UserEvent::Command(_) | UserEvent::StdinClosed | UserEvent::FrameError(_) => unreachable!(),
     }
@@ -801,6 +900,9 @@ fn main() {
   if let Some(reason) = platform::display_missing() {
     fatal(&out, "no-display", &reason);
   }
+  if let Err(e) = platform::contain_child_processes() {
+    eprintln!("[helper] browser processes may outlive the helper: {e}");
+  }
   let engine_version = match wry::webview_version() {
     Ok(v) => v,
     Err(e) => fatal(&out, "runtime-missing", &format!("{} runtime is not available: {e}", platform::ENGINE)),
@@ -808,13 +910,14 @@ fn main() {
 
   // Startup wipe before any session exists, then a fresh per-process
   // directory (only engines with a data directory use it: WebView2).
-  let mut wipe = (0, 0);
+  let mut wipe = Wiped { removed: 0, failures: Vec::new() };
   let mut data_dir = None;
   if let Some(root) = &opts.data_root {
     if let Err(e) = std::fs::create_dir_all(root) {
       fatal(&out, "init-failed", &format!("cannot create data root: {e}"));
     }
-    wipe = wipe_stale(root, None);
+    // One pass: start-up must not wait on another helper's processes.
+    wipe = wipe_stale(root, None, None);
     let dir = root.join(format!("h-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -836,7 +939,7 @@ fn main() {
     "pid": std::process::id(),
     "maxFrameBytes": MAX_FRAME_BYTES,
     "capabilities": platform::CAPS.to_json(),
-    "wipe": {"removed": wipe.0, "failed": wipe.1},
+    "wipe": {"removed": wipe.removed, "failed": wipe.failures.len()},
   }));
   spawn_stdin(proxy.clone());
 

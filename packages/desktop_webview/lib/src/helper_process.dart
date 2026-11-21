@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 /// Maximum encoded frame size in either direction (KTD4); the helper uses the
 /// same bound.
@@ -63,6 +64,7 @@ final class HelperCapabilities {
     required this.navigationFailures,
     required this.storage,
     required this.syncScriptInterface,
+    required this.browser,
   });
 
   factory HelperCapabilities.fromJson(Map<String, Object?> json) => HelperCapabilities(
@@ -72,6 +74,10 @@ final class HelperCapabilities {
     navigationFailures: json['navigationFailures'] as bool? ?? false,
     storage: json['storage'] as String? ?? '',
     syncScriptInterface: json['syncScriptInterface'] as bool? ?? false,
+    browser: switch (json['browser']) {
+      final Map<String, Object?> b => BrowserCapabilities.fromJson(b),
+      _ => BrowserCapabilities.unreported(),
+    },
   );
 
   /// `all`, `main-frame` or `none`.
@@ -81,6 +87,10 @@ final class HelperCapabilities {
   final bool navigationFailures;
   final String storage;
   final bool syncScriptInterface;
+
+  /// The protocol 1.2 features every session of this helper has, each
+  /// missing one with the engine's reason (the helper's `browser` field).
+  final BrowserCapabilities browser;
 }
 
 /// Reply to one helper request.
