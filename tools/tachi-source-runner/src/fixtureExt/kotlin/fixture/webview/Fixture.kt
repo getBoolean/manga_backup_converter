@@ -35,7 +35,8 @@ class Factory : eu.kanade.tachiyomi.source.SourceFactory {
  * (addDocumentStartJavaScript, then ScriptHandler.remove), `observe` / `replace`
  * / `redirect` / `throws` (loadUrl with a shouldInterceptRequest that records what it sees
  * and, for `replace` / `redirect`, answers the main frame), `evalerr` (a throwing
- * evaluateJavascript instead of a channel message).
+ * evaluateJavascript instead of a channel message). `evalthrow` (U9 iOS) also
+ * evaluates a throwing script, from its own WebViewClient, with the `bridge` channel installed.
  */
 class WebViewSource : HttpSource() {
     override val name = "WebView"
@@ -116,7 +117,19 @@ class WebViewSource : HttpSource() {
                     "|remove=${e.javaClass.simpleName}"
                 }
             }
-            if (query in setOf("intercept", "load", "observe", "replace", "redirect", "throws")) {
+            if (query == "evalthrow") {
+                // A script that throws: Android's evaluateJavascript reports JSON `null` (U9 iOS path through the
+                // browser port's androidCompatible semantics).
+                view.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        view.evaluateJavascript("throw new Error(\"boom\")") { value ->
+                            result = "eval=$value"
+                            latch.countDown()
+                        }
+                    }
+                }
+                view.loadDataWithBaseURL(base, "<html><body>eval</body></html>", "text/html", "UTF-8", null)
+            } else if (query in setOf("intercept", "load", "observe", "replace", "redirect", "throws")) {
                 view.loadUrl("https://webview.test/page")
             } else {
                 view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)

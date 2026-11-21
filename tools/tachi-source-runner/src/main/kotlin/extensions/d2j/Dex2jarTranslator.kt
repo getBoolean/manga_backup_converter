@@ -8,9 +8,7 @@ import com.googlecode.d2j.reader.MultiDexFileReader
 import mangabackup.tachi.extensions.ArtifactException
 import mangabackup.tachi.extensions.DexTranslator
 import org.objectweb.asm.MethodVisitor
-import java.nio.file.FileSystems
 import java.nio.file.Files
-import java.util.zip.ZipFile
 
 /**
  * The dex2jar call itself. This class, [ConstructorElisionFix] and every
@@ -32,10 +30,12 @@ class Dex2jarTranslator : DexTranslator {
             }
         }
         val out = sortedMapOf<String, ByteArray>()
-        val tmp = Files.createTempFile("d2j-", ".jar")
+        // A plain directory, not a zip file system: the iOS runtime image has no jdk.zipfs (U9). Classes are
+        // collected into a sorted map and re-packed deterministically by ApkConverter, so the output stays
+        // byte-identical.
+        val tmp = Files.createTempDirectory("d2j-")
         try {
-            Files.delete(tmp)
-            FileSystems.newFileSystem(tmp, mapOf("create" to "true")).use { fs ->
+            run {
                 Dex2jar.from(ConstructorElisionFix(MultiDexFileReader.open(dexBytes)))
                     .withExceptionHandler(handler)
                     // Keep Kotlin's mangled names (`constructor-impl`): renaming them breaks linking.
@@ -51,19 +51,21 @@ class Dex2jarTranslator : DexTranslator {
                     .printIR(false)
                     .noCode(false)
                     .skipExceptions(false)
-                    .to(fs.getPath("/"))
+                    .to(tmp)
             }
             if (errors.isNotEmpty()) {
                 throw ArtifactException("$apkName/$dexName: dex2jar failed for ${errors.size} item(s): ${errors.take(5).joinToString("; ")}")
             }
-            ZipFile(tmp.toFile()).use { zip ->
-                for (entry in zip.entries()) {
-                    if (entry.isDirectory || !entry.name.endsWith(".class")) continue
-                    out[entry.name] = zip.getInputStream(entry).use { it.readBytes() }
+            Files.walk(tmp).use { paths ->
+                for (path in paths.sorted().toList()) {
+                    if (!Files.isRegularFile(path)) continue
+                    val name = tmp.relativize(path).toString().replace(java.io.File.separatorChar, '/')
+                    if (!name.endsWith(".class")) continue
+                    out[name] = Files.readAllBytes(path)
                 }
             }
         } finally {
-            Files.deleteIfExists(tmp)
+            tmp.toFile().deleteRecursively()
         }
         return out
     }

@@ -1,0 +1,26 @@
+{
+  "openjdk_mobile_commit": "ad8bb1b065bf230d193a1dfd0ebd39a8b1fedf53",
+  "java_base_version": "26-internal-sourcerunner.r1",
+  "runtime_build_revision": "1",
+  "image_bake": {"revision": "1", "rewrite": "ios-backedge.1", "packages": "java/util/regex/ java/text/", "device": "rewrote classes=53 methods=192 backedges=303 guards=2", "sim": "rewrote classes=53 methods=192 backedges=303 guards=2"},
+  "ios_deployment_target": "15.0",
+  "libffi": {"version": "3.8.1", "sha256": "81e879c094cc5ec3186c48510c6385ac6b3e866192e8bc71a35245703757ee40"},
+  "xcode": "Xcode 27.2 Build version 27B52",
+  "boot_jdk": "openjdk version 25.0.2 2026-01-20 LTS",
+  "patches": {
+    "0001-JDK-8374535-ios-module-image-path.patch": "314aa71f8575e8bda81394f3e0192d996142fb0a382b75d2ff0c179bb1348819",
+    "0002-ios-java-home-and-static-native-lookup.patch": "7e9dd27459be7268a82badbe5e78b54df0e4ec8efdb65bac6d6d97fc163c731c",
+    "0003-ios-platform-props-macos.patch": "d8c97f9bbe983c852751cd36c745e7f9ffdde46f48ae56a0cf1c9cd5aa321051",
+    "0004-zero-backedge-safepoint-poll.patch": "a400556139d2e5274c173861f7fbe5491ee828f573dfb295759ba9a895886127",
+    "0005-java-base-source-runner-deadline.patch": "7b47112ad68b3c262d5b90b944d0a3bdf8c30c887b0fe240f33fc8b1df264b5d",
+    "0006-ios-no-executable-memory.patch": "f58fab706d284d61a2892934c928b935f866f2ea85be6516ac0319abab824de7",
+    "0007-ios-libjava-builtin-library-lookup.patch": "3b1f481aa7d80f0e72d5320feb1d92f8175e86ad2a569400648b2b3d393d582e",
+    "0008-ios-zero-signal-context-pc.patch": "48f21b78f792500e1ba5af9ed65d58614491301bba1655cd660bac9ac3942505"
+  },
+  "artifacts": {
+    "iphoneos/lib/libsourcejvm.a": {"sha256": "9573b4e0e3648e276a390ef1f5164c843546efa87fff34bd6930a86b9ff14041", "bytes": 27050608},
+    "iphonesimulator/lib/libsourcejvm.a": {"sha256": "c76b5f25b6fdf14ca5fc34fd30249e40fd29cb810cc91278a99aed519b3f4728", "bytes": 26996400},
+    "iphoneos/java-home/lib/modules": {"sha256": "f6699488bc78f0a7278061b245df1e0dafdfdf0ad5db5e1febf20fb6b59178ab", "bytes": 38606379},
+    "iphonesimulator/java-home/lib/modules": {"sha256": "db207ecc454806a7b6cadfd9533d77afb9ec725325a54a93b399f5e95e7ccdf9", "bytes": 38608527}
+  }
+}

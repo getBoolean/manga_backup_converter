@@ -72,6 +72,54 @@ SRT_EXPORT int64_t srt_active_jobs(void);
 
 SRT_EXPORT void srt_free(void *pointer);
 
+// ---------------------------------------------------------------------------
+// In-VM Tachi worker channels (U9). The shared Tachi worker
+// (mangabackup.tachi.ios.IosWorkerHost) runs inside the VM on a dispatcher-
+// owned thread and speaks the source worker protocol over a byte channel:
+// Dart writes with srt_worker_write; the worker's output arrives through the
+// stream callback.
+
+// Stream ids passed to the stream callback.
+#define SRT_STREAM_STDOUT 1
+#define SRT_STREAM_STDERR 2
+#define SRT_STREAM_EXIT 3            // `data` is NULL, `length` is the exit code
+
+// Receives worker output. `data` is heap memory owned by the receiver, who
+// must release it with srt_free. Called on arbitrary threads; register a
+// NativeCallable.listener.
+typedef void (*srt_stream_callback)(int64_t worker_id, int32_t stream, uint8_t *data, int64_t length);
+
+// Sets the stream callback (once, before the first worker starts).
+SRT_EXPORT int32_t srt_worker_set_callback(srt_stream_callback callback);
+
+// Starts a worker with `options` (IosWorkerHost's key=value lines) on a new
+// owned thread. `worker_id` must be positive and unused.
+SRT_EXPORT int32_t srt_worker_start(int64_t worker_id, const char *options);
+
+// Queues bytes for the worker's input. Never blocks on Java.
+SRT_EXPORT int32_t srt_worker_write(int64_t worker_id, const uint8_t *data, int64_t length);
+
+// Closes the worker's input: its run loop sees end of input and returns.
+SRT_EXPORT int32_t srt_worker_close_input(int64_t worker_id);
+
+// Closes the input and fires every armed deadline of the worker at once, so
+// rewritten code stops at its next back-edge and host waits end. The VM is
+// never destroyed; there is no thread termination.
+SRT_EXPORT int32_t srt_worker_kill(int64_t worker_id);
+
+// Workers whose run loop has not returned.
+SRT_EXPORT int64_t srt_worker_count(void);
+
+// Operation deadlines currently armed (IosNatives.arm without disarm).
+SRT_EXPORT int64_t srt_armed_deadlines(void);
+
+// Deadlines that have fired since start (diagnostics).
+SRT_EXPORT int64_t srt_fired_deadlines(void);
+
+// Images loaded in the process (dyld); used to prove that no extension
+// native code was loaded (R18).
+SRT_EXPORT int64_t srt_loaded_image_count(void);
+
 #ifdef __cplusplus
 }
 #endif

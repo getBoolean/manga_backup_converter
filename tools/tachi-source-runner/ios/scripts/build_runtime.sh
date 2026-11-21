@@ -10,8 +10,9 @@
 #   host      build a macOS JDK image from the same tree (jmod/jlink/jimage)
 #   device    build the ios-aarch64 Zero static libraries and Java modules
 #   sim       build the iossim-aarch64 Zero static libraries and Java modules
-#   package   combine static archives, link the modular runtime images,
-#             copy headers, and write build/out/outputs.json
+#   package   combine static archives, bake the U9 java.base additions
+#             (see bake_java_base), link the modular runtime images, copy
+#             headers, and write build/out/outputs.json
 #
 # All outputs stay under ../build/ (git-ignored). Original work for this
 # repository; it does not reuse openjdk-mobile/ios-tools code.
@@ -191,6 +192,36 @@ stage_ios() {
 # images/static-libs/lib.
 runtime_archives=(zero/libjvm.a libjava.a libjimage.a libnet.a libnio.a libzip.a libverify.a)
 
+# U9: classes baked into java.base instead of --patch-module (KTD11):
+#   - the back-edge rewrite of JAVA_BASE_REWRITE_PACKAGES (mechanism A for
+#     class-library loops driven by site text; never <clinit>, never inside
+#     synchronized methods or monitor regions);
+#   - the R18 native-load guard at ClassLoader.loadLibrary(Class, String|File);
+#   - java.lang.SourceRunnerPoll (poll target for unnamed-module code) and
+#     jdk.internal.misc.SourceRunnerNativeGuard, compiled from host/javabase.
+# Prints the directory to use as java.base's class path.
+bake_java_base() {
+  local conf="$1" host_java="$2"
+  local base="$src/build/$conf/jdk/modules/java.base"
+  local work="$build/bake/$conf"
+  rm -rf "$work" && mkdir -p "$work/tools" "$work/added" "$work/java.base"
+  "$host_java/bin/javac" --release 26 -d "$work/tools" "$ios_root/host/src/mangabackup/tachi/ios/BackedgeRewriter.java" >&2
+  "$host_java/bin/javac" --patch-module "java.base=$ios_root/host/javabase" -d "$work/added" \
+    $(find "$ios_root/host/javabase" -name '*.java') >&2
+  local -a includes=()
+  local pkg
+  for pkg in $JAVA_BASE_REWRITE_PACKAGES; do includes+=(--include "$pkg"); done
+  "$host_java/bin/java" -cp "$work/tools" mangabackup.tachi.ios.BackedgeRewriter --out "$work/rewritten.jar" \
+    --target java.base --guard-natives --only-rewritten "${includes[@]}" "$base" | tee "$work/summary.txt" >&2
+  cp -R "$base/." "$work/java.base/"
+  (cd "$work/java.base" && unzip -oq "$work/rewritten.jar")
+  cp -R "$work/added/java.base/." "$work/java.base/" 2>/dev/null || cp -R "$work/added/." "$work/java.base/"
+  [[ -f "$work/java.base/java/lang/SourceRunnerPoll.class" ]] || die "bake: SourceRunnerPoll missing"
+  [[ -f "$work/java.base/jdk/internal/misc/SourceRunnerNativeGuard.class" ]] || die "bake: native guard missing"
+  grep -q "guards=2" "$work/summary.txt" || die "bake: expected 2 loadLibrary guards ($(cat "$work/summary.txt"))"
+  printf '%s' "$work/java.base"
+}
+
 stage_package() {
   local host_java="$src/build/macos-aarch64-release/jdk"
   [[ -x "$host_java/bin/jlink" ]] || die "run the host stage first"
@@ -235,7 +266,9 @@ stage_package() {
     done
     local others
     others="$(printf '%s\n' "${mods[@]}" | grep -v '^java.base$' | sed 's/\./\\./g' | paste -sd'|' -)"
-    "$host_java/bin/jmod" create --class-path "$modules_dir/java.base" \
+    local baked
+    baked="$(bake_java_base "$conf" "$host_java")"
+    "$host_java/bin/jmod" create --class-path "$baked" \
       --module-version "$version" --target-platform macos-aarch64 \
       --module-path "$jmods" --hash-modules "^($others)\$" "$jmods/java.base.jmod"
     "$host_java/bin/jlink" --module-path "$jmods" --add-modules "$RUNTIME_MODULES" \
@@ -273,6 +306,10 @@ write_outputs() {
     printf '  "openjdk_mobile_commit": "%s",\n' "$OPENJDK_MOBILE_COMMIT"
     printf '  "java_base_version": "%s",\n' "$version"
     printf '  "runtime_build_revision": "%s",\n' "$RUNTIME_BUILD_REVISION"
+    printf '  "image_bake": {"revision": "%s", "rewrite": "%s", "packages": "%s", "device": "%s", "sim": "%s"},\n' \
+      "$IMAGE_BAKE_REVISION" "$(grep -o 'VERSION = "[^"]*"' "$ios_root/host/src/mangabackup/tachi/ios/BackedgeRewriter.java" | cut -d'"' -f2)" \
+      "$JAVA_BASE_REWRITE_PACKAGES" "$(sed 's/ ->.*//' "$build/bake/ios-aarch64-zero-release/summary.txt")" \
+      "$(sed 's/ ->.*//' "$build/bake/iossim-aarch64-zero-release/summary.txt")"
     printf '  "ios_deployment_target": "%s",\n' "$IOS_DEPLOYMENT_TARGET"
     printf '  "libffi": {"version": "%s", "sha256": "%s"},\n' "$LIBFFI_VERSION" "$LIBFFI_SHA256"
     printf '  "xcode": "%s",\n' "$(xcodebuild -version | paste -sd' ' -)"

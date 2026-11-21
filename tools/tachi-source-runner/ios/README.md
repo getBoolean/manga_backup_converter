@@ -67,17 +67,47 @@ user or host names end up in version strings.
 ## Stage into the app
 
 ```bash
-tools/tachi-source-runner/ios/scripts/stage_runtime.sh iphonesimulator   # or iphoneos for device builds
+(cd tools/tachi-source-runner && ./gradlew installDist)        # the shared worker's JARs
+tools/tachi-source-runner/ios/scripts/stage_runtime.sh iphonesimulator   # or iphoneos; shipping payload
+tools/tachi-source-runner/ios/scripts/stage_runtime.sh iphonesimulator --gate   # + U16 gate fixtures
+(cd tools/tachi-source-runner && ./gradlew fixtureJar_busy fixtureJar_webview)
+SIGNING_JAVA_HOME=<JDK 21> tools/tachi-source-runner/ios/scripts/stage_runtime.sh iphonesimulator --test  # + U9 test data
 ```
 
-This compiles the gate fixtures (`gate/src`) with the host JDK, runs the
-back-edge rewriter (`rewriter/BackedgeRewriter.java`, which uses only
-`java.lang.classfile`) over the host library, the extension classes and
-`java.util.regex`, and copies everything as flat package assets into
+The default (shipping) payload is the baked runtime image plus the Tachi host
+class path: the shared worker's JARs (class-file 65, the same JARs the desktop
+worker runs), with jsoup, kotlinx-serialization-json and `kotlin.text`
+back-edge rewritten, and `ios-host.jar` compiled from `host/src` for the mobile
+class library. The replay server JARs (mockwebserver3, okhttp-tls) and every
+gate/test fixture are left out. `--gate` adds the U16 gate fixtures; `--test`
+adds the committed captures and artifacts and the busy/webview fixture
+extensions signed with a throwaway key. Never ship a `--gate` or `--test`
+payload. Everything is copied as flat package assets into
 `packages/source_runtime_ios/runtime/` (git-ignored except the README).
 `packages/source_runtime_ios/hook/build.dart` links `libsourcejvm.a` into the
 `source_runtime_ios` framework whenever the archive exists. Without it, the
 dispatcher is built with `SRT_HAS_JVM=0` and reports "not linked".
+
+## U9 additions
+
+- **Rewrite pass** (`host/src/mangabackup/tachi/ios/BackedgeRewriter.java`,
+  version `ios-backedge.1`): mechanism A. Used at image build time
+  (`java.base`, target `java.base`) and host-library staging, and inside the
+  VM on the device for every prepared extension JAR (both artifact paths).
+  Never rewrites `<clinit>`; for `java.base` it also skips synchronized methods
+  and monitor regions. Extension and host-library code calls the baked
+  `java.lang.SourceRunnerPoll.poll()`, so `jdk.internal.misc` is not exported
+  to source code.
+- **java.base bake** (`build_runtime.sh package`, `bake_java_base`): the
+  rewritten `JAVA_BASE_REWRITE_PACKAGES` (`java/util/regex/`, `java/text/`),
+  the R18 native-load guard at `ClassLoader.loadLibrary(Class, String|File)`
+  (`host/javabase/jdk/internal/misc/SourceRunnerNativeGuard.java`), and
+  `java.lang.SourceRunnerPoll` are baked into `lib/modules`; no
+  `--patch-module`. Recorded as `image_bake` in `outputs.json`.
+- **In-VM worker** (`host/src/.../IosWorkerHost.java`, `IosPlatform.java`,
+  `IosNatives.java`): runs the shared worker (`Worker`) over a native byte
+  channel from the dispatcher, with native per-operation deadlines and the
+  rewrite pass supplied through the shared `WorkerPlatform` hook.
 
 ## Running the gate (simulator)
 

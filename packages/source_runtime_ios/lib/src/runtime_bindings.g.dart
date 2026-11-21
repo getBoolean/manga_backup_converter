@@ -82,6 +82,46 @@ external void srt_free(
   ffi.Pointer<ffi.Void> pointer,
 );
 
+@ffi.Native<ffi.Int32 Function(srt_stream_callback)>()
+external int srt_worker_set_callback(
+  srt_stream_callback callback,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Int64, ffi.Pointer<ffi.Char>)>()
+external int srt_worker_start(
+  int worker_id,
+  ffi.Pointer<ffi.Char> options,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Int64, ffi.Pointer<ffi.Uint8>, ffi.Int64)>()
+external int srt_worker_write(
+  int worker_id,
+  ffi.Pointer<ffi.Uint8> data,
+  int length,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Int64)>()
+external int srt_worker_close_input(
+  int worker_id,
+);
+
+@ffi.Native<ffi.Int32 Function(ffi.Int64)>()
+external int srt_worker_kill(
+  int worker_id,
+);
+
+@ffi.Native<ffi.Int64 Function()>()
+external int srt_worker_count();
+
+@ffi.Native<ffi.Int64 Function()>()
+external int srt_armed_deadlines();
+
+@ffi.Native<ffi.Int64 Function()>()
+external int srt_fired_deadlines();
+
+@ffi.Native<ffi.Int64 Function()>()
+external int srt_loaded_image_count();
+
 typedef JavaVM$1 = ffi.Pointer<JNIInvokeInterface_>;
 
 final class JNIInvokeInterface_ extends ffi.Struct {
@@ -146,6 +186,12 @@ typedef srt_event_callback =
     ffi.Pointer<
       ffi.NativeFunction<ffi.Void Function(ffi.Int64 job_id, ffi.Int32 status, ffi.Pointer<ffi.Char> payload)>
     >;
+typedef srt_stream_callback =
+    ffi.Pointer<
+      ffi.NativeFunction<
+        ffi.Void Function(ffi.Int64 worker_id, ffi.Int32 stream, ffi.Pointer<ffi.Uint8> data, ffi.Int64 length)
+      >
+    >;
 
 const int JNI_OK = 0;
 
@@ -176,3 +222,9 @@ const int SRT_ERR_STATE = -2;
 const int SRT_ERR_THREAD = -3;
 
 const int SRT_ERR_ARGUMENT = -4;
+
+const int SRT_STREAM_STDOUT = 1;
+
+const int SRT_STREAM_STDERR = 2;
+
+const int SRT_STREAM_EXIT = 3;

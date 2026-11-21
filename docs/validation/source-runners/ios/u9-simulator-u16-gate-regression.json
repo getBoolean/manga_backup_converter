@@ -1,0 +1,294 @@
+{
+  "evidence": "simulator",
+  "os": "Version 26.5 (Build 23F77)",
+  "dart": "3.14.0 (stable) (Wed Nov 4 16:28:39 2026 -0800) on \"ios_arm64\"",
+  "mechanism": "injected",
+  "backedgePoll": "on",
+  "start": {
+    "createVmMs": 150.451,
+    "jvmtiSignalThread": true,
+    "backedgePoll": 1,
+    "startToReadyMs": 160.006,
+    "options": [
+      "-Xint",
+      "-Xshare:off",
+      "-XX:+UseSerialGC",
+      "-Xms32m",
+      "-Xmx256m",
+      "-Djava.class.path=<bundle>/gate-host-rewritten.jar:<bundle>/gate-ext-rewritten.jar",
+      "--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
+      "--patch-module=java.base=<bundle>/java-base-regex-rewritten.jar"
+    ]
+  },
+  "hello": "hello from dart java.version=26-internal java.vm.name=OpenJDK 64-Bit Zero VM java.vm.info=interpreted mode, static os.name=Darwin os.arch=aarch64 java.home=<app container> Support/source_runtime/java-home-912b90b711be-iphonesimulator",
+  "firstCallMs": 17.5021,
+  "calibration": {
+    "spinIterationsPerMs": 73766,
+    "hostRoundsPerMs": 307,
+    "regexN12Ms": 31.457099999999997,
+    "regexN": 19
+  },
+  "roundTripMs": {
+    "n": 20,
+    "min": 0.01,
+    "median": 0.01,
+    "max": 0.03
+  },
+  "baselineNoMechanism": {
+    "mechanism": 0,
+    "deadlineMs": 250,
+    "elapsedUs": 1506680.9,
+    "fired": true,
+    "deliveries": 0,
+    "fireErrors": 0,
+    "firedAfterUs": 260011.5,
+    "stopLatencyUs": 1246669.3,
+    "result": "iterations=110649388 elapsedNs=1506633375 x=83",
+    "exception": null,
+    "error": null
+  },
+  "unrewrittenLoop": {
+    "mechanism": 1,
+    "deadlineMs": 250,
+    "elapsedUs": 1496246.6,
+    "fired": true,
+    "deliveries": 1,
+    "fireErrors": 0,
+    "firedAfterUs": 259097.0,
+    "stopLatencyUs": 1237149.5,
+    "result": "iterations=110649388 elapsedNs=1496201166 x=83",
+    "exception": null,
+    "error": null
+  },
+  "gcDuringUnrewrittenLoopPollOn": {
+    "gcMs": 1.816042,
+    "loopMs": 2958.1812999999997
+  },
+  "gcDuringUnrewrittenLoopPollOff": {
+    "gcMs": 2687.309,
+    "loopMs": 2990.0238999999997
+  },
+  "globalRefs": {
+    "baseline": 3,
+    "final": 3
+  },
+  "samples": {
+    "callFreeLoop": {
+      "mechanism": 1,
+      "deadlineMs": 250,
+      "elapsedUs": 259028.0,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 258974.6,
+      "stopLatencyUs": 53.4,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    },
+    "hostLibraryLoop": {
+      "mechanism": 1,
+      "deadlineMs": 250,
+      "elapsedUs": 250193.6,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 250174.8,
+      "stopLatencyUs": 18.8,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    },
+    "regexBacktrack": {
+      "mechanism": 1,
+      "deadlineMs": 250,
+      "elapsedUs": 258807.8,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 258784.8,
+      "stopLatencyUs": 23.0,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    },
+    "catchThrowableAndContinue": {
+      "mechanism": 1,
+      "deadlineMs": 250,
+      "elapsedUs": 260026.0,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 260006.2,
+      "stopLatencyUs": 19.8,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    },
+    "blockedNativeWait": {
+      "mechanism": 1,
+      "deadlineMs": 250,
+      "elapsedUs": 259251.3,
+      "fired": true,
+      "deliveries": 1,
+      "fireErrors": 0,
+      "firedAfterUs": 259210.8,
+      "stopLatencyUs": 40.6,
+      "result": null,
+      "exception": "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded",
+      "error": null
+    }
+  },
+  "interruption": {
+    "callFreeLoop": {
+      "outcomes": [
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline"
+      ],
+      "exceptions": [
+        "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+      ],
+      "deliveries": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "stopLatencyMs": {
+        "n": 5,
+        "min": 0.01,
+        "median": 0.02,
+        "max": 0.05
+      },
+      "dartTimerTickRatio": 0.99
+    },
+    "hostLibraryLoop": {
+      "outcomes": [
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline"
+      ],
+      "exceptions": [
+        "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+      ],
+      "deliveries": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "stopLatencyMs": {
+        "n": 5,
+        "min": 0.02,
+        "median": 0.02,
+        "max": 0.02
+      },
+      "dartTimerTickRatio": 1.0
+    },
+    "regexBacktrack": {
+      "outcomes": [
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline"
+      ],
+      "exceptions": [
+        "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+      ],
+      "deliveries": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "stopLatencyMs": {
+        "n": 5,
+        "min": 0.02,
+        "median": 0.02,
+        "max": 0.02
+      },
+      "dartTimerTickRatio": 0.99
+    },
+    "catchThrowableAndContinue": {
+      "outcomes": [
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline"
+      ],
+      "exceptions": [
+        "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+      ],
+      "deliveries": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "stopLatencyMs": {
+        "n": 5,
+        "min": 0.02,
+        "median": 0.02,
+        "max": 0.06
+      },
+      "dartTimerTickRatio": 0.99
+    },
+    "blockedNativeWait": {
+      "outcomes": [
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline",
+        "deadline"
+      ],
+      "exceptions": [
+        "jdk.internal.misc.SourceRunnerDeadlineError: source operation deadline exceeded"
+      ],
+      "deliveries": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "stopLatencyMs": {
+        "n": 5,
+        "min": 0.03,
+        "median": 0.04,
+        "max": 0.29
+      },
+      "dartTimerTickRatio": 0.99
+    }
+  },
+  "wkwebview": {
+    "pageReport": {
+      "interfaceBeforePageScripts": true,
+      "documentStartRan": true,
+      "userAgent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+      "clientHints": false,
+      "origin": "https://mangafire.to",
+      "href": "https://mangafire.to/",
+      "cookie": "fixture_clearance=ok",
+      "token": -166158868
+    },
+    "messageFrameIsMain": true,
+    "messageOrigin": "https://mangafire.to",
+    "cookies": [
+      "fixture_clearance=ok; mangafire.to"
+    ],
+    "storePersistent": false,
+    "elapsedMs": 1999.296,
+    "requestObservation": "unsupported (no WKWebView interception for https)"
+  }
+}

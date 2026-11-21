@@ -162,6 +162,10 @@ final class IosJvmRuntime {
   int get globalRefCount => native.srt_global_ref_count();
   int get activeJobs => native.srt_active_jobs();
 
+  /// Images loaded in the process (dyld). Unchanged across source calls when
+  /// no native code was loaded (R18).
+  static int get loadedImageCount => native.srt_loaded_image_count();
+
   /// Number of VMs reported by `JNI_GetCreatedJavaVMs`.
   int createdVmCount() => using((arena) {
     final Pointer<Pointer<native.JavaVM>> vms = arena<Pointer<native.JavaVM>>(4);
@@ -187,15 +191,56 @@ final class IosJvmRuntime {
   });
 }
 
-/// The staged runtime image and gate fixtures shipped as package assets.
+// ignore: do_not_use_environment
+const bool _isProduct = bool.fromEnvironment('dart.vm.product');
+
+/// The staged runtime image, host class path and (in gate or test payloads
+/// only) fixtures, shipped as package assets.
 final class BundledRuntime {
-  BundledRuntime._(this.javaHome, this.fixtures);
+  BundledRuntime._(this.javaHome, this.fixtures, this.classPath, this.testData, this.stamp);
 
   /// Directory used as `java.home`.
   final String javaHome;
 
-  /// Gate fixtures by name (for example `gate-ext-plain.jar`).
+  /// Gate fixtures by name (for example `gate-ext-plain.jar`). Empty in a
+  /// shipping payload.
   final Map<String, String> fixtures;
+
+  /// The Tachi host class path in order (the shared worker's JARs, with the
+  /// rewritten host libraries, and the iOS host). Empty in a gate-only payload.
+  final List<String> classPath;
+
+  /// Root of the test data tree (captures and qualification artifacts), or
+  /// `null` in a shipping payload.
+  final String? testData;
+
+  /// Payload identity (image digest prefix and SDK).
+  final String stamp;
+
+  /// Options for the production VM (U9): interpreter only, the host class
+  /// path, no JNI library search path, and foreign-function library lookups
+  /// refused (R18). Heap bounds are provisional until the KTD25 device
+  /// benchmark sizes them.
+  ///
+  /// [denyIllegalNativeAccess] is for diagnostics only; shipping builds keep it.
+  List<String> productionOptions({
+    required String tempDirectory,
+    int maxHeapMiB = 384,
+    bool denyIllegalNativeAccess = true,
+  }) => <String>[
+    '-Xint',
+    '-Xshare:off',
+    '-XX:+UseSerialGC',
+    '-Xms32m',
+    '-Xmx${maxHeapMiB}m',
+    '-Djava.class.path=${classPath.join(':')}',
+    '-Djava.library.path=',
+    if (denyIllegalNativeAccess) '--illegal-native-access=deny',
+    '-Djava.io.tmpdir=$tempDirectory',
+    '-Dfile.encoding=UTF-8',
+    '-Dstdout.encoding=UTF-8',
+    '-Dstderr.encoding=UTF-8',
+  ];
 
   static String get assetDirectory {
     final String bundle = File(Platform.resolvedExecutable).parent.path;
@@ -219,6 +264,9 @@ final class BundledRuntime {
     final String container = Directory.systemTemp.parent.path;
     final home = '$container/Library/Application Support/source_runtime/java-home-$stamp';
     final fixtures = <String, String>{};
+    final classPath = <String>[];
+    final data = '$container/Library/Application Support/source_runtime/testdata-$stamp';
+    var hasData = false;
     for (final line in lines) {
       final List<String> parts = line.split('\t');
       switch (parts) {
@@ -231,10 +279,28 @@ final class BundledRuntime {
           link.createSync(target);
         case ['fixture', final String flat]:
           fixtures[flat] = '$assets/$flat';
+        case ['classpath', final String flat]:
+          classPath.add('$assets/$flat');
+        case ['data', final String flat, final String rel]:
+          hasData = true;
+          final link = Link('$data/$rel');
+          final target = '$assets/$flat';
+          if (link.existsSync() && link.targetSync() == target) continue;
+          if (link.existsSync()) link.deleteSync();
+          link.parent.createSync(recursive: true);
+          link.createSync(target);
         default:
           break;
       }
     }
-    return BundledRuntime._(home, fixtures);
+    // The product never ships extensions, repositories or gate fixtures: a
+    // release build refuses a payload staged with --gate or --test.
+    if (_isProduct && (fixtures.isNotEmpty || hasData)) {
+      throw IosJvmRuntimeException(
+        'runtime payload $stamp contains test fixtures or test data; restage with '
+        'stage_runtime.sh <sdk> (no --gate/--test) before a release build',
+      );
+    }
+    return BundledRuntime._(home, fixtures, classPath, hasData ? data : null, stamp);
   }
 }
