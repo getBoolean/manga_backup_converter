@@ -16,6 +16,16 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.Keep
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_INIT
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_WIPE_ALL
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_OPEN
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_STATE
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_ABANDON
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.OP_PROBE_PROFILE
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.PROFILE_PREFIX
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.FEATURES
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.failure
+import dev.getboolean.sourceruntime.browser.AppBrowserHostSupport.wipeStore
 import androidx.webkit.ProfileStore
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebMessageCompat
@@ -261,46 +271,47 @@ class AppBrowserHost(context: Context, private val listener: AppBrowserListener)
 
     internal fun failReply(callId: Long, code: String, message: String, url: String? = null) =
         reply(callId, false, failure(code, message).also { if (url != null) it.put("url", url) })
+}
 
-    internal companion object {
-        const val OP_INIT = "init"
-        const val OP_WIPE_ALL = "wipeAll"
-        const val OP_OPEN = "open"
-        const val OP_STATE = "state"
-        const val OP_ABANDON = "abandon"
-        const val OP_PROBE_PROFILE = "probeProfile"
-        const val PROFILE_PREFIX = "srt-"
-        val FEATURES = listOf(
-            WebViewFeature.MULTI_PROFILE,
-            WebViewFeature.WEB_MESSAGE_LISTENER,
-            WebViewFeature.DOCUMENT_START_SCRIPT,
-            WebViewFeature.PROXY_OVERRIDE,
-            WebViewFeature.GET_COOKIE_INFO,
-        )
+/** Constants and helpers of [AppBrowserHost], kept off its JNIgen surface. */
+internal object AppBrowserHostSupport {
+    const val OP_INIT = "init"
+    const val OP_WIPE_ALL = "wipeAll"
+    const val OP_OPEN = "open"
+    const val OP_STATE = "state"
+    const val OP_ABANDON = "abandon"
+    const val OP_PROBE_PROFILE = "probeProfile"
+    const val PROFILE_PREFIX = "srt-"
+    val FEATURES = listOf(
+        WebViewFeature.MULTI_PROFILE,
+        WebViewFeature.WEB_MESSAGE_LISTENER,
+        WebViewFeature.DOCUMENT_START_SCRIPT,
+        WebViewFeature.PROXY_OVERRIDE,
+        WebViewFeature.GET_COOKIE_INFO,
+    )
 
-        fun failure(code: String, message: String): JSONObject = JSONObject().put("code", code).put("message", message)
+    fun failure(code: String, message: String): JSONObject = JSONObject().put("code", code).put("message", message)
 
-        fun isWebUrl(url: String?): Boolean {
-            val u = runCatching { Uri.parse(url) }.getOrNull() ?: return false
-            val scheme = u.scheme?.lowercase()
-            return (scheme == "http" || scheme == "https") && !u.host.isNullOrEmpty()
-        }
+    fun isWebUrl(url: String?): Boolean {
+        val u = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        val scheme = u.scheme?.lowercase()
+        return (scheme == "http" || scheme == "https") && !u.host.isNullOrEmpty()
+    }
 
-        fun isNavigable(url: String?): Boolean = isWebUrl(url) || url == "about:blank"
+    fun isNavigable(url: String?): Boolean = isWebUrl(url) || url == "about:blank"
 
-        /**
-         * Removes [cookies] and [storage] and confirms both are empty: no
-         * cookies remain and web storage reports no origin.
-         */
-        fun wipeStore(cookies: CookieManager, storage: WebStorage, done: (Boolean, JSONObject) -> Unit) {
-            storage.deleteAllData()
-            cookies.removeAllCookies {
-                cookies.flush()
-                storage.getOrigins { origins ->
-                    val left = (origins as? Map<*, *>)?.size ?: 0
-                    val hasCookies = cookies.hasCookies()
-                    done(!hasCookies && left == 0, JSONObject().put("cookiesLeft", hasCookies).put("storageOriginsLeft", left))
-                }
+    /**
+     * Removes [cookies] and [storage] and confirms both are empty: no
+     * cookies remain and web storage reports no origin.
+     */
+    fun wipeStore(cookies: CookieManager, storage: WebStorage, done: (Boolean, JSONObject) -> Unit) {
+        storage.deleteAllData()
+        cookies.removeAllCookies {
+            cookies.flush()
+            storage.getOrigins { origins ->
+                val left = (origins as? Map<*, *>)?.size ?: 0
+                val hasCookies = cookies.hasCookies()
+                done(!hasCookies && left == 0, JSONObject().put("cookiesLeft", hasCookies).put("storageOriginsLeft", left))
             }
         }
     }
@@ -331,8 +342,8 @@ internal class BrowserSessionView(
     val client = object : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
-            if (!request.isForMainFrame) return !AppBrowserHost.isNavigable(url) && !url.startsWith("about:")
-            if (AppBrowserHost.isNavigable(url)) return false
+            if (!request.isForMainFrame) return !AppBrowserHostSupport.isNavigable(url) && !url.startsWith("about:")
+            if (AppBrowserHostSupport.isNavigable(url)) return false
             refuse(url)
             return true
         }
@@ -340,7 +351,7 @@ internal class BrowserSessionView(
         override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
             val n = nav ?: return
             if (url == n.url) n.started = true
-            if (url != null && !AppBrowserHost.isNavigable(url) && !(url.startsWith("data:") && n.started)) refuse(url)
+            if (url != null && !AppBrowserHostSupport.isNavigable(url) && !(url.startsWith("data:") && n.started)) refuse(url)
         }
 
         override fun onPageFinished(view: WebView, url: String?) {
@@ -348,7 +359,7 @@ internal class BrowserSessionView(
             if (!n.started) return
             nav = null
             val final = view.url ?: url ?: n.url
-            if (!AppBrowserHost.isNavigable(final)) {
+            if (!AppBrowserHostSupport.isNavigable(final)) {
                 host.failReply(n.callId, "scheme", "Ended on a non-web URL")
                 return
             }
@@ -366,7 +377,7 @@ internal class BrowserSessionView(
             val desc = error.description?.toString() ?: ""
             val url = request.url.toString()
             // Chromium refuses a redirect to file: (ERR_UNSAFE_REDIRECT) before any client callback.
-            if (!AppBrowserHost.isNavigable(url) || desc.contains("UNSAFE_REDIRECT")) {
+            if (!AppBrowserHostSupport.isNavigable(url) || desc.contains("UNSAFE_REDIRECT")) {
                 host.failReply(n.callId, "scheme", "Navigation to a non-web URL was refused ($desc)")
             } else {
                 host.failReply(n.callId, "navigation", "$desc (${error.errorCode})", url)
@@ -535,7 +546,7 @@ internal class BrowserSessionView(
         val storage = storage()
         destroyView()
         host.removeSession(id)
-        AppBrowserHost.wipeStore(cookies, storage) { confirmed, detail ->
+        AppBrowserHostSupport.wipeStore(cookies, storage) { confirmed, detail ->
             if (confirmed) host.okReply(callId, detail) else host.failReply(callId, "unconfirmed", "Storage deletion left data: $detail")
         }
     }
@@ -641,7 +652,7 @@ internal object ProfilePool {
     private val main = Handler(Looper.getMainLooper())
 
     fun acquire(): String {
-        val name = free.removeFirstOrNull() ?: "${AppBrowserHost.PROFILE_PREFIX}${System.currentTimeMillis()}-${counter++}"
+        val name = free.removeFirstOrNull() ?: "${AppBrowserHostSupport.PROFILE_PREFIX}${System.currentTimeMillis()}-${counter++}"
         ProfileStore.getInstance().getOrCreateProfile(name)
         inUse += name
         return name
@@ -670,7 +681,7 @@ internal object ProfilePool {
                 temp.destroy()
             }
         }
-        AppBrowserHost.wipeStore(profile.cookieManager, profile.webStorage) { empty, detail ->
+        AppBrowserHostSupport.wipeStore(profile.cookieManager, profile.webStorage) { empty, detail ->
             fun delete(attempt: Int) {
                 val deleted = runCatching { store.deleteProfile(name) }
                 if (deleted.isFailure && attempt < DELETE_RETRIES) {
