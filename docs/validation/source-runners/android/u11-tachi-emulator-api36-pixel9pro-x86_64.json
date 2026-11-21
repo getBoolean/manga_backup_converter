@@ -128,14 +128,17 @@
     {
       "scenario": "password-not-persisted",
       "evidence": "emulator",
-      "title": "password=set;token=true",
       "needleHits": {
         "needle0": [],
         "needle1": []
       },
       "sharedPrefsFiles": [
         "WebViewChromiumPrefs.xml"
-      ]
+      ],
+      "fixtureReport": {
+        "seededSecretVisibleToExtension": true,
+        "extensionWroteBeside": true
+      }
     },
     {
       "scenario": "service-webview-cookies",

@@ -101,7 +101,6 @@
                 "version": "Official",
                 "langCode": "🇬🇧"
               },
-              "title": "Step 100",
               "chapterNumber": 100.0,
               "volumeNumber": 0.0,
               "scanlators": [
@@ -141,7 +140,6 @@
                 "sortingIndex": 113,
                 "langCode": "en"
               },
-              "title": "Step 100",
               "chapterNumber": 100.0,
               "volumeNumber": 1.0,
               "scanlators": [],
@@ -180,7 +178,6 @@
                 "group": "",
                 "langCode": "🇬🇧"
               },
-              "title": "Step 100",
               "chapterNumber": 100.0,
               "volumeNumber": 0.0,
               "scanlators": [],
@@ -227,7 +224,6 @@
                 "version": "daily multivitamin",
                 "langCode": "🇬🇧"
               },
-              "title": "Mahiro and a Manly Job",
               "chapterNumber": 117.0,
               "volumeNumber": 0.0,
               "scanlators": [
@@ -272,7 +268,6 @@
                 "group": "daily multivitamin",
                 "langCode": "🇬🇧"
               },
-              "title": "Mahiro and a Manly Job",
               "chapterNumber": 117.0,
               "volumeNumber": 0.0,
               "scanlators": [
@@ -320,7 +315,6 @@
                 "sortingIndex": 176,
                 "langCode": "en"
               },
-              "title": "Chapter 117",
               "chapterNumber": 117.0,
               "volumeNumber": null,
               "scanlators": [],
@@ -648,5 +642,6 @@
       "ownedBefore": 8,
       "ownedAfter": 3
     }
-  ]
+  ],
+  "redaction": "Chapter titles removed (evidence check private-text rule); queries are the fixed public query (Onimai/Oshimai); cookie values are test constants set by the cases and appear only as names."
 }
