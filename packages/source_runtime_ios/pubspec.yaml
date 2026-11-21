@@ -28,6 +28,7 @@ dependencies:
 dev_dependencies:
   app_lints:
     path: ../app_lints
+  checks: ^0.3.0
   ffigen: ^20.1.1
   logging: ^1.2.0
   flutter_test:

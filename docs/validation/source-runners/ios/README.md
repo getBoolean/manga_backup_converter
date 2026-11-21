@@ -404,3 +404,99 @@ receipt above predates that change; the iOS case has not been re-run.
 - Backgrounding on a device, where iOS suspends the app and WebContent process (the simulator keeps running them), and a swipe-down by hand.
 - WKWebView behaviour with an iPhone's memory pressure and web-process jetsam.
 - The live MangaFire challenge on WebKit (no client hints, Chrome UA): out of scope for tests that may not contact a server.
+
+---
+
+# U18 Aidoku runner on iOS — simulator evidence
+
+Status: **simulator evidence only** (`evidenceClass: simulator`). These results
+do not satisfy R14. Receipt: `u18-simulator-receipt.json`.
+
+## What runs
+
+- The existing `aidoku_plugin_loader` host, unchanged. It runs one WASM worker
+  isolate per source with the wasm3 interpreter, the SwiftSoup HTML backend
+  (`parser_native.dart` already routes iOS to it), the GCD `WasmSemaphore`
+  and the postcard ABI. U18 changes nothing in `aidoku_plugin_loader`. U13's
+  isolate-death fix and its default WebView-style User-Agent were already on
+  the base branch and are exercised here.
+- `packages/source_runtime_ios/lib/src/aidoku_backend.dart`:
+  `IosAidokuBackend.register(aidokuProvider)` takes the same
+  `AidokuSourceProvider` that desktop and Android use (KTD16: no dependency
+  on a concrete loader). It does two things:
+  - **Admission.** It opens `wasm3.framework/wasm3` and
+    `SwiftSoupWrapper.framework/SwiftSoupWrapper` from `Runner.app/Frameworks`
+    and resolves `m3_NewEnvironment` and `swiftsoup_init`. A missing slice is
+    a `RuntimeUnavailableFailure` at registration, not at the first source
+    call. Only frameworks inside the app bundle are opened.
+  - **Backgrounding (KTD12).** `provider` is the desktop adapter behind a
+    lifecycle gate. On hidden or paused (`bindToAppLifecycle`, or
+    `setBackgrounded`), pending calls answer once with
+    `CancelledFailure('app-backgrounded')`. New calls and package opens are
+    refused with the same failure, and late results are fenced. A package
+    that opens after the transition is closed. Sessions are usable again after
+    resume. Identities, capabilities, settings revisions and refs all pass
+    through from the desktop session.
+- Host contract test: `packages/source_runtime_ios/test/aidoku_backend_contract_test.dart`
+  (12/12 on macOS).
+
+## Results (iPad Pro 13-inch (M5) Simulator, iOS 26.5, arm64; Xcode 27.2, Flutter 3.50.0)
+
+`flutter test integration_test/source_runners_ios_aidoku_test.dart -d <sim> --dart-define=SRT_MANUAL=true`:
+**10 passed, 0 failed.** No request reached a server: the committed `.aix`
+fixtures and captures come from U13's `aidoku_fixture_bundle.g.dart`, which
+is in `integration_test/`, so it ships only in the test build. Every source
+case asserts zero replay misses.
+
+| Case | Result |
+| --- | --- |
+| 1. Registration | wasm3 and SwiftSoup open from the bundle and export their symbols |
+| 2. multi.mangadex v12 | 2 hits, "Onii-chan wa Oshimai!", 223 chapters, 3 requests replayed, 0 misses, 0 host warnings |
+| 2. en.weebcentral v6 | 1 hit, "ONIMAI - I'm Now Your Sister!", 114 chapters, 0 misses; SwiftSoup loaded in the WASM isolate |
+| 2. multi.mangafire v8 | 50 hits, "Highschool ONIMAI", 86 chapters, 0 misses |
+| 3. Cancel in flight | `cancelled` after 305 ms (response delayed 2 s); the next call returns 2 hits |
+| 4. WASM trap | `source-error` twice (`unreachable`); the session survives |
+| 5. Isolate death (trap in `start`) | `runtime-unavailable` twice in 3 ms; no `port.first` hang |
+| 6. Headers and rate limit | `X-Probe` value-1…value-5 read by the plugin; the 2/1 s window gaps were 1004, 1007 and 1001 ms (same as desktop and Android) |
+| 7. Background gate (programmatic) | in flight: `app-backgrounded` after 303 ms; new call and package open `cancelled`; after foreground, 2 hits |
+| 8. Real backgrounding (manual) | agent-device `home` sent the app to the background and `open` brought it back. The held in-flight search answered `app-backgrounded` through `AppLifecycleListener`; the next search after resume returned 2 hits |
+
+## Native libraries (R18, local checks)
+
+| Slice | wasm3 | SwiftSoupWrapper |
+| --- | --- | --- |
+| iphoneos, `flutter build ios --release --no-codesign` | arm64, iOS 15.0, 145,536 B | arm64, iOS 15.0, 1,676,240 B |
+| iphonesimulator (debug test build) | arm64, iOS Simulator 15.0, 153,104 B | arm64, iOS Simulator 15.0, 2,458,448 B |
+
+Neither binary imports `mprotect`, `mmap`, `pthread_jit_write_protect_np`,
+`sys_icache_invalidate`, `vm_protect` or `dlopen` in either slice. wasm3 is an
+interpreter, so a downloaded `.aix` is data. Hashes are in the receipt.
+Flutter refuses a release build for the simulator ("Release mode is not
+supported for simulators"), so the release-profile check covers only the
+device slice. The swiftsoup hook checks the built slice's platform and
+architecture, and wasm3 is built per target by `native_toolchain_c`, so a
+missing or wrong slice fails the build. The device release build now
+succeeds with the committed swiftsoup hook, which resolves the Xcode 27
+blocker noted under U16.
+
+## Browser imports
+
+None of the three qualification sources imports a `js` or `webview` function:
+their WASM import sections contain only `env`, `std`, `net`, `html` and
+`defaults`. Aidoku's WebView imports therefore stay named capability
+failures on iOS, and nothing is routed to U10's `BrowserPort`. This matches
+U13 on Android.
+
+## Still open: needs a physical iPhone
+
+- The same ten cases on a development-signed release-profile build after a
+  cold launch, without a debugger. This is the R14 receipt: build, OS, device
+  architecture, entitlements and native hashes. The simulator does not
+  enforce iOS code-signing memory rules, so "no JIT" holds on the simulator
+  only as a static import check.
+- Real backgrounding on a device, where the OS suspends the process after
+  about 5 s. Also check that a held host request does not keep the app awake.
+- Timing on device CPUs (the WeebCentral search takes about 0.5 s on the
+  simulator).
+- An App Store Connect validation of a distribution-signed build remains
+  deferred to the TestFlight setup.
