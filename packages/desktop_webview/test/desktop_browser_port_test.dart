@@ -35,6 +35,17 @@ SourceIdentity _source(String id) => SourceIdentity(
   artifact: const ArtifactBinding(sha256: '00', kind: 'test', version: '1'),
 );
 
+/// Whether the engine lacks [feature]: then the reason it names is checked
+/// and the rest of the test is skipped (WKWebView has no observe or replace
+/// tier; these cases measure WebView2's).
+bool _lacks(BrowserSession s, BrowserFeature feature) {
+  if (s.capabilities.supports(feature)) return false;
+  final String? reason = s.capabilities.reasonFor(feature);
+  check(reason).isNotNull().isNotEmpty();
+  markTestSkipped('${feature.name} unavailable: $reason');
+  return true;
+}
+
 /// Waits until [dir] can be renamed (no process holds it open), probing by
 /// renaming it away and back.
 Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
@@ -223,17 +234,42 @@ Future<void> main() async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
       final messages = <String>[];
-      for (final name in <String>['chrome', 'webkit', 'ipc']) {
+      // WKWebView defines `window.webkit` as a non-configurable global: the
+      // helper refuses that name with its reason instead of failing silently.
+      final names = <String>['chrome', if (!Platform.isMacOS) 'webkit', 'ipc'];
+      for (final name in names) {
         check(await s.setMessageHandler(name, (String m) => messages.add('$name:$m'))).isA<BrowserCompleted<void>>();
+      }
+      if (Platform.isMacOS) {
+        check(await s.setMessageHandler('webkit', (_) {}))
+            .isA<BrowserCapabilityUnavailable<void>>()
+            .has((BrowserCapabilityUnavailable<void> o) => o.reason, 'reason')
+            .contains('non-configurable');
       }
       check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
       check((await s.evaluate('6 * 7')).valueOrNull).equals('42');
-      await s.evaluate('chrome.postMessage("c"); webkit.postMessage("w"); ipc.postMessage("i")');
+      await s.evaluate(names.map((String n) => '$n.postMessage("${n[0]}");').join(' '));
       final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
-      while (messages.length < 3 && DateTime.now().isBefore(deadline)) {
+      while (messages.length < names.length && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
-      check(messages).unorderedEquals(<String>['chrome:c', 'webkit:w', 'ipc:i']);
+      check(messages).unorderedEquals(<String>[for (final n in names) '$n:${n[0]}']);
+    });
+
+    test('a pushed cookie reaches page scripts unless it is httpOnly, and every request', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      check(await s.setCookie(server.url('/'), const BrowserCookie(name: 'plain', value: '1')))
+          .isA<BrowserCompleted<void>>();
+      check(
+        await s.setCookie(server.url('/'), const BrowserCookie(name: 'hidden', value: '2', httpOnly: true)),
+      ).isA<BrowserCompleted<void>>();
+      check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
+      check((await s.evaluate('document.cookie')).valueOrNull).equals('"plain=1"');
+      await s.evaluate('fetch("/echo")');
+      final String sent = server.seen.lastWhere(((String, Map<String, String>) e) => e.$1 == '/echo').$2['cookie']!;
+      check(sent).contains('plain=1');
+      check(sent).contains('hidden=2');
     });
 
     test('a disabled channel stops delivering messages', () async {
@@ -327,7 +363,7 @@ Future<void> main() async {
     test('request bodies reach the replacer, and capture replay matches on the body hash', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
-      check(s.capabilities.supports(BrowserFeature.observeRequestBodies)).isTrue();
+      if (_lacks(s, BrowserFeature.replaceRequests) || _lacks(s, BrowserFeature.observeRequestBodies)) return;
       final Uri verify = server.url('/body-replay/verify');
       final manifest = CaptureManifest(
         ecosystem: 'browser',
@@ -388,6 +424,7 @@ Future<void> main() async {
     test('a body over 1 MiB is omitted whole and still uploaded unchanged', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
+      if (_lacks(s, BrowserFeature.observeRequestBodies)) return;
       final seen = <BrowserRequest>[];
       check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
       final String reply = (await fetchFrom(s, '/echo', method: 'POST', body: 'x' * (1024 * 1024 + 1)))!;
@@ -403,6 +440,7 @@ Future<void> main() async {
     test('mainFrame marks the top-level document, not a same-origin child frame', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
+      if (_lacks(s, BrowserFeature.observeSubresources)) return;
       final seen = <BrowserRequest>[];
       check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
       // `/same-framed` embeds `/page`, the URL the session just loaded.
@@ -424,6 +462,7 @@ Future<void> main() async {
       final log = <String>[];
       final DesktopBrowserPort port = await newPort(log: log);
       final DesktopBrowserSession s = await open(port, 'a');
+      if (_lacks(s, BrowserFeature.replaceRequests)) return;
       final seenUrls = <Uri>[];
       check(
         await s.setRequestReplacer((BrowserRequest r) {
@@ -457,6 +496,7 @@ Future<void> main() async {
     test('offline mode sees and blocks a cross-origin iframe request', () async {
       final DesktopBrowserPort port = await newPort();
       final DesktopBrowserSession s = await open(port, 'a');
+      if (_lacks(s, BrowserFeature.observeSubresources)) return;
       final seen = <BrowserRequest>[];
       check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
       check(
@@ -467,6 +507,49 @@ Future<void> main() async {
       ).isA<BrowserCompleted<BrowserPage>>();
       check(seen.map((BrowserRequest r) => r.url.host)).contains('frame-probe.invalid');
     });
+
+    // Without request observation, blocking is shown on a host that would
+    // reach the fixture server: the IPv4-mapped IPv6 form of 127.0.0.1 is not
+    // on the loopback allow list. A control port without offline mode proves
+    // the address does reach the server here, so no request leaves the host
+    // either way.
+    test(
+      'offline mode blocks a non-allow-listed host for fetches, frames and navigations',
+      skip: Platform.isMacOS ? null : 'measured on macOS (WKWebView content rules) only',
+      () async {
+        Uri mapped(String path) => server.url(path).replace(host: '::ffff:127.0.0.1');
+        int hits(String path) => server.seen.where(((String, Map<String, String>) e) => e.$1 == path).length;
+        Future<String?> noCors(DesktopBrowserSession s, Uri url) async => jsonDecode(
+          (await s.evaluate(
+            'fetch(${jsonEncode(url.toString())}, {mode: "no-cors"}) '
+            '.then(function () { return "fetched"; }, function () { return "fetch-failed"; })',
+          )).valueOrNull!,
+        ) as String?;
+
+        final control = DesktopBrowserPort(testConfig(helper, dataRoot, offline: false));
+        addTearDown(control.dispose);
+        final DesktopBrowserSession c = await open(control, 'c');
+        if (await noCors(c, mapped('/offline-control')) != 'fetched' || hits('/offline-control') != 1) {
+          markTestSkipped('the IPv4-mapped loopback address does not reach the fixture server on this host');
+          return;
+        }
+        await control.dispose();
+
+        final DesktopBrowserPort port = await newPort();
+        final DesktopBrowserSession s = await open(port, 'a');
+        check(await noCors(s, mapped('/offline-fetch'))).equals('fetch-failed');
+        await s.evaluate(
+          'new Promise(function (r) { var f = document.createElement("iframe"); f.onload = r; '
+          'setTimeout(r, 2000); f.src = ${jsonEncode(mapped('/offline-frame').toString())}; '
+          'document.body.appendChild(f); })',
+        );
+        check(await s.loadUrl(mapped('/offline-document'))).isA<BrowserNavigationFailed<BrowserPage>>();
+        check(<int>[hits('/offline-fetch'), hits('/offline-frame'), hits('/offline-document')])
+            .deepEquals(<int>[0, 0, 0]);
+        // Loopback itself stays reachable.
+        check(await fetchFrom(s, '/echo')).equals('200 GET ');
+      },
+    );
 
     test('offline mode blocks non-loopback requests nobody answers', () async {
       final DesktopBrowserPort port = await newPort();
@@ -558,24 +641,89 @@ Future<void> main() async {
       check(left).isEmpty();
     }, timeout: const Timeout(Duration(minutes: 6)));
 
-    test('a directory still in use is left whole and reported; a later wipe removes it', () async {
-      final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
-      addTearDown(() async {
-        try {
-          await root.delete(recursive: true);
-        } on FileSystemException {
-          // Browser process still releasing the directory.
-        }
-      });
-      final stale = Directory(p.join(root.path, 'h-999998'));
-      final held = File(p.join(stale.path, 'EBWebView', 'lockfile'));
-      await held.create(recursive: true);
-      await held.writeAsString('held');
-      // An open handle without delete sharing: the directory cannot be
-      // renamed, as when a browser process still holds it.
-      final RandomAccessFile handle = held.openSync(mode: FileMode.append);
-      final port = DesktopBrowserPort(
-        DesktopWebViewConfig(
+    test(
+      'a directory still in use is left whole and reported; a later wipe removes it',
+      skip: Platform.isWindows
+          ? null
+          : 'Windows file locking; POSIX hosts check the owning helper process instead (next test)',
+      () async {
+        final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
+        addTearDown(() async {
+          try {
+            await root.delete(recursive: true);
+          } on FileSystemException {
+            // Browser process still releasing the directory.
+          }
+        });
+        final stale = Directory(p.join(root.path, 'h-999998'));
+        final held = File(p.join(stale.path, 'EBWebView', 'lockfile'));
+        await held.create(recursive: true);
+        await held.writeAsString('held');
+        // An open handle without delete sharing: the directory cannot be
+        // renamed, as when a browser process still holds it.
+        final RandomAccessFile handle = held.openSync(mode: FileMode.append);
+        final port = DesktopBrowserPort(
+          DesktopWebViewConfig(
+            helperExecutable: helper,
+            dataRoot: root,
+            startupTimeout: const Duration(seconds: 60),
+            shutdownGrace: const Duration(seconds: 10),
+            allowVisibleWindows: false,
+            offline: true,
+            wipeRetry: const Duration(milliseconds: 400),
+          ),
+        );
+        addTearDown(port.dispose);
+        final BrowserOutcome<void> blocked = await port.wipeAllSourceData();
+        check(port.helperInfo!.wipeFailed).equals(1);
+        check(blocked).isA<BrowserCapabilityUnavailable<void>>().has((o) => o.reason, 'reason').contains('h-999998');
+        check(held.readAsStringSync()).equals('held');
+        await port.dispose();
+
+        // Within a budget, one wipe keeps retrying until the directory is
+        // released (here 500 ms in).
+        final retrying = DesktopBrowserPort(
+          DesktopWebViewConfig(
+            helperExecutable: helper,
+            dataRoot: root,
+            startupTimeout: const Duration(seconds: 60),
+            shutdownGrace: const Duration(seconds: 10),
+            allowVisibleWindows: false,
+            offline: true,
+            wipeRetry: const Duration(seconds: 10),
+          ),
+        );
+        addTearDown(retrying.dispose);
+        // Start the helper first, so the wipe request is in flight when the
+        // directory is released.
+        check(
+          await retrying.openSession(BrowserSessionRequest(source: _source('a'), generation: 1)),
+        ).isA<BrowserCompleted<BrowserSession>>();
+        check(retrying.helperInfo!.wipeFailed).equals(1);
+        final Future<BrowserOutcome<void>> wiping = retrying.wipeAllSourceData();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        check(stale.existsSync()).isTrue();
+        handle.closeSync();
+        check(await wiping).isA<BrowserCompleted<void>>();
+        check(stale.existsSync()).isFalse();
+      },
+    );
+
+    // POSIX lets a directory in use be renamed and removed, so the helper
+    // leaves `h-<pid>` alone while that process runs (two concurrent
+    // conversions each start a helper over the same data root).
+    test(
+      'a running helper directory is left whole and reported; removed once its process ends',
+      skip: Platform.isWindows ? 'POSIX process check; Windows uses file locking (previous test)' : null,
+      () async {
+        final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
+        addTearDown(() => root.delete(recursive: true));
+        final Process owner = await Process.start('sleep', <String>['60']);
+        addTearDown(owner.kill);
+        final live = Directory(p.join(root.path, 'h-${owner.pid}'));
+        final kept = File(p.join(live.path, 'content-rules', 'kept'));
+        await kept.create(recursive: true);
+        DesktopWebViewConfig config() => DesktopWebViewConfig(
           helperExecutable: helper,
           dataRoot: root,
           startupTimeout: const Duration(seconds: 60),
@@ -583,42 +731,29 @@ Future<void> main() async {
           allowVisibleWindows: false,
           offline: true,
           wipeRetry: const Duration(milliseconds: 400),
-        ),
-      );
-      addTearDown(port.dispose);
-      final BrowserOutcome<void> blocked = await port.wipeAllSourceData();
-      check(port.helperInfo!.wipeFailed).equals(1);
-      check(blocked).isA<BrowserCapabilityUnavailable<void>>().has((o) => o.reason, 'reason').contains('h-999998');
-      check(held.readAsStringSync()).equals('held');
-      await port.dispose();
+        );
+        final first = DesktopBrowserPort(config());
+        addTearDown(first.dispose);
+        final BrowserOutcome<void> blocked = await first.wipeAllSourceData();
+        check(first.helperInfo!.wipeFailed).equals(1);
+        check(blocked)
+            .isA<BrowserCapabilityUnavailable<void>>()
+            .has((BrowserCapabilityUnavailable<void> o) => o.reason, 'reason')
+            .contains('h-${owner.pid}');
+        check(kept.existsSync()).isTrue();
+        await first.dispose();
 
-      // Within a budget, one wipe keeps retrying until the directory is
-      // released (here 500 ms in).
-      final retrying = DesktopBrowserPort(
-        DesktopWebViewConfig(
-          helperExecutable: helper,
-          dataRoot: root,
-          startupTimeout: const Duration(seconds: 60),
-          shutdownGrace: const Duration(seconds: 10),
-          allowVisibleWindows: false,
-          offline: true,
-          wipeRetry: const Duration(seconds: 10),
-        ),
-      );
-      addTearDown(retrying.dispose);
-      // Start the helper first, so the wipe request is in flight when the
-      // directory is released.
-      check(
-        await retrying.openSession(BrowserSessionRequest(source: _source('a'), generation: 1)),
-      ).isA<BrowserCompleted<BrowserSession>>();
-      check(retrying.helperInfo!.wipeFailed).equals(1);
-      final Future<BrowserOutcome<void>> wiping = retrying.wipeAllSourceData();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      check(stale.existsSync()).isTrue();
-      handle.closeSync();
-      check(await wiping).isA<BrowserCompleted<void>>();
-      check(stale.existsSync()).isFalse();
-    });
+        owner.kill(ProcessSignal.sigkill);
+        await owner.exitCode;
+        final second = DesktopBrowserPort(config());
+        addTearDown(second.dispose);
+        check(
+          await second.openSession(BrowserSessionRequest(source: _source('a'), generation: 1)),
+        ).isA<BrowserCompleted<BrowserSession>>();
+        check(second.helperInfo!.wipeFailed).equals(0);
+        check(live.existsSync()).isFalse();
+      },
+    );
   });
 
   group('typed start-up failures', () {

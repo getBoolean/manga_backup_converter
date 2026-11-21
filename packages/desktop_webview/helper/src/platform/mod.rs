@@ -19,10 +19,10 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub use self::linux::*;
 
-/// Navigation hooks for engines without native navigation IDs (WebKit):
+/// Navigation hooks for engines without native navigation IDs (WebKitGTK):
 /// wry's navigation handler enforces the scheme policy on every navigation
 /// it is asked about, and its page-load handler reports completions.
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
 pub fn generic_navigation_hooks<'a>(
   b: wry::WebViewBuilder<'a>,
   sid: &str,
@@ -51,6 +51,16 @@ pub fn generic_navigation_hooks<'a>(
       let _ = load_proxy.send_event(UserEvent::NavFinished { session: load_sid.clone(), url, ok: true, status: None, error: None });
     }
   })
+}
+
+/// Channel names the engine reserves, with the reason (WKWebView only).
+#[cfg(not(target_os = "macos"))]
+pub const RESERVED_CHANNELS: &[(&str, &str)] = &[];
+
+/// Cookies sent to [url], as the engine reports them.
+#[cfg(not(target_os = "macos"))]
+pub fn cookies_for_url(webview: &wry::WebView, url: &str) -> Result<Vec<wry::cookie::Cookie<'static>>, String> {
+  webview.cookies_for_url(url).map_err(|e| e.to_string())
 }
 
 /// Engine capabilities reported in the `ready` event.

@@ -41,15 +41,17 @@ P(S({{k:k,t:'msg',c:c,m:m,o:L.origin,to:T}}))}}}})}});}})();",
 }
 
 /// Wraps [script] so its completion value (awaited if it is a promise) is
-/// posted back as JSON text, or the thrown value as `err` (a thrown script or
-/// a rejected promise: the only source of `script-error`). The wrapper itself
+/// posted back as JSON text, or the thrown value as `err` (its string form,
+/// then its stack when the stack does not already carry it, as
+/// JavaScriptCore's does not; a thrown script or a rejected promise: the only
+/// source of `script-error`). The wrapper itself
 /// evaluates to `1` when the bridge exists and `0` when it does not (no
 /// document with the bootstrap yet), which the helper reads through the
 /// engine's own script result.
 pub fn eval_wrapper(bridge: &str, key: &str, seq: u64, script: &str) -> String {
   format!(
     "(function(){{var k={k},i={i},P=window[{b}];if(typeof P!=='function')return 0;var S=JSON.stringify;\
-function E(e){{var m;try{{m=String(e&&e.stack||e)}}catch(x){{m='script threw a value that cannot be converted to a string'}}P(S({{k:k,t:'eval',id:i,err:m}}))}}\
+function E(e){{var m;try{{m=String(e);var t=e&&e.stack;if(t&&String(t).indexOf(m)<0)m+='\\n'+t;}}catch(x){{m='script threw a value that cannot be converted to a string'}}P(S({{k:k,t:'eval',id:i,err:m}}))}}\
 var v;try{{v=(0,eval)({s});}}catch(e){{E(e);return 1;}}\
 Promise.resolve(v).then(function(r){{var s;try{{s=S(r)}}catch(e){{s=undefined}}P(S({{k:k,t:'eval',id:i,ok:s===undefined?'null':s}}))}},E);return 1;}})()",
     b = js_string(bridge),
