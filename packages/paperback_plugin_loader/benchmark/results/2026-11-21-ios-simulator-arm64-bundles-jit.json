@@ -1,0 +1,234 @@
+{
+  "benchmark": "paperback-bundles-v1",
+  "engine": "0.18.0",
+  "os": "ios",
+  "osVersion": "Version 26.5 (Build 23F77)",
+  "dartVersion": "3.14.0",
+  "executable": "Runner",
+  "device": {
+    "physicalMemoryBytes": 17179869184,
+    "threadStackBytes": 1057103,
+    "processors": 8,
+    "calibrationMicros": 30241
+  },
+  "threadStackAvailableBytes": 1057215,
+  "stackCeilingBytes": 528607,
+  "jsFrameStackBytes": 1010,
+  "maxRecursionDepthAtStackCeiling": 523,
+  "workloads": {
+    "inkdex-0.9/MangaDex:load": {
+      "medianMicros": 70191,
+      "p95Micros": 97389,
+      "peakAllocatedBytes": 5384560,
+      "minimalHeapLimitBytes": 5532903,
+      "minimalStackLimitBytes": 36651,
+      "deadlineOvershootMicros": [
+        8771,
+        13039,
+        26293,
+        35289
+      ]
+    },
+    "inkdex-0.9/MangaDex:search": {
+      "medianMicros": 1837,
+      "p95Micros": 11923,
+      "peakAllocatedBytes": 3846741,
+      "minimalHeapLimitBytes": 5474739,
+      "minimalStackLimitBytes": 36651,
+      "deadlineOvershootMicros": [
+        188,
+        212,
+        568,
+        1006
+      ]
+    },
+    "inkdex-0.9/MangaDex:details": {
+      "medianMicros": 19409,
+      "p95Micros": 25355,
+      "peakAllocatedBytes": 9588867,
+      "minimalHeapLimitBytes": 9710458,
+      "minimalStackLimitBytes": 36651,
+      "deadlineOvershootMicros": [
+        118,
+        462,
+        3217,
+        7637
+      ]
+    },
+    "inkdex-0.9/WeebCentral:load": {
+      "medianMicros": 51818,
+      "p95Micros": 53094,
+      "peakAllocatedBytes": 4540013,
+      "minimalHeapLimitBytes": 4584299,
+      "minimalStackLimitBytes": 28519,
+      "deadlineOvershootMicros": [
+        1022,
+        2054,
+        10540,
+        15098,
+        19936,
+        30063
+      ]
+    },
+    "inkdex-0.9/WeebCentral:search": {
+      "medianMicros": 8344,
+      "p95Micros": 8855,
+      "peakAllocatedBytes": 3160876,
+      "minimalHeapLimitBytes": 4606691,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        112,
+        114,
+        148,
+        188,
+        264
+      ]
+    },
+    "inkdex-0.9/WeebCentral:details": {
+      "medianMicros": 252446,
+      "p95Micros": 252807,
+      "peakAllocatedBytes": 6436064,
+      "minimalHeapLimitBytes": 6469399,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        172,
+        207,
+        214,
+        252,
+        389,
+        577
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:load": {
+      "medianMicros": 33768,
+      "p95Micros": 33896,
+      "peakAllocatedBytes": 3632734,
+      "minimalHeapLimitBytes": 3664882,
+      "minimalStackLimitBytes": 32585,
+      "deadlineOvershootMicros": [
+        1489,
+        2641,
+        5912,
+        5994,
+        12717,
+        14435
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:search": {
+      "medianMicros": 8121,
+      "p95Micros": 8149,
+      "peakAllocatedBytes": 2619879,
+      "minimalHeapLimitBytes": 3815568,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        97,
+        119,
+        132,
+        155,
+        170
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:details": {
+      "medianMicros": 246581,
+      "p95Micros": 259074,
+      "peakAllocatedBytes": 5734166,
+      "minimalHeapLimitBytes": 5844271,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        149,
+        164,
+        254,
+        270,
+        311,
+        351
+      ]
+    },
+    "numby-0.8/WeebCentral:load": {
+      "medianMicros": 71058,
+      "p95Micros": 71274,
+      "peakAllocatedBytes": 6226962,
+      "minimalHeapLimitBytes": 6283167,
+      "minimalStackLimitBytes": 32585,
+      "deadlineOvershootMicros": [
+        11886,
+        18884,
+        26662,
+        39296
+      ]
+    },
+    "numby-0.8/WeebCentral:search": {
+      "medianMicros": 8137,
+      "p95Micros": 8234,
+      "peakAllocatedBytes": 4123434,
+      "minimalHeapLimitBytes": 6355635,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        71,
+        128,
+        147,
+        193,
+        296,
+        349,
+        363
+      ]
+    },
+    "numby-0.8/WeebCentral:details": {
+      "medianMicros": 251871,
+      "p95Micros": 270560,
+      "peakAllocatedBytes": 7389310,
+      "minimalHeapLimitBytes": 7483378,
+      "minimalStackLimitBytes": 48848,
+      "deadlineOvershootMicros": [
+        146,
+        160,
+        185,
+        237,
+        296
+      ]
+    },
+    "neihc1002-0.8/Mangadex:load": {
+      "medianMicros": 24762,
+      "p95Micros": 25320,
+      "peakAllocatedBytes": 3558984,
+      "minimalHeapLimitBytes": 3606113,
+      "minimalStackLimitBytes": 28519,
+      "deadlineOvershootMicros": [
+        160,
+        1267,
+        2622,
+        2819,
+        7999,
+        12539
+      ]
+    },
+    "inkdex-0.9/MangaFire:load": {
+      "medianMicros": 25759,
+      "p95Micros": 26060,
+      "peakAllocatedBytes": 3558984,
+      "minimalHeapLimitBytes": 3606113,
+      "minimalStackLimitBytes": 24454,
+      "deadlineOvershootMicros": [
+        555,
+        1600,
+        2115,
+        2395,
+        9569,
+        13996
+      ]
+    }
+  },
+  "slowestOperation": "numby-0.8/WeebCentral:details",
+  "maxDeadlineOvershootMicros": 39296,
+  "largestReplyToDartMicros": 2313,
+  "largestReplyEncodeMicros": 5819,
+  "profile": {
+    "source": "U6 real Paperback bundles (14 workloads, replayed captures), ios, Runner",
+    "peakHeapBytes": 9710458,
+    "peakStackBytes": 48848,
+    "slowestOperationMicros": 270560,
+    "referenceCalibrationMicros": 30241
+  },
+  "evidenceClass": "simulator",
+  "buildMode": "flutter test integration_test (debug, Dart JIT; QuickJS native, hook-built)",
+  "host": "iPad Pro 13-inch (M5) Simulator, iOS 26.5, arm64, on a Mac mini (Apple silicon); physicalMemoryBytes is the host Mac"
+}

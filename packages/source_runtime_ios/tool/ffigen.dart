@@ -21,11 +21,13 @@ const _preamble = '''
 // ignore_for_file: type=lint, unused_import, unused_element
 ''';
 
-// The WebKit surface the WKWebView probe (and later U10's browser port) uses.
+// The WebKit/UIKit surface the WKWebView probe (U16) and U10's
+// `WKWebViewBrowserPort` use.
 const _webkitMembers = <String, Set<String>>{
   'WKWebView': {
     'alloc',
     'initWithFrame:configuration:',
+    'loadRequest:',
     'loadData:MIMEType:characterEncodingName:baseURL:',
     'loadHTMLString:baseURL:',
     'customUserAgent',
@@ -33,9 +35,14 @@ const _webkitMembers = <String, Set<String>>{
     'navigationDelegate',
     'setNavigationDelegate:',
     'evaluateJavaScript:completionHandler:',
+    'callAsyncJavaScript:arguments:inFrame:inContentWorld:completionHandler:',
     'stopLoading',
     'URL',
+    'title',
     'isLoading',
+    'configuration',
+    'isInspectable',
+    'setInspectable:',
   },
   'WKWebViewConfiguration': {
     'alloc',
@@ -54,28 +61,84 @@ const _webkitMembers = <String, Set<String>>{
     'addScriptMessageHandler:name:',
     'removeScriptMessageHandlerForName:',
     'removeAllUserScripts',
+    'addContentRuleList:',
+    'removeAllContentRuleLists',
   },
   'WKUserScript': {'alloc', 'initWithSource:injectionTime:forMainFrameOnly:'},
-  'WKWebsiteDataStore': {'nonPersistentDataStore', 'httpCookieStore', 'isPersistent'},
+  'WKWebsiteDataStore': {
+    'nonPersistentDataStore',
+    'httpCookieStore',
+    'isPersistent',
+    'allWebsiteDataTypes',
+    'removeDataOfTypes:modifiedSince:completionHandler:',
+    'fetchDataRecordsOfTypes:completionHandler:',
+  },
+  'WKWebsiteDataRecord': {'displayName', 'dataTypes'},
   'WKScriptMessage': {'body', 'name', 'frameInfo'},
-  'WKHTTPCookieStore': {'getAllCookies:'},
-  'WKFrameInfo': {'isMainFrame', 'securityOrigin'},
+  'WKHTTPCookieStore': {'getAllCookies:', 'setCookie:completionHandler:'},
+  'WKFrameInfo': {'isMainFrame', 'securityOrigin', 'request'},
   'WKSecurityOrigin': {'protocol', 'host', 'port'},
+  'WKContentWorld': {'pageWorld'},
+  'WKContentRuleListStore': {
+    'defaultStore',
+    'compileContentRuleListForIdentifier:encodedContentRuleList:completionHandler:',
+  },
+  'WKContentRuleList': {'identifier'},
   'WKNavigation': <String>{},
-  'NSHTTPCookie': {'name', 'value', 'domain', 'path', 'isSecure'},
-  // Superclasses of WKWebView: generated without members to keep the
-  // bindings small.
-  'UIView': <String>{},
+  'WKNavigationAction': {'request', 'targetFrame', 'sourceFrame', 'navigationType'},
+  'WKNavigationResponse': {'response', 'isForMainFrame'},
+  'NSHTTPCookie': {
+    'cookieWithProperties:',
+    'name',
+    'value',
+    'domain',
+    'path',
+    'expiresDate',
+    'isSecure',
+    'isHTTPOnly',
+  },
+  'NSURLRequest': {'URL', 'HTTPMethod', 'allHTTPHeaderFields', 'HTTPBody'},
+  'NSMutableURLRequest': {'requestWithURL:', 'setValue:forHTTPHeaderField:'},
+  'NSURLResponse': {'URL'},
+  'NSURLCredential': <String>{},
+  'NSURLAuthenticationChallenge': <String>{},
+  'NSHTTPURLResponse': {'statusCode'},
+  'UIApplication': {'sharedApplication', 'connectedScenes', 'applicationState'},
+  'UIScene': {'activationState'},
+  'UIWindowScene': {'windows', 'keyWindow'},
+  'UIWindow': {'rootViewController', 'isKeyWindow'},
+  'UIViewController': {
+    'alloc',
+    'init',
+    'view',
+    'setView:',
+    'presentViewController:animated:completion:',
+    'dismissViewControllerAnimated:completion:',
+    'presentedViewController',
+    'presentingViewController',
+    'presentationController',
+    'isBeingDismissed',
+  },
+  'UIPresentationController': {'delegate', 'setDelegate:'},
+  'UIView': {'addSubview:', 'removeFromSuperview', 'bounds', 'setFrame:', 'setAutoresizingMask:'},
+  // Superclasses: generated without members to keep the bindings small.
   'UIResponder': <String>{},
 };
 
 const _protocolMembers = <String, Set<String>>{
   'WKScriptMessageHandler': {'userContentController:didReceiveScriptMessage:'},
   'WKNavigationDelegate': {
+    'webView:decidePolicyForNavigationAction:decisionHandler:',
+    'webView:decidePolicyForNavigationResponse:decisionHandler:',
+    'webView:didStartProvisionalNavigation:',
+    'webView:didReceiveServerRedirectForProvisionalNavigation:',
+    'webView:didCommitNavigation:',
     'webView:didFinishNavigation:',
     'webView:didFailNavigation:withError:',
     'webView:didFailProvisionalNavigation:withError:',
+    'webViewWebContentProcessDidTerminate:',
   },
+  'UIAdaptivePresentationControllerDelegate': {'presentationControllerDidDismiss:'},
 };
 
 void main() {
@@ -162,7 +225,15 @@ void main() {
         includeMember: (d, member) => _protocolMembers[d.originalName]?.contains(member) ?? false,
       ),
     ),
-    enums: Enums.includeSet({'WKUserScriptInjectionTime'}),
+    enums: Enums.includeSet({
+      'WKUserScriptInjectionTime',
+      'WKNavigationActionPolicy',
+      'WKNavigationResponsePolicy',
+      'WKNavigationType',
+      'UIApplicationState',
+      'UISceneActivationState',
+      'UIViewAutoresizing',
+    }),
     output: Output(
       dartFile: root.resolve('lib/src/webkit_bindings.g.dart'),
       objectiveCFile: root.resolve('src/webkit_bindings.g.m'),

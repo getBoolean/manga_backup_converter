@@ -14,6 +14,7 @@ export 'src/in_process_worker.dart';
 export 'src/paperback_runtime.dart';
 export 'src/provider.dart';
 export 'src/runtime/http_host.dart';
+export 'src/runtime/isolate_worker.dart';
 export 'src/runtime/limit_sizing.dart';
 export 'src/runtime/promise_bridge.dart' show AsyncHostFunction, HostCallError, PromiseBridge;
 export 'src/runtime/quickjs_runtime.dart';
