@@ -1,4 +1,4 @@
-package mangabackup.tachi.extensions
+package mangabackup.tachi.extensions.d2j
 
 import com.googlecode.d2j.DexConstants
 import com.googlecode.d2j.Method
@@ -27,7 +27,7 @@ import com.googlecode.d2j.visitors.DexMethodVisitor
  * each is a synthetic `C.<init>(params)` that calls its direct superclass,
  * ending at S, and the call sites are retargeted. Repository JARs are verified
  * class files and never contain these shapes, so nothing changes on that path.
- * The patch is versioned in [ApkConverter.CONVERTER_VERSION].
+ * The patch is versioned in `ApkConverter.CONVERTER_VERSION`.
  */
 class ConstructorElisionFix(private val delegate: BaseDexFileReader) : BaseDexFileReader by delegate {
     private data class Ctor(val owner: String, val params: List<String>)

@@ -38,7 +38,7 @@ class ProtocolTest {
     }
 
     @Test
-    fun `handshake negotiates the lower of the offered minor and 1, and rejects a malformed minor`() {
+    fun `handshake negotiates the lower of the offered minor and 2, and rejects a malformed minor`() {
         WorkerHarness().use { h ->
             fun offer(minor: kotlinx.serialization.json.JsonElement) = h.client.call("handshake", payload = buildJsonObject {
                 put("protocolVersions", kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive(1))))
@@ -46,7 +46,8 @@ class ProtocolTest {
                 put("maxFrameBytes", 16777216)
             })
             assertEquals(1, offer(JsonPrimitive(1))["protocolMinor"]!!.jsonPrimitive.content.toInt())
-            assertEquals(1, offer(JsonPrimitive(7))["protocolMinor"]!!.jsonPrimitive.content.toInt())
+            assertEquals(2, offer(JsonPrimitive(2))["protocolMinor"]!!.jsonPrimitive.content.toInt())
+            assertEquals(2, offer(JsonPrimitive(7))["protocolMinor"]!!.jsonPrimitive.content.toInt())
             assertEquals(0, offer(JsonPrimitive(0))["protocolMinor"]!!.jsonPrimitive.content.toInt())
             assertEquals(ErrorCode.PROTOCOL_VIOLATION, assertThrows<WorkerError> { offer(JsonPrimitive(-1)) }.code)
             assertEquals(ErrorCode.PROTOCOL_VIOLATION, assertThrows<WorkerError> { offer(JsonPrimitive("1")) }.code)

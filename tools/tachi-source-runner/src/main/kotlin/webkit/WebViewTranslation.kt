@@ -6,6 +6,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import androidx.webkit.ScriptHandler
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -40,11 +41,23 @@ import java.util.concurrent.Executors
  * message channel: the platform installs `window.<name>.postMessage(string)`
  * in every same-origin http(s) page, so only the object's
  * `@JavascriptInterface void postMessage(String)` is reachable, and `<name>`
- * must be a plain JavaScript identifier. The platform drops other-origin,
- * opaque-origin and non-string messages. Observe-only interception sees main-frame
- * navigations; a non-null interception response, a synchronous
- * `@JavascriptInterface` return value and non-http(s) schemes are named
- * capability errors.
+ * must be a plain JavaScript identifier (any identifier, `ipc` included). The
+ * platform drops other-origin, opaque-origin and non-string messages.
+ *
+ * Protocol 1.2 (only when negotiated; the session's `capabilities` decide):
+ * - `WebViewCompat.addDocumentStartJavaScript` -> `host.browser.addPageStartScript`,
+ *   with `allowedOriginRules` emulated by [OriginRules]. `ScriptHandler.remove()`
+ *   throws `UnsupportedOperationException` and warns: the port cannot remove a script.
+ * - `shouldInterceptRequest`: the replace tier when the session has
+ *   `replaceRequests` (falling back to observe if the supervisor refuses it),
+ *   otherwise observe; held requests are answered with `host.browser.respond`.
+ *   A non-null response on an observe-only session is a named capability error.
+ * - `evaluate`'s `scriptError` is ignored, keeping Android's `evaluateJavascript`
+ *   semantics (a throwing script yields `"null"`).
+ * Without 1.2, or with no observe feature, interception falls back to calling
+ * `shouldInterceptRequest` for main-frame `loadUrl` navigations only. A
+ * synchronous `@JavascriptInterface` return value and non-http(s) schemes are
+ * named capability errors.
  */
 class WebViewTranslation(private val view: WebView, private val bridge: BrowserBridge) : WebViewBackend {
     private val environment: PackageEnvironment = PackageEnvironment.of(view.context)
@@ -52,6 +65,17 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     private val sourceId: String? = environment.currentOperation?.sourceId
     private var chain: CompletableFuture<Any?> = CompletableFuture.completedFuture(null)
     private val interfaces = ConcurrentHashMap<String, Any>()
+
+    /** Page-start scripts (already origin-wrapped) in registration order, replayed when the session opens. */
+    private val pageStartScripts = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+    /** Features of the open session (1.2); empty without capabilities. */
+    @Volatile
+    private var available: Set<String> = emptySet()
+
+    /** The interception mode set on the session: `none`, `observe` or `replace`. */
+    @Volatile
+    private var interception = MODE_NONE
 
     @Volatile
     private var session: String? = null
@@ -89,12 +113,73 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             put("sourceId", sourceId ?: throw CapabilityUnavailableException("WebView outside a source operation", "host.browser.open"))
             userAgent?.let { put("userAgent", it) }
         }
-        val opened = call("host.browser.open", payload).optStr("session")
+        val reply = call("host.browser.open", payload)
+        val opened = reply.optStr("session")
             ?: throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "host.browser.open reply has no session")
+        if (bridge.protocolMinor >= 2) available = BrowserFeature.available(reply)
         session = opened
         bridge.bindSession(opened, this)
+        // Channel objects first, then page-start scripts in registration order (protocol 1.2 order rule).
         for (name in interfaces.keys) setHandler(opened, name, true)
+        for (script in pageStartScripts) sendPageStartScript(opened, script, reply)
+        configureInterception(opened, reply)
         return opened
+    }
+
+    private fun sendPageStartScript(session: String, script: String, openReply: JsonObject? = null) {
+        if (bridge.protocolMinor < 2 || BrowserFeature.PAGE_START_SCRIPTS !in available) {
+            val reason = openReply?.let { BrowserFeature.reason(it, BrowserFeature.PAGE_START_SCRIPTS) }
+                ?: if (bridge.protocolMinor < 2) "the supervisor speaks protocol 1.${bridge.protocolMinor}" else "not reported by the browser implementation"
+            throw CapabilityUnavailableException("addDocumentStartJavaScript needs pageStartScripts, which this browser session lacks: $reason", "addPageStartScript")
+        }
+        call("host.browser.addPageStartScript", buildJsonObject {
+            put("session", session)
+            put("script", script)
+        })
+    }
+
+    private fun overridesIntercept(): Boolean =
+        generateSequence<Class<*>>(view.webViewClient.javaClass) { it.superclass }
+            .takeWhile { it != android.webkit.WebViewClient::class.java }
+            .any { c -> c.declaredMethods.any { it.name == "shouldInterceptRequest" } }
+
+    /**
+     * Chooses the interception tier once the session's capabilities are known (KTD20): replace when
+     * the session can substitute responses, observe when it can see requests, otherwise none, where
+     * the shim itself shows main-frame `loadUrl` navigations to the handler. Every tier that cannot
+     * see subresources records the degraded capability.
+     */
+    private fun configureInterception(session: String, openReply: JsonObject) {
+        if (!overridesIntercept()) return
+        if (bridge.protocolMinor >= 2) {
+            if (BrowserFeature.REPLACE_REQUESTS in available && setInterception(session, MODE_REPLACE)) {
+                interception = MODE_REPLACE
+                return
+            }
+            val observable = BrowserFeature.OBSERVE_NAVIGATIONS in available || BrowserFeature.OBSERVE_SUBRESOURCES in available
+            if (observable && setInterception(session, MODE_OBSERVE)) {
+                interception = MODE_OBSERVE
+                if (BrowserFeature.OBSERVE_SUBRESOURCES !in available) {
+                    val reason = BrowserFeature.reason(openReply, BrowserFeature.OBSERVE_SUBRESOURCES)
+                    environment.currentOperation?.addWarning(OBSERVE_WARNING + (reason?.let { ": $it" } ?: ""))
+                }
+                return
+            }
+        }
+        environment.currentOperation?.addWarning(SUBRESOURCE_WARNING)
+    }
+
+    /** Sets the interception mode; false when the supervisor refuses it as capability-unavailable. */
+    private fun setInterception(session: String, mode: String): Boolean = try {
+        call("host.browser.setRequestInterception", buildJsonObject {
+            put("session", session)
+            put("mode", mode)
+        })
+        true
+    } catch (e: WorkerError) {
+        if (e.code != ErrorCode.CAPABILITY_UNAVAILABLE) throw e
+        System.err.println("[webkit] request interception mode $mode refused: ${e.message}")
+        false
     }
 
     private fun setHandler(session: String, name: String, enabled: Boolean) {
@@ -150,14 +235,6 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         put("httpOnly", c.httpOnly)
     }
 
-    /** KTD20 observe-only tier: platform browsers cannot show subresource requests to the extension. */
-    private fun noteInterceptionTier() {
-        val overrides = generateSequence<Class<*>>(view.webViewClient.javaClass) { it.superclass }
-            .takeWhile { it != android.webkit.WebViewClient::class.java }
-            .any { c -> c.declaredMethods.any { it.name == "shouldInterceptRequest" } }
-        if (overrides) environment.currentOperation?.addWarning(SUBRESOURCE_WARNING)
-    }
-
     private fun onMain(block: () -> Unit) {
         WebkitHost.mainHandler.post { if (!view.isDestroyed) block() }
     }
@@ -165,16 +242,16 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     override fun loadUrl(url: String, headers: Map<String, String>) {
         currentUrl = url
         val request = SimpleRequest(url, headers, mainFrame = true)
-        noteInterceptionTier()
         enqueue {
             if (!bridge.isNavigable(url)) {
                 recordAndThrow(CapabilityUnavailableException("Scheme of $url is not allowed (only http, https, about:blank)", "host.browser.load"))
             }
-            val intercepted = onMainBlocking { view.webViewClient.shouldInterceptRequest(view, request) }
-            if (intercepted != null) {
-                recordAndThrow(CapabilityUnavailableException("Replacing a response from shouldInterceptRequest is unsupported by the platform browser", "android.webkit.shouldInterceptRequest.replace"))
-            }
             val s = requireSession()
+            if (interception == MODE_NONE && overridesIntercept()) {
+                // No platform interception: show the handler the navigation it would have seen first.
+                val intercepted = onMainBlocking { view.webViewClient.shouldInterceptRequest(view, request) }
+                if (intercepted != null) recordAndThrow(replaceUnsupported())
+            }
             pushCookies(s, url)
             onMain { view.webViewClient.onPageStarted(view, url, null) }
             val page = call("host.browser.load", buildJsonObject {
@@ -193,7 +270,6 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     override fun loadDataWithBaseUrl(baseUrl: String?, data: String, mimeType: String?, encoding: String?, historyUrl: String?) {
         val base = baseUrl ?: "about:blank"
         currentUrl = base
-        noteInterceptionTier()
         enqueue {
             if (!bridge.isWebUrl(base)) {
                 recordAndThrow(CapabilityUnavailableException("loadData needs an http(s) base URL, got $base", "host.browser.loadData"))
@@ -215,6 +291,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     }
 
     override fun evaluateJavascript(script: String, callback: ValueCallback<String>?) {
+        // 1.2 `scriptError` is deliberately ignored: Android reports a throwing script as "null".
         enqueue {
             val s = requireSession()
             val result = call("host.browser.evaluate", buildJsonObject {
@@ -240,6 +317,72 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             null
         }
     }
+
+    override fun addDocumentStartJavaScript(script: String, allowedOriginRules: Set<String>): ScriptHandler {
+        val wrapped = OriginRules.wrap(script, allowedOriginRules)
+        pageStartScripts += wrapped
+        enqueue {
+            session?.let { sendPageStartScript(it, wrapped) }
+            null
+        }
+        val operation = environment.currentOperation
+        return ScriptHandler {
+            // Says so instead of pretending: the port has no removal (protocol 1.2). Not recorded as the
+            // operation's failure, because an extension may handle it; the warning keeps it visible.
+            operation?.addWarning(SCRIPT_REMOVE_WARNING)
+            throw UnsupportedOperationException(
+                "ScriptHandler.remove is unsupported by the desktop browser port: page-start scripts last until the browser session closes",
+            )
+        }
+    }
+
+    /**
+     * A `host.browser.request` event for this session, delivered from the frame reader. The handler
+     * runs on a browser thread (Android also calls `shouldInterceptRequest` off the main thread), never
+     * on the request chain, which may be blocked waiting for the very load this request belongs to.
+     * Nothing runs, and nothing is answered, once the package has no operation in flight.
+     */
+    fun onPlatformRequest(event: BrowserRequestEvent) {
+        if (closed || environment.currentOperation == null) return
+        EXECUTOR.execute {
+            mangabackup.tachi.host.PackageScope.bind(environment) { handlePlatformRequest(event) }
+        }
+    }
+
+    private fun handlePlatformRequest(event: BrowserRequestEvent) {
+        val requestId = event.requestId
+        var replacement: JsonObject? = null
+        try {
+            val request = SimpleRequest(event.url, event.headers, event.mainFrame, event.method, event.redirect)
+            val response = view.webViewClient.shouldInterceptRequest(view, request)
+            if (requestId == null) {
+                // Observe tier: the request has already proceeded, so a replacement cannot be honoured.
+                if (response != null) onFailure(replaceUnsupported())
+                return
+            }
+            replacement = response?.let(BrowserReplacement::encode)
+        } catch (e: CapabilityUnavailableException) {
+            onFailure(e)
+        } catch (t: Throwable) {
+            // Any failure (an Error from the handler, an unreadable response stream) still answers a held
+            // request below, with null, so the page never waits out the replacement timeout.
+            if (t is VirtualMachineError) throw t
+            System.err.println("[webkit] shouldInterceptRequest failed: $t")
+        } finally {
+            if (requestId != null) {
+                bridge.respond(environment, buildJsonObject {
+                    put("session", event.session)
+                    put("requestId", requestId)
+                    put("response", replacement ?: kotlinx.serialization.json.JsonNull)
+                })
+            }
+        }
+    }
+
+    private fun replaceUnsupported() = CapabilityUnavailableException(
+        "Replacing a response from shouldInterceptRequest needs the replace tier (replaceRequests), which this browser session lacks",
+        "android.webkit.shouldInterceptRequest.replace",
+    )
 
     override fun removeJavascriptInterface(name: String) {
         interfaces.remove(name)
@@ -352,12 +495,18 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         return future.get()
     }
 
-    private class SimpleRequest(private val url: String, private val headers: Map<String, String>, private val mainFrame: Boolean) : WebResourceRequest {
+    private class SimpleRequest(
+        private val url: String,
+        private val headers: Map<String, String>,
+        private val mainFrame: Boolean,
+        private val method: String = "GET",
+        private val redirect: Boolean = false,
+    ) : WebResourceRequest {
         override fun getUrl(): Uri = Uri.parse(url)
         override fun isForMainFrame(): Boolean = mainFrame
-        override fun isRedirect(): Boolean = false
+        override fun isRedirect(): Boolean = redirect
         override fun hasGesture(): Boolean = false
-        override fun getMethod(): String = "GET"
+        override fun getMethod(): String = method
         override fun getRequestHeaders(): Map<String, String> = headers
     }
 
@@ -370,6 +519,13 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         const val ERROR_UNKNOWN = -1
         const val SUBRESOURCE_WARNING =
             "degraded: subresource observation unavailable (shouldInterceptRequest sees main-frame loadUrl navigations only)"
+        const val OBSERVE_WARNING =
+            "degraded: subresource observation unavailable (shouldInterceptRequest sees the navigations the browser reports)"
+        const val SCRIPT_REMOVE_WARNING =
+            "androidx.webkit.ScriptHandler.remove: the browser port cannot remove a page-start script; it stays until the session closes"
+        const val MODE_NONE = "none"
+        const val MODE_OBSERVE = "observe"
+        const val MODE_REPLACE = "replace"
         private val EXECUTOR = Executors.newCachedThreadPool { r -> Thread(r, "tachi-browser").apply { isDaemon = true } }
 
         /** Channel names the browser message channel accepts (protocol 1.1, `BrowserMessageChannel`). */

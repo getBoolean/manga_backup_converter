@@ -21,6 +21,7 @@ import mangabackup.tachi.host.HostOperationException
 import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
+import mangabackup.tachi.host.withHandshake
 import mangabackup.tachi.shim.HostFailures
 import mangabackup.tachi.shim.UnsupportedHostApi
 import mangabackup.tachi.webkit.BrowserBridge
@@ -61,6 +62,11 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
 
     @Volatile
     private var maxFrameBytes = Wire.MAX_FRAME_BYTES
+
+    /** The minor version agreed in the handshake; 1.2 browser requests are sent only when it is at least 2. */
+    @Volatile
+    var protocolMinor = 0L
+        private set
 
     @Volatile
     private var shuttingDown = false
@@ -194,7 +200,12 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                     else -> pending.future.completeExceptionally(WorkerError(ErrorCode.PROTOCOL_VIOLATION, "rres without ok or err"))
                 }
             }
-            "event" -> if (frame.op == "host.browser.message" && frame.payload != null) browser.onMessage(frame.payload)
+            // Events are handled here, on the frame reader, never on a thread that waits for an rres:
+            // a held request may be what keeps the worker's own reverse request from being answered.
+            "event" -> when (frame.op) {
+                "host.browser.message" -> frame.payload?.let(browser::onMessage)
+                "host.browser.request" -> frame.payload?.let(browser::onRequest)
+            }
             else -> fatal("unexpected frame type ${frame.t} from supervisor")
         }
         return true
@@ -217,6 +228,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 ?: return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "protocolMinor must be a non-negative integer"))
         }
         generation = frame.gen
+        protocolMinor = minOf(offeredMinor, Wire.MINOR_VERSION.toLong())
         maxFrameBytes = try {
             minOf(p.int("maxFrameBytes"), Wire.MAX_FRAME_BYTES.toLong()).toInt()
         } catch (_: ProtocolViolation) {
@@ -226,7 +238,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             frame,
             ok = buildJsonObject {
                 put("protocolVersion", Wire.VERSION)
-                put("protocolMinor", minOf(offeredMinor, Wire.MINOR_VERSION.toLong()))
+                put("protocolMinor", protocolMinor)
                 put("worker", WorkerOptions.WORKER_NAME)
                 put("workerVersion", WorkerOptions.WORKER_VERSION)
                 put("pid", ProcessHandle.current().pid())
@@ -235,7 +247,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                     put("browser", options.browser)
                 })
                 // KTD25 limits and sizing (1.1), then additive runtime identity fields readers ignore.
-                put("limits", options.sizing.limits.toJson())
+                put("limits", options.sizing.limits.toJson().withHandshake(options.sizing.rule))
                 put("sizing", options.sizing.toJson())
                 put("networkMode", options.networkMode)
                 put("javaVersion", Runtime.version().toString())

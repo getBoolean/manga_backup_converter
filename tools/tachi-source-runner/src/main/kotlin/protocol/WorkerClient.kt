@@ -106,9 +106,9 @@ class WorkerClient(
 
     fun event(op: String, payload: JsonObject) = write(Frame(t = "event", id = "e${ids.incrementAndGet()}", gen = generation, op = op, payload = payload))
 
-    fun handshake(): JsonObject = call("handshake", payload = buildJsonObject {
+    fun handshake(minor: Int = Wire.MINOR_VERSION): JsonObject = call("handshake", payload = buildJsonObject {
         put("protocolVersions", buildJsonArray { add(JsonPrimitive(1)) })
-        put("protocolMinor", Wire.MINOR_VERSION)
+        put("protocolMinor", minor)
         put("maxFrameBytes", Wire.MAX_FRAME_BYTES)
     })
 

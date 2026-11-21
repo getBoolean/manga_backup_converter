@@ -60,6 +60,10 @@ data class WorkerLimits(
  *                        microsecond-scale cooperative cancel does not)
  *  shutdownGraceMs     = ceil(maxShutdownMs × graceFactor)
  *  interactionTimeoutMs = interactionTimeoutMs (a user-facing bound recorded with the rule)
+ *  handshakeDeadlineMs = ceil(maxStartupToHandshakeMs × handshakeFactor)
+ *                        (JVM launch to handshake reply as the supervisor launches it, worst sample
+ *                        including cold starts; device-independent, so it can be written into the
+ *                        runtime manifest before any worker runs — see [RuntimeManifest])
  */
 data class SizingRule(
     val source: String,
@@ -73,7 +77,17 @@ data class SizingRule(
     val graceFactor: Double,
     val interactionTimeoutMs: Long,
     val maxPoolSize: Int,
+    /** Worst measured JVM launch → handshake reply; null in a rule benchmarked before it was measured. */
+    val maxStartupToHandshakeMs: Double? = null,
+    val handshakeFactor: Double? = null,
 ) {
+    /**
+     * The supervisor's bound on the handshake (KTD25). The supervisor needs it before the worker has
+     * said anything, so it travels in the runtime manifest; the handshake repeats it for receipts.
+     */
+    val handshakeDeadlineMs: Long?
+        get() = if (maxStartupToHandshakeMs == null || handshakeFactor == null) null else kotlin.math.ceil(maxStartupToHandshakeMs * handshakeFactor).toLong()
+
     data class Inputs(val cores: Int, val maxHeapMiB: Long)
 
     fun derive(inputs: Inputs): WorkerLimits {
@@ -101,6 +115,8 @@ data class SizingRule(
         put("graceFactor", graceFactor)
         put("interactionTimeoutMs", interactionTimeoutMs)
         put("maxPoolSize", maxPoolSize)
+        maxStartupToHandshakeMs?.let { put("maxStartupToHandshakeMs", it) }
+        handshakeFactor?.let { put("handshakeFactor", it) }
     }
 
     companion object {
@@ -121,6 +137,8 @@ data class SizingRule(
                 graceFactor = d("graceFactor"),
                 interactionTimeoutMs = o["interactionTimeoutMs"]!!.jsonPrimitive.long,
                 maxPoolSize = o["maxPoolSize"]!!.jsonPrimitive.long.toInt(),
+                maxStartupToHandshakeMs = o["maxStartupToHandshakeMs"]?.jsonPrimitive?.double,
+                handshakeFactor = o["handshakeFactor"]?.jsonPrimitive?.double,
             )
         }
 
@@ -128,6 +146,16 @@ data class SizingRule(
 
         fun measureInputs(): Inputs = Inputs(Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().maxMemory() / (1024 * 1024))
     }
+}
+
+/**
+ * Adds the rule's `handshakeDeadlineMs` to a limits object. It is reported, never adopted from the
+ * handshake: the protocol has the caller supply it (from the runtime manifest), so it is not one of
+ * [WorkerLimits.KEYS] and `--limit` never needs it.
+ */
+fun JsonObject.withHandshake(rule: SizingRule?): JsonObject {
+    val ms = rule?.handshakeDeadlineMs ?: return this
+    return JsonObject(this + ("handshakeDeadlineMs" to kotlinx.serialization.json.JsonPrimitive(ms)))
 }
 
 /** What the handshake reports about sizing (KTD25). */
@@ -145,7 +173,7 @@ data class SizingReport(
             put("cores", inputs.cores)
             put("maxHeapMiB", inputs.maxHeapMiB)
         })
-        put("derived", derived?.toJson() ?: kotlinx.serialization.json.JsonNull)
+        put("derived", derived?.toJson()?.withHandshake(rule) ?: kotlinx.serialization.json.JsonNull)
         put("overridden", kotlinx.serialization.json.JsonArray(overridden.sorted().map { kotlinx.serialization.json.JsonPrimitive(it) }))
     }
 

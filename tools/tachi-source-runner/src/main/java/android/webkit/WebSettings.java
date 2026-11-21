@@ -33,7 +33,7 @@ public class WebSettings {
 
     public void setUserAgentString(String ua) {
         userAgent = ua == null || ua.isEmpty() ? defaultUserAgentString() : ua;
-        owner.backend().setUserAgent(userAgent);
+        owner.hostBackend().setUserAgent(userAgent);
     }
 
     public boolean getJavaScriptEnabled() { return javaScriptEnabled; }
