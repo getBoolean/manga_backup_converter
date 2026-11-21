@@ -33,7 +33,7 @@ class Factory : eu.kanade.tachiyomi.source.SourceFactory {
  *
  * Protocol 1.2 queries: `ipc` (channel named `ipc`), `docstart`
  * (addDocumentStartJavaScript, then ScriptHandler.remove), `observe` / `replace`
- * / `redirect` (loadUrl with a shouldInterceptRequest that records what it sees
+ * / `redirect` / `throws` (loadUrl with a shouldInterceptRequest that records what it sees
  * and, for `replace` / `redirect`, answers the main frame), `evalerr` (a throwing
  * evaluateJavascript instead of a channel message).
  */
@@ -87,6 +87,7 @@ class WebViewSource : HttpSource() {
                         query == "intercept" -> android.webkit.WebResourceResponse("text/html", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
                         query == "replace" && request.isForMainFrame ->
                             android.webkit.WebResourceResponse("text/html", "utf-8", 200, "Replaced", mapOf("X-Fixture" to "1"), "replaced".byteInputStream())
+                        query == "throws" -> throw NotImplementedError("fixture handler fails")
                         query == "redirect" && request.isForMainFrame ->
                             android.webkit.WebResourceResponse("text/html", "utf-8", 302, "Found", mapOf("Location" to "https://elsewhere.test/"), null)
                         else -> null
@@ -115,7 +116,7 @@ class WebViewSource : HttpSource() {
                     "|remove=${e.javaClass.simpleName}"
                 }
             }
-            if (query in setOf("intercept", "load", "observe", "replace", "redirect")) {
+            if (query in setOf("intercept", "load", "observe", "replace", "redirect", "throws")) {
                 view.loadUrl("https://webview.test/page")
             } else {
                 view.loadDataWithBaseURL(base, "<html><script>bridge.postMessage('solved')</script></html>", "text/html", "UTF-8", null)

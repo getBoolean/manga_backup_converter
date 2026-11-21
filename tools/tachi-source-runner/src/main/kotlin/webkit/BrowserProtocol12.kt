@@ -92,20 +92,27 @@ object BrowserReplacement {
  * Emulates `addDocumentStartJavaScript`'s `allowedOriginRules` over a page-start script that runs in
  * every frame: the script is wrapped in a `location` check.
  *
- * Rule grammar (androidx.webkit): `*` matches every origin; otherwise `scheme://host[:port]` with
- * scheme http or https, an optional `*.` prefix on the host that matches the domain and its
- * subdomains (Chromium's `DomainIs`), and the scheme's default port when none is given. A malformed
- * rule throws [IllegalArgumentException], as on Android. With a `*` rule the script is passed
+ * Rule grammar (androidx.webkit `addWebMessageListener`): `*` matches every origin;
+ * `http(s)://host[:port]` matches that host, or with a `*.` prefix only its subdomains ("matches
+ * https://calendar.example.com ... but not https://example.com"), on the scheme's default port when
+ * none is given; a custom scheme rule `scheme://` is valid but never matches, because the browser
+ * port only loads http(s) documents. A malformed rule throws [IllegalArgumentException], as on Android. With a `*` rule the script is passed
  * unchanged; otherwise it runs inside an `if` block, so its top-level `let`/`const`/`class`
  * declarations are scoped to that block (its `var` and function declarations stay global).
  */
 object OriginRules {
     private val RULE = Regex("^(https?)://(\\*\\.)?([A-Za-z0-9.-]+|\\[[0-9A-Fa-f:]+])(?::(\\d{1,5}))?/?$")
+    private val CUSTOM_SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*://$")
 
     data class Rule(val scheme: String, val host: String, val subdomains: Boolean, val port: String)
 
+    /** Scheme marker of a custom-scheme rule, which no http(s) document matches. */
+    const val NEVER = ""
+
+    /** Null for `*`; a rule whose scheme is [NEVER] for a custom-scheme rule. */
     fun parse(rule: String): Rule? {
         if (rule == "*") return null
+        if (CUSTOM_SCHEME.matches(rule) && !rule.startsWith("http://") && !rule.startsWith("https://")) return Rule(NEVER, "", false, "")
         val m = RULE.matchEntire(rule) ?: throw IllegalArgumentException("allowedOriginRules: malformed rule '$rule'")
         val scheme = m.groupValues[1]
         val port = m.groupValues[4].ifEmpty { if (scheme == "https") "443" else "80" }
@@ -116,7 +123,7 @@ object OriginRules {
         require(rules.isNotEmpty()) { "allowedOriginRules must not be empty" }
         val parsed = rules.map(::parse)
         if (parsed.any { it == null }) return script
-        val json = JsonArray(parsed.filterNotNull().sortedBy { "${it.scheme}://${it.host}:${it.port}" }.map { r ->
+        val json = JsonArray(parsed.filterNotNull().filter { it.scheme != NEVER }.sortedBy { "${it.scheme}://${it.host}:${it.port}" }.map { r ->
             JsonArray(listOf(JsonPrimitive(r.scheme), JsonPrimitive(r.host), JsonPrimitive(r.subdomains), JsonPrimitive(r.port)))
         })
         return "if ((function (r) {" +
@@ -124,7 +131,7 @@ object OriginRules {
             "t = location.port || (p === 'https' ? '443' : p === 'http' ? '80' : '');" +
             "for (var i = 0; i < r.length; i++) {" +
             "var x = r[i]; if (x[0] !== p || x[3] !== t) continue;" +
-            "if (h === x[1] || (x[2] && h.slice(-x[1].length - 1) === '.' + x[1])) return true;" +
+            "if (x[2] ? h.slice(-x[1].length - 1) === '.' + x[1] : h === x[1]) return true;" +
             "} return false; })($json)) {\n$script\n}"
     }
 }

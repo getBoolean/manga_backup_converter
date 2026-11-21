@@ -350,32 +350,33 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     }
 
     private fun handlePlatformRequest(event: BrowserRequestEvent) {
-        val request = SimpleRequest(event.url, event.headers, event.mainFrame, event.method, event.redirect)
-        val response = try {
-            view.webViewClient.shouldInterceptRequest(view, request)
-        } catch (e: Exception) {
-            System.err.println("[webkit] shouldInterceptRequest threw: $e")
-            null
-        }
         val requestId = event.requestId
-        if (requestId == null) {
-            // Observe tier: the request has already proceeded, so a replacement cannot be honoured.
-            if (response != null) onFailure(replaceUnsupported())
-            return
-        }
-        val replacement = response?.let {
-            try {
-                BrowserReplacement.encode(it)
-            } catch (e: CapabilityUnavailableException) {
-                onFailure(e)
-                null
+        var replacement: JsonObject? = null
+        try {
+            val request = SimpleRequest(event.url, event.headers, event.mainFrame, event.method, event.redirect)
+            val response = view.webViewClient.shouldInterceptRequest(view, request)
+            if (requestId == null) {
+                // Observe tier: the request has already proceeded, so a replacement cannot be honoured.
+                if (response != null) onFailure(replaceUnsupported())
+                return
+            }
+            replacement = response?.let(BrowserReplacement::encode)
+        } catch (e: CapabilityUnavailableException) {
+            onFailure(e)
+        } catch (t: Throwable) {
+            // Any failure (an Error from the handler, an unreadable response stream) still answers a held
+            // request below, with null, so the page never waits out the replacement timeout.
+            if (t is VirtualMachineError) throw t
+            System.err.println("[webkit] shouldInterceptRequest failed: $t")
+        } finally {
+            if (requestId != null) {
+                bridge.respond(environment, buildJsonObject {
+                    put("session", event.session)
+                    put("requestId", requestId)
+                    put("response", replacement ?: kotlinx.serialization.json.JsonNull)
+                })
             }
         }
-        bridge.respond(environment, buildJsonObject {
-            put("session", event.session)
-            put("requestId", requestId)
-            put("response", replacement ?: kotlinx.serialization.json.JsonNull)
-        })
     }
 
     private fun replaceUnsupported() = CapabilityUnavailableException(

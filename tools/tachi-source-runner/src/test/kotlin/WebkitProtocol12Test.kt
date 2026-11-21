@@ -253,6 +253,14 @@ class WebkitProtocol12Test {
     }
 
     @Test
+    fun `a handler that throws an Error still answers the held request, with null`() {
+        withPort(port = { FakePort12(it, available = listOf("observeNavigations", "replaceRequests"), respondWaitMs = 3_000) }) { h, port, pkg ->
+            assertEquals("no-glue:solved", title(h, pkg, "throws"))
+            assertEquals(JsonNull, port.respond.get(1, TimeUnit.SECONDS).payload!!["response"])
+        }
+    }
+
+    @Test
     fun `scriptError is ignored - a throwing evaluate reads as null`() {
         withPort(port = { FakePort12(it, available = listOf("scriptErrors")) }) { h, _, pkg ->
             assertEquals("no-glue:eval=null", title(h, pkg, "evalerr"))
@@ -272,6 +280,9 @@ class WebkitProtocol12Test {
         assertNull(OriginRules.parse("*"))
         assertEquals(OriginRules.Rule("https", "example.com", false, "443"), OriginRules.parse("https://example.com"))
         assertEquals(OriginRules.Rule("http", "example.com", true, "8080"), OriginRules.parse("http://*.Example.com:8080"))
+        assertEquals(OriginRules.Rule("https", "[::1]", false, "99"), OriginRules.parse("https://[::1]:99"))
+        assertEquals(OriginRules.NEVER, OriginRules.parse("my-app-scheme://")!!.scheme, "custom schemes are valid and never match")
+        assertThrows<IllegalArgumentException> { OriginRules.parse("my-app-scheme://host") }
         assertThrows<IllegalArgumentException> { OriginRules.parse("ftp://example.com") }
         assertThrows<IllegalArgumentException> { OriginRules.parse("https://example.com/path") }
         assertThrows<IllegalArgumentException> { OriginRules.wrap("x()", emptySet()) }
@@ -285,7 +296,7 @@ class WebkitProtocol12Test {
             System.getenv("PATH").orEmpty().split(java.io.File.pathSeparator).map { java.io.File(it, exe) }.firstOrNull { it.isFile }
         }
         assumeTrue(node != null, "node is not on PATH")
-        val wrapped = OriginRules.wrap("ran = true;", setOf("https://example.com", "http://*.sub.test:8080"))
+        val wrapped = OriginRules.wrap("ran = true;", setOf("https://example.com", "http://*.sub.test:8080", "my-app-scheme://"))
         fun runs(href: String): Boolean {
             val u = java.net.URI(href)
             val js = "var location = {protocol: '${u.scheme}:', hostname: '${u.host ?: ""}', port: '${if (u.port < 0) "" else u.port}'};" +
@@ -304,7 +315,8 @@ class WebkitProtocol12Test {
         assertTrue(!runs("https://example.com:8443/a"), "explicit other port")
         assertTrue(!runs("http://example.com/a"), "other scheme")
         assertTrue(!runs("https://www.example.com/a"), "no wildcard: subdomains do not match")
-        assertTrue(runs("http://sub.test:8080/"), "wildcard matches the domain itself")
+        assertTrue(!runs("http://sub.test:8080/"), "a *. rule matches subdomains, not the domain itself (androidx)")
+        assertTrue(runs("http://a.sub.test:8080/"))
         assertTrue(runs("http://a.b.sub.test:8080/"))
         assertTrue(!runs("http://notsub.test:8080/"))
         assertTrue(!runs("http://a.sub.test/"), "default port 80 is not 8080")

@@ -120,9 +120,10 @@ requests, sent for the package's in-flight operation and closed before it replie
   `capabilities` allow (absent capabilities mean none):
   - `androidx.webkit.WebViewCompat.addDocumentStartJavaScript` (shimmed with `WebViewFeature` and
     `ScriptHandler`) becomes `host.browser.addPageStartScript`, replayed in registration order after the
-    channel objects when the session opens. `allowedOriginRules` (androidx grammar: `*`, or
-    `scheme://host[:port]` with an optional `*.` that also matches the domain itself) are enforced by a
-    `location` check wrapped around the script; with `*` the script is sent unchanged, otherwise its
+    channel objects when the session opens. `allowedOriginRules` (androidx grammar: `*`;
+    `http(s)://host[:port]`, where a leading `*.` matches subdomains but not the domain itself; IP
+    literals; `scheme://` custom-scheme rules, valid but never matching because the port loads only
+    http(s) documents) are enforced by a `location` check wrapped around the script; with `*` the script is sent unchanged, otherwise its
     top-level `let`/`const`/`class` are scoped to the wrapping block. Without `pageStartScripts` the call
     fails as `capability-unavailable` (operation `addPageStartScript`). `ScriptHandler.remove()` throws
     `UnsupportedOperationException` and adds an operation warning: the port cannot remove a script.
@@ -136,7 +137,8 @@ requests, sent for the package's in-flight operation and closed before it replie
     carries a `degraded: subresource observation unavailable` warning with the engine's reason.
   - `host.browser.request` events are decoded and routed on the frame reader thread; the extension's
     handler runs on a browser thread (as Android calls it off the main thread) and `respond` is sent
-    without waiting for its `rres`. The thread that sent `host.browser.load` is blocked until the held
+    without waiting for its `rres`. A held request is always answered, with `null` if the handler or
+    the replacement fails. The thread that sent `host.browser.load` is blocked until the held
     request is answered, and the reader is the only thread that can read that `rres`, so neither may
     wait. `respond` is sent only while one of the package's operations is in flight.
   - `evaluate`'s `scriptError` is ignored, so a throwing script reads as `"null"` as on Android.
