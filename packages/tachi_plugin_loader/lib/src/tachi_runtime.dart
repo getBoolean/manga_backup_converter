@@ -166,14 +166,12 @@ class TachiRuntime implements SourceProvider {
         ),
       );
     }
+    // Written without switch-pattern bindings: the Dart 3.14 AOT compiler
+    // crashes (linearscan "unreachable code") on the pattern-matching form
+    // of this method when the CLI executable is built.
     final SourceOutcome<WorkerSupervisor> started = await worker();
-    final WorkerSupervisor supervisor;
-    switch (started) {
-      case SourceFailed<WorkerSupervisor>(:final SourceFailure failure):
-        return SourceFailed<TachiPreparedArtifact>(failure);
-      case SourceSuccess<WorkerSupervisor>(:final WorkerSupervisor value):
-        supervisor = value;
-    }
+    final WorkerSupervisor? supervisor = started.valueOrNull;
+    if (supervisor == null) return SourceFailed<TachiPreparedArtifact>(started.failureOrNull!);
     final Set<String> families = supervisor.handshake?.capabilities.apiFamilies ?? const <String>{};
     if (!families.contains(listing.apiFamily)) {
       return SourceFailed<TachiPreparedArtifact>(
@@ -184,20 +182,17 @@ class TachiRuntime implements SourceProvider {
     }
     var data = bytes;
     if (data == null) {
-      switch (await store.download(choice)) {
-        case SourceFailed<Uint8List>(:final SourceFailure failure):
-          return SourceFailed<TachiPreparedArtifact>(failure);
-        case SourceSuccess<Uint8List>(:final Uint8List value):
-          data = value;
-      }
+      final SourceOutcome<Uint8List> downloaded = await store.download(choice);
+      data = downloaded.valueOrNull;
+      if (data == null) return SourceFailed<TachiPreparedArtifact>(downloaded.failureOrNull!);
     }
-    final ArtifactLease raw;
-    switch (await store.admit(data, kind: choice.kind, version: listing.versionName)) {
-      case SourceFailed<ArtifactLease>(:final SourceFailure failure):
-        return SourceFailed<TachiPreparedArtifact>(failure);
-      case SourceSuccess<ArtifactLease>(:final ArtifactLease value):
-        raw = value;
-    }
+    final SourceOutcome<ArtifactLease> admitted = await store.admit(
+      data,
+      kind: choice.kind,
+      version: listing.versionName,
+    );
+    final ArtifactLease? raw = admitted.valueOrNull;
+    if (raw == null) return SourceFailed<TachiPreparedArtifact>(admitted.failureOrNull!);
     try {
       _prepares++;
       final SourceOutcome<ArtifactLease> prepared = await supervisor.prepareArtifact(
