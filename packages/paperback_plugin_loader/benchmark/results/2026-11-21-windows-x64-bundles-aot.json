@@ -1,0 +1,235 @@
+{
+  "benchmark": "paperback-bundles-v1",
+  "engine": "0.18.0",
+  "os": "windows",
+  "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
+  "dartVersion": "3.14.0",
+  "executable": "bundle_benchmark_main.exe",
+  "device": {
+    "physicalMemoryBytes": 137242288128,
+    "threadStackBytes": 1044160,
+    "processors": 16,
+    "calibrationMicros": 122176
+  },
+  "threadStackAvailableBytes": 1044208,
+  "stackCeilingBytes": 522104,
+  "jsFrameStackBytes": 4834,
+  "maxRecursionDepthAtStackCeiling": 108,
+  "workloads": {
+    "inkdex-0.9/MangaDex:load": {
+      "medianMicros": 159965,
+      "p95Micros": 201843,
+      "peakAllocatedBytes": 5384576,
+      "minimalHeapLimitBytes": 5532918,
+      "minimalStackLimitBytes": 68416,
+      "deadlineOvershootMicros": [
+        14529,
+        23941,
+        26690,
+        42442,
+        50918
+      ]
+    },
+    "inkdex-0.9/MangaDex:search": {
+      "medianMicros": 2892,
+      "p95Micros": 3663,
+      "peakAllocatedBytes": 3846757,
+      "minimalHeapLimitBytes": 5474759,
+      "minimalStackLimitBytes": 92505,
+      "deadlineOvershootMicros": [
+        13,
+        152,
+        485,
+        719,
+        1031
+      ]
+    },
+    "inkdex-0.9/MangaDex:details": {
+      "medianMicros": 45117,
+      "p95Micros": 45704,
+      "peakAllocatedBytes": 9588883,
+      "minimalHeapLimitBytes": 9710473,
+      "minimalStackLimitBytes": 72431,
+      "deadlineOvershootMicros": [
+        1835,
+        2651,
+        3332,
+        9362,
+        11998,
+        14425,
+        19510
+      ]
+    },
+    "inkdex-0.9/WeebCentral:load": {
+      "medianMicros": 118563,
+      "p95Micros": 134114,
+      "peakAllocatedBytes": 4540029,
+      "minimalHeapLimitBytes": 4584312,
+      "minimalStackLimitBytes": 68416,
+      "deadlineOvershootMicros": [
+        3229,
+        22506,
+        24175,
+        31090,
+        32067,
+        37470
+      ]
+    },
+    "inkdex-0.9/WeebCentral:search": {
+      "medianMicros": 28941,
+      "p95Micros": 38793,
+      "peakAllocatedBytes": 3160892,
+      "minimalHeapLimitBytes": 4606711,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        191,
+        289,
+        313,
+        314,
+        479,
+        4515
+      ]
+    },
+    "inkdex-0.9/WeebCentral:details": {
+      "medianMicros": 1143247,
+      "p95Micros": 1701260,
+      "peakAllocatedBytes": 6432008,
+      "minimalHeapLimitBytes": 6465786,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        255,
+        369,
+        370,
+        629,
+        643
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:load": {
+      "medianMicros": 89903,
+      "p95Micros": 111491,
+      "peakAllocatedBytes": 3632750,
+      "minimalHeapLimitBytes": 3664895,
+      "minimalStackLimitBytes": 136670,
+      "deadlineOvershootMicros": [
+        8506,
+        11448,
+        15582,
+        16403,
+        25863,
+        37888,
+        58704
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:search": {
+      "medianMicros": 52319,
+      "p95Micros": 78608,
+      "peakAllocatedBytes": 2619895,
+      "minimalHeapLimitBytes": 3815588,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        175,
+        320,
+        601
+      ]
+    },
+    "gabrielcwt-0.8/WeebCentral:details": {
+      "medianMicros": 1205106,
+      "p95Micros": 2389048,
+      "peakAllocatedBytes": 5734182,
+      "minimalHeapLimitBytes": 5844285,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        193,
+        217,
+        415,
+        5632,
+        7580,
+        17873,
+        64150
+      ]
+    },
+    "numby-0.8/WeebCentral:load": {
+      "medianMicros": 682814,
+      "p95Micros": 1117454,
+      "peakAllocatedBytes": 6226978,
+      "minimalHeapLimitBytes": 6283181,
+      "minimalStackLimitBytes": 72431,
+      "deadlineOvershootMicros": [
+        36357,
+        120509,
+        181135
+      ]
+    },
+    "numby-0.8/WeebCentral:search": {
+      "medianMicros": 83273,
+      "p95Micros": 175948,
+      "peakAllocatedBytes": 4123450,
+      "minimalHeapLimitBytes": 6355657,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        142,
+        625,
+        1841,
+        2334
+      ]
+    },
+    "numby-0.8/WeebCentral:details": {
+      "medianMicros": 1152208,
+      "p95Micros": 1856164,
+      "peakAllocatedBytes": 7389326,
+      "minimalHeapLimitBytes": 7483392,
+      "minimalStackLimitBytes": 216968,
+      "deadlineOvershootMicros": [
+        253,
+        255,
+        372,
+        473,
+        539,
+        705,
+        721
+      ]
+    },
+    "neihc1002-0.8/Mangadex:load": {
+      "medianMicros": 62015,
+      "p95Micros": 142807,
+      "peakAllocatedBytes": 3559000,
+      "minimalHeapLimitBytes": 3606126,
+      "minimalStackLimitBytes": 124625,
+      "deadlineOvershootMicros": [
+        6722,
+        13892,
+        15833,
+        28787,
+        47628,
+        58203,
+        214374
+      ]
+    },
+    "inkdex-0.9/MangaFire:load": {
+      "medianMicros": 88740,
+      "p95Micros": 117338,
+      "peakAllocatedBytes": 3559000,
+      "minimalHeapLimitBytes": 3606126,
+      "minimalStackLimitBytes": 68416,
+      "deadlineOvershootMicros": [
+        2081,
+        3862,
+        7120,
+        9538,
+        18874,
+        19666
+      ]
+    }
+  },
+  "slowestOperation": "gabrielcwt-0.8/WeebCentral:details",
+  "maxDeadlineOvershootMicros": 214374,
+  "largestReplyToDartMicros": 8743,
+  "largestReplyEncodeMicros": 2478,
+  "profile": {
+    "source": "U6 real Paperback bundles (14 workloads, replayed captures), windows, bundle_benchmark_main.exe",
+    "peakHeapBytes": 9710473,
+    "peakStackBytes": 216968,
+    "slowestOperationMicros": 2389048,
+    "referenceCalibrationMicros": 122176
+  }
+}

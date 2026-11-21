@@ -1,0 +1,26 @@
+{
+  "site": "mangafire",
+  "query": "Onimai",
+  "recordedAt": "2026-11-21T01:20:53.804272Z",
+  "runs": [
+    {
+      "bundle": "inkdex-0.9/MangaFire",
+      "apiFamily": "paperback-0.9",
+      "sha256": "193ba19c1f837f1f5a4ac2fe2a378c4546ce8cd048670ae93f684cbd4a280eab",
+      "search": {
+        "failure": {
+          "code": "capability-unavailable",
+          "message": "executeInWebView: No browser port configured",
+          "operation": "executeInWebView"
+        }
+      },
+      "details": {
+        "failure": {
+          "code": "capability-unavailable",
+          "message": "executeInWebView: No browser port configured",
+          "operation": "executeInWebView"
+        }
+      }
+    }
+  ]
+}

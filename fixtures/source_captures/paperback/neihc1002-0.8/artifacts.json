@@ -1,0 +1,28 @@
+{
+  "repository": "https://neihc1002.github.io/paperback/0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T00:56:40Z",
+  "licence": "none declared (github.com/neihc1002/paperback has no licence file); third-party build, held only as interoperability test evidence",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://neihc1002.github.io/paperback/0.8/versioning.json",
+    "sha256": "58d898aac1afa7b82597aec195e77d04a43b010afc5886c13a813f8cd6d19dad",
+    "size": 2697,
+    "builtWith": {
+      "toolchain": "0.8.0-alpha.47",
+      "types": "0.8.0-alpha.47"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "Mangadex",
+      "version": "1.0.0",
+      "contentRating": "MATURE",
+      "path": "Mangadex/source.js",
+      "sourceUrl": "https://neihc1002.github.io/paperback/0.8/Mangadex/source.js",
+      "sha256": "20a21b1400675cbd830cff42357dd81f2b751f90da5f1599d2e4a5de0d08f8db",
+      "size": 37720,
+      "licence": "none declared (github.com/neihc1002/paperback has no licence file); third-party build, held only as interoperability test evidence"
+    }
+  ]
+}

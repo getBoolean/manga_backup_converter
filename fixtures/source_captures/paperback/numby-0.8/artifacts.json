@@ -1,0 +1,28 @@
+{
+  "repository": "https://g2asell2019.github.io/numby-extensions/0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T00:45:58Z",
+  "licence": "GPL-3.0 (github.com/g2asell2019/numby-extensions)",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://g2asell2019.github.io/numby-extensions/0.8/versioning.json",
+    "sha256": "666cae0067698221007f49abd26d76fc5dd0b478f7b3eee21a78e31904cf4a3a",
+    "size": 702,
+    "builtWith": {
+      "toolchain": "0.8.7",
+      "types": "0.8.7"
+    }
+  },
+  "bundles": [
+    {
+      "sourceId": "WeebCentral",
+      "version": "2.0.12",
+      "contentRating": "MATURE",
+      "path": "WeebCentral/source.js",
+      "sourceUrl": "https://g2asell2019.github.io/numby-extensions/0.8/WeebCentral/source.js",
+      "sha256": "a7534657efe2d41e64345efec3c649ba138bfb15386d63bd88f98ac714afc9f6",
+      "size": 762142,
+      "licence": "GPL-3.0 (github.com/g2asell2019/numby-extensions)"
+    }
+  ]
+}

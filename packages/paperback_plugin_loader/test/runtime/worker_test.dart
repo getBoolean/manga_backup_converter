@@ -11,7 +11,6 @@ import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 
-import '../../bin/paperback_source_worker.dart' show parseLimitArguments;
 import '../e2e/settings_echo_worker.dart' show SettingsEchoAdapter;
 import 'test_support.dart';
 
@@ -63,7 +62,7 @@ final class WorkerHarness {
     worker = PaperbackSourceWorker(
       input: _input.stream,
       output: _output,
-      limits: limits ?? testLimits(operationDeadline: const Duration(milliseconds: 500)),
+      limits: limits ?? testLimits(),
       adapter: adapter,
       pid: 4242,
       log: logs.add,
@@ -156,7 +155,7 @@ void main() {
     check(response.capabilities.apiFamilies).isEmpty();
     final WorkerReportedLimits limits = response.limits!;
     check(limits.fields).containsKey('memoryLimitBytes');
-    check(limits.operationDeadline).equals(const Duration(milliseconds: 500));
+    check(limits.operationDeadline).equals(const Duration(seconds: 30));
     // No benchmark evidence for these, so they are not reported.
     check(limits.poolSize).isNull();
     check(limits.cancelGrace).isNull();
@@ -222,7 +221,10 @@ void main() {
   });
 
   test('a busy loop replies timeout at the deadline, and the package keeps serving', () async {
-    final harness = WorkerHarness(adapter: ScriptAdapter(fakeHttp()));
+    final harness = WorkerHarness(
+      adapter: ScriptAdapter(fakeHttp()),
+      limits: testLimits(operationDeadline: const Duration(milliseconds: 500)),
+    );
     final String path = script('function search(q) { if (q === "spin") for (;;) {} return q; }');
     await harness.request('package.load', pkg: 'pkg.test', payload: loadPayload(path));
     final ProtocolFrame spin = await harness.request('search', pkg: 'pkg.test', payload: searchPayload('spin'));
@@ -375,17 +377,34 @@ void main() {
   });
 
   test('the worker binary requires every limit', () {
-    check(() => parseLimitArguments(const <String>[])).throws<FormatException>();
+    check(() => parseWorkerArguments(const <String>[])).throws<FormatException>();
     check(
-      () => parseLimitArguments(const <String>['--memory-limit-bytes=1', '--max-stack-bytes=1', '--job-slice-ms=1']),
+      () => parseWorkerArguments(const <String>['--memory-limit-bytes=1', '--max-stack-bytes=1', '--job-slice-ms=1']),
     ).throws<FormatException>();
-    final PaperbackRuntimeLimits limits = parseLimitArguments(const <String>[
+    final WorkerArguments parsed = parseWorkerArguments(const <String>[
       '--memory-limit-bytes=1048576',
       '--max-stack-bytes=65536',
       '--operation-deadline-ms=100',
       '--job-slice-ms=2',
+      '--deadline-headroom-ms=7',
     ]);
+    final PaperbackRuntimeLimits limits = parsed.limits;
     check(limits.operationDeadline).equals(const Duration(milliseconds: 100));
+    check(parsed.deadlineHeadroom).equals(const Duration(milliseconds: 7));
+    check(parsed.network).isA<LiveNetwork>();
+    check(
+      () => parseWorkerArguments(const <String>[
+        '--memory-limit-bytes=1',
+        '--max-stack-bytes=1',
+        '--operation-deadline-ms=1',
+        '--job-slice-ms=1',
+        '--deadline-headroom-ms=1',
+        '--record=x',
+        '--record-source=s',
+        '--record-min-interval-ms=100',
+        '--record-licence=l',
+      ]),
+    ).throws<FormatException>();
     check(jsonEncode(limits.toJson())).contains('1048576');
   });
 }

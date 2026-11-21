@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:meta/meta.dart';
 import 'package:paperback_plugin_loader/src/runtime/promise_bridge.dart';
 import 'package:paperback_plugin_loader/src/runtime/runtime_limits.dart';
 import 'package:quickjs/quickjs.dart';
@@ -91,6 +92,12 @@ final class SourceJsRuntime {
 
   bool get isClosed => _closed;
 
+  /// Replaces `limits.operationDeadline` for later operations. Only the
+  /// benchmark uses it, to place a deadline inside one measured operation
+  /// without bounding the bundle load that precedes it.
+  @visibleForTesting
+  Duration? operationDeadlineOverride;
+
   /// The underlying engine runtime, for memory accounting.
   JsRuntime get engine => _runtime;
 
@@ -145,7 +152,8 @@ final class SourceJsRuntime {
     if (_busy) throw StateError('$name is already running an operation');
     _busy = true;
     final CancellationToken token = cancel ?? CancellationToken.none;
-    final int deadlineNs = QuickJs.nowNanoseconds() + limits.operationDeadline.inMicroseconds * 1000;
+    final Duration deadline = operationDeadlineOverride ?? limits.operationDeadline;
+    final int deadlineNs = QuickJs.nowNanoseconds() + deadline.inMicroseconds * 1000;
     _token.reset();
     _runtime.clearInterrupt();
     bridge.endOperation();

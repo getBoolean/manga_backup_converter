@@ -5,8 +5,6 @@ import 'dart:io';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 
-import '../../bin/paperback_source_worker.dart' show parseLimitArguments;
-
 /// A test adapter (U6 supplies the real Paperback adapters): `package.load`
 /// hosts sources `one` and `two` and keeps the settings it was given;
 /// `settings.update` replaces them; `search` echoes the searched source's
@@ -65,7 +63,7 @@ final class SettingsEchoAdapter implements PaperbackPackageAdapter {
 /// for the supervisor end-to-end tests. Takes the same limit arguments as
 /// `bin/paperback_source_worker.dart`.
 Future<void> main(List<String> args) async {
-  final PaperbackRuntimeLimits limits = parseLimitArguments(args);
+  final PaperbackRuntimeLimits limits = parseWorkerArguments(args).limits;
   await runZoned(
     () => PaperbackSourceWorker(
       input: stdin,

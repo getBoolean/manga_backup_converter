@@ -1,7 +1,8 @@
-/// The QuickJS limit sizing rule (KTD25). **Provisional:** the workload
-/// profile comes from synthetic benchmarks (`benchmark/`) until U6 measures
-/// real Paperback bundles; the policy factors are the rule's tunables and are
-/// re-derived from those results.
+/// The QuickJS limit sizing rule (KTD25). The workload profile comes from the
+/// U6 real-bundle benchmark (`paperbackBundleProfile` in `worker_plan.dart`,
+/// `benchmark/bundle_benchmark.dart`); U5's synthetic workloads remain in
+/// `benchmark/quickjs_limits_benchmark.dart` for comparison. The policy
+/// factors are the rule's tunables (`paperbackSizingPolicy`).
 ///
 /// Inputs are all measurable at worker startup ([DeviceCapability.measure]),
 /// so each device sizes its own limits. The rule, its inputs and the derived
@@ -225,7 +226,9 @@ final class QuickJsSizing {
   final List<String> warnings;
 
   Map<String, Object?> toJson() => <String, Object?>{
-    'rule': 'quickjs-sizing-v1 (provisional: synthetic workloads)',
+    // v2: the same formulas over the U6 real-bundle profile; the profile's
+    // source names the data it came from.
+    'rule': 'quickjs-sizing-v2',
     'limits': limits.toJson(),
     'device': device.toJson(),
     'profile': profile.toJson(),

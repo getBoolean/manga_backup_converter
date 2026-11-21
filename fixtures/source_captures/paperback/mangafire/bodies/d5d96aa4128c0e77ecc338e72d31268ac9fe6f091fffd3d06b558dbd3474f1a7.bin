@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MangaFire - Read Manga Online Free</title>
+<meta name="description" content="Free read manga online in high quality. Update hourly, No ads, No registration required. Just enjoy your manga ;)">
+<meta name="keywords" content="read manga online, read manga free, read free manga, manga online, read manga no ads">
+<meta property="og:title" content="MangaFire - Read Manga Online Free">
+<meta property="og:description" content="Free read manga online in high quality. Update hourly, No ads, No registration required. Just enjoy your manga ;)">
+<meta property="og:type" content="website">
+
+<link rel="icon" href="/assets/mangafire/favicon.svg">
+<script>window.__theme = {"logo":"/assets/mangafire/logo.png","logoSm":"/assets/mangafire/logo-sm.png"};</script>
+<script>window.__config = "XRiqHvYHPlx1ySdFkwsKlcW8THf45jHdInyp-IvPerjW16Ji2F43iB6VjIvpdYjGnCxdXnjvU5Xqem6XqnjVuTmE_vsn9i50rZRu0l6rxBuc1832D4pfkCYPIgx-Oz0";</script>
+<script>window.__build = "f584c55e802126f4f323cba6cd8e08cc";</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="preload" as="style" href="https://s.mfcdn.nl/build/mf/assets/main-to9r6n-C5Ac0ix7.css" /><link rel="modulepreload" as="script" href="https://s.mfcdn.nl/build/mf/assets/main-to9r6n-B7h3oPSn.js" /><link rel="modulepreload" as="script" href="https://s.mfcdn.nl/build/mf/assets/rolldown-runtime-to9r6n-QTnfLwEv.js" /><link rel="modulepreload" as="script" href="https://s.mfcdn.nl/build/mf/assets/polyfill-to9r6n-CrkErVq0.js" /><link rel="stylesheet" href="https://s.mfcdn.nl/build/mf/assets/main-to9r6n-C5Ac0ix7.css" /><script type="module" src="https://s.mfcdn.nl/build/mf/assets/main-to9r6n-B7h3oPSn.js"></script></head>
+<body>
+    <div id="app-root"></div>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'0000000000000000',t:'MTc5NTIyNDA1OQ=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=0000000000000000',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"580b548a169e4a5a99ac9542bf15e94d","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>

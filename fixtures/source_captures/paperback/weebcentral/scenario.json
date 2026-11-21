@@ -1,0 +1,125 @@
+{
+  "site": "weebcentral",
+  "query": "Onimai",
+  "recordedAt": "2026-11-21T01:20:37.752148Z",
+  "runs": [
+    {
+      "bundle": "inkdex-0.9/WeebCentral",
+      "apiFamily": "paperback-0.9",
+      "sha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+      "search": {
+        "hits": 1,
+        "first": {
+          "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+          "title": "ONIMAI - I'm Now Your Sister!"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+        "title": "ONIMAI - I'm Now Your Sister!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 114,
+        "firstChapter": {
+          "chapterId": "01KWM07QYFJMAP46S1A3ZVDWYG",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.9",
+            "sortingIndex": -1,
+            "version": "Official",
+            "langCode": "🇬🇧"
+          },
+          "title": "Step 100",
+          "chapterNumber": 100.0,
+          "volumeNumber": 0.0,
+          "scanlators": [
+            "Official"
+          ],
+          "language": "🇬🇧",
+          "dateUploaded": "2026-07-03T12:46:10.386Z",
+          "url": null
+        }
+      }
+    },
+    {
+      "bundle": "gabrielcwt-0.8/WeebCentral",
+      "apiFamily": "paperback-0.8",
+      "sha256": "5e8fd82fb8962ba215a9eaf453f7e29f0c8fb3f19682dbe3abde97e2b483237a",
+      "search": {
+        "hits": 1,
+        "first": {
+          "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+          "title": "ONIMAI - I'm Now Your Sister!"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+        "title": "ONIMAI - I'm Now Your Sister!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 114,
+        "firstChapter": {
+          "chapterId": "01KWM07QYFJMAP46S1A3ZVDWYG",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 113,
+            "langCode": "en"
+          },
+          "title": "Step 100",
+          "chapterNumber": 100.0,
+          "volumeNumber": 1.0,
+          "scanlators": [],
+          "language": "en",
+          "dateUploaded": "2026-07-03T12:46:10.386Z",
+          "url": null
+        }
+      }
+    },
+    {
+      "bundle": "numby-0.8/WeebCentral",
+      "apiFamily": "paperback-0.8",
+      "sha256": "a7534657efe2d41e64345efec3c649ba138bfb15386d63bd88f98ac714afc9f6",
+      "search": {
+        "hits": 1,
+        "first": {
+          "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+          "title": "ONIMAI - I'm Now Your Sister!"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "01J76XYF0TGKQ7XJ4XVPV1C0BP",
+        "title": "ONIMAI - I'm Now Your Sister!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 114,
+        "firstChapter": {
+          "chapterId": "01KWM07QYFJMAP46S1A3ZVDWYG",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 114,
+            "group": "",
+            "langCode": "🇬🇧"
+          },
+          "title": "Step 100",
+          "chapterNumber": 100.0,
+          "volumeNumber": 0.0,
+          "scanlators": [],
+          "language": "🇬🇧",
+          "dateUploaded": "2026-07-03T12:46:10.386Z",
+          "url": null
+        }
+      }
+    }
+  ]
+}

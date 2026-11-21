@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart' show RemoteSourceList, SourceEntry, SourceListManager;
@@ -5,9 +6,13 @@ import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvi
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
+import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
+
+export 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart' show PaperbackPluginLoader;
 
 /// Artifact bytes held in memory, verified against the digest computed when
 /// they were admitted.
@@ -193,10 +198,6 @@ class StubPluginLoader extends PluginLoader {
   ];
 }
 
-class PaperbackPluginLoader extends StubPluginLoader {
-  const PaperbackPluginLoader() : super('paperback');
-}
-
 class MangayomiPluginLoader extends StubPluginLoader {
   const MangayomiPluginLoader() : super('mangayomi');
 }
@@ -206,13 +207,22 @@ class MangayomiPluginLoader extends StubPluginLoader {
 /// use [tachi], the conversion's desktop Tachi runtime; without one (a host
 /// with no JVM worker) every Tachi package fails with a typed capability
 /// failure rather than loading stub sources.
+///
+/// [cacheRoot] holds verified source artifacts (Paperback bundles);
+/// [onLog] receives redacted worker diagnostics.
 PluginLoader pluginLoaderFor(
   BackupFormat format, {
   void Function(SettingsSnapshot settings)? onSettings,
   DesktopTachiRuntime? tachi,
+  String? cacheRoot,
+  void Function(String line)? onLog,
 }) => switch (format) {
   Aidoku() => AidokuPluginLoader(onSettings: onSettings),
-  Paperback() => const PaperbackPluginLoader(),
+  Paperback() => PaperbackPluginLoader.desktop(
+    cacheRoot: cacheRoot ?? p.join(Directory.systemTemp.path, 'manga_backup_converter'),
+    onSettings: onSettings,
+    onLog: onLog,
+  ),
   Tachiyomi() || Tachimanga() =>
     tachi == null ? const UnavailableTachiPluginLoader() : TachiPluginLoader(runtime: tachi, onSettings: onSettings),
   Mangayomi() => const MangayomiPluginLoader(),

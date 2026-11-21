@@ -187,3 +187,151 @@ Enforce offline replay on WebKit: candidates are a blackhole proxy with a loopba
 needs a navigation-delegate hook wry does not expose. Re-check MangaFire on both WebKit engines. The WSL Ubuntu on
 the Windows host has WSLg (`DISPLAY=:0`) but no `webkit2gtk-4.1`/`gtk+-3.0` development packages and no Rust;
 nothing was installed.
+
+## Paperback host (`packages/paperback_plugin_loader`, U6)
+
+The Paperback Dart worker hosts original Paperback bundles, one QuickJS runtime per bundle (KTD2), through two
+explicit host adapters (KTD6): `paperback-0.8` and `paperback-0.9`. It speaks protocol 1.1 on stdio. The CLI runs
+it as a hidden subcommand of its own executable (`__paperback-worker`); `bin/paperback_source_worker.dart` is the
+standalone entry point.
+
+### Repositories, entry points and qualification sources
+
+Pinned under `fixtures/source_captures/paperback/<repo>/` (`versioning.json`, bundles, and `artifacts.json` with
+source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
+
+| Repository | Catalog | `builtWith.types` | API family | Licence |
+|---|---|---|---|---|
+| Inkdex `https://inkdex.github.io/extensions/0.9/stable/` | 68 sources | `1.0.0-alpha.94` | 0.9 | GPL-3.0 (source repos `inkdex/general-extensions`); the catalog repo declares none |
+| neihc1002 `https://neihc1002.github.io/paperback/0.8/` | 8 sources | `0.8.0-alpha.47` | 0.8 | none declared (flagged) |
+| GabrielCWT `https://gabrielcwt.github.io/gabe-extensions/0.8/` | 2 sources | `0.8.0-alpha.47` | 0.8 | none declared (flagged) |
+| numby `https://g2asell2019.github.io/numby-extensions/0.8/` | 2 sources | `0.8.7` | 0.8 | GPL-3.0 |
+| Netsky `https://thenetsky.github.io/netskys-extensions/0.8/` | 14 sources (catalog only) | `0.8.7` | 0.8 | see repository |
+| Paperback default `https://paperback-ios.github.io/extensions-default/0.8/` | 1 source (catalog only) | `0.8.0-alpha.47` | 0.8 | see repository |
+
+- **API family** comes from `builtWith.types`: `0.8.x` is the 0.8 API, `1.0.0-alpha.x` is the app's 0.9 API.
+  Any other version is refused as `unsupported-api`.
+- **Installation entry points** were checked against repository trees, not assumed. 0.9 repositories publish
+  `<repo>/<id>/index.js`, a rolldown bundle starting `var source=`. 0.8 toolchain `0.8.0-alpha.47` publishes
+  byte-identical `<id>/source.js` and `<id>/index.js` (browserify UMD that sets `Sources`). Toolchain `0.8.7`
+  publishes only `<id>/source.js` (esbuild, `this.Sources = ...`). The 0.8 host therefore installs `source.js`.
+- **Cheerio:** 0.8.0-alpha.47 bundles expect the host to inject Cheerio (`new Sources[id](cheerio)`); 0.8.7 and
+  0.9 bundles carry their own copy.
+
+| Qualification source | `paperback-0.8` | `paperback-0.9` |
+|---|---|---|
+| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed). Search and details ran, but MangaDex answered both with its edge browser challenge (`302` to `mangadex.org/edge/challenge`, POWBlock proof of work), and the source fails on the HTML. **Open cell** (below) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
+| WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
+| MangaFire | **Missing cell.** No surveyed 0.8 catalog lists MangaFire: Paperback default 0.8, Netsky 0.8, neihc1002 0.8, GabrielCWT 0.8 and numby 0.8 (SHA-256 in each `artifacts.json`). Not substituted; it needs an explicit coverage revision | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
+
+Chapter identities are the site's own and identical across families: WeebCentral's first chapter is
+`01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
+
+**MangaDex 0.8 cell.** The 0.8 bundle sets `user-agent` to the host's `getDefaultUserAgent()` (a mobile Safari
+string) and `referer: https://mangadex.org`. The 0.9 bundle also sends a `referer` but no user agent (so the
+HTTP client's default), and was not challenged in the same
+capture session. The likely trigger is a browser user agent on a client that runs no JavaScript; this is not
+verified, because one capture run per source was authorised. Re-capture with a different `getDefaultUserAgent()`
+once a second run is approved, or treat MangaDex's challenge as `interaction-required` at the U8 browser join.
+
+### Trust and admission (KTD6)
+
+Paperback repositories are unsigned, so the trust decision binds a bundle's exact bytes and API family: the
+fingerprint is `paperback-0.9:sha256:<hex>` under the per-bundle key `<repository>#<sourceId>`, so two bundles from
+one repository never overwrite each other's decision. The CLI answers it with the core `RepositoryTrustGate`
+(`admit('paperback', key, fingerprint)`); qualification runs use the pinned digests. Every check runs before any
+JavaScript:
+
+1. `PaperbackSourceProvider.admit` computes the digest, requires the bundle's shape to declare the catalog's
+   family, asks for the trust decision, then stages the bytes in the `ArtifactCache` under a profile whose host
+   compatibility is the family.
+2. Cache hits re-hash and re-ask trust. This covers `cached` and the CLI's `CachingPluginLoader`, which re-enters
+   `loadPluginFromBytes`. Changed cached bytes present a changed fingerprint (asked again, refusable) or are
+   dropped.
+3. The supervisor re-hashes the leased file before `package.load`.
+4. The worker re-reads and re-hashes the staged file, checks the artifact kind (`paperback-bundle-0.8` or
+   `-0.9`) and the bundle shape, and only then installs host globals.
+
+### Host adapters
+
+Host behaviour is JavaScript in `assets/` (`prelude.js`, `api08.js`, `api09.js`, `ops.js`), compiled into the
+worker by `tool/embed_js_assets.dart`. Only primitives cross into Dart: one HTTP exchange, a timer wake-up, a
+browser call, and synchronous codecs (UTF-8, Latin-1, UTF-16, base64, MD5). Semantics follow each toolchain's
+reference runtime, `@paperback/runtime-polyfills` 0.8.7 and 1.0.0-alpha.94 (MIT).
+
+| Capability | 0.8 (`App`) | 0.9 (`Application`) |
+|---|---|---|
+| Requests | `createRequestManager().schedule`: `interceptRequest`, then `url + param`, then `interceptResponse` on the packed `Response` (`data` as UTF-8, `rawData` as bytes). Object bodies are form-encoded when the content type says so, otherwise JSON. A non-2xx status resolves, since sources check `status` | `scheduleRequest` returns `[Response, ArrayBuffer]`. Request interceptors run in registration order, each given the previous result; response interceptors run in reverse order. Object bodies are sent as multipart form data |
+| Redirects | followed hop by hop (at most 5) | followed hop by hop through `setRedirectHandler`, which may replace or cancel the next hop |
+| Cookies | `request.cookies` plus an in-memory manager cookie store (`cookieStore`), fed by every hop's `Set-Cookie` | `request.cookies` becomes one `Cookie` header; `Set-Cookie` becomes `response.cookies`; cookies set by a redirect hop travel with the next hop |
+| Rate limits | `requestsPerSecond` spacing on JS timers | the bundles' own `BasicRateLimiter` over `Application.sleep` |
+| Timers | `setTimeout`, `setInterval`, `clear*`, `queueMicrotask`. State lives in JS and the host call is a re-armable wake-up, so a sleep parked at the end of one operation settles in the next | same |
+| State | `createSourceStateManager` (`store`, `retrieve`, `keychain`) | `get/setState`, `get/setSecureState`, `resetAllState` |
+| Settings | protocol 1.1 settings seed state per source: string sets as arrays, source scopes override package values. Secrets seed only the keychain/secure state, in memory (KTD9) | same |
+| Parser | pinned Cheerio 1.0.0-rc.12 injected (the toolchain's `^1.0.0-rc.12`), `entities` 4.5.0 | the bundles' own Cheerio; `decodeHTMLEntities` is `entities.decodeHTMLStrict` |
+| Browser | not part of the 0.8 API | `executeInWebView`: open a source-scoped session, seed the context's cookies, `loadData(html, baseUrl)`, run `inject` as an async function, return its result and the session's cookies, close (storage deleted). The result travels back on the 1.1 message channel, because `BrowserPort.evaluate` does not promise to await a promise |
+| Other members | `create*` factories return their argument; `createDUI*` rows carry `type` | any other `Application` member exists but throws a named `capability-unavailable` |
+| Not provided | Node `fs` and process, QuickJS `std`/`os` | same; WebCrypto (`crypto_digest` and friends) is a named capability failure |
+
+The pinned host library (`assets/paperback_host_lib.js`, 336 KiB) is built from `tool/host_lib/` with esbuild 0.24.0;
+the lockfile is committed. npm was used once, in a temporary directory, to produce it. Bundled licences: cheerio
+1.0.0-rc.12, htmlparser2 8.0.2, parse5 7.3.0, parse5-htmlparser2-tree-adapter 7.1.0 and dom-serializer 2.0.0 (MIT);
+cheerio-select 2.1.0, css-select 5.2.2, css-what 6.2.2, domelementtype 2.3.0, domhandler 5.0.3, domutils 3.2.2,
+entities 4.5.0 and 6.0.1 (the copy parse5 nests) and nth-check 2.1.1 (BSD-2-Clause); boolbase 1.0.0 (ISC). Their
+licence texts ship beside the bundle in `assets/paperback_host_lib.LICENSES.txt`.
+
+Cheerio rc.12 does not resolve `prop("href")` against a `baseURI` (that arrived in 1.0.0); 0.8 sources build
+absolute URLs themselves, and a test pins that behaviour.
+
+### Captures
+
+`fixtures/source_captures/paperback/{mangadex,weebcentral,mangafire}/` were recorded on 2026-11-21 by
+`tool/capture_paperback_sources.dart` through the worker's `--record` mode. One worker session per site ran every
+pinned bundle of that site, from both families, for the fixed query `Onimai`, with requests at least 1.5 s apart.
+`scenario.json` beside each capture records what each bundle returned. Bodies were sanitised
+(`tool/sanitize_captures.dart`): MangaDex's challenge page embedded a token carrying the recording client's network
+address, and Cloudflare snippets carried ray IDs. Tests and the e2e suite replay with `--replay`; a request without
+a capture fails the operation loudly, even when the source catches the error.
+
+### Limits (KTD25)
+
+`benchmark/bundle_benchmark.dart` measures the pinned bundles on the replayed captures: each bundle's load, and
+search and details for the four bundles whose captures complete them. It runs under `flutter test` and as an AOT
+executable (`benchmark/bundle_benchmark_main.dart`), because the worker ships AOT. Rate-limiter sleeps are made
+instant for CPU timing (they are host waits). Reference device: Windows 11 x64, MSVC `/O2` QuickJS-ng 0.18.0,
+16 logical processors, 128 GiB. Results: `benchmark/results/2026-11-21-windows-x64-bundles-{aot,jit}.json`.
+
+| AOT workload | Median | p95 | Minimal heap | Minimal stack |
+|---|---|---|---|---|
+| MangaDex 0.9 load / search / details | 160 / 2.9 / 45 ms | 202 / 3.7 / 46 ms | 5.5 / 5.5 / 9.7 MB | 67 / 90 / 71 KB |
+| WeebCentral 0.9 load / search / details | 119 / 29 / 1,143 ms | 134 / 39 / 1,701 ms | 4.6 / 4.6 / 6.5 MB | 67 / 212 / 212 KB |
+| WeebCentral 0.8 (GabrielCWT) load / search / details | 90 / 52 / 1,205 ms | 112 / 79 / 2,389 ms | 3.7 / 3.8 / 5.8 MB | 133 / 212 / 212 KB |
+| WeebCentral 0.8 (numby) load / search / details | 683 / 83 / 1,152 ms | 1,118 / 176 / 1,856 ms | 6.3 / 6.4 / 7.5 MB | 71 / 212 / 212 KB |
+| MangaDex 0.8 load, MangaFire 0.9 load | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
+
+- **Profile** (`paperbackBundleProfile`, replacing U5's synthetic one): peak heap 9.71 MB (MangaDex details mapping
+  a 1 MB chapter feed), peak stack 217 KB (Cheerio and parse5 over WeebCentral pages), slowest operation 2.39 s
+  (WeebCentral 0.8 details, p95), reference calibration 122 ms.
+- **Sizing rule** (`quickjs-sizing-v2`: U5's formulas, policy factors unchanged at heap 2x, stack 2x, deadline
+  4x, memory share 0.25, stack share 0.5, 50 slices per deadline). Derived on the reference device for one
+  runtime: memory 19.4 MB, stack 434 KB (below the 522 KB cap), engine deadline 9.56 s plus the host-wait
+  allowance, job slice 191 ms. The host-wait allowance (186 s) is 6 requests per operation (the most one
+  qualification operation made, rounded up) at the host's 30 s request timeout, plus 1 s of rate-limiter sleep per
+  request. It is the supervisor's policy, not a QuickJS property.
+- **Deadline race.** The worker used to report the engine deadline as `operationDeadlineMs`, so an adopting
+  supervisor timed operations out at the same instant the engine did and could kill a worker that was already
+  stopping. The longest a single operation ran past its engine deadline (deadlines placed at 20 to 105 % of the
+  operation) was 64.2 ms (WeebCentral 0.8 details); encoding the largest reply frame (MangaDex details, 223
+  chapters) takes 2.5 ms more. The worker now takes `--deadline-headroom-ms` (that 66.6 ms tail, scaled by the
+  device calibration, times 4: 267 ms on the reference device) and reports `operationDeadlineMs` = engine deadline
+  + headroom, with both parts in the limit fields. The CLI uses the same headroom as its cancel grace.
+- **Recursion (Windows MSVC).** The AOT worker thread has 1,044,208 bytes of stack; QuickJS uses 4,834 bytes per
+  JS frame, so the 50 % stack share allows 108 frames. The real bundles need at most 217 KB, about 45 frames; with
+  the 2x stack headroom, about 90 frames. That fits, so the qualification bundles do not need a larger-stack native
+  thread. The margin over the headroomed need is only 1.2x: deeper HTML could exceed it, and fails as a
+  stack-limit source error rather than a crash. JIT (`flutter_tester`) shows the same ceiling (107 frames).
+- **JIT outliers.** The JIT run had multi-second stalls that AOT did not reproduce (WeebCentral 0.9 details p95
+  10.1 s, one 5.75 s deadline overshoot). Their cause is unexplained (machine contention is suspected). The AOT
+  figures size the shipped worker.
+- **Not measured:** Clang targets (Android, Apple, Linux), slower reference devices, worker start-up to handshake
+  (the CLI allows 30 s, an unmeasured policy value), and concurrency above one runtime.

@@ -6,10 +6,14 @@ import 'package:http/testing.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 
 /// Small explicit limits for tests (KTD25: tests never rely on defaults).
+///
+/// The default deadline is long on purpose: a test that is not about the
+/// deadline must not fail because a loaded machine ran it slowly. Tests about
+/// the deadline pass a short one and assert the termination reason.
 PaperbackRuntimeLimits testLimits({
   int memoryLimitBytes = 16 * 1024 * 1024,
   int maxStackBytes = 256 * 1024,
-  Duration operationDeadline = const Duration(milliseconds: 1500),
+  Duration operationDeadline = const Duration(seconds: 30),
   Duration jobSlice = const Duration(milliseconds: 5),
 }) => PaperbackRuntimeLimits(
   memoryLimitBytes: memoryLimitBytes,
