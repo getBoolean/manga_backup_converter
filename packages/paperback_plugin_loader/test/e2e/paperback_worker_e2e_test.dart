@@ -6,11 +6,13 @@
 /// launches the built executable with its scrubbed environment, so the
 /// supervised PID is the worker itself.
 ///
-/// The shipped worker (`bin/paperback_source_worker.dart`) has no Paperback
-/// API adapter yet (U6), so its `package.load` answers `unsupported-api`.
-/// Settings are therefore exercised through `settings_echo_worker.dart`: the
-/// same `PaperbackSourceWorker` over stdio, wired to a test adapter that
-/// echoes each source's effective settings.
+/// The shipped worker (`bin/paperback_source_worker.dart`) hosts the
+/// Paperback 0.8 and 0.9 adapters (U6). It runs the real pinned bundles in
+/// `--replay` mode against the committed captures, so search and details go
+/// through the built executable without contacting a server. Settings
+/// plumbing is exercised through `settings_echo_worker.dart`: the same
+/// `PaperbackSourceWorker` over stdio, wired to a test adapter that echoes
+/// each source's effective settings.
 @TestOn('vm')
 @Timeout(Duration(minutes: 12))
 library;
@@ -20,9 +22,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
+import 'package:http/http.dart' as http;
+import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 
+import '../support/paperback_scenarios.dart';
 import 'e2e_support.dart';
 
 const List<String> _limitArgs = <String>[
@@ -121,12 +126,15 @@ void main() {
       check(handshake.limits!.operationDeadline).equals(const Duration(seconds: 4));
       check(handshake.limits!.fields['memoryLimitBytes']).equals(33554432);
       check(handshake.limits!.poolSize).isNull();
+      check(handshake.capabilities.apiFamilies).deepEquals(<String>{'paperback-0.8', 'paperback-0.9'});
+      check(handshake.capabilities.browser).isTrue();
       // Adopted from the worker: the caller supplied no operation deadline.
       check(supervisor.limits!.operationDeadline).equals(const Duration(seconds: 4));
 
       final SourceOutcome<EmptyPayload> unload = await supervisor.send('pkg.none', const PackageUnloadRequest());
       check((unload as SourceFailed<EmptyPayload>).failure).isA<RuntimeUnavailableFailure>();
 
+      // An artifact kind that names no supported API family is refused.
       final SourceOutcome<PackageLoadResponse> load = await supervisor.loadPackage(
         WorkerPackage(packageId: 'pkg.test', artifact: await bundleLease(), settings: SettingsSnapshot()),
       );
@@ -202,5 +210,54 @@ void main() {
     } finally {
       await supervisor.close();
     }
+  });
+
+  test('search -> details through the built worker executable, replaying both API families', () async {
+    Future<List<BundleRun>> run(String site) async {
+      final supervisor = WorkerSupervisor(
+        spec: WorkerSpec(
+          label: 'paperback',
+          executable: shippedWorker,
+          arguments: <String>[
+            '--memory-limit-bytes=${256 << 20}',
+            '--max-stack-bytes=${512 << 10}',
+            '--operation-deadline-ms=60000',
+            '--job-slice-ms=20',
+            '--replay=${paperbackFixtures().path}/$site',
+          ],
+          environment: scrubbedEnvironment(),
+        ),
+        limits: const SupervisorLimits(
+          maxConcurrentPackages: 1,
+          operationDeadline: Duration(seconds: 90),
+          cancelGrace: Duration(seconds: 5),
+          interactionTimeout: Duration(seconds: 5),
+          shutdownGrace: Duration(seconds: 10),
+        ),
+        onLog: (String line) => stderr.writeln('[paperback-e2e] $line'),
+      );
+      final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
+      final provider = PaperbackSourceProvider(
+        client: http.Client(),
+        cache: ArtifactCache(Directory('${temp.path}/$site-cache')),
+        trust: PinnedRepository.pinnedTrust(repos),
+        worker: () async => (await supervisor.start()).map((_) => supervisor),
+      );
+      try {
+        return await runSiteScenario(provider, site);
+      } finally {
+        await supervisor.close();
+      }
+    }
+
+    final List<BundleRun> weebcentral = await run('weebcentral');
+    for (final BundleRun r in weebcentral) {
+      final MangaSnapshot s = (r.details! as SourceSuccess<MangaSnapshot>).value;
+      check(s.chapters).length.equals(114);
+      check(s.chapters.first.chapterId).equals('01KWM07QYFJMAP46S1A3ZVDWYG');
+    }
+    check(weebcentral.map((BundleRun r) => r.family.wire).toSet()).deepEquals(<String>{'paperback-0.8', 'paperback-0.9'});
+    final BundleRun mangadex = (await run('mangadex')).firstWhere((BundleRun r) => r.family.wire == 'paperback-0.9');
+    check((mangadex.details! as SourceSuccess<MangaSnapshot>).value.chapters).length.equals(223);
   });
 }
