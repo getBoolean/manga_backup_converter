@@ -59,6 +59,44 @@ void main() {
     ]);
   });
 
+  test('a tachi-runtime.json beside lib/ supplies the deadline without an explicit manifest', () {
+    writeManifest(<String, Object?>{
+      'format': 1,
+      'worker': 'tachi-jvm',
+      'classpath': 'lib',
+      'handshakeDeadlineMs': 4321,
+    });
+
+    // A configured install directory.
+    final TachiWorkerLocation configured = (TachiWorkerLocation.resolve(
+      installDirectory: install.path,
+      javaHome: javaHome.path,
+      environment: const <String, String>{},
+    ) as SourceSuccess<TachiWorkerLocation>).value;
+    check(configured.handshakeDeadline).equals(const Duration(milliseconds: 4321));
+    check(configured.classpathDirectory).equals(p.join(install.path, 'lib'));
+
+    // The development install, found by walking up from a nested directory.
+    final devInstall = Directory(p.join(temp.path, 'repo', tachiWorkerDevelopmentInstall));
+    Directory(p.join(devInstall.path, 'lib')).createSync(recursive: true);
+    File(p.join(install.path, 'tachi-runtime.json')).copySync(p.join(devInstall.path, 'tachi-runtime.json'));
+    final nested = Directory(p.join(temp.path, 'repo', 'packages', 'cli'))..createSync(recursive: true);
+    final TachiWorkerLocation discovered = (TachiWorkerLocation.resolve(
+      searchFrom: nested,
+      environment: <String, String>{'JAVA_HOME': javaHome.path},
+    ) as SourceSuccess<TachiWorkerLocation>).value;
+    check(discovered.handshakeDeadline).equals(const Duration(milliseconds: 4321));
+    check(discovered.classpathDirectory).equals(p.normalize(p.join(devInstall.path, 'lib')));
+
+    // An explicit deadline still overrides the discovered manifest.
+    final TachiWorkerLocation overridden = (TachiWorkerLocation.resolve(
+      searchFrom: nested,
+      handshakeDeadline: const Duration(seconds: 9),
+      environment: <String, String>{'JAVA_HOME': javaHome.path},
+    ) as SourceSuccess<TachiWorkerLocation>).value;
+    check(overridden.handshakeDeadline).equals(const Duration(seconds: 9));
+  });
+
   test('without a handshake deadline the location is a typed failure naming it', () {
     final SourceOutcome<TachiWorkerLocation> outcome = TachiWorkerLocation.resolve(
       installDirectory: install.path,

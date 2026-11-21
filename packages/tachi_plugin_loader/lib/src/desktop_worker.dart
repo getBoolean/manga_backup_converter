@@ -51,6 +51,10 @@ final class TachiWorkerLocation {
   /// [searchFrom]; `java` from [javaHome], else `TACHI_JAVA_HOME`, else
   /// `JAVA_HOME` in [environment]. [handshakeDeadline] overrides the
   /// manifest's `handshakeDeadlineMs`.
+  ///
+  /// Without [manifestPath], a `tachi-runtime.json` beside `lib/` in the
+  /// install directory (configured or discovered) is read as the manifest,
+  /// so an `installDist` output supplies its own handshake deadline.
   static SourceOutcome<TachiWorkerLocation> resolve({
     String? manifestPath,
     String? installDirectory,
@@ -65,8 +69,18 @@ final class TachiWorkerLocation {
     String mainClass = tachiWorkerMainClass;
     var deadline = handshakeDeadline;
 
-    if (manifestPath != null) {
-      final SourceOutcome<_Manifest> manifest = _Manifest.read(manifestPath);
+    final String? install = manifestPath == null
+        ? installDirectory ?? _developmentInstall(searchFrom ?? Directory.current)
+        : null;
+    final String? manifestFile =
+        manifestPath ??
+        switch (install) {
+          final String dir when File(p.join(dir, _Manifest.fileName)).existsSync() => p.join(dir, _Manifest.fileName),
+          _ => null,
+        };
+
+    if (manifestFile != null) {
+      final SourceOutcome<_Manifest> manifest = _Manifest.read(manifestFile);
       switch (manifest) {
         case SourceFailed<_Manifest>(:final SourceFailure failure):
           return SourceFailed<TachiWorkerLocation>(failure);
@@ -80,10 +94,7 @@ final class TachiWorkerLocation {
 
     final String? home = javaHome ?? env['TACHI_JAVA_HOME'] ?? env['JAVA_HOME'];
     java ??= home == null ? null : p.join(home, 'bin', Platform.isWindows ? 'java.exe' : 'java');
-    classpath ??= switch (installDirectory) {
-      final String dir => p.join(dir, 'lib'),
-      null => _developmentInstall(searchFrom ?? Directory.current),
-    };
+    classpath ??= install == null ? null : p.join(install, 'lib');
 
     final missing = <String>[
       if (java == null) 'java (set TACHI_JAVA_HOME or JAVA_HOME, or a runtime manifest)',
@@ -145,11 +156,13 @@ final class TachiWorkerLocation {
   /// worker's handshake; only the handshake deadline comes from here.
   AdoptWorkerLimits get limits => AdoptWorkerLimits(handshakeDeadline: handshakeDeadline);
 
+  /// The development install directory (holding `lib/`), walking up from
+  /// [from].
   static String? _developmentInstall(Directory from) {
     Directory dir = from.absolute;
     while (true) {
-      final lib = Directory(p.join(dir.path, tachiWorkerDevelopmentInstall, 'lib'));
-      if (lib.existsSync()) return lib.path;
+      final String install = p.join(dir.path, tachiWorkerDevelopmentInstall);
+      if (Directory(p.join(install, 'lib')).existsSync()) return install;
       final Directory parent = dir.parent;
       if (parent.path == dir.path) return null;
       dir = parent;
@@ -167,6 +180,8 @@ final class _Manifest {
   final String? classpath;
   final String? mainClass;
   final Duration? handshakeDeadline;
+
+  static const String fileName = 'tachi-runtime.json';
 
   static SourceOutcome<_Manifest> read(String path) {
     final file = File(path);
