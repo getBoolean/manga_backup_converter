@@ -261,10 +261,10 @@ void main() {
   });
 
   group('interaction events (protocol 1.3) pause the engine deadline', () {
-    const deadline = Duration(milliseconds: 400);
-    const slowUser = Duration(milliseconds: 1200);
+    const deadline = Duration(seconds: 1);
+    const slowUser = Duration(milliseconds: 2500);
 
-    Future<(WorkerHarness, ControlledHttp)> started() async {
+    Future<(WorkerHarness, ControlledHttp)> started({Duration deadline = deadline}) async {
       final http = ControlledHttp();
       final harness = WorkerHarness(
         adapter: ScriptAdapter(http),
@@ -289,7 +289,6 @@ void main() {
       harness.event(WorkerInteractionStarted.op, WorkerInteractionStarted(of: id, timeout: slowUser * 2).toJson());
       await Future<void>.delayed(slowUser);
       harness.event(WorkerInteractionEnded.op, WorkerInteractionEnded(of: id, paused: slowUser).toJson());
-      await Future<void>.delayed(const Duration(milliseconds: 50));
       http.completeAll('solved');
       check(WorkerSearchResponse.fromJson((await reply).ok!).warnings).deepEquals(<String>['solved']);
       await harness.close();
@@ -306,16 +305,23 @@ void main() {
     });
 
     test('the remaining budget still applies after interaction.ended', () async {
-      final (WorkerHarness harness, ControlledHttp _) = await started();
+      // Most of a 3 s budget is spent before the interaction, so what is left
+      // (about 1 s) and a fresh deadline (3 s) are far apart.
+      const budget = Duration(seconds: 3);
+      final (WorkerHarness harness, ControlledHttp _) = await started(deadline: budget);
       final String id = harness.send('search', pkg: 'pkg.test', payload: searchPayload('q'));
       final Future<ProtocolFrame> reply = harness.reply(id);
+      ProtocolFrame? early;
+      unawaited(reply.then((ProtocolFrame f) => early = f));
+      await Future<void>.delayed(const Duration(seconds: 2));
       harness.event(WorkerInteractionStarted.op, WorkerInteractionStarted(of: id, timeout: slowUser * 2).toJson());
       await Future<void>.delayed(slowUser);
+      // 4.5 s since the search began, past the 3 s budget: still paused.
+      check(early).isNull();
       final watch = Stopwatch()..start();
       harness.event(WorkerInteractionEnded.op, WorkerInteractionEnded(of: id, paused: slowUser).toJson());
       check((await reply).error!['code']).equals('timeout');
-      // Resumed with what was left (under 400 ms), not a fresh deadline.
-      check(watch.elapsed).isLessThan(deadline + const Duration(milliseconds: 300));
+      check(watch.elapsed).isLessThan(const Duration(milliseconds: 2500));
       await harness.close();
     });
 

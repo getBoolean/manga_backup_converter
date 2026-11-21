@@ -54,14 +54,24 @@ void main() {
   });
 
   test('after resuming, the time left before the pause still runs out', () async {
-    await runtime.evaluate('globalThis.op = async () => { await paused(800); await gate(); }; void 0;');
-    final (PaperbackRuntimeException e, Duration took) = await timed(
-      () => caught(runtime.call('op', const <Object?>[])),
-    );
+    // A separate runtime with a 3 s budget, 2 s of it spent before the pause:
+    // what is left (about 1 s) and a fresh deadline (3 s) are far apart.
+    final long = SourceJsRuntime(limits: testLimits(operationDeadline: const Duration(seconds: 3)));
+    addTearDown(long.dispose);
+    DateTime? resumedAt;
+    long.bridge.registerAsync('spend', (_) => Future<Object?>.delayed(const Duration(seconds: 2)));
+    long.bridge.registerAsync('paused', (_) async {
+      long.pauseDeadline();
+      await Future<void>.delayed(const Duration(milliseconds: 2500));
+      long.resumeDeadline();
+      resumedAt = DateTime.now();
+      return null;
+    });
+    long.bridge.registerAsync('gate', (_) => Completer<Object?>().future);
+    await long.evaluate('globalThis.op = async () => { await spend(); await paused(); await gate(); }; void 0;');
+    final PaperbackRuntimeException e = await caught(long.call('op', const <Object?>[]));
     check(e.failure).isA<TimeoutFailure>();
-    // 800 ms paused plus at most the 400 ms budget, not a fresh deadline.
-    check(took).isGreaterThan(const Duration(milliseconds: 800));
-    check(took).isLessThan(const Duration(milliseconds: 1800));
+    check(DateTime.now().difference(resumedAt!)).isLessThan(const Duration(milliseconds: 2500));
   });
 
   test('JS that loops while paused is still interrupted', () async {
