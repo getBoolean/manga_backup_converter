@@ -19,6 +19,8 @@ dependencies:
     sdk: flutter
   hooks: ^1.0.0
   objective_c: ^9.2.0
+  source_runtime:
+    path: ../source_runtime
 
 dev_dependencies:
   app_lints:
