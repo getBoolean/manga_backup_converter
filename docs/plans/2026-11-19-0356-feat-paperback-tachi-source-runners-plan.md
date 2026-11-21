@@ -54,7 +54,7 @@ The converter currently runs Aidoku WASM sources, but its Paperback and Tachi lo
 - R1. Execute destination extension code to search manga, fetch details, and enumerate chapters; use the extension's returned source, manga, and chapter identities in the output.
 - R2. Provide a dedicated desktop Tachi runner without the Suwayomi server, database, GraphQL service, or user interface. One JVM worker process hosts all selected extension packages and repositories for a conversion.
 - R3. Run supported Paperback JavaScript bundles using their declared host API version; support the 0.8 and 0.9 API families explicitly rather than treating them as interchangeable.
-- R4. Expose extension settings, cookies, language selection, and required host capabilities consistently across search and detail requests within a conversion session.
+- R4. Expose extension settings, cookies, language selection, and required host capabilities consistently across search and detail requests within a conversion session. Repositories, extension choices, and extension settings all come from the user; the product supplies none of them (Key Decisions).
 - R17. Translate source browser use — Tachi sources' `android.webkit` calls and Paperback's `executeInWebView` — to the running platform's native WebView: WebView2 on Windows, WKWebView on macOS and iOS, WebKitGTK on Linux, and Android System WebView on Android. Browser operations a platform WebView cannot express fail with a named capability error.
 
 #### Conversion fidelity
@@ -76,7 +76,7 @@ The converter currently runs Aidoku WASM sources, but its Paperback and Tachi lo
 - R13. Execute Aidoku WASM sources, Paperback bundles, and Tachi sources locally inside the iOS app, including search, details, and chapter enumeration, without a desktop helper, remote runner, or Suwayomi service.
 - R14. Qualify local iOS execution in a signed build on a physical device under ordinary app entitlements; simulator execution, VM startup, or a bridge ping alone does not prove extension compatibility. Physical-device runs use development signing; distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup (Key Decisions).
 - R15. Execute Aidoku WASM sources, original Tachi APK sources on Android ART, and Paperback bundles in local QuickJS inside the Android app, without a desktop helper, remote runner, or Suwayomi service. Build the resulting backup on the Android device through the shared conversion core.
-- R18. Keep the iOS build App Store compliant even though it is distributed by sideloading, then TestFlight: extensions run in an interpreter with no JIT, downloaded extensions are data for the app's own runtime and never native code, and the app ships a privacy manifest covering its runtimes. A committed compliance note maps the design to App Store Review Guidelines 2.5.2 and 4.7: interpreted extensions as plug-ins, the native features exposed to them, age-rating handling for extensions rated above the app's rating, and the precedent relied on. Within this plan R18 is checked locally on unsigned builds: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Age-rating handling: extensions rated above the app's rating are hidden by default on every platform until the user enables an age-confirming setting, and the app's own rating stays moderate (Key Decisions).
+- R18. Keep the iOS build App Store compliant even though it is distributed by sideloading, then TestFlight: extensions run in an interpreter with no JIT, downloaded extensions are data for the app's own runtime and never native code, and the app ships a privacy manifest covering its runtimes. A committed compliance note maps the design to App Store Review Guidelines 2.5.2 and 4.7: interpreted extensions as plug-ins, the native features exposed to them, age-rating handling for extensions rated above the app's rating, and the precedent relied on. Within this plan R18 is checked locally on unsigned builds: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Age-rating handling: extensions rated above the app's rating are hidden by default on every platform until the user enables an age-confirming setting, and the app's own rating stays moderate; Tachi 'mixed' content counts as suggestive and is shown (Key Decisions).
 - R16. Qualify Android source execution for all three ecosystems, verified APK loading, service death/recovery, cancellation, browser interaction, and conversion on a physical ARM64 device. Emulator, class-loading, or bridge-only success is insufficient.
 
 For R5, the first Tachi destination is Mihon. Existing recognized fork inputs continue through their own parsers, with unrepresentable fields reported under R6. Advertising SY, J2K, Yokai, or Neko as additional destination apps requires separate serializer and restore receipts; six conversion directions do not imply every fork is qualified.
@@ -101,6 +101,11 @@ For R5, the first Tachi destination is Mihon. Existing recognized fork inputs co
 - **The iOS app is distributed by sideloading but stays App Store compliant** (session-settled: user-directed — chosen over gating M3 on App Store distribution and over dropping App Store compliance). TestFlight follows once the work is complete and is follow-up work; no App Store or TestFlight review is a gate in this plan, but compliance (R18) is. See KTD11.
 - **App Store Connect validation is deferred to the TestFlight setup** (session-settled: user-directed — chosen over uploading a distribution-signed build for validation inside this plan). Until that follow-up, iOS builds stay unsigned and R18 is checked locally: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. Governs R18; see U16, U15.
 - **Hide adult-rated extensions by default** (session-settled: user-directed). Extensions whose content rating is above the app's rating are hidden from source selection on every platform until the user enables an age-confirming setting; the app's own rating stays moderate. Governs R18's age-rating handling.
+- **Tachi 'mixed' content warnings are shown by default** (session-settled: user-approved). A Tachi extension flagged as mixed content counts as suggestive and stays visible; only fully adult sources are hidden until the age-confirming setting is on. Refines the adult-rated decision above for Tachi.
+- **The user supplies repositories, picks extensions, and supplies extension settings** (session-settled: user-directed). Product code has no built-in or default repositories. An unattended run needs an explicit extension list, and nothing is selected implicitly. Settings come from a user settings file or flags in the CLI and from an injected settings provider in the apps. Governs R4; see U4, U6, U7, U14, U15.
+- **The product never provides extensions or repositories** (session-settled: user-directed). No bundled, embedded, or default extensions or repositories ship in the CLI, the apps, runtime images, or release packages. Test fixtures containing real extensions are tolerated for now; replacing them with mocked extensions is follow-up work (Scope Boundaries › Deferred to Follow-Up Work).
+- **Narrow searched sources to the input backup's languages, within user-picked extensions** (session-settled: user-approved). Among the extensions the user picked, searches use sources matching the input backup's languages (from each source manga's language or source) plus 'all'/multi-language sources. A `--languages` option overrides the detected set, and narrowing is skipped when the user names specific sources. Applies to every ecosystem's multi-source packages; implemented in a core/CLI lane after U4 and U6 integrate. Governs R4.
+- **Paperback 0.8 substitutes: kittycatgit Mangahub for MangaFire, and the community MangaDex** (session-settled: user-directed). Paperback 0.8 has no MangaFire source, so the 0.8 complex-source cell uses kittycatgit Mangahub 4.0.0 (user-chosen over Netsky Mangahub and Kagane after a survey). The 0.8 MangaDex cell uses TheNetsky/community-extensions MangaDex 3.0.6, replacing neihc1002 (user-approved). This revises only the Paperback 0.8 cells; MangaFire remains the complex-source gate everywhere else, and the MangaFire browser decision above stands. Governs R11; see U6.
 - **Fix existing-conversion fidelity first** (session-settled: user-directed — chosen over keeping those fixes inside U1 behind the rest of M1). U19 ships as its own CLI release.
 - **Keep interactive chapter matching** (session-settled: user-approved — chosen over reporting ambiguous chapters only). Users resolve ambiguous chapters and collisions through `SelectionPort` (U1); see KTD7.
 - **Retry interrupted work once after a desktop worker restart** (session-settled: user-directed — chosen over failing it with a `worker-restarted` report). The retry count is a fixed rule, not a benchmarked limit. See KTD4.
@@ -117,9 +122,13 @@ The delivery covers the desktop CLI on Windows, macOS, and Linux plus embeddable
 
 No static source correspondence tables, guessed URLs, scraping reimplementations in Dart, source rewrites to make tests pass, or Suwayomi service deployment are included. Desktop JVM execution stays out of process. Local iOS execution requires an embedded runtime and a platform-specific cancellation contract; local Android execution uses ART in a dedicated service process (KTD17/KTD18). The runners load and execute the selected original bundles.
 
+The product provides no extensions and no repositories: the CLI, the apps, runtime images, and release packages contain none, and no default repository is configured. The user adds repositories, picks extensions, and supplies extension settings (Key Decisions). Real extensions appear only as test fixtures.
+
 #### Deferred to Follow-Up Work
 
 Web-browser execution of the converter, a remote runner service, and a complete Flutter conversion UI are separate projects. iOS store distribution is follow-up work: the app is sideloaded for now, and TestFlight follows once complete. The build stays App Store compliant throughout (R18).
+
+Replace the real extensions in test fixtures with mocked extensions the project authors itself (Tachi, Paperback, and Aidoku), then remove the real ones from fixtures and captures. Until then real-extension fixtures are tolerated as test-only material (Key Decisions).
 
 Desktop browser support is in scope (U2), translated to the operating system's native WebView. A machine with no display or no installed platform WebView returns interaction-required or capability-unavailable failures rather than a bundled browser engine.
 
@@ -302,7 +311,7 @@ Every stage replays committed captures (Key Decisions). "Live" below means a rea
 
 Do not build a generic Android emulator or a general browser subsystem speculatively; the translation targets the APIs the qualification sources actually call.
 
-MangaFire uses signed API requests and a challenge interceptor that constructs an Android WebView. WeebCentral supplies the required HTML/CSS coverage. A challenge-blocked MangaFire result proves failure handling only; its live success gate, and that platform's milestone, remain open until its browser path passes. Availability of all three sites in a particular Paperback API family must be established from real catalog artifacts in U6, with no fabricated substitute. If absent, record the exact missing cell and seek an explicit coverage revision rather than silently removing the complex-source requirement.
+MangaFire uses signed API requests and a challenge interceptor that constructs an Android WebView. WeebCentral supplies the required HTML/CSS coverage. A challenge-blocked MangaFire result proves failure handling only; its live success gate, and that platform's milestone, remain open until its browser path passes. Availability of all three sites in a particular Paperback API family must be established from real catalog artifacts in U6, with no fabricated substitute. If absent, record the exact missing cell and seek an explicit coverage revision rather than silently removing the complex-source requirement. One such revision is settled: Paperback 0.8 has no MangaFire, so its complex-source cell uses kittycatgit Mangahub 4.0.0, and its MangaDex cell uses TheNetsky/community-extensions MangaDex 3.0.6 (Key Decisions).
 
 ### Key Technical Decisions
 
@@ -1013,7 +1022,7 @@ All three are driven from Dart through JNIgen.
 - Create CLI `lib/src/pipeline/plugin_source_tachi.dart` and `test/pipeline/plugin_source_tachi_test.dart`.
 
 **Approach:**
-1. **Catalog parsing.** Parse the actual repository metadata and current JSON/protobuf index formats using fixture-backed adapters. Distinguish repository package identifiers from runtime source IDs, and enumerate factory sources after loading.
+1. **Catalog parsing.** Parse the actual repository metadata and current JSON/protobuf index formats using fixture-backed adapters, for repositories the user supplies; the loader has no built-in or default repository (Key Decisions). Distinguish repository package identifiers from runtime source IDs, and enumerate factory sources after loading.
 2. **Artifact pipeline.** Read both `jarUrl` and `apkUrl` from the index. Select the JAR when present and the APK otherwise, with a per-repository/per-artifact override. Bind the repository's signing fingerprint, approved on first use and stored locally under KTD5, as the trust identity. Connect the catalog and content-addressed cache to U3's preparation under KTD5.
 3. **Loader contract.** Change `loadPluginFromBytes` to return all sources for a package, and update its wrapper and all existing implementations together.
 4. **Shared worker lease.** All selected packages share the single worker lease owned by the conversion. Disposing one selection unloads only its package once no other source in that package is active.
@@ -1031,6 +1040,7 @@ All three are driven from Dart through JNIgen.
 - The stale `index.min.json` stub is not used; the parser follows `repo.json` to the live index.
 - A first-seen repository is not admitted without the user's approval, and a repository whose published fingerprint changes after approval is blocked until the user approves again.
 - A non-interactive run with a first-seen or changed fingerprint refuses admission with a typed trust failure.
+- With no user-supplied repository the catalog is empty, and an unattended run without an explicit extension list selects nothing rather than falling back to a default.
 - Tampered artifact, changed signing identity, incompatible API range, missing assets, or unsupported dex fails before execution and cannot poison a verified cache entry.
 - Loading the same URL with a new artifact digest invalidates old handles and caches.
 - Live runtime search results pass through `PluginSource` without altering native URLs or int64 IDs.
@@ -1052,7 +1062,7 @@ All three are driven from Dart through JNIgen.
 1. Inspect real 0.8 and 0.9 indexes, bundles, declared API ranges, and licenses. Record their actual installation entry points and the qualification-source availability per API family. Apply KTD6 artifact trust and digest checks before evaluation, using the same verification on cached bundles.
 2. Implement request/response interceptors, redirect behavior, cookies, rate limits, binary buffers, timers, state, and API-specific globals under KTD6. Validate parser compatibility with selectors actually used by pinned sources.
 3. Route `executeInWebView` through the injected `BrowserPort`, sharing the source's cookie session in both directions where the platform allows it.
-4. Add optional per-source settings providers to selection; secure-state requests follow KTD9.
+4. Add optional per-source settings providers to selection, fed by the user's settings (a settings file or flags in the CLI, an injected provider in the apps); the product ships no setting values. Secure-state requests follow KTD9. Catalogs come only from user-supplied repositories, and the user picks the bundles (Key Decisions).
 5. Implement search and details-with-chapters through original bundles. Keep version-specific metadata pagination and chapter identities intact in the adapter.
 
 **Patterns:** Existing Aidoku `PluginSource` adapter, Paperback's official host type definitions, and real extension bundles. Do not port a Tachi scraper into Paperback for testing.
@@ -1066,7 +1076,7 @@ All three are driven from Dart through JNIgen.
 - Cheerio selectors including `:has`, `:contains`, and absolute URL handling match pinned HTML expectations.
 - `executeInWebView` completes through a fake `BrowserPort`; the real desktop helper path runs at the U8 join. Unsupported API versions and inexpressible browser operations produce capability failures rather than valid empty results.
 - A substituted bundle, modified cached bytes, or unaccepted trust change fails before any JavaScript initialization or host request; approved immutable bytes retain their artifact identity throughout loading.
-- Both API families have real-artifact search/details/chapter evidence. WeebCentral and MangaFire coverage remains subject to the explicit source matrix gate described under Planning Contract › Roadmap.
+- Both API families have real-artifact search/details/chapter evidence. WeebCentral and MangaFire coverage remains subject to the explicit source matrix gate described under Planning Contract › Roadmap. The 0.8 family uses the approved substitutes: kittycatgit Mangahub 4.0.0 for the missing MangaFire cell and TheNetsky/community-extensions MangaDex 3.0.6 for MangaDex (Key Decisions).
 
 **Verification:** Test fixture scripts validate host contracts, then execute real pinned Paperback sources. Handwritten scripts alone do not establish Paperback compatibility.
 
@@ -1081,10 +1091,11 @@ All three are driven from Dart through JNIgen.
 - CLI: modify compatibility adapters and `lib/src/commands/convert_command.dart`, add a composition module in `lib/src/commands/`, and retain `test/pipeline/migration_pipeline_test.dart` and `test/commands/convert_compatibility_test.dart`.
 - Flutter app: add an injectable application service under `lib/src/features/conversion/application/`, plus explicit root/CLI package dependencies.
 
-The CLI registers its concrete desktop providers in this unit; U8 adds the U2 browser helper. The Flutter service accepts a supplied runtime registry and platform I/O/selection adapters; it does not reference mobile backends. U14 and U15 own final mobile composition. No complete conversion UI is added.
+The CLI registers its concrete desktop providers in this unit; U8 adds the U2 browser helper. The Flutter service accepts a supplied runtime registry, platform I/O/selection adapters, and an injected extension-settings provider; it does not reference mobile backends. Neither the CLI nor the service configures a default repository or extension: the user supplies repositories, picks extensions, and supplies settings (Key Decisions). U14 and U15 own final mobile composition. No complete conversion UI is added.
 
 **Approach:**
 - **Inputs.** Consume KTD7 reconciliation and KTD8 reporting, including U1's typed load/search/detail failures from all destination adapters.
+- **User-supplied sources and settings.** The CLI takes repositories, extensions, and extension settings from the user (a settings file or flags); an unattended run without an explicit extension list fails with a typed error instead of choosing extensions. Language narrowing (Key Decisions) applies only within the picked extensions, is skipped when the user names specific sources, and is overridden by `--languages`.
 - **Paperback writer.** Write Paperback reference graphs using generated backup-local IDs and runtime-native IDs in their correct separate fields.
 - **Tachi writer.** Write Tachi source IDs and native manga/chapter URLs through the selected fork schema, retaining int64 precision and explicit fork identity.
 - **Tracking.** Map tracker services only through verified service semantics; otherwise report the unsupported tracking records.
@@ -1100,6 +1111,8 @@ The CLI registers its concrete desktop providers in this unit; U8 adds the U2 br
 - Partial progress, bookmarks, categories, dates, and history transfer through each representable target; unsupported fields remain in the report.
 - Covers AE3: ambiguous state cannot be published without explicit partial-conversion acceptance.
 - A non-interactive run publishes a partial conversion only with `--accept-partial`.
+- A non-interactive run with no explicit extension list fails before any source loads; no built-in repository or extension is used.
+- Language narrowing keeps sources matching the input backup's languages plus 'all'/multi sources among the picked extensions, is skipped when specific sources are named, and `--languages` replaces the detected set.
 - Covers AE5: runtime failure or invalid output leaves the input and existing destination file unchanged.
 - Aidoku destination detail failure remains an unresolved runtime failure in the report; publication requires explicit partial-conversion acceptance and does not silently create an empty-chapter success.
 - The CLI and the injectable application service run the same core conversion job with different runtime/I-O/selection adapters in contract tests; no source-runtime factory is selected by a backup-format model.
@@ -1377,7 +1390,7 @@ Update existing release packaging locations identified during implementation rat
 - Evidence: redacted receipts under `docs/validation/source-runners/android/`, plus updates to `docs/source-runners.md` and `docs/CI.md`.
 
 **Approach:**
-- **Composition.** Register U11, U12, and U13 only after their backends pass. The harness calls U7's Flutter composition/service with sanitized input and pinned source artifacts staged in the test app.
+- **Composition.** Register U11, U12, and U13 only after their backends pass. The app composition injects the user's repositories, extension choices, and extension settings provider; it registers no default repository or extension. The harness calls U7's Flutter composition/service with sanitized input and pinned source artifacts staged in the test app; those artifacts are test-only, and the packaged APK contains no extension or repository (Key Decisions).
 - **Harness scope.** The harness exercises parsing, local runtime fetches, reconciliation, core building/validation, and app-local output publication. It uses the public core API and does not invoke a desktop CLI.
 - **Build records.** Record the actual resolved min/target/compile SDK values, Gradle dependency locks, native ABI/library hashes, and release signing identity.
 - **Channels and admission.** Qualify the chosen distribution channel explicitly; successful sideloaded execution does not establish store approval. No extension-native executable libraries are admitted implicitly.
@@ -1390,6 +1403,7 @@ Update existing release packaging locations identified during implementation rat
 - Covers AE11: MangaFire's browser path completes inside a real conversion job.
 - The advertised minimum SDK and current target SDK behavior are exercised separately.
 - Shipped licenses/notices and native library hashes match the packaged APK.
+- The release APK contains no extension artifact and no repository configuration.
 - Restore spot checks: an Android-built Mihon backup restores in a clean, pinned Mihon with no duplicates. Android-built Paperback and Aidoku backups match desktop-built output for the same fixture and restore on an iOS test device under U8's restore prerequisites.
 
 **Verification:** Physical-device receipts under the Evidence Identity contract. Device interaction follows the host's device-control tools where available; unavailable physical-device automation is reported explicitly and requires a supported or user-operated evidence path. Do not imply physical-device verification from an emulator run.
@@ -1411,6 +1425,7 @@ Update existing release packaging locations identified during implementation rat
 - **Code boundary.** Native interpreter code ships with the app; selected extension bytecode is data for that runtime, not an unsigned replacement native library.
 - **Deployment target and approval.** Verify that the deployment target U16 set matches the runtime minimum, and record the declared minimum and ordinary entitlements. The build is distributed by sideloading, passes the local R18 checks (interpreter-only, no executable memory, no downloaded native code, privacy manifest, GPL notices), and claims no store approval. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Finalize the R18 guideline-mapping note at `docs/validation/source-runners/ios/app-store-compliance.md`.
 - **Harness scope.** The harness exercises parsing, local runtime fetches, reconciliation, core building/validation, and app-local output publication, without a desktop CLI.
+- **User-supplied sources.** The app composition injects the user's repositories, extension choices, and extension settings provider, with no default repository or extension. Pinned artifacts staged for the harness are test-only; the packaged app contains no extension or repository (Key Decisions).
 - **Directions.** All six R5 directions are qualified on iOS, including Aidoku destinations through U18.
 
 **Test scenarios:**
@@ -1421,6 +1436,7 @@ Update existing release packaging locations identified during implementation rat
 - Covers AE11 on iOS inside a real conversion job.
 - An installed release-profile iPhone build performs source search/details/chapters after a cold launch without debugger/JIT assistance. Simulator-only success cannot satisfy R14.
 - Restore spot checks: iOS-built Paperback, Aidoku, and Tachi backups match desktop-built output for the same fixture and restore under U8's restore prerequisites.
+- The packaged app contains no extension artifact and no repository configuration.
 
 **Verification:** Physical-iPhone receipts identify the build, OS, device architecture, entitlements, native runtime hashes, and actual local source operations. A simulator can validate the bridge and lifecycle but cannot substitute for those receipts.
 
@@ -1482,7 +1498,7 @@ Receipt settings use an allowlist of known non-secret keys. Passwords, tokens, c
 - U5 confirms the vendored engine compiles for every advertised target (and whether Android x86 does) and migrates the Aidoku JS imports. On-device load and interruption behavior remain U10/U12 gates.
 - U3 and U5 produce the KTD25 benchmarks and sizing rules; no limit value is fixed before they exist.
 - U2 proves MangaFire's browser behaviour on WebKitGTK and WKWebView, or finds a workaround, before U8.
-- U6 pins real Paperback 0.8/0.9 catalogs and source bundles; no current three-source matrix is assumed. Missing required source coverage needs an explicit revision before claiming completion.
+- U6 pins real Paperback 0.8/0.9 catalogs and source bundles; no current three-source matrix is assumed. Missing required source coverage needs an explicit revision before claiming completion. The 0.8 MangaFire and MangaDex cells are already revised (kittycatgit Mangahub 4.0.0; community MangaDex 3.0.6; Key Decisions).
 - U7/U8 establish which Paperback app versions restore V4 `.pas4` backups and which Aidoku source ABIs correspond to the selected artifacts. Until verified, those specific targets remain disabled.
 
 #### M2 Android
