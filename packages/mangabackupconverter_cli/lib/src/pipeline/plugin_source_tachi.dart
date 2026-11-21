@@ -260,7 +260,7 @@ class TachiPluginLoader extends PluginLoader {
               contentRating: SourceRatingPolicy.ratingOf(listing.contentRating),
               sourceIds: <String>[for (final TachiIndexSource s in listing.sources) s.id.decimal],
             );
-            _admitted[entry.cacheKey] = _Admitted(listing, choice, trustIdentity);
+            _admitted[_keyOf(entry)] = _Admitted(listing, choice, trustIdentity);
             entries.add(entry);
         }
       }
@@ -361,7 +361,11 @@ class TachiPluginLoader extends PluginLoader {
     }
   }
 
-  _Admitted? _admittedFor(ExtensionEntry entry) => entry is TachiExtensionEntry ? _admitted[entry.cacheKey] : null;
+  _Admitted? _admittedFor(ExtensionEntry entry) => entry is TachiExtensionEntry ? _admitted[_keyOf(entry)] : null;
+
+  /// Two repositories may list the same package and version; each entry
+  /// keeps its own repository's URL and trust.
+  static String _keyOf(TachiExtensionEntry entry) => '${entry.repositoryUrl}|${entry.cacheKey}';
 
   static SourceFailure _notAdmitted(ExtensionEntry entry) => ArtifactIncompatibleFailure(
     'trust: ${entry.id} was not listed by an admitted Tachi repository in this run, so no trusted signer is known',

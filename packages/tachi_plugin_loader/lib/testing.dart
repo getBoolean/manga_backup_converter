@@ -209,6 +209,22 @@ const Duration testHandshakeDeadline = Duration(minutes: 1);
   };
 }
 
+/// Deletes a test's temporary [directory]. On Windows a just-killed worker
+/// can hold files for a moment, so deletion is retried briefly and a final
+/// failure leaves the directory to the system's temp cleanup instead of
+/// failing the test.
+Future<void> deleteTestDirectory(Directory directory) async {
+  for (var attempt = 0; attempt < 10; attempt++) {
+    try {
+      if (directory.existsSync()) directory.deleteSync(recursive: true);
+      return;
+    } on FileSystemException {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+  }
+  stderr.writeln('Could not delete ${directory.path}; leaving it to temp cleanup');
+}
+
 /// Counts worker launches, to prove a conversion starts exactly one JVM.
 final class CountingLauncher {
   int launches = 0;

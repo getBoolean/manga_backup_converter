@@ -6,6 +6,7 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
@@ -34,7 +35,7 @@ void main() {
     fetch = FixtureFetch(<FixtureRepository>[keiyoushi]);
   });
 
-  tearDown(() => temp.deleteSync(recursive: true));
+  tearDown(() => deleteTestDirectory(temp));
 
   DesktopTachiRuntime runtime({
     SourceOutcome<TachiWorkerLocation> Function()? locate,
@@ -201,6 +202,36 @@ void main() {
   });
 
   group('end to end through the shared JVM worker', skip: _worker.skip, () {
+    test('a refused download is never cached: the next load downloads again and succeeds', () async {
+      final DesktopTachiRuntime tachi = runtime();
+      final owner = ConversionOwner();
+      addTearDown(owner.close);
+      await tachi.attach(owner);
+      final cache = PluginCache(cacheDir: Directory('${temp.path}/plugins'));
+      final loader = CachingPluginLoader(TachiPluginLoader(runtime: tachi), cache: cache);
+      final List<ExtensionEntry> entries = await loader.fetchExtensionLists(
+        <String>[keiyoushiRepository.toString()],
+        trust: gate(InMemoryTrustStore(<String, String>{'tachi|$keiyoushiRepository': keiyoushiFingerprint})),
+      );
+      final ExtensionEntry wc = entries.firstWhere((ExtensionEntry e) => e.id == _weebCentral);
+      final Uri jarUrl = tachiCaptures()[1].urlOf(TachiArtifactKind.jar);
+
+      final tampered = Uint8List.fromList(tachiCaptures()[1].bytesOf(TachiArtifactKind.jar));
+      tampered[tampered.length ~/ 2] ^= 0xff;
+      fetch.overrides[jarUrl] = tampered;
+      final failures = <PluginLoadFailure>[];
+      check(await loader.loadPlugins(<ExtensionEntry>[wc], owner: owner, onFailure: failures.add)).isEmpty();
+      check(failures.single.failure).isA<ArtifactIncompatibleFailure>();
+      check(cache.get(wc)).isNull();
+
+      fetch.overrides.remove(jarUrl);
+      final List<PluginSource> loaded = await loader.loadPlugins(<ExtensionEntry>[wc], owner: owner);
+      check(loaded.single.sourceId).equals('2131019126180322627');
+      check(cache.get(wc)).isNotNull();
+      check(fetch.countOf(jarUrl)).equals(2);
+      check(tachi.runtime().valueOrNull!.prepareCount).equals(2);
+    });
+
     test('live search results reach PluginSource with native URLs and int64 IDs intact, then details', () async {
       final launcher = CountingLauncher();
       final DesktopTachiRuntime tachi = runtime(launcher: launcher.call);

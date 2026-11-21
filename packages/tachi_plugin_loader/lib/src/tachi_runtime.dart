@@ -88,9 +88,10 @@ final class TachiPreparedArtifact implements VerifiedArtifact {
 ///   `trustedSigners`. Failures are typed and leave earlier cache entries
 ///   untouched: the cache is content-addressed and re-hashes on admission.
 /// - [openPackage] loads a prepared package once and returns sessions for
-///   every source it enumerates. Opening it again with the same artifact and
-///   settings shares the hosted package; a different artifact digest for the
-///   same package replaces it and makes every earlier session stale.
+///   every source it enumerates. Opening it again with the same downloaded
+///   artifact, trust and settings shares the hosted package; a different
+///   download digest for the same package replaces it and makes every
+///   earlier session stale.
 /// - A hosted package is unloaded when its last session closes, so disposing
 ///   one selection never unloads another selection's package.
 class TachiRuntime implements SourceProvider {
@@ -253,13 +254,17 @@ class TachiRuntime implements SourceProvider {
     final String packageId = artifact.packageId;
     final _HostedPackage? existing = _hosted[packageId];
     if (existing != null) {
-      if (existing.artifact.binding == artifact.binding && existing.settings.revision == settings.revision) {
+      // Share on the downloaded artifact and its trust, not the prepared
+      // bytes: APK conversion is not byte-reproducible across conversions.
+      if (existing.artifact.input == artifact.input &&
+          existing.artifact.trust == artifact.trust &&
+          existing.settings.revision == settings.revision) {
         artifact.lease.release();
         return SourceSuccess<SourcePackage>(existing.newSelection());
       }
       await _unload(
         existing,
-        reason: 'Package $packageId was replaced by artifact ${artifact.binding.sha256.substring(0, 12)}',
+        reason: 'Package $packageId was replaced by artifact ${artifact.input.sha256.substring(0, 12)}',
       );
     }
     final SourceOutcome<WorkerSupervisor> started = await worker();

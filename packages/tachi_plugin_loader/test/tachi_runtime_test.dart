@@ -57,7 +57,7 @@ void main() {
 
     tearDown(() async {
       await scope.close();
-      temp.deleteSync(recursive: true);
+      await deleteTestDirectory(temp);
     });
 
     Future<TachiPackageListing> listing(String packageId) async =>
@@ -312,6 +312,19 @@ void main() {
       final SourceOutcome<MangaSnapshot> staleDetails = await newSession.fetchManga(oldHit.ref);
       check((staleDetails as SourceFailed<MangaSnapshot>).failure).isA<StaleReferenceFailure>();
       check(runtime.hostedPackages).deepEquals(<String>[weebCentral]);
+    });
+
+    test('the same APK prepared twice shares one hosted package, though conversion output may differ', () async {
+      final TachiPackageListing wc = await listing(weebCentral);
+      final TachiPreparedArtifact first = await prepared(wc, kind: TachiArtifactKind.apk);
+      final TachiPreparedArtifact second = await prepared(wc, kind: TachiArtifactKind.apk);
+      check(second.input).equals(first.input);
+      final TachiSourcePackage a = await open(first);
+      final TachiSourcePackage b = await open(second);
+      check(a.sessions.single.isStale).isFalse();
+      check(b.sessions.single.identity).equals(a.sessions.single.identity);
+      check(runtime.hostedPackages).deepEquals(<String>[weebCentral]);
+      check(runtime.prepareCount).equals(2);
     });
 
     test('disposing one selection unloads only its own package, once no selection uses it', () async {
