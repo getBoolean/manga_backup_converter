@@ -192,8 +192,15 @@ fn make_response(env: &ICoreWebView2Environment, r: &ReplacementResponse) -> win
   }
 }
 
+thread_local! {
+  /// URLs answered with the offline block response: a main document among
+  /// them is a failed navigation even though WebView2 sees an HTTP status.
+  static OFFLINE_BLOCKED: RefCell<std::collections::HashSet<String>> = RefCell::new(std::collections::HashSet::new());
+}
+
 fn blocked(url: &str) -> ReplacementResponse {
   eprintln!("[helper] offline: blocked {url}");
+  OFFLINE_BLOCKED.with(|b| b.borrow_mut().insert(url.to_string()));
   ReplacementResponse {
     status: 502,
     reason: "Blocked by offline replay".into(),
@@ -315,12 +322,17 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
               location: "a redirect target the engine refused (unsafe scheme or redirect loop)".into(),
             });
           }
+          // WebView2 reports an HTTP error page (4xx/5xx) as IsSuccess=false
+          // with WebErrorStatus UNKNOWN; the document still loaded, so a
+          // received HTTP status counts as a completed load (same as WebKit).
+          let was_blocked = OFFLINE_BLOCKED.with(|b| b.borrow_mut().remove(&url));
+          let loaded = !was_blocked && (ok.as_bool() || status.is_some());
           let _ = p.send_event(UserEvent::NavFinished {
             session: s.clone(),
             url,
-            ok: ok.as_bool(),
+            ok: loaded,
             status,
-            error: (!ok.as_bool()).then(|| format!("WebView2 web error status {}", err.0)),
+            error: (!loaded).then(|| if was_blocked { "blocked by offline replay".to_string() } else { format!("WebView2 web error status {}", err.0) }),
           });
           Ok(())
         })),
