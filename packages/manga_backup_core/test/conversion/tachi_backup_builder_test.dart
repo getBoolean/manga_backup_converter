@@ -12,10 +12,12 @@ import 'writer_fixtures.dart';
 /// A real keiyoushi source ID: above 2^53, so any double round trip breaks it.
 const String _weebCentralId = '2131019126180322627';
 
+typedef _Built = ({TachiBackup backup, ConversionReport report, List<MangaConversionPlan> plans});
+
 void main() {
   const builder = TachiBackupBuilder();
 
-  ({TachiBackup backup, ConversionReport report, List<MangaConversionPlan> plans}) build(
+  _Built build(
     List<MangaMatchConfirmation> confirmations, {
     String sourceFormatAlias = 'aidoku',
   }) {
@@ -38,7 +40,7 @@ void main() {
   test(
     'AE1: the exact int64 source ID and the native manga/chapter URLs are written, never handles or web URLs',
     () async {
-      final built = build(<MangaMatchConfirmation>[weebCentral()]);
+      final _Built built = build(<MangaMatchConfirmation>[weebCentral()]);
       final Uint8List bytes = await built.backup.toData();
       final mihon.Backup proto = decode(bytes);
 
@@ -65,7 +67,7 @@ void main() {
   );
 
   test('read, partial progress, bookmarks, history dates and categories transfer to Mihon fields', () async {
-    final built = build(<MangaMatchConfirmation>[weebCentral()]);
+    final _Built built = build(<MangaMatchConfirmation>[weebCentral()]);
     final mihon.Backup proto = decode(await built.backup.toData());
     final mihon.BackupManga m = proto.backupManga.single;
     mihon.BackupChapter ch(int n) => m.chapters.firstWhere((mihon.BackupChapter c) => c.url == '/chapters/01J$n');
@@ -99,7 +101,7 @@ void main() {
       mangaId: 'x',
       chapters: destinationChapters(),
     );
-    final built = build(<MangaMatchConfirmation>[c]);
+    final _Built built = build(<MangaMatchConfirmation>[c]);
     check(built.backup.backupManga).isEmpty();
     check(built.report.where(RecordKind.manga, RecordDisposition.unresolved).single.reason)
         .isNotNull()
@@ -107,7 +109,7 @@ void main() {
   });
 
   test('validation flags chapters the runtime did not return and history without a chapter', () async {
-    final built = build(<MangaMatchConfirmation>[weebCentral()]);
+    final _Built built = build(<MangaMatchConfirmation>[weebCentral()]);
     final TachiBackup b = built.backup;
     final TachiBackupManga m = b.backupManga.single;
     final broken = TachiBackup(
@@ -143,7 +145,7 @@ void main() {
   });
 
   test('Mihon → Mihon keeps tracking (same tracker registry)', () async {
-    final built = build(<MangaMatchConfirmation>[weebCentral()], sourceFormatAlias: 'mihon');
+    final _Built built = build(<MangaMatchConfirmation>[weebCentral()], sourceFormatAlias: 'mihon');
     final mihon.Backup proto = decode(await built.backup.toData());
     check(proto.backupManga.single.tracking.single.mediaId.toInt()).equals(99);
     check(built.report.where(RecordKind.tracking, RecordDisposition.transferred)).length.equals(1);

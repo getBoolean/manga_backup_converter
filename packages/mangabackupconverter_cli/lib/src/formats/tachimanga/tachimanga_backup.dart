@@ -51,7 +51,7 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
     // App preferences are optional: a converted backup carries library data
     // only, and writes neither file (restore without them: verify in U8).
     final ArchiveFile? prefFile = contentArchive.findFile('pref.json');
-    final pref = prefFile == null
+    final Map<String, Object?>? pref = prefFile == null
         ? null
         : jsonDecode(String.fromCharCodes(prefFile.content)) as Map<String, Object?>;
 

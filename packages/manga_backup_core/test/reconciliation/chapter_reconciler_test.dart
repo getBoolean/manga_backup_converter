@@ -47,7 +47,6 @@ void main() {
       final ChapterReconciliation r = reconcileChapters(
         sourceChapters: <SourceChapter>[SourceChapter(title: 'Step 1', chapterNumber: 1, language: 'en', isRead: true)],
         destinationChapters: <PluginChapter>[PluginChapter(chapterId: 'd1', chapterNumber: 1, language: '🇬🇧')],
-        sameSourceIdentity: false,
       );
       check(_matchedIds(r)).deepEquals(<String, String>{'Step 1': 'd1'});
     });
@@ -64,7 +63,6 @@ void main() {
           PluginChapter(chapterId: 'e1', title: 'Extra'),
           PluginChapter(chapterId: 'e2', title: 'Extra'),
         ],
-        sameSourceIdentity: false,
       );
       check(_matchedIds(r)).deepEquals(<String, String>{'Step 1': 'd1'});
       check(r.unresolved.whereType<AmbiguousChapter>().single.source.title).equals('Extra');

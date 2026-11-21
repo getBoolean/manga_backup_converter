@@ -26,7 +26,7 @@ class TachimangaBackupDbManager {
     }
     for (final category in categories) {
       // SQLite has no boolean type: Tachimanga's BOOLEAN columns hold 0/1.
-      final Map<String, Object?> row = <String, Object?>{
+      final row = <String, Object?>{
         for (final MapEntry<String, dynamic> e in MapperContainer.globals.toMap(category).entries)
           e.key: switch (e.value) {
             true => 1,

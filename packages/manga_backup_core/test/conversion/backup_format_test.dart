@@ -87,7 +87,7 @@ void main() {
       check(registry.writerFor(const Aidoku())).isA<AidokuBackupBuilder>();
       check(registry.writerFor(const Paperback())).isA<PaperbackBackupBuilder>();
       check(registry.writerFor(const Mihon())).isA<TachiBackupBuilder>();
-      for (final BackupFormat f in <BackupFormat>[
+      for (final f in <BackupFormat>[
         const TachiSy(),
         const TachiJ2k(),
         const TachiYokai(),

@@ -83,7 +83,7 @@ void main() {
     test('direct conversion uses the injected converter and needs one', () async {
       final input = FakeBackup(const <SourceMangaData>[]);
       final output = FakeBackup(const <SourceMangaData>[]);
-      final FormatRegistry formats = FormatRegistry.portable()
+      final formats = FormatRegistry.portable()
         ..registerCodec(const Tachimanga(), (Uint8List bytes, {String? name}) async => output);
       final ConversionDraft draft = await _pipeline(
         loader: FakePluginLoader(),

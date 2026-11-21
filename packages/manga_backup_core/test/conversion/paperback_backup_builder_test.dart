@@ -6,16 +6,18 @@ import 'package:test/scaffolding.dart';
 
 import 'writer_fixtures.dart';
 
+typedef _Built = ({PaperbackBackup backup, ConversionReport report, List<MangaConversionPlan> plans});
+
 void main() {
   const builder = PaperbackBackupBuilder();
 
-  ({PaperbackBackup backup, Uint8List bytes, ConversionReport report, List<MangaConversionPlan> plans}) build(
+  _Built build(
     List<MangaMatchConfirmation> confirmations,
   ) {
     final plans = <MangaConversionPlan>[for (final c in confirmations) planConversion(c)];
     final report = ConversionReport();
     final backup = builder.build(plans, report: report, sourceFormatAlias: 'aidoku') as PaperbackBackup;
-    return (backup: backup, bytes: Uint8List(0), report: report, plans: plans);
+    return (backup: backup, report: report, plans: plans);
   }
 
   test('runtime-native IDs go in their own fields; generated backup-local IDs are distinct from them', () async {
@@ -25,8 +27,8 @@ void main() {
       mangaId: '01J76XYF0TGKQ7XJ4XVPV1C0BP',
       chapters: destinationChapters(prefix: 'ch-'),
     );
-    final built = build(<MangaMatchConfirmation>[c]);
-    final PaperbackBackup reread = PaperbackBackup.fromData(await built.backup.toData());
+    final _Built built = build(<MangaMatchConfirmation>[c]);
+    final reread = PaperbackBackup.fromData(await built.backup.toData());
 
     final PaperbackBackupSourceManga sm = reread.sourceManga!.single;
     // The bare runtime source ID, never the `repository#id` package ID.
@@ -51,11 +53,11 @@ void main() {
       mangaId: 'm1',
       chapters: destinationChapters(prefix: 'ch-'),
     );
-    final built = build(<MangaMatchConfirmation>[c]);
+    final _Built built = build(<MangaMatchConfirmation>[c]);
     final Uint8List bytes = await built.backup.toData();
     check(builder.validate(bytes, built.plans)).isEmpty();
 
-    final PaperbackBackup reread = PaperbackBackup.fromData(bytes);
+    final reread = PaperbackBackup.fromData(bytes);
     final PaperbackBackupLibraryManga lib = reread.libraryManga!.single;
     final PaperbackBackupSourceManga sm = reread.sourceManga!.single;
     check(lib.primarySource.id).equals(sm.id);
@@ -80,15 +82,15 @@ void main() {
       mangaId: 'm1',
       chapters: destinationChapters(prefix: 'ch-'),
     );
-    final built = build(<MangaMatchConfirmation>[c]);
-    final PaperbackBackup reread = PaperbackBackup.fromData(await built.backup.toData());
+    final _Built built = build(<MangaMatchConfirmation>[c]);
+    final reread = PaperbackBackup.fromData(await built.backup.toData());
     final List<SourceChapter> state = reread.sourceMangaDataEntries.single.chapters
         .where((SourceChapter ch) => ch.hasReadingState)
         .toList();
     final SourceChapter one = state.firstWhere((SourceChapter ch) => ch.chapterKey == 'ch-1');
     final SourceChapter two = state.firstWhere((SourceChapter ch) => ch.chapterKey == 'ch-2');
     check(one.isRead).isTrue();
-    check(one.dateRead).equals(DateTime.utc(2024, 3, 1));
+    check(one.dateRead).equals(DateTime.utc(2024, 3));
     // Partial progress stays partial, never completed (AE2).
     check(two.isRead).isFalse();
     check(two.lastPageRead).equals(5);
@@ -112,7 +114,7 @@ void main() {
       mangaId: 'm1',
       chapters: destinationChapters(prefix: 'ch-'),
     );
-    final built = build(<MangaMatchConfirmation>[c]);
+    final _Built built = build(<MangaMatchConfirmation>[c]);
     final PaperbackBackup b = built.backup;
     final dangling = PaperbackBackup(
       mangaInfo: b.mangaInfo,

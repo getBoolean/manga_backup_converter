@@ -7,11 +7,11 @@ import 'package:mangabackupconverter/src/features/conversion/application/convers
 import 'package:riverpod/riverpod.dart';
 import 'package:source_runtime/source_contracts.dart';
 
-final _identity = SourceIdentity(
+const _identity = SourceIdentity(
   ecosystem: 'paperback',
   packageId: 'https://repo.invalid/#WeebCentral',
   sourceId: 'WeebCentral',
-  artifact: const ArtifactBinding(sha256: 'abc', kind: 'test', version: '1'),
+  artifact: ArtifactBinding(sha256: 'abc', kind: 'test', version: '1'),
 );
 
 /// A device runtime as a mobile composition root would register it.
@@ -31,7 +31,7 @@ final class _DeviceSource implements PluginSource {
   @override
   String? get language => 'en';
 
-  NativeMangaRef get _ref => NativeMangaRef(
+  NativeMangaRef get _ref => const NativeMangaRef(
     source: _identity,
     mangaId: 'onimai',
     settingsRevision: 'rev',
@@ -117,7 +117,7 @@ final class _MemoryOutput implements ConversionOutput {
 }
 
 /// An input Mihon backup with chapter 1 read.
-Future<Uint8List> _mihonInput() => TachiBackup(
+Future<Uint8List> _mihonInput() => const TachiBackup(
   backupManga: <TachiBackupManga>[
     TachiBackupManga(
       source: 1,
@@ -126,12 +126,12 @@ Future<Uint8List> _mihonInput() => TachiBackup(
       artist: '',
       author: '',
       description: '',
-      genre: const <String>[],
+      genre: <String>[],
       status: 0,
       thumbnailUrl: '',
       dateAdded: 0,
       viewer: 0,
-      chapters: const <TachiBackupChapter>[
+      chapters: <TachiBackupChapter>[
         TachiBackupChapter(
           url: '/c1',
           name: 'Chapter 1',
@@ -145,12 +145,12 @@ Future<Uint8List> _mihonInput() => TachiBackup(
           sourceOrder: 0,
         ),
       ],
-      categories: const <int>[],
-      tracking: const <TachiBackupTracking>[],
+      categories: <int>[],
+      tracking: <TachiBackupTracking>[],
       favorite: true,
       chapterFlags: 0,
       viewerFlags: 0,
-      history: const <TachiBackupHistory>[],
+      history: <TachiBackupHistory>[],
     ),
   ],
 ).toData();
@@ -197,7 +197,7 @@ void main() {
     );
 
     check(source.searches).equals(1);
-    final PaperbackBackup published = PaperbackBackup.fromData(output.bytes!);
+    final published = PaperbackBackup.fromData(output.bytes!);
     check(published.sourceManga!.single.sourceId).equals('WeebCentral');
     check(published.chapterProgressMarker!.single.completed).isTrue();
     check(

@@ -66,7 +66,7 @@ SourceMangaData statefulManga({String title = 'Onimai', String? sourceId = 'orig
           chapterNumber: 1,
           language: language,
           isRead: true,
-          dateRead: DateTime.utc(2024, 3, 1),
+          dateRead: DateTime.utc(2024, 3),
         ),
         SourceChapter(
           title: 'Two',

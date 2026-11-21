@@ -44,7 +44,7 @@ DestinationRuntime _runtime(
   SourceFailure? Function()? probe,
 }) {
   final String sourceId = _destinationSourceIds[ecosystem]!;
-  final bool tachi = ecosystem == 'tachi';
+  final tachi = ecosystem == 'tachi';
   return DestinationRuntime(
     ecosystem: ecosystem,
     serves: (BackupFormat f) => _ecosystemOf(f) == ecosystem,
@@ -76,7 +76,7 @@ Future<Uint8List> _input(BackupFormat format) async {
   final String ecosystem = _ecosystemOf(format);
   final TargetBackupBuilder writer = FormatRegistry.portable().writerFor(format)!;
   final MangaMatchConfirmation c = fetchedConfirmation(
-    statefulManga(title: 'Onimai'),
+    statefulManga(),
     runtimeIdentity(ecosystem, ecosystem == 'tachi' ? '1234567890123456789' : 'origin.src'),
     mangaId: 'origin-manga',
     chapters: destinationChapters(prefix: 'origin-'),
