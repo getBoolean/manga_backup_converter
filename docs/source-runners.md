@@ -562,6 +562,11 @@ search and details for the four bundles whose captures complete them. It runs un
 executable (`benchmark/bundle_benchmark_main.dart`), because the worker ships AOT. Rate-limiter sleeps are made
 instant for CPU timing (they are host waits). Reference device: Windows 11 x64, MSVC `/O2` QuickJS-ng 0.18.0,
 16 logical processors, 128 GiB. Results: `benchmark/results/2026-11-21-windows-x64-bundles-{aot,jit}.json`.
+macOS arm64 (Apple M1, clang, loaded machine; U8 macOS lane): `benchmark/results/2026-11-21-macos-arm64-bundles-{aot,jit}.json`
+and `2026-11-21-macos-arm64.json`, summarised in `benchmark/README.md`. Same heap needs, about 1 KB of native stack per JS
+call (MSVC: 4.8 KB, so about 523 frames fit the AOT worker's half-stack ceiling instead of 108), and 2.6-5× faster. The
+reference device stays the Windows machine: each device sizes itself at worker start-up, and the slower reference keeps the
+deadline basis conservative.
 
 | AOT workload | Median | p95 | Minimal heap | Minimal stack |
 |---|---|---|---|---|

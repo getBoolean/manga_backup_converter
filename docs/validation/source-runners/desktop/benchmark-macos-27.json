@@ -1,0 +1,260 @@
+{
+    "recordedAt": "2026-11-21T23:01:32.688003Z",
+    "hostCommit": "b519a8d19885646add869dfc79ed013da782e0dd",
+    "hostDirty": false,
+    "quick": false,
+    "machine": {
+        "os": "Mac OS X 27.0 aarch64",
+        "cpu": "Apple M1",
+        "logicalCores": 8,
+        "benchmarkJvmMaxHeapMiB": 4096,
+        "workerJvmMaxHeapMiB": 1024,
+        "java": "Amazon.com Inc. 21.0.13.1+2-LTS"
+    },
+    "network": "replay of committed captures (fixtures/source_captures/tachi); no network",
+    "latency": {
+        "all.mangadex": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 15.5,
+                "p95Ms": 84.4,
+                "p99Ms": 84.4,
+                "maxMs": 84.4
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 18.3,
+                "p95Ms": 90.8,
+                "p99Ms": 90.8,
+                "maxMs": 90.8
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 59.2,
+                "p95Ms": 961.5,
+                "p99Ms": 968.9,
+                "maxMs": 968.9
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 1009.1,
+                "p95Ms": 1014.6,
+                "p99Ms": 1014.7,
+                "maxMs": 1014.7
+            }
+        },
+        "en.weebcentral": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 7.5,
+                "p95Ms": 23.7,
+                "p99Ms": 23.7,
+                "maxMs": 23.7
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 5.1,
+                "p95Ms": 8.1,
+                "p99Ms": 8.1,
+                "maxMs": 8.1
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 1997.3,
+                "p95Ms": 2006.2,
+                "p99Ms": 2006.9,
+                "maxMs": 2006.9
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 4024.8,
+                "p95Ms": 4038.5,
+                "p99Ms": 4048.4,
+                "maxMs": 4048.4
+            }
+        },
+        "all.mangafire": {
+            "prepare": {
+                "n": 5,
+                "p50Ms": 11.3,
+                "p95Ms": 28.3,
+                "p99Ms": 28.3,
+                "maxMs": 28.3
+            },
+            "load": {
+                "n": 5,
+                "p50Ms": 6.8,
+                "p95Ms": 11.8,
+                "p99Ms": 11.8,
+                "maxMs": 11.8
+            },
+            "search": {
+                "n": 20,
+                "p50Ms": 7.0,
+                "p95Ms": 1008.9,
+                "p99Ms": 1011.3,
+                "maxMs": 1011.3
+            },
+            "details": {
+                "n": 20,
+                "p50Ms": 1009.0,
+                "p95Ms": 1012.8,
+                "p99Ms": 1013.6,
+                "maxMs": 1013.6
+            }
+        }
+    },
+    "cancelSettleFixture": {
+        "n": 20,
+        "p50Ms": 1.9,
+        "p95Ms": 3.0,
+        "p99Ms": 3.1,
+        "maxMs": 3.1
+    },
+    "cancelSettleRealSources": {
+        "n": 14,
+        "p50Ms": 1.7,
+        "p95Ms": 7.2,
+        "p99Ms": 7.2,
+        "maxMs": 7.2
+    },
+    "cpuUtilisationPerRunningOperation": 0.0,
+    "throughputKneePoolSize": 1,
+    "restartAndRehydrate": {
+        "n": 8,
+        "p50Ms": 2718.4,
+        "p95Ms": 2809.1,
+        "p99Ms": 2809.1,
+        "maxMs": 2809.1
+    },
+    "shutdown": {
+        "n": 8,
+        "p50Ms": 23.8,
+        "p95Ms": 24.3,
+        "p99Ms": 24.3,
+        "maxMs": 24.3
+    },
+    "throughput": {
+        "pool1": {
+            "poolSize": 1,
+            "operations": 18,
+            "opsPerSecond": 0.7
+        },
+        "pool2": {
+            "poolSize": 2,
+            "operations": 18,
+            "opsPerSecond": 0.7
+        },
+        "pool3": {
+            "poolSize": 3,
+            "operations": 18,
+            "opsPerSecond": 0.7
+        }
+    },
+    "startup": {
+        "launch": "java -cp <install>/lib/* mangabackup.tachi.MainKt --state-dir <tmp> --replay <3 capture dirs>",
+        "coldFreshCopy": {
+            "handshake": {
+                "n": 3,
+                "p50Ms": 353.5,
+                "p95Ms": 354.5,
+                "p99Ms": 354.5,
+                "maxMs": 354.5
+            },
+            "load1Package": {
+                "n": 3,
+                "p50Ms": 74.2,
+                "p95Ms": 75.8,
+                "p99Ms": 75.8,
+                "maxMs": 75.8
+            },
+            "load3Packages": {
+                "n": 3,
+                "p50Ms": 91.1,
+                "p95Ms": 93.1,
+                "p99Ms": 93.1,
+                "maxMs": 93.1
+            }
+        },
+        "coldFreshCopyNoCds": {
+            "handshake": {
+                "n": 3,
+                "p50Ms": 394.4,
+                "p95Ms": 469.0,
+                "p99Ms": 469.0,
+                "maxMs": 469.0
+            },
+            "load1Package": {
+                "n": 3,
+                "p50Ms": 79.2,
+                "p95Ms": 80.8,
+                "p99Ms": 80.8,
+                "maxMs": 80.8
+            },
+            "load3Packages": {
+                "n": 3,
+                "p50Ms": 95.9,
+                "p95Ms": 99.6,
+                "p99Ms": 99.6,
+                "maxMs": 99.6
+            }
+        },
+        "warm": {
+            "handshake": {
+                "n": 10,
+                "p50Ms": 352.6,
+                "p95Ms": 473.7,
+                "p99Ms": 473.7,
+                "maxMs": 473.7
+            },
+            "load1Package": {
+                "n": 10,
+                "p50Ms": 73.9,
+                "p95Ms": 77.0,
+                "p99Ms": 77.0,
+                "maxMs": 77.0
+            },
+            "load3Packages": {
+                "n": 10,
+                "p50Ms": 90.9,
+                "p95Ms": 96.8,
+                "p99Ms": 96.8,
+                "maxMs": 96.8
+            }
+        },
+        "maxStartupToHandshakeMs": 473.7
+    },
+    "heap": {
+        "baseHeapMiB": 66.6,
+        "perPackageHeapMiB": 1.4
+    },
+    "rule": {
+        "source": "docs/validation/source-runners/desktop/benchmark-macos-27.json (2026-11-21T23:01:32.688003Z)",
+        "coresFactor": 100.0,
+        "baseHeapMiB": 67.0,
+        "perPackageHeapMiB": 3.0,
+        "p99OperationMs": 4048.4,
+        "deadlineFactor": 50.0,
+        "maxCancelSettleMs": 7.2,
+        "maxShutdownMs": 24.3,
+        "graceFactor": 3.0,
+        "interactionTimeoutMs": 300000,
+        "maxPoolSize": 3,
+        "maxStartupToHandshakeMs": 473.7,
+        "handshakeFactor": 10.0
+    },
+    "derivedForThisMachine": {
+        "inputs": {
+            "cores": 8,
+            "maxHeapMiB": 4096
+        },
+        "limits": {
+            "poolSize": 3,
+            "operationDeadlineMs": 202420,
+            "cancelGraceMs": 73,
+            "interactionTimeoutMs": 300000,
+            "shutdownGraceMs": 73
+        },
+        "handshakeDeadlineMs": 4737
+    }
+}

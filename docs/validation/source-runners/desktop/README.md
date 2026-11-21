@@ -46,7 +46,7 @@ The rule combines two runs:
   conversion.
 
 **Pending:** a full rerun on an idle machine (to measure start-up idle and confirm the other values after
-the protocol 1.2 changes), and runs on macOS and Linux.
+the protocol 1.2 changes), an idle macOS run (the 2026-11-21 macOS run below was loaded), and Linux.
 
 | Operation | MangaDex p50 / p99 | Weeb Central p50 / p99 | MangaFire p50 / p99 |
 |---|---|---|---|
@@ -81,6 +81,40 @@ about one request per 2 s, MangaDex and MangaFire about one per second) dominate
 tens of milliseconds. Throughput is flat across pool sizes for the same reason: the slowest source's rate
 limiter bounds each round. A throughput knee therefore cannot size the pool, so the rule uses CPU
 utilisation instead and caps the pool at the largest concurrency measured.
+
+## macOS run (2026-11-21, `benchmark-macos-27.json`; loaded machine, not used by the rule)
+
+Identity: host commit b519a8d (clean), macOS 27.0 build 26A428, Apple M1, 8 logical cores, 16 GiB, Amazon Corretto
+21.0.13.1+2 from the pinned archive (worker `-Xmx1g`), replayed captures, harness recording CPU model and commit since
+5b41b70. The machine was **not idle**: Spotlight was indexing the new build outputs (mds_stores up to 230% CPU),
+WindowServer animated the wallpaper and Syncthing synced; `top` showed 49% CPU idle before and 65% after. Waiting
+15 minutes did not change that, and stopping those services was not done without the owner. The run is a
+lower-capability, loaded-device comparison, so the committed rule (`tachi-worker-sizing.json`, from the Windows runs)
+was kept; the benchmark's rewrite of it was reverted.
+
+| Operation | MangaDex p50 / p99 | Weeb Central p50 / p99 | MangaFire p50 / p99 |
+|---|---|---|---|
+| artifact.prepare | 15.5 / 84.4 ms | 7.5 / 23.7 ms | 11.3 / 28.3 ms |
+| package.load | 18.3 / 90.8 ms | 5.1 / 8.1 ms | 6.8 / 11.8 ms |
+| search | 59.2 / 968.9 ms | 1997.3 / 2006.9 ms | 7.0 / 1011.3 ms |
+| details | 1009.1 / 1014.7 ms | 4024.8 / 4048.4 ms | 1009.0 / 1013.6 ms |
+
+| Measurement | macOS | Windows idle (rule) |
+|---|---|---|
+| Cancel settle, fixture / real sources | max 3.1 / 7.2 ms | max 5.9 / 5.5 ms |
+| Restart and rehydrate, 3 packages (n=8) | p50 2.72 s, max 2.81 s | p50 4.76 s, max 5.74 s |
+| Graceful shutdown | max 24.3 ms | max 55 ms |
+| Heap baseline / per package | 66.6 / 1.4 MiB | 67 / 1.4 MiB |
+| Throughput, pools 1 / 2 / 3 | 0.7 / 0.7 / 0.7 details/s | 0.8 / 0.8 / 0.8 |
+| Handshake: cold copy / cold no CDS / warm, max | 354.5 / 469.0 / 473.7 ms | 2696 / 3113 / 3006 ms (loaded run) |
+| CPU per wall second, one operation | 0.0 (below the harness's resolution) | 0.028 |
+
+What it changes: nothing in the rule. The worst macOS handshake (474 ms) is 15% of `maxStartupToHandshakeMs`
+(3112.5 ms), so the 31.1 s packaged handshake deadline holds with a wide margin; the slowest p99 (4048 ms) is within
+1% of the rule's 4021 ms, again the Weeb Central rate limiter; cancel and shutdown maxima stay inside the 165 ms
+grace. The CPU-utilisation reading of 0.0 makes the macOS-only rule's `coresFactor` hit its floor (100), which does
+not change the pool (always the measured cap of 3). An idle-machine macOS rerun, and Linux, remain to do before the
+rule is regenerated from combined results.
 
 ## Sizing rule
 
