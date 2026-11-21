@@ -90,6 +90,24 @@ jobs:
       - name: Verify Android Aidoku fixture bundle is current
         run: dart run tool/generate_android_aidoku_fixtures.dart --check
 
+      # jnigen downloads the pinned Jsoup sources from Maven and needs a JDK.
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Verify jsoup JNI bindings are current
+        run: |
+          (cd packages/jsoup_jni && dart run tool/generate_jni_bindings.dart)
+          drift="$(git status --porcelain -- packages/jsoup_jni/lib/src/bindings)"
+          if [ -n "$drift" ]; then
+            echo "::error::jsoup_jni bindings are stale; run 'melos run jnigen' and commit the result."
+            echo "$drift"
+            git diff --stat -- packages/jsoup_jni/lib/src/bindings
+            exit 1
+          fi
+
   test:
     name: Test (${{ matrix.os }})
     timeout-minutes: 30
@@ -556,6 +574,18 @@ jobs:
             flutter build apk --release
             cd build/app/outputs/flutter-apk
             mv app-release.apk ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal.apk
+
+      # tool/jnigen.dart reads the Kotlin facade classes the APK build compiled.
+      - name: Verify source_runtime_android JNI bindings are current
+        run: |
+          (cd packages/source_runtime_android && dart run tool/jnigen.dart)
+          drift="$(git status --porcelain -- packages/source_runtime_android/lib/src/bindings)"
+          if [ -n "$drift" ]; then
+            echo "::error::source_runtime_android bindings are stale; build the app, run 'melos run jnigen:android' and commit the result."
+            echo "$drift"
+            git diff --stat -- packages/source_runtime_android/lib/src/bindings
+            exit 1
+          fi
 
       - name: Upload Universal APK
         uses: actions/upload-artifact@v4
