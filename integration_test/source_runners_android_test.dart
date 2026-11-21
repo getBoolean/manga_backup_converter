@@ -1,5 +1,6 @@
-// U13: the Aidoku runner on Android (KTD22), U11's Tachi cases and U12's
-// Paperback and app-process BrowserPort cases (android_u12_cases.dart). Runs
+// U13: the Aidoku runner on Android (KTD22), U11's Tachi cases, U12's
+// Paperback and app-process BrowserPort cases (android_u12_cases.dart) and
+// U14's complete conversion jobs (android_u14_cases.dart). Runs
 // on an Android device or emulator:
 //   flutter test integration_test/source_runners_android_test.dart -d <device>
 //
@@ -35,6 +36,7 @@ import 'package:tachi_plugin_loader/testing.dart';
 
 import 'aidoku_fixture_bundle.g.dart';
 import 'android_u12_cases.dart';
+import 'android_u14_cases.dart';
 
 const Duration _noHang = Duration(seconds: 60);
 const ArtifactProfile _profile = ArtifactProfile(
@@ -136,6 +138,11 @@ final class _Artifact implements VerifiedArtifact {
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  if (u14Phase.isNotEmpty) {
+    // A built-app launch runs only its phase (see android_u14_cases.dart).
+    registerU14PhaseCases();
+    return;
+  }
 
   late Directory root;
   late ArtifactCache cache;
@@ -1591,4 +1598,5 @@ void _tachiCases() {
   }, timeout: _tachiTimeout);
 
   registerU12Cases();
+  registerU14Cases();
 }
