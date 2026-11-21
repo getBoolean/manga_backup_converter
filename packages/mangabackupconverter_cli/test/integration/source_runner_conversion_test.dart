@@ -1,0 +1,331 @@
+// Conversions through the CLI's own composition (cliRuntimeRegistry and
+// DesktopTachiRuntime, as `convert` builds them) with the real runtimes: the
+// JVM worker, the Paperback QuickJS worker (in process) and the desktop
+// WebView helper. Every request replays committed captures; the helper runs
+// offline, so a request with no capture fails instead of reaching a server.
+@TestOn('vm')
+@Timeout(Duration(minutes: 20))
+library;
+
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:checks/checks.dart';
+import 'package:desktop_webview/desktop_webview.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';
+import 'package:mangabackupconverter_cli/src/commands/desktop_runtime.dart';
+import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
+import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:path/path.dart' as p;
+import 'package:source_runtime/source_runtime.dart';
+import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';
+import 'package:tachi_plugin_loader/testing.dart';
+import 'package:test/scaffolding.dart';
+
+const String _weebCentralId = '2131019126180322627';
+const String _mangaDexEnId = '2499283573021220255';
+const String _inkdex = 'https://inkdex.github.io/extensions/0.9/stable/';
+
+/// A second Tachi repository (synthetic `repo.json` and `index.json`, built
+/// in memory from the committed index entries) that lists only Weeb Central.
+/// Its artifacts are the committed keiyoushi-signed files, so it publishes
+/// keiyoushi's fingerprint; trust is still decided per repository.
+final Uri _mirrorRepository = Uri.parse('https://mirror.invalid/keiyoushi/repo');
+
+final ({TachiWorkerLocation? location, String? skip}) _worker = testWorkerLocation();
+
+Directory _repoDir(String relative) {
+  Directory dir = Directory.current.absolute;
+  while (!Directory(p.join(dir.path, relative)).existsSync()) {
+    if (dir.parent.path == dir.path) throw StateError('$relative not found');
+    dir = dir.parent;
+  }
+  return Directory(p.join(dir.path, relative));
+}
+
+/// The helper built for this host (debug), building it when missing; `null`
+/// with [_helperSkip] when cargo cannot build it.
+String? _helperSkip;
+Future<File?> _helperManifest() async {
+  File? manifest = locateWebViewHelperManifest(searchFrom: Directory.current);
+  if (manifest == null) {
+    final Directory pkg = _repoDir('packages/desktop_webview');
+    final ProcessResult built = await Process.run(
+      Platform.resolvedExecutable.contains('flutter_tester') ? 'dart' : Platform.resolvedExecutable,
+      <String>['run', 'tool/build_helper.dart'],
+      workingDirectory: pkg.path,
+      runInShell: true,
+    );
+    if (built.exitCode != 0) {
+      _helperSkip = 'desktop WebView helper not built: ${built.stderr}';
+      return null;
+    }
+    manifest = locateWebViewHelperManifest(searchFrom: Directory.current);
+  }
+  return manifest;
+}
+
+/// Serves the pinned inkdex 0.9 catalog and bundles.
+http.Client _catalogClient(Directory fixtures) => MockClient((http.Request r) async {
+  final url = r.url.toString();
+  if (url.startsWith(_inkdex)) {
+    final file = File(p.join(fixtures.path, 'inkdex-0.9', url.substring(_inkdex.length)));
+    if (file.existsSync()) return http.Response.bytes(file.readAsBytesSync(), 200);
+  }
+  return http.Response('not found', 404);
+});
+
+/// A Paperback backup with chapter 1 read and chapter 2 partly read, written
+/// by the Paperback writer.
+Future<Uint8List> _paperbackInput() async {
+  const identity = SourceIdentity(
+    ecosystem: 'paperback',
+    packageId: 'origin',
+    sourceId: 'en.origin',
+    artifact: ArtifactBinding(sha256: 'abc', kind: 'test', version: '1'),
+  );
+  const ref = NativeMangaRef(source: identity, mangaId: 'origin-manga', settingsRevision: 'rev');
+  final manga = SourceMangaData(
+    details: MangaSearchDetails(title: "ONIMAI - I'm Now Your Sister!"),
+    categories: const <String>['Reading'],
+    chapters: <SourceChapter>[
+      SourceChapter(title: 'Step 1', chapterKey: 'o1', chapterNumber: 1, isRead: true, dateRead: DateTime.utc(2024)),
+      SourceChapter(title: 'Step 2', chapterKey: 'o2', chapterNumber: 2, lastPageRead: 4, totalPages: 18),
+    ],
+  );
+  final MangaMatchConfirmation c =
+      MangaMatchConfirmation(
+        sourceManga: manga,
+        confirmedMatch: PluginSearchResult(ref: ref, title: manga.details.title),
+      ).withDestination(
+        FetchedManga(
+          MangaSnapshot(
+            ref: ref,
+            metadata: MangaMetadata(title: manga.details.title),
+            chapters: <NativeChapter>[
+              for (var i = 1; i <= 2; i++)
+                NativeChapter(
+                  chapterId: 'origin-$i',
+                  sourceOrder: 2 - i,
+                  chapterNumber: i.toDouble(),
+                  title: 'Step $i',
+                  language: 'en',
+                ),
+            ],
+          ),
+        ),
+      );
+  return cliFormatRegistry().writerFor(const Paperback())!.build(<MangaConversionPlan>[planConversion(c)]).toData();
+}
+
+final class _MemoryOutput implements ConversionOutput {
+  Uint8List? bytes;
+
+  @override
+  Future<void> publish(Uint8List b) async => bytes = b;
+}
+
+/// Counts worker launches and keeps every launched process.
+final class _CountingLauncher {
+  final List<WorkerProcess> launched = <WorkerProcess>[];
+
+  Future<WorkerProcess> call(WorkerSpec spec) async {
+    final WorkerProcess process = await launchWorkerProcess(spec);
+    launched.add(process);
+    return process;
+  }
+}
+
+void main() {
+  final Directory paperbackFixtures = _repoDir('fixtures/source_captures/paperback');
+  late Directory temp;
+
+  setUp(() => temp = Directory.systemTemp.createTempSync('u8_runner_'));
+  tearDown(() => deleteTestDirectory(temp));
+
+  DesktopTachiRuntime tachiRuntime(FixtureFetch fetch, {WorkerLauncher? launcher, BrowserPort? browser}) =>
+      DesktopTachiRuntime(
+        locate: () => _worker.location == null
+            ? const SourceFailed<TachiWorkerLocation>(RuntimeUnavailableFailure('no test worker'))
+            : SourceSuccess<TachiWorkerLocation>(_worker.location!),
+        cacheDirectory: Directory(p.join(temp.path, 'tachi-artifacts')),
+        fetch: fetch.call,
+        replay: <String>[for (final TachiCapture c in tachiCaptures()) c.directory.path],
+        stateDirectory: (Directory(p.join(temp.path, 'tachi-state'))..createSync(recursive: true)).path,
+        launcher: launcher,
+        browserPort: browser,
+        browserReplacementTimeout: CliBrowserPolicy.replacementTimeout,
+        interactionTimeout: CliBrowserPolicy.interactionTimeout,
+      );
+
+  RuntimeRegistry registry(DesktopTachiRuntime tachi, {BrowserPort? browser, List<String> paperbackSites = const []}) =>
+      cliRuntimeRegistry(
+        cache: PluginCache(cacheDir: Directory(p.join(temp.path, 'plugin-cache'))),
+        tachi: tachi,
+        cacheRoot: temp.path,
+        interactionTimeout: CliBrowserPolicy.interactionTimeout,
+        browserPort: browser,
+        browserReplacementTimeout: CliBrowserPolicy.replacementTimeout,
+        paperbackClient: _catalogClient(paperbackFixtures),
+        paperbackLauncher: inProcessPaperbackLauncher(
+          client: MultiReplayHttpClient.load(<Directory>[
+            for (final String site in paperbackSites) Directory(p.join(paperbackFixtures.path, site)),
+          ]),
+          limits: PaperbackRuntimeLimits(
+            memoryLimitBytes: 256 << 20,
+            maxStackBytes: 512 << 10,
+            operationDeadline: const Duration(minutes: 5),
+            jobSlice: const Duration(milliseconds: 20),
+          ),
+        ),
+      );
+
+  group('Tachi destination through the CLI composition', skip: _worker.skip, () {
+    test('picks packages from two repositories and hosts them all in one JVM worker', () async {
+      final fetch = FixtureFetch(<FixtureRepository>[
+        FixtureRepository(
+          baseUrl: keiyoushiRepository,
+          captures: tachiCaptures().where((TachiCapture c) => c.source == 'all.mangadex').toList(),
+        ),
+        FixtureRepository(
+          baseUrl: _mirrorRepository,
+          name: 'Mirror',
+          captures: tachiCaptures().where((TachiCapture c) => c.source == 'en.weebcentral').toList(),
+        ),
+      ]);
+      final launcher = _CountingLauncher();
+      final DesktopTachiRuntime tachi = tachiRuntime(fetch, launcher: launcher.call);
+      final trusted = <Uri>[];
+      final listedRepos = <String>{};
+      final hitsBySource = <String, int>{};
+      final selection = CallbackSelectionPort(
+        onSelectExtensions: (List<ExtensionEntry> e) async {
+          listedRepos.addAll(e.whereType<TachiExtensionEntry>().map((TachiExtensionEntry x) => x.repositoryUrl));
+          return e;
+        },
+        onRepositoryTrust: (RepositoryTrustRequest r) async {
+          trusted.add(r.repository);
+          return TrustDecision.trustOnce;
+        },
+        onConfirmMatches: (_, List<SourceMangaData> manga, onSearch, _) async {
+          final results = <PluginSearchResult>[];
+          await for (final PluginSearchEvent e in onSearch('Onimai')) {
+            if (e is PluginSearchResults) results.addAll(e.results);
+          }
+          for (final r in results) {
+            hitsBySource.update(r.ref.source.sourceId, (int n) => n + 1, ifAbsent: () => 1);
+          }
+          final PluginSearchResult hit = results.firstWhere(
+            (PluginSearchResult r) => r.ref.source.sourceId == _weebCentralId,
+          );
+          return <MangaMatchConfirmation>[MangaMatchConfirmation(sourceManga: manga.single, confirmedMatch: hit)];
+        },
+        acceptPartial: true,
+      );
+      final output = _MemoryOutput();
+      final ConversionResult result =
+          await ConversionJob(
+            formats: cliFormatRegistry(),
+            runtimes: registry(tachi),
+            selection: selection,
+            onOwnerOpened: tachi.attach,
+          ).run(
+            ConversionRequest(
+              input: await _paperbackInput(),
+              sourceFormat: const Paperback(),
+              targetFormat: const Mihon(),
+              repoUrls: <String>[keiyoushiRepository.toString(), _mirrorRepository.toString()],
+              sources: const <String>{_weebCentralId, _mangaDexEnId},
+            ),
+            output,
+          );
+      // Both repositories were trusted and listed, both packages loaded and
+      // searched, all in the one worker process.
+      check(trusted).deepEquals(<Uri>[keiyoushiRepository, _mirrorRepository]);
+      check(listedRepos).deepEquals(<String>{keiyoushiRepository.toString(), _mirrorRepository.toString()});
+      check(hitsBySource.keys.toSet()).deepEquals(<String>{_weebCentralId, _mangaDexEnId});
+      check(launcher.launched).length.equals(1);
+      check(output.bytes).isNotNull().deepEquals(result.draft.bytes);
+      final TachiBackupManga m = TachiBackup.fromData(output.bytes!).backupManga.single;
+      check(m.source.toString()).equals(_weebCentralId);
+      check(m.chapters.length).isGreaterThan(100);
+      check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
+      // The conversion owner closed the scope: the worker exited.
+      for (final WorkerProcess w in launcher.launched) {
+        check(await w.exitCode.timeout(const Duration(seconds: 30))).isA<int>();
+      }
+    });
+  });
+
+  group('desktop WebView helper through the CLI composition', () {
+    late File? manifest;
+    setUpAll(() async => manifest = await _helperManifest());
+
+    test('Paperback executeInWebView reaches the helper, and closing the owner leaves no helper process', () async {
+      if (manifest == null) {
+        markTestSkipped(_helperSkip ?? 'desktop WebView helper not built');
+        return;
+      }
+      final (DesktopBrowserPort? port, String? why) = createCliBrowserPort(
+        interactive: false,
+        dataRoot: Directory(p.join(temp.path, 'webview')),
+        manifest: manifest,
+        offline: true,
+      );
+      check(why).isNull();
+      final DesktopBrowserPort browser = port!;
+      final DesktopTachiRuntime tachi = tachiRuntime(FixtureFetch(const <FixtureRepository>[]), browser: browser);
+      final RuntimeRegistry runtimes = registry(tachi, browser: browser, paperbackSites: const <String>['mangafire']);
+      final owner = ConversionOwner();
+      await owner.adopt(browser.dispose);
+      await tachi.attach(owner);
+      SourceFailure? searchFailure;
+      int? helperPid;
+      try {
+        final PluginLoader loader = runtimes
+            .runtimeFor(const Paperback())!
+            .createLoader(
+              const RuntimeContext(),
+            );
+        final List<ExtensionEntry> entries = await loader.fetchExtensionLists(<String>[
+          _inkdex,
+        ], trust: RepositoryTrustGate(store: InMemoryTrustStore(), decide: (_) async => TrustDecision.trustOnce));
+        final ExtensionEntry mangaFire = entries.firstWhere((ExtensionEntry e) => e.id.endsWith('#MangaFire'));
+        final List<PluginSource> plugins = await loader.loadPlugins(<ExtensionEntry>[mangaFire], owner: owner);
+        check(plugins).length.equals(1);
+        searchFailure = (await plugins.single.search('Onimai', 1)).failureOrNull;
+        helperPid = browser.helperInfo?.pid;
+      } finally {
+        await owner.close();
+      }
+      // The worker's executeInWebView opened a session in the real helper
+      // for MangaFire's own identity. The page's site scripts are not
+      // captured (no browser capture exists), so offline replay blocks them
+      // and the VRF capture fails inside the page: a source error, not a
+      // missing browser capability.
+      check(browser.debugOpenedSources.map((SourceIdentity s) => s.sourceId)).contains('MangaFire');
+      check(helperPid).isNotNull();
+      check(searchFailure)
+          .isA<SourceErrorFailure>()
+          .has((SourceErrorFailure f) => f.message, 'message')
+          .contains('VRF capture timed out');
+      // Owner closed: no session left, helper exited.
+      check(browser.debugOpenSessions).equals(0);
+      check(browser.helperInfo).isNull();
+      check(_processAlive(helperPid!)).isFalse();
+    });
+  });
+}
+
+/// Whether a process with [pid] is still running.
+bool _processAlive(int pid) {
+  if (Platform.isWindows) {
+    final ProcessResult r = Process.runSync('tasklist', <String>['/FI', 'PID eq $pid', '/NH']);
+    return (r.stdout as String).contains(' $pid ');
+  }
+  return Process.runSync('kill', <String>['-0', '$pid']).exitCode == 0;
+}

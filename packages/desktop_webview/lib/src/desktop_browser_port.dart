@@ -101,6 +101,7 @@ class DesktopBrowserPort implements BrowserPort {
   Future<HelperStart>? _starting;
   HelperProcess? _helper;
   final Map<String, DesktopBrowserSession> _sessions = <String, DesktopBrowserSession>{};
+  final List<SourceIdentity> _opened = <SourceIdentity>[];
   int _validFrom = 0;
   int _nextSession = 0;
   bool _disposed = false;
@@ -203,6 +204,7 @@ class DesktopBrowserPort implements BrowserPort {
           return BrowserCancelled<BrowserSession>(cancel?.reason ?? 'Generation ${request.generation} is fenced');
         }
         _sessions[id] = session;
+        _opened.add(request.source);
         return BrowserCompleted<BrowserSession>(session);
       case HelperError(:final String code, :final String message, :final String? operation):
         return switch (code) {
@@ -255,6 +257,14 @@ class DesktopBrowserPort implements BrowserPort {
   /// The running helper, for tests that speak to it directly.
   @visibleForTesting
   HelperProcess? get debugHelper => _helper;
+
+  /// The source of every session this port opened, in order.
+  @visibleForTesting
+  List<SourceIdentity> get debugOpenedSources => List<SourceIdentity>.unmodifiable(_opened);
+
+  /// Number of sessions currently open.
+  @visibleForTesting
+  int get debugOpenSessions => _sessions.length;
 
   /// Open sessions whose interaction window is shown (or being shown).
   @visibleForTesting
