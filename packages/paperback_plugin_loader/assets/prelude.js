@@ -189,10 +189,13 @@
   // host exchange; cookies set by a hop travel with the next hop.
   globalThis.__pbFetchFollowing = async function (wire, next, maxRedirects = 10) {
     let current = wire;
+    // Every hop's cookies, oldest first, for hosts that keep a cookie jar.
+    const hops = [];
     for (let hop = 0; ; hop++) {
       const raw = await H.fetch(current);
+      hops.push(raw);
       const redirect = raw.redirectUrl;
-      if (!redirect || hop >= maxRedirects) return { raw, request: current };
+      if (!redirect || hop >= maxRedirects) return { raw, request: current, hops };
       const method = String(current.method || 'GET').toUpperCase();
       const keepMethod = raw.status === 307 || raw.status === 308 || (method === 'GET' || method === 'HEAD');
       let proposed = {
@@ -205,7 +208,7 @@
       for (const c of globalThis.__pbParseSetCookie(raw.setCookie, raw.url)) proposed.cookies[c.name] = c.value;
       if (next) {
         proposed = await next(proposed, raw);
-        if (!proposed) return { raw, request: current };
+        if (!proposed) return { raw, request: current, hops };
       }
       current = proposed;
     }

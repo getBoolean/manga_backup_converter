@@ -105,15 +105,18 @@
       const wire = { url, method: String(request.method || 'GET').toUpperCase(), headers, body, timeoutMs: this.requestTimeout };
       let attempts = Math.max(0, Number(retry) || 0);
       let raw;
+      let hops = [];
       for (;;) {
         try {
-          raw = (await globalThis.__pbFetchFollowing(wire, undefined, 5)).raw;
+          ({ raw, hops } = await globalThis.__pbFetchFollowing(wire, undefined, 5));
           break;
         } catch (e) {
           if (attempts-- <= 0 || String(e && e.message).includes('[capture-miss]')) throw e;
         }
       }
-      for (const c of globalThis.__pbParseSetCookie(raw.setCookie, raw.url)) this.cookieStore.addCookie(c);
+      for (const hop of hops) {
+        for (const c of globalThis.__pbParseSetCookie(hop.setCookie, hop.url)) this.cookieStore.addCookie(c);
+      }
       let response = {
         rawData: rawData(raw.body),
         data: H.utf8Decode(raw.body),

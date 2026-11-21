@@ -51,6 +51,7 @@
   }
   function rating09(r) {
     switch (r) {
+      case 'SAFE':
       case 'EVERYONE': return 'safe';
       case 'MATURE': return 'suggestive';
       case 'ADULT': return 'nsfw';

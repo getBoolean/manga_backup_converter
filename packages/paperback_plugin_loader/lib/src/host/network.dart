@@ -59,8 +59,12 @@ final class PaperbackHttp {
     }
     final cookies = wire['cookies'];
     if (cookies is Map<String, Object?> && cookies.isNotEmpty) {
-      // The 0.9 reference host's format: " a=1; b=2;" trimmed.
-      request.headers['Cookie'] = cookies.entries.map((MapEntry<String, Object?> e) => '${e.key}=${e.value};').join(' ');
+      // The 0.9 reference host's format: " a=1; b=2;" trimmed. Header names
+      // are case-insensitive, so a source's own `cookie` header is extended
+      // rather than replaced.
+      final String pairs = cookies.entries.map((MapEntry<String, Object?> e) => '${e.key}=${e.value};').join(' ');
+      final String? existing = request.headers['cookie'];
+      request.headers['Cookie'] = existing == null || existing.isEmpty ? pairs : '${existing.trimRight()} $pairs';
     }
     final Object? timeoutMs = wire['timeoutMs'];
     final Duration timeout = timeoutMs is num && timeoutMs > 0

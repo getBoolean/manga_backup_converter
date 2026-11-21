@@ -86,7 +86,9 @@ final class PaperbackSourceHost {
       cancel: cancel,
     );
     await runtime.evaluate(
-      utf8.decode(bytes, allowMalformed: true),
+      // The script's completion value (often the exported module) is not
+      // data; discard it. The bundle text itself is evaluated unchanged.
+      '${utf8.decode(bytes, allowMalformed: true)}\n;void 0;',
       filename: 'bundle/${binding.sha256.substring(0, 12)}.js',
       cancel: cancel,
     );

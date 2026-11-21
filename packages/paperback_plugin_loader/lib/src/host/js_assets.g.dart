@@ -196,10 +196,13 @@ const String preludeJs = r'''// Paperback host prelude (U6): web-platform global
   // host exchange; cookies set by a hop travel with the next hop.
   globalThis.__pbFetchFollowing = async function (wire, next, maxRedirects = 10) {
     let current = wire;
+    // Every hop's cookies, oldest first, for hosts that keep a cookie jar.
+    const hops = [];
     for (let hop = 0; ; hop++) {
       const raw = await H.fetch(current);
+      hops.push(raw);
       const redirect = raw.redirectUrl;
-      if (!redirect || hop >= maxRedirects) return { raw, request: current };
+      if (!redirect || hop >= maxRedirects) return { raw, request: current, hops };
       const method = String(current.method || 'GET').toUpperCase();
       const keepMethod = raw.status === 307 || raw.status === 308 || (method === 'GET' || method === 'HEAD');
       let proposed = {
@@ -212,7 +215,7 @@ const String preludeJs = r'''// Paperback host prelude (U6): web-platform global
       for (const c of globalThis.__pbParseSetCookie(raw.setCookie, raw.url)) proposed.cookies[c.name] = c.value;
       if (next) {
         proposed = await next(proposed, raw);
-        if (!proposed) return { raw, request: current };
+        if (!proposed) return { raw, request: current, hops };
       }
       current = proposed;
     }
@@ -328,15 +331,18 @@ const String api08Js = r'''// Paperback 0.8 host adapter (U6, KTD6): the `App` g
       const wire = { url, method: String(request.method || 'GET').toUpperCase(), headers, body, timeoutMs: this.requestTimeout };
       let attempts = Math.max(0, Number(retry) || 0);
       let raw;
+      let hops = [];
       for (;;) {
         try {
-          raw = (await globalThis.__pbFetchFollowing(wire, undefined, 5)).raw;
+          ({ raw, hops } = await globalThis.__pbFetchFollowing(wire, undefined, 5));
           break;
         } catch (e) {
           if (attempts-- <= 0 || String(e && e.message).includes('[capture-miss]')) throw e;
         }
       }
-      for (const c of globalThis.__pbParseSetCookie(raw.setCookie, raw.url)) this.cookieStore.addCookie(c);
+      for (const hop of hops) {
+        for (const c of globalThis.__pbParseSetCookie(hop.setCookie, hop.url)) this.cookieStore.addCookie(c);
+      }
       let response = {
         rawData: rawData(raw.body),
         data: H.utf8Decode(raw.body),
@@ -667,6 +673,7 @@ const String opsJs = r'''// Paperback operation glue (U6): enumerates the source
   }
   function rating09(r) {
     switch (r) {
+      case 'SAFE':
       case 'EVERYONE': return 'safe';
       case 'MATURE': return 'suggestive';
       case 'ADULT': return 'nsfw';
@@ -855,9 +862,9 @@ const String hostLibJs = r'''(()=>{var is=Object.create;var yt=Object.defineProp
 
 /// SHA-256 of each embedded asset (LF line endings).
 const Map<String, String> embeddedAssetSha256 = <String, String>{
-  'prelude.js': '0340ae69d96f0b98a50803bfcb367a54914c33f991e54221aa78429a133c4a15',
-  'api08.js': 'f372a526e3504103d95116d517a25957be5112f4a3e66ccf0646f10d4901d4de',
+  'prelude.js': 'd6c336f1152662140bcd12b6d3a0617740a10a70b5e1b628531271c4f8e06c9f',
+  'api08.js': '660f6e7a4b43a4832e235cacd233972c94ea426147b4d4542bfaa8ab0c45401c',
   'api09.js': '3a174e8715e53e1d9862a188b11e737ab47b4c53b597f831cfd847d034345a3d',
-  'ops.js': '4448d61dea4ee57dd4611503e8dcdbbcddf7b57fa636925e4f0590c7df17a5a3',
+  'ops.js': '0d83b1b55296c44a121b0247375b8e66cf316e7635e3e26e432ba9a114afa7b9',
   'paperback_host_lib.js': '43cab475bf02f03721b25a9ab88251c7886ad8b8273b5d022a3a2ebef764d95b',
 };
