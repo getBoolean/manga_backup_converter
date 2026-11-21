@@ -31,6 +31,8 @@ dependencies:
   source_runtime:
     path: ../source_runtime
   protobuf: ^3.1.0
+  source_loaders:
+    path: ../source_loaders
   sqflite_common: ^2.5.4
   sqflite_common_ffi: ^2.3.3
   sqflite_common_ffi_web: ^0.4.4

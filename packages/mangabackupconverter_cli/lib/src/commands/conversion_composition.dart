@@ -56,7 +56,7 @@ RuntimeRegistry cliRuntimeRegistry({
     ecosystem: 'paperback',
     serves: (BackupFormat f) => f is Paperback,
     createLoader: (RuntimeContext context) => CachingPluginLoader(
-      PaperbackPluginLoader.desktop(
+      desktopPaperbackLoader(
         cacheRoot: cacheRoot,
         onSettings: onSettings,
         onLog: onLog,
