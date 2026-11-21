@@ -1,6 +1,6 @@
 // U10 iOS device cases: local Paperback execution in an in-app worker isolate
 // (QuickJS-ng built for iOS) and the WKWebView BrowserPort (KTD13, KTD20).
-// U9's Tachi cases live in source_runners_ios_test.dart on its own branch.
+// U9's Tachi cases live in source_runners_ios_tachi_test.dart.
 //
 // Run on an iOS Simulator (evidence is labelled "simulator"):
 //
@@ -230,13 +230,37 @@ WKWebViewBrowserPort _port({bool allowInteraction = false}) =>
       ),
     );
 
-final class _WkHarness implements BrowserPortHarness {
+/// The contract harness. [interactive] lets sessions present the visible
+/// interaction sheet (protocol 1.3 completion cases); the simulated user
+/// dismisses it through the same handler as the sheet's swipe-down.
+final class _WkHarness implements InteractiveBrowserPortHarness {
+  _WkHarness({this.interactive = false});
+
+  final bool interactive;
   WKWebViewBrowserPort? _current;
 
   @override
   Future<BrowserPort> start() async {
     _server.hold();
-    return _current = _port();
+    return _current = _port(allowInteraction: interactive);
+  }
+
+  @override
+  Future<void> closeInteractionWindow() async {
+    final watch = Stopwatch()..start();
+    while (watch.elapsed < const Duration(seconds: 10)) {
+      for (final WKWebViewBrowserSession s
+          in _current?.sessions ?? const <WKWebViewBrowserSession>{}) {
+        if (s.isShowingInteraction) {
+          // Let the sheet finish presenting, as a user would.
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          await s.debugUserDismiss();
+          return;
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    throw StateError('no interaction sheet was shown');
   }
 
   @override
@@ -256,7 +280,7 @@ final class _WkHarness implements BrowserPortHarness {
   Uri get redirectToFileUrl => _server.url('/to-file');
 
   @override
-  bool get canShowInteraction => false;
+  bool get canShowInteraction => interactive;
 
   @override
   String heldScript(String resultJson) =>
@@ -608,11 +632,60 @@ void main() {
         expect(await h.shutdown(), 0);
       },
     );
+
+    test(
+      'protocol 1.3: interaction events pause the engine deadline in the '
+      'worker isolate',
+      () async {
+        const deadline = Duration(milliseconds: 300);
+        final IsolateWorkerHarness h = await IsolateWorkerHarness.start(
+          PaperbackIsolateWorkerConfig(
+            limits: _limits(deadline: deadline),
+            clientFactory: () => LoggingReplayClient(const <String>[]),
+            adapterFactory: (_, _, _) => const LoopingAdapter(),
+          ),
+        );
+        await h.handshake();
+        expect((await h.loadLoopPackage()).error, isNull);
+        final String id = h.search('host');
+        ProtocolFrame? early;
+        final Future<ProtocolFrame> reply = h.reply(id);
+        unawaited(reply.then((ProtocolFrame f) => early = f));
+        h.event(
+          WorkerInteractionStarted.op,
+          WorkerInteractionStarted(of: id, timeout: deadline * 10).toJson(),
+        );
+        await Future<void>.delayed(deadline * 4);
+        // Well past the deadline and still running: the deadline is paused.
+        expect(early, isNull);
+        h.event(
+          WorkerInteractionEnded.op,
+          WorkerInteractionEnded(of: id, paused: deadline * 4).toJson(),
+        );
+        final watch = Stopwatch()..start();
+        final ProtocolFrame done = await reply.timeout(
+          const Duration(seconds: 10),
+        );
+        expect(done.error!['code'], 'timeout');
+        _record('deadline-pause', <String, Object?>{
+          'deadlineMs': deadline.inMilliseconds,
+          'pausedMs': (deadline * 4).inMilliseconds,
+          'resumedToTimeoutMs': watch.elapsedMilliseconds,
+        });
+        expect(await h.shutdown(), 0);
+      },
+    );
   });
 
   group('WKWebView BrowserPort', () {
     group('contract', () {
       runBrowserPortContractSuite('WKWebView (iOS)', _WkHarness.new);
+      // Protocol 1.3 interaction completion with a presented sheet: page
+      // signal, user dismissal, timeout and cancel, session close.
+      runBrowserPortContractSuite(
+        'WKWebView (iOS, interactive)',
+        () => _WkHarness(interactive: true),
+      );
     });
 
     test('AE8: creation on the platform thread, completion with status, and navigation failure', () async {

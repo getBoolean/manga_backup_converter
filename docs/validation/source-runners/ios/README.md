@@ -84,7 +84,7 @@ back-edge without touching JDK internals.
 - `u16-simulator-stopthread.json`: B; catch-and-continue failed (13 passed, 1 failed).
 - `u16-simulator-stopthread-first-run.json`: B before the test reorder; shows the class-init poisoning.
 - `u16-runtime-build-outputs.json`: runtime build identity and artifact hashes.
-- `r18-app-store-guideline-mapping.md`: compliance note (started).
+- `app-store-compliance.md`: compliance note (started).
 
 Reproduce: `tools/tachi-source-runner/ios/README.md`, "Running the gate".
 
@@ -232,7 +232,7 @@ cycles and a second backend; 0 armed deadlines afterwards; 1 VM throughout;
 loaded image count unchanged (927); no platform message from the app during
 the whole run; no replay capture miss.
 
-## Results by scenario (22/22 passed, `integration_test/source_runners_ios_test.dart`)
+## Results by scenario (22/22 passed, `integration_test/source_runners_ios_test.dart`, renamed `source_runners_ios_tachi_test.dart` in U15)
 
 | Scenario | Result |
 | --- | --- |

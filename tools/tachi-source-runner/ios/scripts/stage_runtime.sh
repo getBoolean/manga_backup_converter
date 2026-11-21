@@ -16,7 +16,8 @@
 #
 # --gate adds the U16 gate fixtures (gate/src) for integration_test/
 #   ios_runtime_gate_test.dart.
-# --test adds what integration_test/source_runners_ios_test.dart needs: the
+# --test adds what integration_test/source_runners_ios_tachi_test.dart (U9)
+#   and source_runners_ios_test.dart (U15) need: the
 #   replay JARs, the committed captures and artifacts under fixtures/
 #   source_captures/tachi, and the busy/webview fixture extensions signed with
 #   a throwaway test key (its fingerprint in test-signer.txt).
