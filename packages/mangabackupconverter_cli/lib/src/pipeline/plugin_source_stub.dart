@@ -27,6 +27,9 @@ class StubPluginSource implements PluginSource {
   String get settingsRevision => '';
 
   @override
+  String? get language => null;
+
+  @override
   Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page) async =>
       SourceFailed<PluginSearchPageResult>(
         CapabilityUnavailableFailure('search', '$ecosystem sources cannot run on this host yet'),

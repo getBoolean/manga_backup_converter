@@ -16,6 +16,12 @@ abstract interface class PluginSource {
   /// Secret-free revision of the settings the source runs with.
   String get settingsRevision;
 
+  /// The source's content language (for example `en`, or `all`/`multi` for a
+  /// multi-language source), when the runtime reports one per source. Used
+  /// to narrow multi-source packages (a Tachi MangaDex package exposes one
+  /// source per language) to the input backup's languages.
+  String? get language;
+
   /// Searches; failures are typed, never thrown.
   Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page);
 
@@ -159,6 +165,7 @@ class PluginChapter implements ChapterData {
     this.dateUploaded,
     this.url,
     this.sourceOrder = 0,
+    this.context = const <String, Object?>{},
   }) : chapterNumber = chapterNumber == null ? null : normalizeChapterNumber(chapterNumber),
        volumeNumber = volumeNumber == null ? null : normalizeChapterNumber(volumeNumber),
        scanlators = List<String>.unmodifiable(
@@ -176,6 +183,7 @@ class PluginChapter implements ChapterData {
     dateUploaded: c.dateUploaded,
     url: c.url,
     sourceOrder: c.sourceOrder,
+    context: c.context,
   );
 
   @override
@@ -208,4 +216,9 @@ class PluginChapter implements ChapterData {
 
   @override
   final int sourceOrder;
+
+  /// The runtime's raw per-chapter values (for Tachi: the source's own
+  /// `SChapter` fields such as the unsplit `scanlator`), kept so a writer can
+  /// emit the source's exact values.
+  final Map<String, Object?> context;
 }

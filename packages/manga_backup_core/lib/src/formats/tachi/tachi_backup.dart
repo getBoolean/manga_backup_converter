@@ -23,6 +23,7 @@ import 'package:manga_backup_core/src/formats/tachi/tachi_backup_preference.dart
 import 'package:manga_backup_core/src/formats/tachi/tachi_backup_source.dart';
 import 'package:manga_backup_core/src/formats/tachi/tachi_backup_source_preferences.dart';
 import 'package:manga_backup_core/src/formats/tachi/tachi_backup_tracking.dart';
+import 'package:manga_backup_core/src/formats/tachi/tachi_mihon_encoder.dart';
 import 'package:meta/meta.dart';
 import 'package:protobuf/protobuf.dart';
 
@@ -112,13 +113,15 @@ class TachiBackup with TachiBackupMappable implements ConvertableBackup {
 
   @override
   Future<Uint8List> toData() async {
-    final String json = toJson();
+    // Mihon is encoded field by field (exact int64s). The other forks still
+    // go through the generated JSON path, which is not round-trip tested and
+    // no writer is registered for them (U7: Mihon is the first destination).
     final Uint8List backupBytes = switch (format) {
-      Mihon() => mihon.Backup.fromJson(json).writeToBuffer(),
-      TachiSy() => sy.Backup.fromJson(json).writeToBuffer(),
-      TachiJ2k() => j2k.Backup.fromJson(json).writeToBuffer(),
-      TachiYokai() => yokai.Backup.fromJson(json).writeToBuffer(),
-      TachiNeko() => neko.Backup.fromJson(json).writeToBuffer(),
+      Mihon() => encodeMihonBackup(this).writeToBuffer(),
+      TachiSy() => sy.Backup.fromJson(toJson()).writeToBuffer(),
+      TachiJ2k() => j2k.Backup.fromJson(toJson()).writeToBuffer(),
+      TachiYokai() => yokai.Backup.fromJson(toJson()).writeToBuffer(),
+      TachiNeko() => neko.Backup.fromJson(toJson()).writeToBuffer(),
     };
     return const GZipEncoder().encodeBytes(backupBytes);
   }

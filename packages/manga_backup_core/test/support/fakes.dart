@@ -60,11 +60,15 @@ class FakePluginSource implements PluginSource {
     this.manga = const <FakeManga>[],
     this.searchFailure,
     String digest = 'digest',
+    this.language,
   }) : settings = settings ?? SettingsSnapshot(),
        identity = testIdentity(sourceId, digest: digest);
 
   @override
   final String sourceId;
+
+  @override
+  final String? language;
 
   @override
   final SourceIdentity identity;

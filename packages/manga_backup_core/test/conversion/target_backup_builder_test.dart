@@ -267,13 +267,6 @@ void main() {
     });
   });
 
-  group('UnimplementedBackupBuilder', () {
-    test('throws UnimplementedError', () {
-      const builder = UnimplementedBackupBuilder();
-      check(() => buildFrom(builder, const <MangaMatchConfirmation>[])).throws<UnimplementedError>();
-    });
-  });
-
   group('AidokuBackupBuilder characterization (chapter state)', () {
     const builder = AidokuBackupBuilder();
     final PluginSearchResult match = testResult(

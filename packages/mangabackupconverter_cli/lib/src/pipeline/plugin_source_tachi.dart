@@ -353,7 +353,12 @@ class TachiPluginLoader extends PluginLoader {
         return SourceFailed<List<PluginSource>>(failure);
       case SourceSuccess<SourcePackage>(value: final SourcePackage package):
         await owner?.adopt(package.close);
-        final plugins = <PluginSource>[for (final SourceSession s in package.sessions) SessionPluginSource(s)];
+        // Each source keeps its index language, so the pipeline can narrow a
+        // multi-language package to the backup's languages.
+        final plugins = <PluginSource>[
+          for (final SourceSession s in package.sessions)
+            SessionPluginSource(s, language: s is TachiSourceSession ? s.language : null),
+        ];
         for (final plugin in plugins) {
           await owner?.adopt(plugin.dispose);
         }

@@ -29,6 +29,8 @@ final class SourceSelectionRequest {
     required this.available,
     required this.hiddenByRating,
     this.previousSelection = const <ExtensionEntry>[],
+    this.hiddenByLanguage = 0,
+    this.languages,
   });
 
   final List<ExtensionEntry> available;
@@ -40,6 +42,13 @@ final class SourceSelectionRequest {
 
   /// How many sources the rating policy hid.
   final int hiddenByRating;
+
+  /// How many sources the language policy hid (their languages match none
+  /// of [languages]).
+  final int hiddenByLanguage;
+
+  /// The languages sources were narrowed to; `null` when not narrowed.
+  final Set<String>? languages;
 }
 
 /// Unresolved chapters of one manga, for the user to resolve (KTD7).

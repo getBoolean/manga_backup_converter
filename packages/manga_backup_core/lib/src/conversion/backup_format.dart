@@ -1,9 +1,11 @@
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:manga_backup_core/src/conversion/target_backup_builder.dart';
 import 'package:meta/meta.dart';
 
 part 'backup_format.mapper.dart';
 
+/// A backup file format: identity, alias and file extensions only (KTD15).
+/// How a format is decoded or written lives in `FormatRegistry`; which
+/// source runtime serves it lives in the injected `RuntimeRegistry`.
 @MappableClass(discriminatorKey: 'type')
 @immutable
 sealed class BackupFormat with BackupFormatMappable {
@@ -11,7 +13,6 @@ sealed class BackupFormat with BackupFormatMappable {
 
   String get alias;
   List<String> get extensions;
-  TargetBackupBuilder get backupBuilder;
 
   static const List<BackupFormat> values = <BackupFormat>[
     Aidoku(),
@@ -54,9 +55,6 @@ class Aidoku extends BackupFormat with AidokuMappable {
   List<String> get extensions => const <String>['.aib'];
 
   @override
-  TargetBackupBuilder get backupBuilder => const AidokuBackupBuilder();
-
-  @override
   bool operator ==(Object other) => other is Aidoku;
 
   @override
@@ -78,9 +76,6 @@ class Paperback extends BackupFormat with PaperbackMappable {
   List<String> get extensions => const <String>['.pas4'];
 
   @override
-  TargetBackupBuilder get backupBuilder => const UnimplementedBackupBuilder();
-
-  @override
   bool operator ==(Object other) => other is Paperback;
 
   @override
@@ -96,9 +91,6 @@ sealed class Tachiyomi extends BackupFormat with TachiyomiMappable {
 
   @override
   List<String> get extensions => const <String>['.tachibk', '.proto.gz'];
-
-  @override
-  TargetBackupBuilder get backupBuilder => const UnimplementedBackupBuilder();
 }
 
 @MappableClass(discriminatorValue: 'mihon')
@@ -203,9 +195,6 @@ class Tachimanga extends BackupFormat with TachimangaMappable {
   List<String> get extensions => const <String>['.tmb'];
 
   @override
-  TargetBackupBuilder get backupBuilder => const UnimplementedBackupBuilder();
-
-  @override
   bool operator ==(Object other) => other is Tachimanga;
 
   @override
@@ -225,9 +214,6 @@ class Mangayomi extends BackupFormat with MangayomiMappable {
 
   @override
   List<String> get extensions => const <String>['.backup'];
-
-  @override
-  TargetBackupBuilder get backupBuilder => const UnimplementedBackupBuilder();
 
   @override
   bool operator ==(Object other) => other is Mangayomi;

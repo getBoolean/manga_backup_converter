@@ -14,6 +14,18 @@ import 'package:source_runtime/source_runtime.dart';
 /// QuickJS native asset for it).
 const String paperbackWorkerCommand = '__paperback-worker';
 
+/// Why this process cannot run the Paperback worker, or `null` when it can:
+/// the worker is this executable re-launched, and under `dart run` (or the
+/// Flutter test runner) the resolved executable has no such command.
+SourceFailure? paperbackWorkerUnavailable() {
+  final String exe = p.basenameWithoutExtension(Platform.resolvedExecutable).toLowerCase();
+  return exe == 'dart' || exe == 'flutter_tester'
+      ? const RuntimeUnavailableFailure(
+          'Paperback sources need the built CLI executable (dart build cli); they cannot run under dart run',
+        )
+      : null;
+}
+
 /// Paperback loader (U6): lists repository catalogs and opens each bundle
 /// through [PaperbackSourceProvider], reaching the pipeline through
 /// [SessionPluginSource] (KTD15).
@@ -55,17 +67,8 @@ class PaperbackPluginLoader extends PluginLoader {
       onSettings: onSettings,
       worker: (ConversionOwner? owner) async {
         if (supervisor == null) {
-          // The worker is this executable re-launched; under `dart run` the
-          // resolved executable is the Dart VM, which has no such command.
-          final String exe = p.basenameWithoutExtension(Platform.resolvedExecutable).toLowerCase();
-          if (exe == 'dart' || exe == 'flutter_tester') {
-            return const SourceFailed<WorkerSupervisor>(
-              RuntimeUnavailableFailure(
-                'Paperback sources need the built CLI executable (dart build cli); '
-                'they cannot run under dart run',
-              ),
-            );
-          }
+          final SourceFailure? unavailable = paperbackWorkerUnavailable();
+          if (unavailable != null) return SourceFailed<WorkerSupervisor>(unavailable);
           final PaperbackWorkerPlan plan = planPaperbackWorker();
           // KTD25: record the rule, its inputs and the derived limits, and any
           // cap that left a limit below the measured need.

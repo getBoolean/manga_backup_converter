@@ -9,10 +9,13 @@ import 'package:source_runtime/source_contracts.dart';
 /// pipeline through this adapter, so search results carry the session's
 /// durable [NativeMangaRef]s and detail calls return typed outcomes.
 final class SessionPluginSource implements PluginSource {
-  SessionPluginSource(this.session, {FutureOr<void> Function()? onDispose})
+  SessionPluginSource(this.session, {FutureOr<void> Function()? onDispose, this.language})
     : _onDispose = onDispose; // ignore: prefer_initializing_formals
 
   final SourceSession session;
+
+  @override
+  final String? language;
   final FutureOr<void> Function()? _onDispose;
   Future<void>? _disposing;
 

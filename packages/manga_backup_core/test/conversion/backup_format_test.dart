@@ -82,16 +82,22 @@ void main() {
       }
     });
 
-    test('backupBuilder returns correct type for each format', () {
-      check(const Aidoku().backupBuilder).isA<AidokuBackupBuilder>();
-      check(const Paperback().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const Mihon().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const TachiSy().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const TachiJ2k().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const TachiYokai().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const TachiNeko().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const Tachimanga().backupBuilder).isA<UnimplementedBackupBuilder>();
-      check(const Mangayomi().backupBuilder).isA<UnimplementedBackupBuilder>();
+    test('formats carry no writer: the portable FormatRegistry supplies one per writable format (KTD15)', () {
+      final registry = FormatRegistry.portable();
+      check(registry.writerFor(const Aidoku())).isA<AidokuBackupBuilder>();
+      check(registry.writerFor(const Paperback())).isA<PaperbackBackupBuilder>();
+      check(registry.writerFor(const Mihon())).isA<TachiBackupBuilder>();
+      for (final BackupFormat f in <BackupFormat>[
+        const TachiSy(),
+        const TachiJ2k(),
+        const TachiYokai(),
+        const TachiNeko(),
+        const Tachimanga(),
+        const Mangayomi(),
+      ]) {
+        check(because: '$f has no verified writer', registry.writerFor(f)).isNull();
+      }
+      check(registry.writableFormats).deepEquals(<BackupFormat>[const Aidoku(), const Paperback(), const Mihon()]);
     });
 
     test('equality: same type are equal, different types are not', () {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
@@ -20,6 +21,8 @@ MigrationPipeline _pipeline({
   TrustStore? trustStore,
   FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened,
   DirectConverter? directConverter,
+  FormatRegistry? formats,
+  SourceLanguagePolicy? languagePolicy,
   String Function(String)? redact,
 }) => MigrationPipeline(
   repoUrls: _repos,
@@ -37,6 +40,8 @@ MigrationPipeline _pipeline({
   trustStore: trustStore,
   onOwnerOpened: onOwnerOpened,
   directConverter: directConverter,
+  formats: formats,
+  languagePolicy: languagePolicy,
   redact: redact ?? (String s) => s,
 );
 
@@ -78,36 +83,62 @@ void main() {
     test('direct conversion uses the injected converter and needs one', () async {
       final input = FakeBackup(const <SourceMangaData>[]);
       final output = FakeBackup(const <SourceMangaData>[]);
+      final FormatRegistry formats = FormatRegistry.portable()
+        ..registerCodec(const Tachimanga(), (Uint8List bytes, {String? name}) async => output);
       final ConversionDraft draft = await _pipeline(
         loader: FakePluginLoader(),
-        directConverter: (ConvertableBackup s, BackupFormat t) => output,
+        formats: formats,
+        directConverter: (ConvertableBackup s, BackupFormat t, ConversionReport r) => output,
       ).run(sourceBackup: input, sourceFormat: const Mihon(), targetFormat: const Tachimanga());
       check(identical(draft.backup, output)).isTrue();
       await check(
         _pipeline(
           loader: FakePluginLoader(),
         ).run(sourceBackup: input, sourceFormat: const Mihon(), targetFormat: const Tachimanga()),
-      ).throws<StateError>();
+      ).throws<DestinationUnavailable>();
     });
 
     test('forceMigration takes the plugin path for a direct-conversion pair', () async {
       var migrated = false;
-      await check(
-        _pipeline(
+      final ConversionDraft draft =
+          await _pipeline(
+            loader: FakePluginLoader(sources: <PluginSource>[FakePluginSource('dest')]),
+            onConfirmMatches: (_, List<SourceMangaData> manga, _, _) async {
+              migrated = true;
+              return const <MangaMatchConfirmation>[];
+            },
+            acceptPartial: true,
+          ).run(
+            sourceBackup: FakeBackup(<SourceMangaData>[sourceManga('A')]),
+            sourceFormat: const Tachimanga(),
+            targetFormat: const Mihon(),
+            forceMigration: true,
+          );
+      check(migrated).isTrue();
+      check(draft.backup).isA<TachiBackup>();
+    });
+
+    test('forcing migration onto a format with no writer is a typed failure before any source work', () async {
+      var migrated = false;
+      DestinationUnavailable? caught;
+      try {
+        await _pipeline(
           loader: FakePluginLoader(sources: <PluginSource>[FakePluginSource('dest')]),
           onConfirmMatches: (_, List<SourceMangaData> manga, _, _) async {
             migrated = true;
             return const <MangaMatchConfirmation>[];
           },
-          acceptPartial: true,
         ).run(
           sourceBackup: FakeBackup(<SourceMangaData>[sourceManga('A')]),
           sourceFormat: const Mihon(),
           targetFormat: const Tachimanga(),
           forceMigration: true,
-        ),
-      ).throws<UnimplementedError>();
-      check(migrated).isTrue();
+        );
+      } on DestinationUnavailable catch (e) {
+        caught = e;
+      }
+      check(caught?.failure.code).equals('capability-unavailable');
+      check(migrated).isFalse();
     });
 
     test('streams search start and results per plugin', () async {
