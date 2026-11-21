@@ -27,16 +27,20 @@ object ApkConverter {
      * Identity of the whole conversion: dex2jar plus the host's own passes
      * (constructor-elision fix, frame recomputation). Bump when any changes.
      */
-    const val CONVERTER_VERSION = "dex2jar-$DEX2JAR_VERSION+ctorfix.1+frames.1+ordered.1"
+    const val CONVERTER_VERSION = "dex2jar-$DEX2JAR_VERSION+ctorfix.1+frames.1+ordered.1+casesafe.1"
 
     /** Hook for tests: counts conversions so tampered input can be shown never to reach dex2jar. */
     @Volatile
     var conversions = 0
         private set
 
-    fun convert(apk: File, output: File) {
+    fun convert(apk: File, output: File) = convert(apk, output, DeterministicDex2jar::newTranslator)
+
+    /** [newTranslator] is a seam for tests that force a lossy translation; production always uses [DeterministicDex2jar]. */
+    internal fun convert(apk: File, output: File, newTranslator: () -> DexTranslator) {
         conversions++
         val entries = sortedMapOf<String, ByteArray>()
+        var dexClasses = 0L
         ZipFile(apk).use { zip ->
             val dexNames = zip.entries().asSequence().map { it.name }
                 .filter { it.matches(Regex("classes\\d*\\.dex")) }
@@ -45,7 +49,13 @@ object ApkConverter {
             if (dexNames.isEmpty()) throw ArtifactException("${apk.name} contains no classes.dex")
             for (dexName in dexNames) {
                 val dexBytes = zip.getInputStream(zip.getEntry(dexName)).use { it.readBytes() }
-                translate(apk.name, dexName, dexBytes, entries)
+                dexClasses += classDefsSize(apk.name, dexName, dexBytes)
+                translate(apk.name, dexName, dexBytes, newTranslator(), entries)
+            }
+            // Fail closed if any class went missing between the DEX and the JAR (e.g. a sink that folds
+            // `a.class` and `A.class` together on a case-insensitive file system).
+            if (entries.size.toLong() != dexClasses) {
+                throw ArtifactException("${apk.name}: the DEX files define $dexClasses class(es) but conversion produced ${entries.size}")
             }
             for (entry in zip.entries()) {
                 val name = entry.name
@@ -61,11 +71,19 @@ object ApkConverter {
         writeDeterministicJar(entries, output)
     }
 
-    private fun translate(apkName: String, dexName: String, dexBytes: ByteArray, into: MutableMap<String, ByteArray>) {
-        for ((name, bytes) in DeterministicDex2jar.newTranslator().translate(apkName, dexName, dexBytes)) {
+    private fun translate(apkName: String, dexName: String, dexBytes: ByteArray, translator: DexTranslator, into: MutableMap<String, ByteArray>) {
+        for ((name, bytes) in translator.translate(apkName, dexName, dexBytes)) {
             if (into.containsKey(name)) throw ArtifactException("$apkName: duplicate class $name across dex files")
             into[name] = bytes
         }
+    }
+
+    /** `class_defs_size` from the DEX header (u4 little-endian at 0x60), read independently of dex2jar. */
+    internal fun classDefsSize(apkName: String, dexName: String, dex: ByteArray): Long {
+        if (dex.size < 0x70 || !dex.copyOfRange(0, 4).contentEquals(byteArrayOf(0x64, 0x65, 0x78, 0x0a))) {
+            throw ArtifactException("$apkName/$dexName is not a DEX file")
+        }
+        return java.nio.ByteBuffer.wrap(dex, 0x60, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xffffffffL
     }
 
     fun writeDeterministicJar(entries: Map<String, ByteArray>, output: File) {

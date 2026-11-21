@@ -8,7 +8,9 @@ import com.googlecode.d2j.reader.MultiDexFileReader
 import mangabackup.tachi.extensions.ArtifactException
 import mangabackup.tachi.extensions.DexTranslator
 import org.objectweb.asm.MethodVisitor
-import java.nio.file.Files
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
 
 /**
  * The dex2jar call itself. This class, [ConstructorElisionFix] and every
@@ -29,43 +31,37 @@ class Dex2jarTranslator : DexTranslator {
                 errors += "${method.owner}.${method.name}${method.desc}: ${e.javaClass.simpleName}: ${e.message}"
             }
         }
+        // In memory, never through a file system: a directory sink would let classes whose names differ only
+        // by case (`a.class`/`A.class`, which R8 emits unless -dontusemixedcaseclassnames) overwrite each other on
+        // case-insensitive volumes (NTFS, APFS defaults), and a zip file system needs jdk.zipfs, which the iOS
+        // runtime image lacks. doTranslate(ByteArrayOutputStream) runs the same per-class ClassWriter path as
+        // to(Path) and frames each class as [int nameLen][UTF-8 internal name][int classLen][class bytes].
+        val framed = ByteArrayOutputStream()
+        Dex2jar.from(ConstructorElisionFix(MultiDexFileReader.open(dexBytes)))
+            .withExceptionHandler(handler)
+            // Keep Kotlin's mangled names (`constructor-impl`): renaming them breaks linking.
+            .dontSanitizeNames(true)
+            .setRandom(java.util.Random(0L))
+            // Frames are computed afterwards by FrameComputer, which knows the
+            // extension's own class hierarchy (dex2jar's pass falls back to Object).
+            .computeFrames(false)
+            .reUseReg(false)
+            .topoLogicalSort()
+            .skipDebug(false)
+            .optimizeSynchronized()
+            .printIR(false)
+            .noCode(false)
+            .skipExceptions(false)
+            .doTranslate(framed)
+        if (errors.isNotEmpty()) {
+            throw ArtifactException("$apkName/$dexName: dex2jar failed for ${errors.size} item(s): ${errors.take(5).joinToString("; ")}")
+        }
         val out = sortedMapOf<String, ByteArray>()
-        // A plain directory, not a zip file system: the iOS runtime image has no jdk.zipfs (U9). Classes are
-        // collected into a sorted map and re-packed deterministically by ApkConverter, so the output stays
-        // byte-identical.
-        val tmp = Files.createTempDirectory("d2j-")
-        try {
-            run {
-                Dex2jar.from(ConstructorElisionFix(MultiDexFileReader.open(dexBytes)))
-                    .withExceptionHandler(handler)
-                    // Keep Kotlin's mangled names (`constructor-impl`): renaming them breaks linking.
-                    .dontSanitizeNames(true)
-                    .setRandom(java.util.Random(0L))
-                    // Frames are computed afterwards by FrameComputer, which knows the
-                    // extension's own class hierarchy (dex2jar's pass falls back to Object).
-                    .computeFrames(false)
-                    .reUseReg(false)
-                    .topoLogicalSort()
-                    .skipDebug(false)
-                    .optimizeSynchronized()
-                    .printIR(false)
-                    .noCode(false)
-                    .skipExceptions(false)
-                    .to(tmp)
-            }
-            if (errors.isNotEmpty()) {
-                throw ArtifactException("$apkName/$dexName: dex2jar failed for ${errors.size} item(s): ${errors.take(5).joinToString("; ")}")
-            }
-            Files.walk(tmp).use { paths ->
-                for (path in paths.sorted().toList()) {
-                    if (!Files.isRegularFile(path)) continue
-                    val name = tmp.relativize(path).toString().replace(java.io.File.separatorChar, '/')
-                    if (!name.endsWith(".class")) continue
-                    out[name] = Files.readAllBytes(path)
-                }
-            }
-        } finally {
-            tmp.toFile().deleteRecursively()
+        val input = DataInputStream(ByteArrayInputStream(framed.toByteArray()))
+        while (input.available() > 0) {
+            val name = String(ByteArray(input.readInt()).also(input::readFully), Charsets.UTF_8) + ".class"
+            val bytes = ByteArray(input.readInt()).also(input::readFully)
+            if (out.put(name, bytes) != null) throw ArtifactException("$apkName/$dexName: dex2jar produced $name twice")
         }
         return out
     }
