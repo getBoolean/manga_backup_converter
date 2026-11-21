@@ -104,8 +104,9 @@
       // A missing user agent becomes `Paperback-iOS` (reference host). A source
       // that echoes `getDefaultUserAgent()` sends none, so the HTTP client's
       // own applies, as for 0.9 sources that set none: the host is not a
-      // browser, and MangaDex's edge challenges a browser user agent on a
-      // client that runs no JavaScript. A source-chosen value is sent as is.
+      // browser. MangaDex's edge challenged the echoed browser string and not
+      // the client's own (one capture run each, consistent with, not proof
+      // of, the cause). A source-chosen value is sent as is.
       const uaKey = Object.keys(headers).find((k) => k.toLowerCase() === 'user-agent');
       if (uaKey === undefined) headers['user-agent'] = 'Paperback-iOS';
       else if (headers[uaKey] === H.defaultUserAgent) delete headers[uaKey];

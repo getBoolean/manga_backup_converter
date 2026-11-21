@@ -220,7 +220,7 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 
 | Qualification source | `paperback-0.8` | `paperback-0.9` |
 |---|---|---|
-| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed): search (0 hits, see below), details, 174 chapters (replayed) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
+| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed): search ran with 0 hits, details (fallback id), 174 chapters (replayed). **Partial**: no search hit is mapped (below) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
 | WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
 | MangaFire | **Missing cell.** No surveyed 0.8 catalog lists MangaFire: Paperback default 0.8, Netsky 0.8, neihc1002 0.8, GabrielCWT 0.8 and numby 0.8 (SHA-256 in each `artifacts.json`). Not substituted; it needs an explicit coverage revision | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
 
@@ -234,7 +234,12 @@ https://mangadex.org`; the 0.9 bundle sets only the referer and was not challeng
 user agent when a source echoes `getDefaultUserAgent()`, so the HTTP client's own applies, as for the 0.9 bundle;
 a missing user agent still becomes `Paperback-iOS` and a source-chosen one is sent unchanged.
 `getDefaultUserAgent()` still reports the browser string in both families (0.9 passes it to `executeInWebView`).
-A second, single-bundle capture session on 2026-11-21 with that change was not challenged. What the bundle
+A second, single-bundle capture session on 2026-11-21 with that change was not challenged. That is one run each
+way, hours apart: consistent with the user agent being the trigger, not proof of it. Open for U8: Cloudflare
+clearance cookies are bound to the user agent that solved the challenge, which is why 0.8 Cloudflare sources (for
+example Netsky `Mangahub`, in its interceptor and token refresh) echo `getDefaultUserAgent()`; once the browser
+join supplies clearance, the 0.8 host must send the browser's user agent with it, so this rule then needs a
+clearance-aware exception. The 0.8 cell is partial: no search hit is mapped. What the bundle
 returns is its own behaviour, not the host's: it hard-codes `contentRating[]=suggestive` and defaults to `vi`, so
 the search for the `safe`-rated Onimai is a real empty result; details use the pinned fallback id
 (`ed996855-…`); the feed holds 174 Vietnamese chapters; authors are empty and status is unknown because its
