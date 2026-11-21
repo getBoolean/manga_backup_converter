@@ -15,5 +15,6 @@ export 'src/backends/redaction.dart';
 export 'src/backends/worker_process.dart';
 export 'src/backends/worker_source_session.dart';
 export 'src/backends/worker_supervisor.dart';
+export 'src/capture/capture_browser.dart';
 export 'src/capture/capture_format.dart';
 export 'src/capture/capture_http.dart';

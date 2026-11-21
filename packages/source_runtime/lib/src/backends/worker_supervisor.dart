@@ -160,6 +160,7 @@ final class ReverseRequest {
     required this.generation,
     required this.cancel,
     this.interactionTimeout,
+    this.protocolMinor = 0,
   });
 
   final String op;
@@ -176,6 +177,11 @@ final class ReverseRequest {
   /// The supervisor's bound on a visible interaction, from its effective
   /// limits; a handler uses it for `host.browser.show`.
   final Duration? interactionTimeout;
+
+  /// The minor protocol version the worker negotiated. A handler refuses
+  /// operations introduced in a later minor (for example the 1.2
+  /// `host.browser.*` additions from a 1.1 worker). Defaults to 1.0.
+  final int protocolMinor;
 
   /// Whether the request is a visible interaction, whose time is excluded
   /// from the operation deadline.
@@ -1054,6 +1060,7 @@ class WorkerSupervisor {
       generation: generation,
       cancel: cancel.token,
       interactionTimeout: _limits?.interactionTimeout,
+      protocolMinor: protocolMinor,
     );
     if (request.isInteraction) {
       origin

@@ -1,4 +1,4 @@
-# Source worker protocol, version 1 (minor 1.1)
+# Source worker protocol, version 1 (minor 1.2)
 
 This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:source_runtime`) to a source worker process: the shared Tachi JVM worker (U3) or the Paperback Dart worker (U6). It implements KTD4 of the source runners plan. KTD20 adds the browser reverse requests.
 
@@ -8,14 +8,16 @@ This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:so
 
 The protocol has a major and a minor version. The major version is the envelope's `v`, and is always `1`. Minor versions only add optional fields, so a frame from any 1.x peer parses, and `v` never changes for a minor bump.
 
-- **Negotiation:** the supervisor's `handshake` request offers `protocolVersions: [1]` and `protocolMinor`, its highest minor (currently `1`). The worker replies with `protocolVersion: 1` and `protocolMinor`: the lower of the offer and its own highest minor. A worker that omits `protocolMinor` is a 1.0 worker; a request without it comes from a 1.0 supervisor. Either decodes as `0`.
+- **Negotiation:** the supervisor's `handshake` request offers `protocolVersions: [1]` and `protocolMinor`, its highest minor (currently `2`). The worker replies with `protocolVersion: 1` and `protocolMinor`: the lower of the offer and its own highest minor. A worker that omits `protocolMinor` is a 1.0 worker; a request without it comes from a 1.0 supervisor. Either decodes as `0`.
 - **Violations:** a reply with another major version, or with a `protocolMinor` above the offer, fails the session as `protocol-violation`.
 - **Gating:** the supervisor sends a 1.1 feature only to a worker that negotiated 1.1. Against a 1.0 worker, string-set or source-scoped settings and `artifact.prepare` (which relies on `trustedSigners`) fail locally with `unsupported-api` before anything is sent.
+- **Gating 1.2:** a reverse request introduced in 1.2 (`HostBrowserOperation.sinceMinor`) from a worker that negotiated less is answered `protocol-violation`, and the session continues. The supervisor puts the open reply's `capabilities` and the evaluate reply's `scriptError` only in replies to a 1.2 worker; a 1.1 worker gets the reply it always got (a throwing script reads as `result: "null"`). `ReverseRequest.protocolMinor` carries the negotiated minor to the handler.
 
 | Minor | Adds |
 |---|---|
 | 1.0 | The protocol as first shipped. |
 | 1.1 | Handshake `protocolMinor`, `limits` and `sizing`; `artifact.prepare` `trustedSigners`, and the explicit rule that it needs no loaded package; string-set setting values; source-scoped settings (`SettingsPayload.sources`); the browser message channel contract. |
+| 1.2 | Browser capabilities on the `host.browser.open` reply; `scriptError` on the `host.browser.evaluate` reply; `host.browser.addPageStartScript`; request interception (`host.browser.setRequestInterception`, the `host.browser.request` event, `host.browser.respond`) with request bodies; `ipc` and every other identifier allowed as a channel name. |
 
 ## Transport
 
@@ -51,7 +53,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 | `cancel` | supervisor → worker | Cancel the `req` with this `id` cooperatively. Has no payload. |
 | `rreq` | worker → supervisor | A `host.browser.*` reverse request made while serving request `of`. |
 | `rres` | supervisor → worker | Reply to the `rreq` with the same `id`. |
-| `event` | supervisor → worker | A notification that needs no reply (`host.browser.message`). |
+| `event` | supervisor → worker | A notification that needs no reply (`host.browser.message`, `host.browser.request`). |
 
 ### Rules
 
@@ -100,6 +102,8 @@ These shapes appear inside several payloads.
 - **`MangaMetadata`** — `{"title", "altTitles", "authors", "artists", "description"?, "tags", "status": "unknown"|"ongoing"|"completed"|"cancelled"|"hiatus", "contentRating": "unknown"|"safe"|"suggestive"|"nsfw", "url"?, "coverUrl"?}`.
 - **`NativeChapter`** — `{"chapterId", "sourceOrder": int, "context", "title"?, "chapterNumber"?: number, "volumeNumber"?: number, "scanlators": [string], "language"?, "dateUploaded"?: ISO-8601 UTC, "url"?}`.
 - **`BrowserCookie`** — `{"name", "value", "domain"?, "path"?, "expires"?: ISO-8601 UTC, "secure": bool, "httpOnly": bool}`.
+- **`BrowserCapabilities`** (1.2) — `{"available": [feature], "unavailable": {feature: reason}}`. Features: `pageStartScripts`, `observeNavigations`, `observeSubresources`, `observeRequestHeaders`, `observeClientHints`, `observeRequestBodies`, `replaceRequests`, `scriptErrors` (`BrowserFeature`). A feature in neither list is unavailable with the reason "Not reported by the browser implementation", and a peer that sends no capabilities has none, so nothing is ever assumed. Unknown feature names are ignored.
+- **`BrowserReplacement`** (1.2) — `{"status": int, "reason"?: string, "headers"?: {string: string}, "bodyBase64"?: string}`. `status` is 100–599 and not 300–399; `reason` defaults to `OK` and is one non-empty line. Anything else is malformed.
 - **`WorkerReportedLimits`** (1.1) — `{"poolSize"?: int, "operationDeadlineMs"?: int, "cancelGraceMs"?: int, "interactionTimeoutMs"?: int, "shutdownGraceMs"?: int, …}`. These names are the limits a supervisor can adopt; each is a positive integer when present. Runtime-specific limits (Paperback's QuickJS `memoryLimitBytes`, `maxStackBytes`, `operationDeadlineMicros`, `jobSliceMicros`) travel in the same object and are kept as reported, without interpretation.
 - **`WorkerSizing`** (1.1) — `{"rule"?: object|null, "inputs"?: object, "derived"?: WorkerReportedLimits, "overridden"?: [string], …}`. The KTD25 sizing rule (its coefficients and the benchmark it came from; `null` when explicit overrides cover every limit), the measured device inputs (for example `cores`, `maxHeapMiB`), the limits the rule derived, and the names of limits set by explicit overrides.
 
@@ -168,20 +172,24 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 
 | `op` | Request `payload` (Dart class) | Reply `ok` (Dart class) |
 |---|---|---|
-| `host.browser.open` | `sourceId`, `userAgent?` (`HostBrowserOpen`) | `session` (`HostBrowserOpened`) |
+| `host.browser.open` | `sourceId`, `userAgent?` (`HostBrowserOpen`) | `session`, `capabilities?: BrowserCapabilities` (1.2) (`HostBrowserOpened`) |
 | `host.browser.load` | `session`, `url`, `headers?: {string: string}` (`HostBrowserLoad`) | `finalUrl`, `status?: int` (`HostBrowserPage`) |
 | `host.browser.loadData` | `session`, `html`, `baseUrl` (`HostBrowserLoadData`) | `finalUrl`, `status?` (`HostBrowserPage`) |
-| `host.browser.evaluate` | `session`, `script` (`HostBrowserEvaluate`) | `result`: the value as JSON text (`HostBrowserEvaluated`) |
+| `host.browser.evaluate` | `session`, `script` (`HostBrowserEvaluate`) | `result`: the value as JSON text; `scriptError?: string` (1.2) (`HostBrowserEvaluated`) |
 | `host.browser.setMessageHandler` | `session`, `name`, `enabled: bool` (`HostBrowserSetMessageHandler`) | `{}` |
 | `host.browser.getCookies` | `session`, `url` (`HostBrowserGetCookies`) | `cookies: [BrowserCookie]` (`HostBrowserCookies`) |
 | `host.browser.setCookie` | `session`, `url`, `cookie: BrowserCookie` (`HostBrowserSetCookie`) | `{}` |
 | `host.browser.setUserAgent` | `session`, `userAgent` (`HostBrowserSetUserAgent`) | `{}` |
 | `host.browser.show` | `session` (`HostBrowserShow`) | `{}` |
 | `host.browser.close` | `session` (`HostBrowserClose`) | `{}` |
+| `host.browser.addPageStartScript` (1.2) | `session`, `script` (`HostBrowserAddPageStartScript`) | `{}` |
+| `host.browser.setRequestInterception` (1.2) | `session`, `mode`: `none`, `observe` or `replace` (`HostBrowserSetRequestInterception`) | `{}` |
+| `host.browser.respond` (1.2) | `session`, `requestId`, `response?: BrowserReplacement` (`HostBrowserRespond`) | `{}` |
 
 | Event `op` (supervisor → worker) | `payload` (Dart class) |
 |---|---|
 | `host.browser.message` | `session`, `name`, `message` (`HostBrowserMessage`) |
+| `host.browser.request` (1.2) | `session`, `requestId?`, `method`, `url`, `headers`, `bodyBase64?`, `bodyOmitted`, `mainFrame`, `redirect`, `context` (`HostBrowserRequestEvent`) |
 
 ### Notes
 
@@ -193,7 +201,7 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
   - **After the conversion:** when the conversion scope closes, every remaining session closes, and later requests are refused.
   - **Requests in flight:** reverse requests from a fenced generation are cancelled, and their replies are never delivered.
 - **Interaction:** while a `host.browser.show` request is open, the originating operation's deadline is paused. The interaction has its own bound; when it expires, the operation escalates like a deadline.
-- **Failure codes:** platform failures map to `cancelled`, `interaction-required`, `capability-unavailable` (with the named operation), or `source-error` (navigation failures). A malformed reverse payload is answered `protocol-violation`.
+- **Failure codes:** platform failures map to `cancelled`, `interaction-required`, `capability-unavailable` (with the named operation), or `source-error` (navigation failures). A malformed reverse payload, or a 1.2 operation from a worker that did not negotiate 1.2, is answered `protocol-violation`.
 - **Messages:** page messages arrive as `host.browser.message` events only while the handler is enabled and the session's generation is current.
 
 ### Browser message channel (1.1)
@@ -201,22 +209,73 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 `host.browser.setMessageHandler` with `name` and `enabled: true` installs a page-side channel that every `BrowserPort` implementation provides identically (`BrowserMessageChannel` in `lib/src/contracts/browser_port.dart`):
 
 - **Page API:** every frame sees a global object `window.<name>` with one method, `postMessage(message)`, where `message` is a string. This is the shape of an Android `JavascriptInterface` object with `void postMessage(String)`, so the Tachi shim's `addJavascriptInterface` fallback and the desktop helper's injected script use it unchanged. `postMessage` returns `undefined`; synchronous return values are not emulated.
-- **Channel names:** `name` must be a plain JavaScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). Anything else is refused as `capability-unavailable`.
-- **Availability:** the object exists in the current page as soon as the handler is enabled, and is injected at document start into every later page, until the handler is disabled.
+- **Channel names:** `name` must be a plain JavaScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). Anything else is refused as `capability-unavailable`. No identifier is reserved (1.2): `ipc`, `chrome` and `webkit` are valid even though engines and toolkits use those globals for their own messaging (wry's `window.ipc`, WebView2's `window.chrome.webview`, WKWebView's `window.webkit.messageHandlers`). An implementation captures private references to its own bridge in a document-start script that runs before any channel or page script, so a channel that shadows the global does not break it. A Tachi extension's `addJavascriptInterface(obj, name)` may use any name.
+- **Availability:** the object exists in the current page as soon as the handler is enabled, and is injected at document start into every later page, until the handler is disabled. Channel objects are installed before any page-start script runs, whatever the registration order.
 - **Origin rule:** a message is delivered only when the frame that posted it has the same origin (scheme, host, port) as the session's current top-level document, and that document came from http(s): a `load` after redirects, or `loadData` with its http(s) base URL. Messages from cross-origin frames, and from `about:blank` or other opaque-origin documents, are dropped silently.
 - **Payload:** a non-string argument is dropped. Messages from one frame arrive in posting order.
-- **Conformance:** `runBrowserPortContractSuite` in `package:source_runtime_testing` checks delivery (on a loaded page and on `loadData` content with an http(s) base URL), registration before a load, removal, the cross-origin and `about:blank` drops, and name validation. Every platform implementation must pass it.
+- **Conformance:** `runBrowserPortContractSuite` in `package:source_runtime_testing` checks delivery (on a loaded page and on `loadData` content with an http(s) base URL), registration before a load, removal, the cross-origin and `about:blank` drops, name validation, and (1.2) an `ipc` channel alongside evaluation and a second channel. Every platform implementation must pass it.
+
+### Browser capabilities (1.2)
+
+The `host.browser.open` reply carries the session's `BrowserCapabilities` (`BrowserSession.capabilities` in Dart). They are fixed for the session, and tell the worker which tier and features it has before it relies on them:
+
+| Feature | Meaning | Expected per engine (U2 and U16 measurements are authoritative) |
+|---|---|---|
+| `pageStartScripts` | `addPageStartScript` works. | All desktop engines, WKWebView, Android (`addDocumentStartJavaScript` where the WebView supports it). |
+| `observeNavigations` | Top-level document requests reach the observer. | WebView2, WKWebView, WebKitGTK, Android. |
+| `observeSubresources` | Subresource and child-frame requests reach the observer. | WebView2 and Android only. WKWebView and WebKitGTK cannot observe http(s) subresource requests (degraded observe tier). |
+| `observeRequestHeaders` | Observed requests carry their headers. | Where the engine exposes them. |
+| `observeClientHints` | Observed headers include `sec-ch-ua*`. | Chromium engines (WebView2, Android). WebKit engines never send client hints. |
+| `observeRequestBodies` | Observed requests carry their body. | WebView2 (`Request.Content`). Usually not WebKit. |
+| `replaceRequests` | Replace tier. | WebView2 among desktop engines; Android. Never WKWebView or WebKitGTK. |
+| `scriptErrors` | `evaluate` reports a throwing script. | WebView2 through the helper's wrapper, WKWebView, WebKitGTK. Not Android's `evaluateJavascript`. |
+
+`interceptionTier` (Dart) summarises them: `replace` with `replaceRequests`, `observe` with either observe feature, `none` otherwise. Every missing feature carries a reason that names it. The contract suite accepts either "works" or "unavailable with a reason" for each feature; it never accepts an empty answer.
+
+### Script errors (1.2)
+
+A script that throws is reported as `{"result": "null", "scriptError": "<thrown value>"}` when the engine has `scriptErrors` (`BrowserScriptError` in Dart). `result` stays `null`, so a worker that ignores `scriptError` (or a 1.1 worker, which never receives it) sees Android's `evaluateJavascript` semantics. The Tachi shim keeps that behaviour by ignoring the field (Dart callers use `BrowserEvaluateCompat.androidCompatible`). Paperback's `executeInWebView` should reject its promise with the message. An engine without `scriptErrors` answers a throwing script with plain `result: "null"`.
+
+### Page-start scripts (1.2)
+
+`host.browser.addPageStartScript` registers `script` to run at document start in every frame (child frames of any origin included) of every document the session loads afterwards, until the session closes (`BrowserSession.addPageStartScript`; Android's `addDocumentStartJavaScript`).
+
+- **Order:** channel objects first, then page-start scripts in registration order, then the page's scripts.
+- **Current document:** not affected. Evaluate the script as well if it must run there.
+- **Origins:** the script runs in documents of every origin. For Android's `allowedOriginRules`, the Tachi shim wraps the script in its own `location.origin` check. Messages it posts follow the origin rule, so a post from a cross-origin frame is still dropped.
+- **Removal:** there is none; scripts last until the session closes. The Tachi shim's `ScriptHandler.remove()` must say it cannot remove a script, not pretend it did.
+- **Unavailable:** `capability-unavailable` with operation `addPageStartScript` and a reason naming `pageStartScripts`.
+
+### Request interception (1.2)
+
+`host.browser.setRequestInterception` selects at most one interceptor per session (`BrowserSession.setRequestObserver` and `setRequestReplacer`). Setting one mode replaces the other; `none` removes it. Only http(s) requests are reported or held.
+
+- **`observe`:** each request the engine can see is sent as a `host.browser.request` event without `requestId`, and proceeds unchanged. Which requests are reported depends on `observeNavigations` and `observeSubresources`. Where subresources cannot be observed, the worker records the degraded capability (KTD20) and the request still proceeds. Refused as `capability-unavailable` only when neither observe feature exists.
+- **`replace`:** each request is held and sent as a `host.browser.request` event with a `requestId`. The worker answers with `host.browser.respond`: a `response` is served instead of the network response, and `null` lets the request proceed.
+  - **Unavailable:** refused as `capability-unavailable` (operation `setRequestReplacer`, reason naming `replaceRequests`) without the feature. It is also refused when the supervisor has no replacement timeout configured (`BrowserReverseBridge.replacementTimeout`); no default is invented.
+  - **Timeout:** a held request with no answer within the replacement timeout proceeds unchanged, and the redacted log records its method and URL without the query.
+  - **Late answers:** a `respond` for a request that is no longer held (answered, timed out, or its session closed or fenced) is answered `cancelled`.
+  - **Closing:** held requests of a closed or fenced session proceed unchanged and get no event.
+  - **Invalid replacements:** a replacement with a redirect status or a status outside 100–599 is malformed (`protocol-violation`). At the port, an invalid replacement, or a replacer that throws, fails the request: the page sees a network error. A replacement can never substitute a redirect, so it cannot steer a load around the scheme policy.
+  - **No operation in flight:** `respond` is an `rreq`, so the orphan rule applies. A worker answers only while one of the package's operations is in flight. With none in flight it does not answer, and the request proceeds after the timeout.
+- **Event fields:** `method` (uppercase), `url`, `headers` (as the engine sends them; may include `Cookie` and `Authorization`, so never log them), `mainFrame` (Android's `isForMainFrame`), `redirect`, `context` (`document`, `script`, `fetch`, `xhr`, `image`, `stylesheet`, `other`; unknown values read as `other`), and the body.
+- **Request bodies:** `bodyBase64` carries the body when the engine exposes it (`observeRequestBodies`). `bodyOmitted: true` means the request had a body that the event does not carry: the engine could not read it, or it was larger than 1 MiB (`hostBrowserMaxForwardedBodyBytes`), so one upload can never push a frame past the 16 MiB limit. A body is omitted whole, never truncated.
+- **Offline replay:** captures match on method, canonical URL and body SHA-256 (`CaptureKey`). `browserCaptureReplayReplacer` serves a capture set as a replace-tier handler, so a POST such as MangaFire's `verify` matches only its recorded body. A request with `bodyOmitted` is a recorded miss, never a match against a bodiless capture. `FakeBrowserPort.replay` applies the same rules to requests made from the page.
+- **Conformance:** the contract suite checks main-frame observation with headers and client hints, a POST subresource with its body, observer removal, observation stopping at close, replacement and pass-through, refusal of a redirect replacement, and interceptor exclusivity. On an engine without a feature, each case instead checks the named `capability-unavailable` reason or the documented degradation.
 
 ## Example exchange
 
 ```text
-→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"protocolMinor":1,"maxFrameBytes":16777216}}
-← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"protocolMinor":1,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true},"limits":{"poolSize":2,"operationDeadlineMs":6000,"cancelGraceMs":1800,"interactionTimeoutMs":300000,"shutdownGraceMs":1800},"sizing":{"rule":{"source":"docs/validation/source-runners/desktop/…"},"inputs":{"cores":8,"maxHeapMiB":512},"derived":{"poolSize":2},"overridden":[]}}}
+→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"protocolMinor":2,"maxFrameBytes":16777216}}
+← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"protocolMinor":2,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true},"limits":{"poolSize":2,"operationDeadlineMs":6000,"cancelGraceMs":1800,"interactionTimeoutMs":300000,"shutdownGraceMs":1800},"sizing":{"rule":{"source":"docs/validation/source-runners/desktop/…"},"inputs":{"cores":8,"maxHeapMiB":512},"derived":{"poolSize":2},"overridden":[]}}}
 → {"v":1,"t":"req","id":"1-2","gen":1,"op":"package.load","pkg":"eu.kanade.x","payload":{"artifact":{"sha256":"ab12…","kind":"jar","version":"1.4.2"},"path":"/…/ab12….bin","settings":{"values":{"lang":"en","nsfw":false},"secrets":{},"revision":"9f…"}}}
 ← {"v":1,"t":"res","id":"1-2","gen":1,"ok":{"sources":[{"sourceId":"9223372036854775807","name":"X (EN)","language":"en","capabilities":{"operations":["search","mangaDetails","chapterList"],"apiFamilies":["tachi-1.5"],"requiresBrowser":true}}]}}
 → {"v":1,"t":"req","id":"1-3","gen":1,"op":"search","pkg":"eu.kanade.x","payload":{"source":{…},"settingsRevision":"9f…","query":"onimai","cursor":null}}
 ← {"v":1,"t":"rreq","id":"r1","gen":1,"op":"host.browser.open","of":"1-3","payload":{"sourceId":"9223372036854775807"}}
-→ {"v":1,"t":"rres","id":"r1","gen":1,"ok":{"session":"s-1"}}
+→ {"v":1,"t":"rres","id":"r1","gen":1,"ok":{"session":"s-1","capabilities":{"available":["pageStartScripts","observeNavigations","observeRequestHeaders","scriptErrors"],"unavailable":{"observeSubresources":"WebKit cannot observe http(s) subresource requests","observeClientHints":"WebKit engines do not send Chromium client hints","observeRequestBodies":"The engine does not expose request bodies","replaceRequests":"The engine cannot substitute http(s) responses"}}}}
+← {"v":1,"t":"rreq","id":"r2","gen":1,"op":"host.browser.setRequestInterception","of":"1-3","payload":{"session":"s-1","mode":"observe"}}
+→ {"v":1,"t":"rres","id":"r2","gen":1,"ok":{}}
+→ {"v":1,"t":"event","id":"e1-9","gen":1,"op":"host.browser.request","payload":{"session":"s-1","requestId":null,"method":"GET","url":"https://x.example/","headers":{"User-Agent":"…"},"bodyBase64":null,"bodyOmitted":false,"mainFrame":true,"redirect":false,"context":"document"}}
 ← {"v":1,"t":"res","id":"1-3","gen":1,"ok":{"hits":[{"ref":{…},"title":"Onimai","coverUrl":null,"authors":[],"handle":"h-1"}],"nextCursor":null,"warnings":[]}}
 → {"v":1,"t":"req","id":"1-4","gen":1,"op":"shutdown","payload":{}}
 ← {"v":1,"t":"res","id":"1-4","gen":1,"ok":{}}

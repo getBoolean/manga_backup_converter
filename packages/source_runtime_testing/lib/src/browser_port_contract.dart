@@ -46,18 +46,75 @@ abstract interface class BrowserPortHarness {
   /// `window.<name>.postMessage(message)`. It completes once the frame has
   /// made the call.
   String crossOriginFramePostScript(String name, String message);
+
+  /// An http(s) page the harness serves that embeds one child frame,
+  /// [sameOriginFrameUrl], from the same origin (protocol 1.2).
+  Uri get sameOriginFramePageUrl;
+
+  /// The child frame of [sameOriginFramePageUrl].
+  Uri get sameOriginFrameUrl;
+
+  /// An http(s) endpoint on the origin of [pageUrl] that answers every
+  /// method with status 200 and the text `<METHOD> <request body>` (for a
+  /// `GET`, `GET ` and an empty body), with
+  /// `Access-Control-Allow-Origin: *` (protocol 1.2).
+  Uri get echoUrl;
+}
+
+/// Page scripts the contract suite evaluates (protocol 1.2). Each is real
+/// JavaScript; the fetch script also carries a comment the fake reads.
+abstract final class BrowserContractScripts {
+  /// Fetches [url] with [method] and [body] from the current page, then
+  /// posts the response text on channel [channel], or `fetch-failed` when
+  /// the fetch fails. Evaluates to a promise that settles after posting.
+  static String fetchAndPost(String channel, Uri url, {String method = 'GET', String? body}) {
+    final String spec = jsonEncode(<String, Object?>{
+      'channel': channel,
+      'url': url.toString(),
+      'method': method,
+      'body': body,
+    }).replaceAll('*/', r'*\/');
+    final String c = jsonEncode(channel);
+    return <String>[
+      '${FakeBrowserPort.fetchMarker}$spec*/ ',
+      '(function(){var o={method:${jsonEncode(method)}};',
+      if (body != null) 'o.body=${jsonEncode(body)};',
+      'return fetch(${jsonEncode(url.toString())},o)',
+      '.then(function(r){return r.text();})',
+      '.then(function(t){window[$c].postMessage(t);},function(){window[$c].postMessage("fetch-failed");});})()',
+    ].join();
+  }
+
+  /// Posts the frame's own `location.href` on channel [name]; as a
+  /// page-start script it reports every frame it runs in.
+  static String postLocation(String name) => 'window.$name.postMessage(location.href)';
 }
 
 /// Waits until [messages] contains [expected]; fails after a bound so a
 /// platform that never delivers fails the test instead of hanging it.
-Future<void> _waitFor(List<String> messages, String expected) async {
+Future<void> _waitFor(List<String> messages, String expected) =>
+    _waitUntil(() => messages.contains(expected), () => 'Message "$expected" was not delivered; got $messages');
+
+Future<void> _waitUntil(bool Function() condition, String Function() failure) async {
   final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
-  while (!messages.contains(expected)) {
-    if (DateTime.now().isAfter(deadline)) {
-      throw StateError('Message "$expected" was not delivered; got $messages');
-    }
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) throw StateError(failure());
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
+}
+
+/// Checks that [outcome] is a capability failure naming [operation] with a
+/// non-empty reason, and that [capabilities] name a reason for [feature].
+void _checkUnavailable(
+  BrowserOutcome<Object?> outcome,
+  String operation,
+  BrowserCapabilities capabilities,
+  BrowserFeature feature,
+) {
+  check(outcome).isA<BrowserCapabilityUnavailable<Object?>>()
+    ..has((BrowserCapabilityUnavailable<Object?> o) => o.operation, 'operation').equals(operation)
+    ..has((BrowserCapabilityUnavailable<Object?> o) => o.reason.trim(), 'reason').isNotEmpty();
+  check(capabilities.reasonFor(feature)).isNotNull().isNotEmpty();
 }
 
 SourceIdentity _source(String id) => SourceIdentity(
@@ -319,14 +376,262 @@ void runBrowserPortContractSuite(String name, BrowserPortHarness Function() crea
           check(shown).isA<BrowserInteractionRequired<void>>();
         }
       });
+
+      test('accepts "ipc" as a channel name without breaking evaluation or other channels', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final ipc = <String>[];
+        final other = <String>[];
+        check(await s.setMessageHandler('ipc', ipc.add)).isA<BrowserCompleted<void>>();
+        check(await s.setMessageHandler('bridge', other.add)).isA<BrowserCompleted<void>>();
+        await s.evaluate(BrowserMessageChannel.postScript('ipc', 'via ipc'));
+        await _waitFor(ipc, 'via ipc');
+        check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
+        await s.evaluate(BrowserMessageChannel.postScript('bridge', 'via bridge'));
+        await _waitFor(other, 'via bridge');
+        // Still delivered after a navigation re-installs the channels.
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        await s.evaluate(BrowserMessageChannel.postScript('ipc', 'after load'));
+        await _waitFor(ipc, 'after load');
+        check(ipc).deepEquals(<String>['via ipc', 'after load']);
+      });
+    });
+
+    group('protocol 1.2 capabilities', () {
+      test('names a reason for every unavailable feature', () async {
+        final BrowserSession s = await open(sourceA);
+        final BrowserCapabilities caps = s.capabilities;
+        for (final BrowserFeature f in BrowserFeature.values) {
+          if (caps.supports(f)) {
+            check(caps.reasonFor(f)).isNull();
+          } else {
+            check(caps.reasonFor(f)).isNotNull().isNotEmpty();
+          }
+        }
+        if (caps.supports(BrowserFeature.replaceRequests)) {
+          check(caps.interceptionTier).equals(BrowserInterceptionTier.replace);
+        }
+      });
+
+      test('evaluate reports a throwing script as a script error, or null without the feature', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final BrowserOutcome<String> thrown = await s.evaluate('throw new Error("contract-boom")');
+        if (s.capabilities.supports(BrowserFeature.scriptErrors)) {
+          check(thrown)
+              .isA<BrowserScriptError<String>>()
+              .has((BrowserScriptError<String> e) => e.message, 'message')
+              .contains('contract-boom');
+        } else {
+          check(thrown)
+              .isA<BrowserCompleted<String>>()
+              .has((BrowserCompleted<String> c) => c.value, 'value')
+              .equals('null');
+          check(s.capabilities.reasonFor(BrowserFeature.scriptErrors)).isNotNull().isNotEmpty();
+        }
+        check(thrown.androidCompatible.valueOrNull).equals('null');
+        // A script that returns null is still a completed null.
+        check(await s.evaluate('localStorage.getItem("absent")')).isA<BrowserCompleted<String>>();
+      });
+    });
+
+    group('protocol 1.2 page-start scripts', () {
+      test('run at document start in the top frame and a same-origin child frame', () async {
+        final BrowserSession s = await open(sourceA);
+        final messages = <String>[];
+        check(await s.setMessageHandler('probe', messages.add)).isA<BrowserCompleted<void>>();
+        final BrowserOutcome<void> added = await s.addPageStartScript(BrowserContractScripts.postLocation('probe'));
+        if (!s.capabilities.supports(BrowserFeature.pageStartScripts)) {
+          _checkUnavailable(added, 'addPageStartScript', s.capabilities, BrowserFeature.pageStartScripts);
+          return;
+        }
+        check(added).isA<BrowserCompleted<void>>();
+        check(await s.loadUrl(harness.sameOriginFramePageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        await _waitFor(messages, harness.sameOriginFramePageUrl.toString());
+        await _waitFor(messages, harness.sameOriginFrameUrl.toString());
+      });
+
+      test('apply to later documents, including loadData content, but not the current one', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final BrowserOutcome<void> added = await s.addPageStartScript('window.__contractStart = "ran"');
+        if (!s.capabilities.supports(BrowserFeature.pageStartScripts)) {
+          _checkUnavailable(added, 'addPageStartScript', s.capabilities, BrowserFeature.pageStartScripts);
+          return;
+        }
+        check((await s.evaluate('window.__contractStart')).valueOrNull).equals('null');
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        check((await s.evaluate('window.__contractStart')).valueOrNull).equals('"ran"');
+        check(
+          await s.loadData('<html><title>t</title></html>', baseUrl: Uri.parse('https://example.org/')),
+        ).isA<BrowserCompleted<BrowserPage>>();
+        check((await s.evaluate('window.__contractStart')).valueOrNull).equals('"ran"');
+      });
+
+      test('messages a page-start script posts from a cross-origin frame are dropped', () async {
+        final BrowserSession s = await open(sourceA);
+        final messages = <String>[];
+        check(await s.setMessageHandler('probe', messages.add)).isA<BrowserCompleted<void>>();
+        final BrowserOutcome<void> added = await s.addPageStartScript(BrowserContractScripts.postLocation('probe'));
+        if (!s.capabilities.supports(BrowserFeature.pageStartScripts)) {
+          _checkUnavailable(added, 'addPageStartScript', s.capabilities, BrowserFeature.pageStartScripts);
+          return;
+        }
+        check(await s.loadUrl(harness.crossOriginFramePageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        await _waitFor(messages, harness.crossOriginFramePageUrl.toString());
+        await s.evaluate(BrowserMessageChannel.postScript('probe', 'marker'));
+        await _waitFor(messages, 'marker');
+        check(messages).deepEquals(<String>[harness.crossOriginFramePageUrl.toString(), 'marker']);
+      });
+    });
+
+    group('protocol 1.2 request interception', () {
+      Future<List<String>> fetchEcho(BrowserSession s, {String method = 'GET', String? body}) async {
+        final messages = <String>[];
+        check(await s.setMessageHandler('fetched', messages.add)).isA<BrowserCompleted<void>>();
+        await s.evaluate(BrowserContractScripts.fetchAndPost('fetched', harness.echoUrl, method: method, body: body));
+        await _waitUntil(() => messages.isNotEmpty, () => 'fetch of ${harness.echoUrl} posted nothing');
+        return messages;
+      }
+
+      test('the observer sees a main-frame navigation with its headers', () async {
+        final BrowserSession s = await open(sourceA);
+        final BrowserCapabilities caps = s.capabilities;
+        final observed = <BrowserRequest>[];
+        final BrowserOutcome<void> set = await s.setRequestObserver(observed.add);
+        if (caps.interceptionTier == BrowserInterceptionTier.none) {
+          _checkUnavailable(set, 'setRequestObserver', caps, BrowserFeature.observeNavigations);
+          return;
+        }
+        check(set).isA<BrowserCompleted<void>>();
+        check(
+          await s.loadUrl(harness.pageUrl, headers: const <String, String>{'X-Contract': 'yes'}),
+        ).isA<BrowserCompleted<BrowserPage>>();
+        final List<BrowserRequest> main = observed.where((BrowserRequest r) => r.url == harness.pageUrl).toList();
+        if (!caps.supports(BrowserFeature.observeNavigations)) {
+          check(caps.reasonFor(BrowserFeature.observeNavigations)).isNotNull().isNotEmpty();
+          return;
+        }
+        check(main).isNotEmpty();
+        check(main.first)
+          ..has((BrowserRequest r) => r.method, 'method').equals('GET')
+          ..has((BrowserRequest r) => r.mainFrame, 'mainFrame').isTrue();
+        if (caps.supports(BrowserFeature.observeRequestHeaders)) {
+          check(main.first.header('x-contract')).equals('yes');
+        }
+        if (caps.supports(BrowserFeature.observeClientHints)) {
+          check(main.first.header('sec-ch-ua')).isNotNull();
+        } else {
+          check(caps.reasonFor(BrowserFeature.observeClientHints)).isNotNull().isNotEmpty();
+        }
+      });
+
+      test('a POST subresource proceeds, and is observed with its body where the engine allows', () async {
+        final BrowserSession s = await open(sourceA);
+        final BrowserCapabilities caps = s.capabilities;
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final observed = <BrowserRequest>[];
+        final BrowserOutcome<void> set = await s.setRequestObserver(observed.add);
+        if (caps.interceptionTier == BrowserInterceptionTier.none) {
+          _checkUnavailable(set, 'setRequestObserver', caps, BrowserFeature.observeNavigations);
+        }
+        check(await fetchEcho(s, method: 'POST', body: 'contract-body')).deepEquals(<String>['POST contract-body']);
+        final List<BrowserRequest> posts = observed
+            .where((BrowserRequest r) => r.url == harness.echoUrl && r.method == 'POST')
+            .toList();
+        if (!caps.supports(BrowserFeature.observeSubresources) || set is! BrowserCompleted<void>) {
+          check(posts).isEmpty();
+          check(caps.reasonFor(BrowserFeature.observeSubresources)).isNotNull().isNotEmpty();
+          return;
+        }
+        check(posts).length.equals(1);
+        check(posts.single.mainFrame).isFalse();
+        if (caps.supports(BrowserFeature.observeRequestBodies)) {
+          check(posts.single.body).isNotNull().deepEquals(utf8.encode('contract-body'));
+        } else {
+          check(posts.single.body).isNull();
+          check(posts.single.bodyOmitted).isTrue();
+          check(caps.reasonFor(BrowserFeature.observeRequestBodies)).isNotNull().isNotEmpty();
+        }
+      });
+
+      test('a removed observer sees nothing, and none is called after close', () async {
+        final BrowserSession s = await open(sourceA);
+        final observed = <BrowserRequest>[];
+        if (await s.setRequestObserver(observed.add) is! BrowserCompleted<void>) return;
+        check(await s.setRequestObserver(null)).isA<BrowserCompleted<void>>();
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        check(observed).isEmpty();
+        check(await s.setRequestObserver(observed.add)).isA<BrowserCompleted<void>>();
+        await s.close();
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCancelled<BrowserPage>>();
+        check(observed).isEmpty();
+      });
+
+      test('the replacer supplies a response, or the replace tier is refused with a named reason', () async {
+        final BrowserSession s = await open(sourceA);
+        final BrowserCapabilities caps = s.capabilities;
+        final seen = <BrowserRequest>[];
+        final BrowserOutcome<void> set = await s.setRequestReplacer((BrowserRequest r) {
+          seen.add(r);
+          return r.url == harness.echoUrl ? BrowserReplacement(status: 200, body: utf8.encode('replaced')) : null;
+        });
+        if (!caps.supports(BrowserFeature.replaceRequests)) {
+          _checkUnavailable(set, 'setRequestReplacer', caps, BrowserFeature.replaceRequests);
+          check(await s.setRequestReplacer(null)).isA<BrowserCompleted<void>>();
+          return;
+        }
+        check(set).isA<BrowserCompleted<void>>();
+        // A null answer lets the page load unchanged.
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        check((await s.evaluate('document.title')).valueOrNull).equals(jsonEncode('contract'));
+        check(await fetchEcho(s, method: 'POST', body: 'original')).deepEquals(<String>['replaced']);
+        final BrowserRequest post = seen.lastWhere((BrowserRequest r) => r.url == harness.echoUrl);
+        check(post.method).equals('POST');
+        if (caps.supports(BrowserFeature.observeRequestBodies)) {
+          check(post.body).isNotNull().deepEquals(utf8.encode('original'));
+        }
+        check(await s.setRequestReplacer(null)).isA<BrowserCompleted<void>>();
+        check(await fetchEcho(s)).deepEquals(<String>['GET ']);
+      });
+
+      test('a redirect replacement is refused and the request fails', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final BrowserOutcome<void> set = await s.setRequestReplacer(
+          (BrowserRequest r) => r.url == harness.echoUrl
+              ? BrowserReplacement(
+                  status: 302,
+                  reason: 'Found',
+                  headers: const <String, String>{'Location': 'file:///etc/passwd'},
+                )
+              : null,
+        );
+        if (set is! BrowserCompleted<void>) return;
+        check(await fetchEcho(s)).deepEquals(<String>['fetch-failed']);
+      });
+
+      test('setting a replacer removes the observer', () async {
+        final BrowserSession s = await open(sourceA);
+        final observed = <BrowserRequest>[];
+        if (await s.setRequestObserver(observed.add) is! BrowserCompleted<void>) return;
+        if (await s.setRequestReplacer((_) => null) is! BrowserCompleted<void>) return;
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        check(observed).isEmpty();
+      });
     });
   });
 }
 
 /// [BrowserPortHarness] for [FakeBrowserPort]. Its store outlives a killed
 /// port, so the kill-and-restart test exercises start-up wiping.
+///
+/// [capabilities] selects the engine profile the fake reports, so the suite
+/// can run against both the full feature set and degraded ones.
 class FakeBrowserPortHarness implements BrowserPortHarness {
-  FakeBrowserPortHarness();
+  FakeBrowserPortHarness({this.capabilities});
+
+  final BrowserCapabilities? capabilities;
 
   final FakeBrowserStore store = FakeBrowserStore();
   FakeBrowserPort? _port;
@@ -344,6 +649,15 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
   final Uri crossOriginFrameUrl = Uri.parse('https://other-origin.test/frame');
 
   @override
+  final Uri sameOriginFramePageUrl = Uri.parse('https://contract.test/same-framed');
+
+  @override
+  final Uri sameOriginFrameUrl = Uri.parse('https://contract.test/frame');
+
+  @override
+  final Uri echoUrl = Uri.parse('https://contract.test/echo');
+
+  @override
   bool get canShowInteraction => false;
 
   FakeWebPage? _resolve(Uri url) {
@@ -352,11 +666,26 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
     if (url == crossOriginFramePageUrl) {
       return FakeWebPage(html: '<html><head><title>framed</title></head></html>', frames: <Uri>[crossOriginFrameUrl]);
     }
+    if (url == sameOriginFramePageUrl) {
+      return FakeWebPage(html: '<html><head><title>framed</title></head></html>', frames: <Uri>[sameOriginFrameUrl]);
+    }
     return null;
   }
 
+  FakeWebPage? _resolveRequest(BrowserRequest request) {
+    if (request.url == echoUrl) {
+      return FakeWebPage(html: '${request.method} ${utf8.decode(request.body ?? const <int>[])}');
+    }
+    return request.method == 'GET' ? _resolve(request.url) : null;
+  }
+
   @override
-  Future<BrowserPort> start() async => _port = FakeBrowserPort(pages: _resolve, store: store);
+  Future<BrowserPort> start() async => _port = FakeBrowserPort(
+    pages: _resolve,
+    requests: _resolveRequest,
+    store: store,
+    capabilities: capabilities,
+  );
 
   @override
   Future<void> kill() async => _port = null;

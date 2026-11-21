@@ -1098,11 +1098,35 @@ void main() {
       check((await s.start()).valueOrNull!.protocolMinor).equals(protocolMinorVersion);
     });
 
+    test('reverse requests carry the negotiated minor, so 1.2 browser operations are gated per worker', () async {
+      for (final (List<String> args, int minor) in <(List<String>, int)>[
+        (<String>['--minor=2'], 2),
+        (<String>[], 1),
+      ]) {
+        final seen = <int>[];
+        final WorkerSupervisor s = supervisor(
+          arguments: args,
+          onReverseRequest: (ReverseRequest r) async {
+            seen.add(r.protocolMinor);
+            return const SourceSuccess<Map<String, Object?>>(<String, Object?>{});
+          },
+        );
+        check((await s.start()).valueOrNull!.protocolMinor).equals(minor);
+        await s.call('pkg', 'echo', <String, Object?>{
+          'fake': <String, Object?>{
+            'reverse': <String, Object?>{'op': 'host.browser.evaluate'},
+          },
+        });
+        check(seen).deepEquals(<int>[minor]);
+        await s.close();
+      }
+    });
+
     test('a worker that answers with a higher minor than offered fails the session', () async {
-      final WorkerSupervisor s = supervisor(arguments: <String>['--force-minor=2']);
+      final WorkerSupervisor s = supervisor(arguments: <String>['--force-minor=${protocolMinorVersion + 1}']);
       check(
         (await s.start()).failureOrNull,
-      ).isA<ProtocolViolationFailure>().has((f) => f.message, 'message').contains('1.2');
+      ).isA<ProtocolViolationFailure>().has((f) => f.message, 'message').contains('1.${protocolMinorVersion + 1}');
       check(s.state).equals(WorkerState.failed);
     });
 

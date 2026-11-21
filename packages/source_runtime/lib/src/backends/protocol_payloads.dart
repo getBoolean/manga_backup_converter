@@ -1,4 +1,4 @@
-/// Typed request and response payloads of worker protocol 1.1 (KTD4).
+/// Typed request and response payloads of worker protocol 1.2 (KTD4).
 ///
 /// These classes are the source of truth for every `payload` (request) and
 /// `ok` (response) object; `doc/protocol-v1.md` describes the same shapes for
@@ -12,9 +12,15 @@
 /// Minor 1 added `HandshakeRequest.protocolMinor` and the reply's
 /// `protocolMinor`, `limits` and `sizing`; `ArtifactPrepareRequest
 /// .trustedSigners`; string-set setting values; and source-scoped settings
-/// (`SettingsPayload.sources`). Fields added in a minor version decode as
-/// absent from a 1.0 peer.
+/// (`SettingsPayload.sources`). Minor 2 added browser capabilities on
+/// `host.browser.open`, `scriptError` on `host.browser.evaluate`, and the
+/// `host.browser.addPageStartScript`, `setRequestInterception` and
+/// `respond` reverse requests with the `host.browser.request` event. Fields
+/// added in a minor version decode as absent from an older peer.
 library;
+
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:source_runtime/src/contracts/browser_port.dart';
 import 'package:source_runtime/src/contracts/identity.dart';
@@ -798,11 +804,18 @@ enum HostBrowserOperation {
   setCookie('host.browser.setCookie'),
   setUserAgent('host.browser.setUserAgent'),
   show('host.browser.show'),
-  close('host.browser.close');
+  close('host.browser.close'),
+  addPageStartScript('host.browser.addPageStartScript', sinceMinor: 2),
+  setRequestInterception('host.browser.setRequestInterception', sinceMinor: 2),
+  respond('host.browser.respond', sinceMinor: 2);
 
-  const HostBrowserOperation(this.wire);
+  const HostBrowserOperation(this.wire, {this.sinceMinor = 0});
 
   final String wire;
+
+  /// The protocol minor version that introduced this operation. A worker
+  /// that negotiated a lower minor may not send it.
+  final int sinceMinor;
 
   static HostBrowserOperation? fromWire(String? wire) {
     for (final HostBrowserOperation o in values) {
@@ -834,6 +847,9 @@ sealed class HostBrowserRequest<R extends ProtocolPayload> implements ProtocolPa
         HostBrowserOperation.setUserAgent => HostBrowserSetUserAgent.fromJson(p),
         HostBrowserOperation.show => HostBrowserShow.fromJson(p),
         HostBrowserOperation.close => HostBrowserClose.fromJson(p),
+        HostBrowserOperation.addPageStartScript => HostBrowserAddPageStartScript.fromJson(p),
+        HostBrowserOperation.setRequestInterception => HostBrowserSetRequestInterception.fromJson(p),
+        HostBrowserOperation.respond => HostBrowserRespond.fromJson(p),
       };
 }
 
@@ -868,14 +884,28 @@ final class HostBrowserOpen extends HostBrowserRequest<HostBrowserOpened> {
 
 /// Reply to [HostBrowserOpen].
 final class HostBrowserOpened implements ProtocolPayload {
-  const HostBrowserOpened({required this.session});
+  const HostBrowserOpened({required this.session, this.capabilities});
 
-  factory HostBrowserOpened.fromJson(Map<String, Object?> json) => HostBrowserOpened(session: _string(json, 'session'));
+  factory HostBrowserOpened.fromJson(Map<String, Object?> json) => HostBrowserOpened(
+    session: _string(json, 'session'),
+    capabilities: json['capabilities'] == null ? null : BrowserCapabilities.fromJson(_object(json, 'capabilities')),
+  );
 
   final String session;
 
+  /// The session's optional features (1.2); `null` from an older peer,
+  /// which reads as [BrowserCapabilities.unreported]. The supervisor sends
+  /// it only to a worker that negotiated 1.2.
+  final BrowserCapabilities? capabilities;
+
+  /// [capabilities], or nothing optional when absent.
+  BrowserCapabilities get effectiveCapabilities => capabilities ?? BrowserCapabilities.unreported();
+
   @override
-  Map<String, Object?> toJson() => <String, Object?>{'session': session};
+  Map<String, Object?> toJson() => <String, Object?>{
+    'session': session,
+    if (capabilities != null) 'capabilities': capabilities!.toJson(),
+  };
 }
 
 /// `host.browser.load`: navigate to an http(s) [url].
@@ -963,16 +993,31 @@ final class HostBrowserEvaluate extends HostBrowserSessionRequest<HostBrowserEva
 
 /// Reply to [HostBrowserEvaluate].
 final class HostBrowserEvaluated implements ProtocolPayload {
-  const HostBrowserEvaluated({required this.result});
+  const HostBrowserEvaluated({required this.result, this.scriptError});
+
+  /// The reply for a script that threw: `result` is `null`, so a peer that
+  /// ignores [scriptError] sees Android `evaluateJavascript` semantics.
+  const HostBrowserEvaluated.scriptError(String this.scriptError) : result = 'null';
 
   factory HostBrowserEvaluated.fromJson(Map<String, Object?> json) =>
-      HostBrowserEvaluated(result: _string(json, 'result'));
+      HostBrowserEvaluated(result: _string(json, 'result'), scriptError: _optString(json, 'scriptError'));
 
-  /// The script's value as JSON text (`"ok"`, `42`, `null`).
+  /// The script's value as JSON text (`"ok"`, `42`, `null`). `null` when the
+  /// script threw.
   final String result;
 
+  /// The thrown value's description when the script threw (1.2); absent
+  /// otherwise, and always absent from an engine without
+  /// `BrowserFeature.scriptErrors`.
+  final String? scriptError;
+
+  /// This reply as a [BrowserOutcome]: [BrowserScriptError] when the script
+  /// threw.
+  BrowserOutcome<String> toOutcome() =>
+      scriptError == null ? BrowserCompleted<String>(result) : BrowserScriptError<String>(scriptError!);
+
   @override
-  Map<String, Object?> toJson() => <String, Object?>{'result': result};
+  Map<String, Object?> toJson() => <String, Object?>{'result': result, 'scriptError': ?scriptError};
 }
 
 /// `host.browser.setMessageHandler`: start or stop delivering page messages
@@ -1113,6 +1158,218 @@ final class HostBrowserClose extends HostBrowserSessionRequest<EmptyPayload> {
   Map<String, Object?> toJson() => <String, Object?>{'session': session};
 }
 
+/// `host.browser.addPageStartScript` (1.2): run [script] at document start
+/// in every frame of every later document of the session
+/// (`BrowserSession.addPageStartScript`).
+final class HostBrowserAddPageStartScript extends HostBrowserSessionRequest<EmptyPayload> {
+  const HostBrowserAddPageStartScript({required super.session, required this.script});
+
+  factory HostBrowserAddPageStartScript.fromJson(Map<String, Object?> json) =>
+      HostBrowserAddPageStartScript(session: _string(json, 'session'), script: _string(json, 'script'));
+
+  final String script;
+
+  @override
+  HostBrowserOperation get operation => HostBrowserOperation.addPageStartScript;
+
+  @override
+  EmptyPayload decodeResponse(Map<String, Object?> ok) => EmptyPayload.fromJson(ok);
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'session': session, 'script': script};
+}
+
+/// Interception mode of [HostBrowserSetRequestInterception].
+enum HostBrowserInterception {
+  /// No interception.
+  none,
+
+  /// Observe tier: `host.browser.request` events without `requestId`;
+  /// requests proceed unchanged.
+  observe,
+
+  /// Replace tier: `host.browser.request` events with `requestId`, each
+  /// answered by `host.browser.respond`.
+  replace;
+
+  static HostBrowserInterception? fromWire(String wire) {
+    for (final HostBrowserInterception m in values) {
+      if (m.name == wire) return m;
+    }
+    return null;
+  }
+}
+
+/// `host.browser.setRequestInterception` (1.2): select the session's
+/// request interceptor (`BrowserSession.setRequestObserver` and
+/// `setRequestReplacer`; at most one at a time).
+final class HostBrowserSetRequestInterception extends HostBrowserSessionRequest<EmptyPayload> {
+  const HostBrowserSetRequestInterception({required super.session, required this.mode});
+
+  factory HostBrowserSetRequestInterception.fromJson(Map<String, Object?> json) {
+    final String wire = _string(json, 'mode');
+    return HostBrowserSetRequestInterception(
+      session: _string(json, 'session'),
+      mode: HostBrowserInterception.fromWire(wire) ?? _bad('mode', 'one of none, observe, replace', wire),
+    );
+  }
+
+  final HostBrowserInterception mode;
+
+  @override
+  HostBrowserOperation get operation => HostBrowserOperation.setRequestInterception;
+
+  @override
+  EmptyPayload decodeResponse(Map<String, Object?> ok) => EmptyPayload.fromJson(ok);
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{'session': session, 'mode': mode.name};
+}
+
+/// `host.browser.respond` (1.2): answer the held request [requestId] of a
+/// `host.browser.request` event with [response], or with `null` to let it
+/// proceed unchanged.
+final class HostBrowserRespond extends HostBrowserSessionRequest<EmptyPayload> {
+  const HostBrowserRespond({required super.session, required this.requestId, this.response});
+
+  factory HostBrowserRespond.fromJson(Map<String, Object?> json) => HostBrowserRespond(
+    session: _string(json, 'session'),
+    requestId: _string(json, 'requestId'),
+    response: json['response'] == null ? null : browserReplacementFromJson(_object(json, 'response')),
+  );
+
+  final String requestId;
+  final BrowserReplacement? response;
+
+  @override
+  HostBrowserOperation get operation => HostBrowserOperation.respond;
+
+  @override
+  EmptyPayload decodeResponse(Map<String, Object?> ok) => EmptyPayload.fromJson(ok);
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{
+    'session': session,
+    'requestId': requestId,
+    'response': response == null ? null : browserReplacementToJson(response!),
+  };
+}
+
+/// Largest request body a `host.browser.request` event carries (1 MiB).
+/// Larger bodies are omitted (`bodyOmitted: true`) so that one upload can
+/// never push an event past the frame limit.
+const int hostBrowserMaxForwardedBodyBytes = 1024 * 1024;
+
+/// `host.browser.request` event (1.2, supervisor → worker): a page of
+/// [session] made [request]. With [requestId] the request is held until the
+/// worker answers with [HostBrowserRespond]; without it the request is only
+/// observed.
+final class HostBrowserRequestEvent implements ProtocolPayload {
+  const HostBrowserRequestEvent({required this.session, required this.request, this.requestId});
+
+  factory HostBrowserRequestEvent.fromJson(Map<String, Object?> json) {
+    final String? bodyBase64 = _optString(json, 'bodyBase64');
+    final Uint8List? body;
+    try {
+      body = bodyBase64 == null ? null : base64Decode(bodyBase64);
+    } on FormatException {
+      _bad('bodyBase64', 'base64 text', bodyBase64);
+    }
+    return HostBrowserRequestEvent(
+      session: _string(json, 'session'),
+      requestId: _optString(json, 'requestId'),
+      request: BrowserRequest(
+        url: _uri(json, 'url'),
+        method: _string(json, 'method'),
+        headers: json['headers'] == null ? const <String, String>{} : _stringMap(json, 'headers'),
+        body: body,
+        bodyOmitted: _optBool(json, 'bodyOmitted') ?? false,
+        mainFrame: _optBool(json, 'mainFrame') ?? false,
+        redirect: _optBool(json, 'redirect') ?? false,
+        context: BrowserRequestContext.fromWire(_optString(json, 'context')),
+      ),
+    );
+  }
+
+  /// Builds the event for [request], omitting a body larger than
+  /// [hostBrowserMaxForwardedBodyBytes].
+  factory HostBrowserRequestEvent.forward({
+    required String session,
+    required BrowserRequest request,
+    String? requestId,
+  }) {
+    final Uint8List? body = request.body;
+    if (body == null || body.length <= hostBrowserMaxForwardedBodyBytes) {
+      return HostBrowserRequestEvent(session: session, request: request, requestId: requestId);
+    }
+    return HostBrowserRequestEvent(
+      session: session,
+      requestId: requestId,
+      request: BrowserRequest(
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        bodyOmitted: true,
+        mainFrame: request.mainFrame,
+        redirect: request.redirect,
+        context: request.context,
+      ),
+    );
+  }
+
+  /// The event frame's `op`.
+  static const String op = 'host.browser.request';
+
+  final String session;
+
+  /// Present when the request is held for a [HostBrowserRespond].
+  final String? requestId;
+  final BrowserRequest request;
+
+  @override
+  Map<String, Object?> toJson() => <String, Object?>{
+    'session': session,
+    'requestId': requestId,
+    'method': request.method,
+    'url': request.url.toString(),
+    'headers': request.headers,
+    'bodyBase64': request.body == null ? null : base64Encode(request.body!),
+    'bodyOmitted': request.bodyOmitted,
+    'mainFrame': request.mainFrame,
+    'redirect': request.redirect,
+    'context': request.context.name,
+  };
+}
+
+/// Encodes [r] as `{status, reason, headers, bodyBase64}`.
+Map<String, Object?> browserReplacementToJson(BrowserReplacement r) => <String, Object?>{
+  'status': r.status,
+  'reason': r.reason,
+  'headers': r.headers,
+  'bodyBase64': base64Encode(r.body),
+};
+
+/// Decodes `{status, reason?, headers?, bodyBase64?}`, refusing a
+/// replacement with a [BrowserReplacement.invalidReason].
+BrowserReplacement browserReplacementFromJson(Map<String, Object?> json) {
+  final String? bodyBase64 = _optString(json, 'bodyBase64');
+  final List<int> body;
+  try {
+    body = bodyBase64 == null ? const <int>[] : base64Decode(bodyBase64);
+  } on FormatException {
+    _bad('bodyBase64', 'base64 text', bodyBase64);
+  }
+  final replacement = BrowserReplacement(
+    status: _int(json, 'status'),
+    reason: _optString(json, 'reason') ?? 'OK',
+    headers: json['headers'] == null ? const <String, String>{} : _stringMap(json, 'headers'),
+    body: body,
+  );
+  final String? invalid = replacement.invalidReason;
+  if (invalid != null) throw FormatException('Invalid replacement: $invalid');
+  return replacement;
+}
+
 /// `host.browser.message` event (supervisor → worker): a page posted
 /// [message] to the handler [name] of [session].
 final class HostBrowserMessage implements ProtocolPayload {
@@ -1179,6 +1436,12 @@ int? _optNonNegativeInt(Map<String, Object?> json, String key) => switch (json[k
 bool _bool(Map<String, Object?> json, String key) => switch (json[key]) {
   final bool b => b,
   final Object? v => _bad(key, 'a boolean', v),
+};
+
+bool? _optBool(Map<String, Object?> json, String key) => switch (json[key]) {
+  null => null,
+  final bool b => b,
+  final Object v => _bad(key, 'a boolean or null', v),
 };
 
 Map<String, Object?> _object(Map<String, Object?> json, String key) => switch (json[key]) {

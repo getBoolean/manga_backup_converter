@@ -7,7 +7,9 @@
 /// (`runBrowserPortContractSuite`).
 library;
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:source_runtime/src/contracts/cancellation.dart';
@@ -80,6 +82,34 @@ final class BrowserNavigationFailed<T> extends BrowserOutcome<T> {
   String toString() => 'BrowserNavigationFailed($url: $reason)';
 }
 
+/// The evaluated script threw (only [BrowserSession.evaluate] returns this).
+///
+/// Reported only by implementations whose [BrowserSession.capabilities]
+/// support [BrowserFeature.scriptErrors]; elsewhere a throwing script
+/// completes with `null`, as Android's `evaluateJavascript` does. Callers
+/// that need Android semantics use [BrowserEvaluateCompat.androidCompatible].
+final class BrowserScriptError<T> extends BrowserOutcome<T> {
+  const BrowserScriptError(this.message);
+
+  /// The engine's description of the thrown value (for example
+  /// `Error: boom`). May include page text; never contains host secrets.
+  final String message;
+
+  @override
+  String toString() => 'BrowserScriptError($message)';
+}
+
+/// Android `WebView.evaluateJavascript` semantics for [BrowserSession.evaluate].
+extension BrowserEvaluateCompat on BrowserOutcome<String> {
+  /// This outcome with a [BrowserScriptError] replaced by the JSON text
+  /// `null`, which is what Android reports for a script that throws. The
+  /// Tachi `android.webkit` shim maps `evaluate` through this.
+  BrowserOutcome<String> get androidCompatible => switch (this) {
+    BrowserScriptError<String>() => const BrowserCompleted<String>('null'),
+    final BrowserOutcome<String> other => other,
+  };
+}
+
 /// Scheme rules for every load, navigation, redirect and base URL (KTD20).
 ///
 /// Allowed: `http`, `https`, and `about:blank`; `loadData` content needs an
@@ -126,7 +156,10 @@ abstract final class BrowserUrlPolicy {
 ///
 /// - **Availability:** the object exists in the current page as soon as the
 ///   handler is registered, and is injected at document start in every page
-///   loaded afterwards, until the handler is removed.
+///   loaded afterwards, until the handler is removed. Channel objects are
+///   installed before any page-start script
+///   ([BrowserSession.addPageStartScript]) runs, whatever the registration
+///   order, so a page-start script may post on a channel.
 /// - **Origin rule:** a message is delivered only when the frame that posted
 ///   it has the same origin (scheme, host, port) as the session's current
 ///   top-level document, and that document was loaded from http(s) (by
@@ -144,6 +177,15 @@ abstract final class BrowserMessageChannel {
 
   /// Whether [name] can be a channel: a plain JavaScript identifier, so
   /// `window.<name>` needs no quoting.
+  ///
+  /// No identifier is reserved. In particular `ipc`, `chrome` and `webkit`
+  /// are valid even though engines or helper toolkits use globals with
+  /// those names for their own messaging (wry's `window.ipc`, WebView2's
+  /// `window.chrome.webview`, WKWebView's `window.webkit.messageHandlers`):
+  /// an implementation captures private references to its own bridge in a
+  /// document-start script that runs before any channel or page script, so
+  /// a channel that shadows the global does not break it. A Tachi
+  /// extension's `addJavascriptInterface(obj, name)` may use any name.
   static bool isValidName(String name) => _identifier.hasMatch(name);
 
   /// Failure for an invalid channel [name], or `null` if valid.
@@ -234,6 +276,290 @@ final class BrowserCookie {
   };
 }
 
+/// Optional browser behaviour whose availability depends on the engine
+/// (protocol 1.2). Reported per session by [BrowserSession.capabilities].
+enum BrowserFeature {
+  /// [BrowserSession.addPageStartScript]: scripts at document start in
+  /// every frame.
+  pageStartScripts('pageStartScripts'),
+
+  /// Observe tier: top-level (main-frame) document requests, including
+  /// redirects, reach [BrowserSession.setRequestObserver].
+  observeNavigations('observeNavigations'),
+
+  /// Observe tier: subresource and child-frame requests (scripts, `fetch`,
+  /// XHR, images, iframes) reach the observer. WKWebView and WebKitGTK
+  /// cannot observe them.
+  observeSubresources('observeSubresources'),
+
+  /// Observed requests carry the request headers the engine sends.
+  observeRequestHeaders('observeRequestHeaders'),
+
+  /// Observed headers include Chromium client hints (`sec-ch-ua*`). WebKit
+  /// engines never send client hints.
+  observeClientHints('observeClientHints'),
+
+  /// Observed requests carry their body ([BrowserRequest.body]).
+  observeRequestBodies('observeRequestBodies'),
+
+  /// Replace tier: [BrowserSession.setRequestReplacer] can substitute a
+  /// response. WebView2 only among the desktop engines.
+  replaceRequests('replaceRequests'),
+
+  /// [BrowserSession.evaluate] reports a throwing script as
+  /// [BrowserScriptError] instead of a `null` result.
+  scriptErrors('scriptErrors');
+
+  const BrowserFeature(this.wire);
+
+  /// The name used in [BrowserCapabilities.toJson].
+  final String wire;
+
+  static BrowserFeature? fromWire(String wire) {
+    for (final BrowserFeature f in values) {
+      if (f.wire == wire) return f;
+    }
+    return null;
+  }
+}
+
+/// How far a session can intercept requests (KTD20).
+enum BrowserInterceptionTier {
+  /// No request observation at all.
+  none,
+
+  /// Observe-only: requests are reported and proceed unchanged. Check
+  /// [BrowserFeature.observeSubresources] for degraded (main-frame only)
+  /// observation.
+  observe,
+
+  /// Observe and replace: a replacer may supply the response.
+  replace,
+}
+
+/// The [BrowserFeature]s one session's engine provides, each missing one
+/// with a named reason (protocol 1.2).
+///
+/// A feature the implementation does not list is unavailable, never
+/// assumed: a peer that predates a feature cannot claim it, and a peer that
+/// reports nothing (protocol 1.1 or older) has
+/// [BrowserCapabilities.unreported].
+@immutable
+final class BrowserCapabilities {
+  BrowserCapabilities({
+    Set<BrowserFeature> available = const <BrowserFeature>{},
+    Map<BrowserFeature, String> unavailable = const <BrowserFeature, String>{},
+  }) : available = Set<BrowserFeature>.unmodifiable(available),
+       unavailable = Map<BrowserFeature, String>.unmodifiable(<BrowserFeature, String>{
+         for (final MapEntry<BrowserFeature, String> e in unavailable.entries)
+           if (!available.contains(e.key)) e.key: e.value.trim().isEmpty ? _unnamed : e.value,
+       });
+
+  /// Every feature available (a WebView2-like engine; the fake's default).
+  factory BrowserCapabilities.all() => BrowserCapabilities(available: BrowserFeature.values.toSet());
+
+  /// What a peer that reports no capabilities has: nothing optional.
+  factory BrowserCapabilities.unreported() => BrowserCapabilities();
+
+  /// Decodes `{"available": [name], "unavailable": {name: reason}}`.
+  /// Unknown feature names (from a newer peer) are ignored.
+  factory BrowserCapabilities.fromJson(Map<String, Object?> json) {
+    final Object available = json['available'] ?? const <Object?>[];
+    final Object unavailable = json['unavailable'] ?? const <String, Object?>{};
+    if (available is! List<Object?> || available.any((Object? v) => v is! String)) {
+      throw const FormatException('Field "available" must be an array of strings');
+    }
+    if (unavailable is! Map<Object?, Object?> || unavailable.values.any((Object? v) => v is! String)) {
+      throw const FormatException('Field "unavailable" must be an object of strings');
+    }
+    return BrowserCapabilities(
+      available: <BrowserFeature>{
+        for (final Object? name in available)
+          if (BrowserFeature.fromWire(name! as String) case final BrowserFeature f) f,
+      },
+      unavailable: <BrowserFeature, String>{
+        for (final MapEntry<Object?, Object?> e in unavailable.entries)
+          if (BrowserFeature.fromWire(e.key! as String) case final BrowserFeature f) f: e.value! as String,
+      },
+    );
+  }
+
+  static const String _unnamed = 'Unavailable (no reason given)';
+
+  /// Reason for a feature the implementation did not report at all.
+  static const String notReported = 'Not reported by the browser implementation';
+
+  final Set<BrowserFeature> available;
+
+  /// Reported reasons for unavailable features.
+  final Map<BrowserFeature, String> unavailable;
+
+  bool supports(BrowserFeature feature) => available.contains(feature);
+
+  /// Why [feature] is unavailable, or `null` when it is available. Never
+  /// empty: an unlisted feature reads as [notReported].
+  String? reasonFor(BrowserFeature feature) => supports(feature) ? null : (unavailable[feature] ?? notReported);
+
+  /// The interception tier these features allow.
+  BrowserInterceptionTier get interceptionTier {
+    if (supports(BrowserFeature.replaceRequests)) return BrowserInterceptionTier.replace;
+    if (supports(BrowserFeature.observeNavigations) || supports(BrowserFeature.observeSubresources)) {
+      return BrowserInterceptionTier.observe;
+    }
+    return BrowserInterceptionTier.none;
+  }
+
+  /// [BrowserCapabilityUnavailable] for [operation] when [feature] is
+  /// missing, or `null` when it is available.
+  BrowserCapabilityUnavailable<T>? check<T>(BrowserFeature feature, String operation) => switch (reasonFor(feature)) {
+    null => null,
+    final String reason => BrowserCapabilityUnavailable<T>(operation, '${feature.wire}: $reason'),
+  };
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'available': <String>[
+      for (final BrowserFeature f in BrowserFeature.values)
+        if (supports(f)) f.wire,
+    ],
+    'unavailable': <String, String>{
+      for (final BrowserFeature f in BrowserFeature.values)
+        if (!supports(f)) f.wire: reasonFor(f)!,
+    },
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is BrowserCapabilities &&
+      BrowserFeature.values.every((BrowserFeature f) => reasonFor(f) == other.reasonFor(f));
+
+  @override
+  int get hashCode => Object.hashAll(BrowserFeature.values.map(reasonFor));
+
+  @override
+  String toString() => 'BrowserCapabilities(${available.map((BrowserFeature f) => f.wire).join(', ')})';
+}
+
+/// What kind of resource a [BrowserRequest] loads.
+enum BrowserRequestContext {
+  document,
+  script,
+  fetch,
+  xhr,
+  image,
+  stylesheet,
+  other;
+
+  /// Decodes a wire name; unknown names read as [other].
+  static BrowserRequestContext fromWire(String? wire) {
+    for (final BrowserRequestContext c in values) {
+      if (c.name == wire) return c;
+    }
+    return other;
+  }
+}
+
+/// A request a page made, as reported to a request observer or replacer
+/// (protocol 1.2; Android's `WebResourceRequest`).
+///
+/// Only http(s) requests are reported. [headers] are as the engine sends
+/// them and may include `Cookie` and `Authorization`: never log them, and
+/// never put them in a capture key.
+@immutable
+final class BrowserRequest {
+  BrowserRequest({
+    required this.url,
+    String method = 'GET',
+    Map<String, String> headers = const <String, String>{},
+    this.body,
+    this.bodyOmitted = false,
+    this.mainFrame = false,
+    this.redirect = false,
+    this.context = BrowserRequestContext.other,
+  }) : method = method.toUpperCase(),
+       headers = Map<String, String>.unmodifiable(headers);
+
+  final Uri url;
+
+  /// Uppercase HTTP method.
+  final String method;
+
+  /// Request headers, names as the engine reports them; empty without
+  /// [BrowserFeature.observeRequestHeaders]. Look names up with [header].
+  final Map<String, String> headers;
+
+  /// The request body, when it had one and the engine exposed it
+  /// ([BrowserFeature.observeRequestBodies]); `null` for no body.
+  final Uint8List? body;
+
+  /// The request had a body that [body] does not carry: the engine could
+  /// not read it, or it exceeded a forwarding limit. Replay treats such a
+  /// request as a miss rather than matching a bodiless capture.
+  final bool bodyOmitted;
+
+  /// A top-level document request (Android's `isForMainFrame`).
+  final bool mainFrame;
+
+  /// The request follows a redirect.
+  final bool redirect;
+
+  final BrowserRequestContext context;
+
+  /// The value of header [name], matched case-insensitively.
+  String? header(String name) {
+    final String lower = name.toLowerCase();
+    for (final MapEntry<String, String> e in headers.entries) {
+      if (e.key.toLowerCase() == lower) return e.value;
+    }
+    return null;
+  }
+
+  @override
+  String toString() => 'BrowserRequest($method $url${mainFrame ? ' main-frame' : ''})';
+}
+
+/// A response a request replacer substitutes for a [BrowserRequest]
+/// (replace tier; Android's `WebResourceResponse`).
+@immutable
+final class BrowserReplacement {
+  BrowserReplacement({
+    required this.status,
+    this.reason = 'OK',
+    Map<String, String> headers = const <String, String>{},
+    List<int> body = const <int>[],
+  }) : headers = Map<String, String>.unmodifiable(headers),
+       body = Uint8List.fromList(body);
+
+  final int status;
+  final String reason;
+  final Map<String, String> headers;
+  final Uint8List body;
+
+  /// Why this replacement may not be served, or `null` when it may.
+  ///
+  /// The status must be 100-599 and not a redirect (300-399): Android's
+  /// `WebResourceResponse` refuses redirects, and a substituted `Location`
+  /// could otherwise steer a load around the scheme policy. The reason
+  /// phrase must be one non-empty line.
+  String? get invalidReason {
+    if (status < 100 || status > 599) return 'Status $status is outside 100-599';
+    if (status >= 300 && status <= 399) return 'Redirect status $status cannot be substituted';
+    if (reason.isEmpty || reason.contains('\n') || reason.contains('\r')) {
+      return 'Reason phrase must be one non-empty line';
+    }
+    return null;
+  }
+
+  @override
+  String toString() => 'BrowserReplacement($status, ${body.length} bytes)';
+}
+
+/// Receives every observable request (observe tier).
+typedef BrowserRequestObserver = void Function(BrowserRequest request);
+
+/// Answers a request with a replacement, or `null` to let it proceed
+/// unchanged (replace tier).
+typedef BrowserRequestReplacer = FutureOr<BrowserReplacement?> Function(BrowserRequest request);
+
 /// Platform WebView access for sources.
 abstract interface class BrowserPort {
   /// Startup cleanup: removes all source browser data a previous process may
@@ -268,8 +594,64 @@ abstract interface class BrowserSession {
   /// Loads [html] with an http(s) [baseUrl].
   Future<BrowserOutcome<BrowserPage>> loadData(String html, {required Uri baseUrl, CancellationToken? cancel});
 
+  /// The optional features this session's engine provides (protocol 1.2).
+  /// Fixed for the session's lifetime.
+  BrowserCapabilities get capabilities;
+
   /// Evaluates [script] in the current page; returns its JSON-encoded result.
+  ///
+  /// A script that throws completes with [BrowserScriptError] when
+  /// [capabilities] support [BrowserFeature.scriptErrors], and with `null`
+  /// otherwise. [BrowserEvaluateCompat.androidCompatible] gives Android's
+  /// `evaluateJavascript` behaviour on every implementation.
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel});
+
+  /// Registers [script] to run at document start in every frame (child
+  /// frames included, whatever their origin) of every document this session
+  /// loads afterwards, until the session closes (protocol 1.2; Android's
+  /// `WebViewCompat.addDocumentStartJavaScript`).
+  ///
+  /// - **Order:** message channel objects are installed first, then
+  ///   page-start scripts in registration order, then the page's own
+  ///   scripts.
+  /// - **Current document:** not affected; evaluate the script as well if
+  ///   it must run there.
+  /// - **Origins:** the script runs in documents of every origin. A caller
+  ///   that needs Android's `allowedOriginRules` wraps the script in its own
+  ///   `location.origin` check. Messages it posts follow the
+  ///   [BrowserMessageChannel] origin rule.
+  /// - **Removal:** none; scripts last until the session closes.
+  ///
+  /// Fails with [BrowserCapabilityUnavailable] without
+  /// [BrowserFeature.pageStartScripts].
+  Future<BrowserOutcome<void>> addPageStartScript(String script);
+
+  /// Observe tier (protocol 1.2): reports each request this session's pages
+  /// make to [observer]; requests proceed unchanged. `null` stops it.
+  ///
+  /// Which requests are reported depends on [capabilities]: top-level
+  /// navigations with [BrowserFeature.observeNavigations], subresources and
+  /// child frames with [BrowserFeature.observeSubresources]. A request the
+  /// engine cannot observe still proceeds. Only http(s) requests are
+  /// reported, and only while the session is open and its generation is
+  /// current. Fails with [BrowserCapabilityUnavailable] when neither
+  /// feature is available.
+  ///
+  /// A session has at most one interceptor: setting an observer removes
+  /// any replacer, and the reverse.
+  Future<BrowserOutcome<void>> setRequestObserver(BrowserRequestObserver? observer);
+
+  /// Replace tier (protocol 1.2): holds each http(s) request of this
+  /// session until [replacer] answers. A [BrowserReplacement] is served
+  /// instead of the network response; `null` lets the request proceed. A
+  /// replacement with an [BrowserReplacement.invalidReason], or a replacer
+  /// that throws, fails that request (the page sees a network error); a
+  /// replacer still pending when the session closes or is fenced lets it
+  /// proceed. `null` removes the replacer. Replaces any observer.
+  ///
+  /// Fails with [BrowserCapabilityUnavailable] without
+  /// [BrowserFeature.replaceRequests].
+  Future<BrowserOutcome<void>> setRequestReplacer(BrowserRequestReplacer? replacer);
 
   /// Registers (or with `null` removes) a handler for messages the page
   /// posts on channel [name]. See [BrowserMessageChannel] for the page-side

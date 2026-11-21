@@ -39,7 +39,7 @@ const int protocolVersion = 1;
 /// Highest minor version of [protocolVersion] this supervisor speaks,
 /// negotiated in the handshake (`protocolMinor`). Minor versions only add
 /// optional fields, so the envelope's `v` stays [protocolVersion].
-const int protocolMinorVersion = 1;
+const int protocolMinorVersion = 2;
 
 /// Maximum encoded frame size, newline excluded (KTD4: 16 MiB). This is a
 /// protocol rule, not a benchmarked limit; tests may pass a smaller value.

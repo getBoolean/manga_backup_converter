@@ -1,7 +1,8 @@
-// Round-trips every protocol 1.1 payload through real frame bytes
+// Round-trips every protocol 1.2 payload through real frame bytes
 // (encodeFrame → FrameDecoder → fromJson), so decoded JSON types
 // (Map<String, dynamic>, List<dynamic>) are what the decoders see.
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
 import 'package:source_runtime/source_runtime.dart';
@@ -496,6 +497,16 @@ void main() {
         'host.browser.setUserAgent',
         'host.browser.show',
         'host.browser.close',
+        'host.browser.addPageStartScript',
+        'host.browser.setRequestInterception',
+        'host.browser.respond',
+      ]);
+      check(
+        HostBrowserOperation.values.where((HostBrowserOperation o) => o.sinceMinor == 2).map((o) => o.wire).toList(),
+      ).deepEquals(<String>[
+        'host.browser.addPageStartScript',
+        'host.browser.setRequestInterception',
+        'host.browser.respond',
       ]);
     });
 
@@ -565,6 +576,135 @@ void main() {
       const event = HostBrowserMessage(session: 's-1', name: 'bridge', message: '{"ready":true}');
       final Map<String, Object?> decoded = await _asRequest(event, HostBrowserMessage.op, type: FrameType.event);
       check(_json(HostBrowserMessage.fromJson(decoded))).equals(_json(event));
+    });
+  });
+
+  group('host.browser.* 1.2 additions round-trip through frame bytes', () {
+    test('open carries capabilities; a feature the peer does not list is unavailable', () async {
+      final caps = BrowserCapabilities(
+        available: const <BrowserFeature>{BrowserFeature.observeNavigations, BrowserFeature.pageStartScripts},
+        unavailable: const <BrowserFeature, String>{BrowserFeature.replaceRequests: 'WebKit cannot substitute'},
+      );
+      final (_, ProtocolPayload reply) = await _browserRoundTrip(
+        const HostBrowserOpen(sourceId: bigSourceId),
+        HostBrowserOpened(session: 's-1', capabilities: caps),
+      );
+      final BrowserCapabilities decoded = (reply as HostBrowserOpened).effectiveCapabilities;
+      check(decoded).equals(caps);
+      check(decoded.interceptionTier).equals(BrowserInterceptionTier.observe);
+      check(decoded.reasonFor(BrowserFeature.replaceRequests)).equals('WebKit cannot substitute');
+      check(decoded.reasonFor(BrowserFeature.scriptErrors)).equals(BrowserCapabilities.notReported);
+    });
+
+    test('capabilities from a newer peer ignore unknown features; a 1.1 open reply reports none', () {
+      final caps = BrowserCapabilities.fromJson(const <String, Object?>{
+        'available': <Object?>['scriptErrors', 'teleport'],
+        'unavailable': <String, Object?>{'warpDrive': 'no', 'observeSubresources': ''},
+      });
+      check(caps.available).deepEquals(<BrowserFeature>{BrowserFeature.scriptErrors});
+      check(caps.reasonFor(BrowserFeature.observeSubresources)).isNotNull().isNotEmpty();
+      final legacy = HostBrowserOpened.fromJson(const <String, Object?>{'session': 's'});
+      check(legacy.capabilities).isNull();
+      check(legacy.effectiveCapabilities.interceptionTier).equals(BrowserInterceptionTier.none);
+      check(legacy.toJson().containsKey('capabilities')).isFalse();
+      check(
+        () => BrowserCapabilities.fromJson(const <String, Object?>{'available': 'all'}),
+      ).throws<FormatException>();
+    });
+
+    test('evaluate replies carry a script error that a 1.1 peer reads as null', () async {
+      final (_, ProtocolPayload reply) = await _browserRoundTrip(
+        const HostBrowserEvaluate(session: 's-1', script: 'throw new Error("boom")'),
+        const HostBrowserEvaluated.scriptError('Error: boom'),
+      );
+      final evaluated = reply as HostBrowserEvaluated;
+      check(evaluated.result).equals('null');
+      check(evaluated.toOutcome()).isA<BrowserScriptError<String>>();
+      check(evaluated.toOutcome().androidCompatible.valueOrNull).equals('null');
+      check(const HostBrowserEvaluated(result: '2').toJson()).deepEquals(<String, Object?>{'result': '2'});
+      check(const HostBrowserEvaluated(result: 'null').toOutcome()).isA<BrowserCompleted<String>>();
+    });
+
+    test('addPageStartScript and setRequestInterception', () async {
+      await _browserRoundTrip(
+        const HostBrowserAddPageStartScript(session: 's-1', script: 'window.__x = 1'),
+        const EmptyPayload(),
+      );
+      for (final HostBrowserInterception mode in HostBrowserInterception.values) {
+        await _browserRoundTrip(HostBrowserSetRequestInterception(session: 's-1', mode: mode), const EmptyPayload());
+      }
+      check(
+        () => HostBrowserSetRequestInterception.fromJson(const <String, Object?>{'session': 's', 'mode': 'all'}),
+      ).throws<FormatException>();
+    });
+
+    test('respond carries a replacement or null, and refuses a redirect replacement', () async {
+      final (HostBrowserRequest<ProtocolPayload> decoded, _) = await _browserRoundTrip(
+        HostBrowserRespond(
+          session: 's-1',
+          requestId: 'q1',
+          response: BrowserReplacement(
+            status: 200,
+            headers: const <String, String>{'content-type': 'text/plain'},
+            body: const <int>[0, 255, 10],
+          ),
+        ),
+        const EmptyPayload(),
+      );
+      check((decoded as HostBrowserRespond).response!.body).deepEquals(<int>[0, 255, 10]);
+      await _browserRoundTrip(const HostBrowserRespond(session: 's-1', requestId: 'q2'), const EmptyPayload());
+      for (final status in <int>[302, 99, 600]) {
+        check(
+          () => HostBrowserRespond.fromJson(<String, Object?>{
+            'session': 's',
+            'requestId': 'q',
+            'response': <String, Object?>{'status': status},
+          }),
+        ).throws<FormatException>();
+      }
+    });
+
+    test('the host.browser.request event forwards method, headers and body', () async {
+      final event = HostBrowserRequestEvent(
+        session: 's-1',
+        requestId: 'q7',
+        request: BrowserRequest(
+          url: Uri.parse('https://mangafire.to/@waf/verify'),
+          method: 'post',
+          headers: const <String, String>{'sec-ch-ua': '"Chromium";v="130"', 'Content-Type': 'application/json'},
+          body: utf8.encode('{"answer":42}'),
+          context: BrowserRequestContext.fetch,
+        ),
+      );
+      final Map<String, Object?> wire = await _asRequest(event, HostBrowserRequestEvent.op, type: FrameType.event);
+      final decoded = HostBrowserRequestEvent.fromJson(wire);
+      check(_json(decoded)).equals(_json(event));
+      check(decoded.request.method).equals('POST');
+      check(decoded.request.header('content-type')).equals('application/json');
+      check(utf8.decode(decoded.request.body!)).equals('{"answer":42}');
+      check(decoded.request.context).equals(BrowserRequestContext.fetch);
+      check(HostBrowserRequestEvent.fromJson(<String, Object?>{...wire, 'context': 'beacon'}).request.context).equals(
+        BrowserRequestContext.other,
+      );
+    });
+
+    test('a body above the forwarding limit is omitted, never truncated', () {
+      final big = HostBrowserRequestEvent.forward(
+        session: 's',
+        request: BrowserRequest(
+          url: Uri.parse('https://x.test/upload'),
+          method: 'POST',
+          body: Uint8List(hostBrowserMaxForwardedBodyBytes + 1),
+        ),
+      );
+      check(big.request.body).isNull();
+      check(big.request.bodyOmitted).isTrue();
+      check(big.toJson()['bodyBase64']).isNull();
+      final small = HostBrowserRequestEvent.forward(
+        session: 's',
+        request: BrowserRequest(url: Uri.parse('https://x.test/'), method: 'POST', body: Uint8List(3)),
+      );
+      check(small.request.body).isNotNull().length.equals(3);
     });
   });
 
