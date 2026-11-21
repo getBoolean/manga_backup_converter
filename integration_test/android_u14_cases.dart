@@ -355,86 +355,92 @@ void registerU14Cases() {
   });
 
   group('U14 real backgrounding during a job (manual, device tools)', () {
-    test('U14 background: browser work is refused while backgrounded; the '
-        'job completes in the foreground and publishes one result', () async {
-      // Background the app with the device tools while U14_HOLDING is
-      // printed (agent-device `home`), then reopen it (`open <package>`).
-      final AndroidConversionHarness h = await AndroidConversionHarness.create(
-        label: 'u14-bg',
-      );
-      final events = <String>[];
-      try {
-        final selection = ScriptedSelection(
-          pick: 'weebcentral',
-          acceptPartial: true,
-          beforeSearch: (onSearch) async {
-            h.aidokuSite.hold();
-            final Future<PluginSearchResult?> first = searchOnce(
-              onSearch,
-              events,
+    test(
+      'U14 background: browser work is refused while backgrounded; the '
+      'job completes in the foreground and publishes one result',
+      () async {
+        // Background the app with the device tools while U14_HOLDING is
+        // printed (agent-device `home`), then reopen it (`open <package>`).
+        final AndroidConversionHarness h =
+            await AndroidConversionHarness.create(
+              label: 'u14-bg',
             );
-            await until(() => h.aidokuSite.inFlight > 0);
-            print('U14_HOLDING background the app now');
-            await until(
-              () => h.runtimes.browserPort!.isBackgrounded,
-              timeout: const Duration(minutes: 3),
-            );
-            events.add('backgrounded');
-            final BrowserOutcome<BrowserSession> refused = await h
-                .runtimes
-                .browserPort!
-                .openSession(
-                  const BrowserSessionRequest(
-                    source: SourceIdentity(
-                      ecosystem: 'paperback',
-                      packageId: 'probe',
-                      sourceId: 'probe',
-                      artifact: ArtifactBinding(
-                        sha256: 'probe',
-                        kind: 'test',
-                        version: '1',
+        final events = <String>[];
+        try {
+          final selection = ScriptedSelection(
+            pick: 'weebcentral',
+            acceptPartial: true,
+            beforeSearch: (onSearch) async {
+              h.aidokuSite.hold();
+              final Future<PluginSearchResult?> first = searchOnce(
+                onSearch,
+                events,
+              );
+              await until(() => h.aidokuSite.inFlight > 0);
+              print('U14_HOLDING background the app now');
+              await until(
+                () => h.runtimes.browserPort!.isBackgrounded,
+                timeout: const Duration(minutes: 3),
+              );
+              events.add('backgrounded');
+              final BrowserOutcome<BrowserSession> refused = await h
+                  .runtimes
+                  .browserPort!
+                  .openSession(
+                    const BrowserSessionRequest(
+                      source: SourceIdentity(
+                        ecosystem: 'paperback',
+                        packageId: 'probe',
+                        sourceId: 'probe',
+                        artifact: ArtifactBinding(
+                          sha256: 'probe',
+                          kind: 'test',
+                          version: '1',
+                        ),
                       ),
+                      generation: 1 << 30,
                     ),
-                    generation: 1 << 30,
-                  ),
-                );
-            events.add('openSession:${refused.runtimeType}');
-            events.add('aidokuInFlight:${h.aidokuSite.inFlight}');
-            print('U14_BACKGROUNDED reopen the app now');
-            await until(
-              () => !h.runtimes.browserPort!.isBackgrounded,
-              timeout: const Duration(minutes: 3),
-            );
-            events.add('foregrounded');
-            h.aidokuSite.release();
-            final PluginSearchResult? held = await first;
-            events.add('held:${held?.title}');
-            return held ?? searchOnce(onSearch, events);
-          },
-        );
-        final HarnessRun run = await h.convert(
-          const Mihon(),
-          const Aidoku(),
-          selection: selection,
-        );
-        print('U14_EVENTS $events');
-        final Map<String, Object?> data = h.checkRun(run);
-        expect(events.first, 'backgrounded', reason: '$events');
-        expect(
-          events,
-          contains('openSession:BrowserInteractionRequired<BrowserSession>'),
-        );
-        expect(events, contains('foregrounded'));
-        expect(h.outDir.listSync(), hasLength(1));
-        _receipt('real-background', <String, Object?>{
-          ...data,
-          'events': events,
-          'drivenBy': 'T3 device tools (agent-device home / open)',
-        });
-      } finally {
-        await h.close();
-      }
-    }, skip: _manual ? false : 'Manual: --dart-define=SRT_MANUAL=true');
+                  );
+              events.add('openSession:${refused.runtimeType}');
+              events.add('aidokuInFlight:${h.aidokuSite.inFlight}');
+              print('U14_BACKGROUNDED reopen the app now');
+              await until(
+                () => !h.runtimes.browserPort!.isBackgrounded,
+                timeout: const Duration(minutes: 3),
+              );
+              events.add('foregrounded');
+              h.aidokuSite.release();
+              final PluginSearchResult? held = await first;
+              events.add('held:${held?.title}');
+              return held ?? searchOnce(onSearch, events);
+            },
+          );
+          final HarnessRun run = await h.convert(
+            const Mihon(),
+            const Aidoku(),
+            selection: selection,
+          );
+          print('U14_EVENTS $events');
+          final Map<String, Object?> data = h.checkRun(run);
+          expect(events.first, 'backgrounded', reason: '$events');
+          expect(
+            events,
+            contains('openSession:BrowserInteractionRequired<BrowserSession>'),
+          );
+          expect(events, contains('foregrounded'));
+          expect(h.outDir.listSync(), hasLength(1));
+          _receipt('real-background', <String, Object?>{
+            ...data,
+            'events': events,
+            'drivenBy': 'T3 device tools (agent-device home / open)',
+          });
+        } finally {
+          await h.close();
+        }
+      },
+      timeout: const Timeout(Duration(minutes: 10)),
+      skip: _manual ? false : 'Manual: --dart-define=SRT_MANUAL=true',
+    );
   });
 }
 
