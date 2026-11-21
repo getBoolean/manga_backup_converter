@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:aidoku_plugin_loader/src/aidoku/aidoku_isolate_exited_exception.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/aidoku_plugin.dart';
 import 'package:aidoku_plugin_loader/src/models/chapter.dart';
 import 'package:aidoku_plugin_loader/src/models/manga.dart';
@@ -188,6 +189,10 @@ class AidokuSourceSession implements SourceSession {
         }
         try {
           done.complete(await body());
+        } on AidokuIsolateExitedException catch (e) {
+          // The WASM host is gone (uncaught error, trap in `start`, kill):
+          // the runtime, not the source call, failed.
+          done.complete(SourceFailed<T>(RuntimeUnavailableFailure('$e')));
         } on Object catch (e) {
           done.complete(SourceFailed<T>(SourceErrorFailure('$e')));
         }

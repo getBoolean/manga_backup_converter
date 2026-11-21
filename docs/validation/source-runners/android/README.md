@@ -114,3 +114,49 @@ These come from the plugin's build script and the root dependency; `android/` is
 
 - KTD23's melos regeneration script and CI drift check for the generated bindings are outside this unit's ownership. `tool/jnigen.dart` regenerates and formats the bindings, but needs a prior app build so the compiled Kotlin classes exist.
 - The minSdk raise itself (U11).
+
+---
+
+# U13 Aidoku runner on Android — receipts
+
+Plan: U13 (KTD22; R15, R16). **Emulator evidence only.** These runs do not satisfy R16. See "U13: still needs a physical ARM64 device" below.
+
+| Receipt | Device or build | Result |
+|---|---|---|
+| [`u13-aidoku-emulator-api36-pixel9pro-x86_64.json`](u13-aidoku-emulator-api36-pixel9pro-x86_64.json) | AVD `Pixel_9_Pro`, Android 16 (API 36), x86_64, debug build | 8/8 cases pass |
+| [`u13-release-apk-native-libraries.json`](u13-release-apk-native-libraries.json) | `flutter build apk --release` | wasm3 and scraper packaged for arm64-v8a, armeabi-v7a and x86_64 (inspection only) |
+
+Command: `flutter test integration_test/source_runners_android_test.dart -d <emulator> --reporter expanded`. Every case prints a `U13_RECEIPT` JSON line; the receipt file collects them, minus PIDs.
+
+## How it runs
+
+- **Runtime.** The existing Aidoku host runs unchanged in the app process. `AidokuPlugin` already runs each source in its own worker isolate, using the wasm3 interpreter, the Rust scraper HTML backend, the POSIX `WasmSemaphore` backend and the postcard ABI. Neither the host imports, the WASM isolate nor the ABI was forked for Android.
+- **Registration.** `packages/source_runtime_android/lib/src/aidoku_backend.dart` (`AndroidAidokuBackend.register`). The composition root injects the desktop `AidokuSourceProvider`, and the backend hands back that same instance once `libwasm3.so` and `libscraper_bridge.so` load in the app process. If either library fails to load, registration fails with `RuntimeUnavailableFailure` naming that library, before any source call. Per KTD16, the package does not depend on `aidoku_plugin_loader`.
+- **No network.** Replay data is embedded by `tool/generate_android_aidoku_fixtures.dart`, which writes `integration_test/aidoku_fixture_bundle.g.dart`; `--check` verifies the bundle against the committed fixtures. The bundle holds the three pinned `.aix` files plus the capture exchanges the cases replay. Each source case asserts zero replay misses.
+
+## Results (emulator)
+
+| Case | Result |
+|---|---|
+| Native libraries | `libwasm3.so` and `libscraper_bridge.so` load through `DynamicLibrary.open` on `android_x64` |
+| MangaDex `multi.mangadex` v12 | search "Onimai" 2 hits; details and 223 chapters; 3 replayed requests, 0 misses, 0 host warnings |
+| Weeb Central `en.weebcentral` v6 | 1 hit; details and 114 chapters, parsed from HTML by the scraper backend; 0 misses, no "HTML parser unavailable" log |
+| MangaFire `multi.mangafire` v8 | 50 hits; details and 86 chapters (VRF computed in WASM, `html::parse_fragment` through scraper); 0 misses |
+| Cancel in flight (responses delayed 2 s) | `cancelled` answered after 328 ms; the next call on the same session returns hits |
+| WASM trap in `get_search_manga_list` | `source-error` (message names `unreachable`) twice; the session survives |
+| Isolate death (trap in `start` kills the isolate) | `runtime-unavailable` twice, within 21 ms; no `port.first` hang |
+| Response headers and rate limiting (synthetic probe) | `net::get_header("x-probe")` reads `X-Probe` values 1–5 through the native shared-state header slots; with `set_rate_limit(2, 1 s)`, the sliding-window gaps were 1009/1052/1002 ms. The desktop test asserts the same |
+
+**Browser imports.** None of the three qualification sources imports `js::webview_*`. MangaDex uses `net`/`defaults`/`std`/`env`; Weeb Central adds `html`; MangaFire adds `html::parse_fragment`. The imports therefore stay named failure stubs and nothing is routed to a `BrowserPort`.
+
+## Host fixes this unit needed (desktop and Android)
+
+- **Isolate death hung callers.** `Isolate.spawn` had no exit or error listener, so every `port.first` (and the handshake) waited forever once the WASM isolate died. One example: an uncaught trap in `start`, which `wasm_isolate.dart` does not guard. Every reply wait now races the isolate's exit, and a dead isolate raises `AidokuIsolateExitedException`, which the adapter maps to `RuntimeUnavailableFailure`. Calls after `dispose` fail at once. Against the old code, the new desktop tests time out.
+- **Missing User-Agent.** Aidoku's own host adds its WebView user agent when a source sets none (`WasmNet.swift`, `AidokuRunner.swift`). Our host sent Dart's `Dart/<version> (dart:io)`, and Weeb Central answered 403. The HTTP dispatch now supplies a WebKit UA.
+- **Weeb Central captures.** Recorded once (3 exchanges, 2026-11-20) with `tool/capture_source_fixtures.dart aidoku en.weebcentral`. The provenance of the committed `.aix` is in `fixtures/source_captures/aidoku/en.weebcentral/artifact.json`; it was not re-downloaded.
+
+## U13: still needs a physical ARM64 device
+
+- The eight cases on a physical ARM64 device, in a release-profile build (R16). The arm64-v8a and armeabi-v7a libraries were packaged but never loaded. These runs were debug builds; `flutter test integration_test` does not run release builds.
+- **"A missing ABI fails at build time" is not tested.** A failed code-asset hook does fail the build, but no build was forced to drop an ABI, which would need an `android/` abiFilters change outside this unit.
+- Live-site behaviour is re-checked only by rerunning the capture tool.

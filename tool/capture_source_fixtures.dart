@@ -44,6 +44,10 @@ const String _mangafireTerms =
     'Third-party MangaFire page content; not openly licensed; retained only as an '
     'interoperability test fixture.';
 
+const String _weebcentralTerms =
+    'Third-party Weeb Central page content; not openly licensed; retained only as an '
+    'interoperability test fixture.';
+
 final Map<String, _Scenario> _scenarios = <String, _Scenario>{
   'aidoku/multi.mangadex': (
     description: 'packages/aidoku_plugin_loader/test/wasm/aidoku_plugin_native_test.dart',
@@ -91,6 +95,31 @@ final Map<String, _Scenario> _scenarios = <String, _Scenario>{
           );
         await plugin.getMangaDetails(key);
         await plugin.getMangaDetails(key, includeChapters: true);
+      } finally {
+        plugin.dispose();
+      }
+    },
+  ),
+  'aidoku/en.weebcentral': (
+    description: 'integration_test/source_runners_android_test.dart (U13)',
+    licence: _weebcentralTerms,
+    volatileQueryParameters: <String>{},
+    run: (http.Client client) async {
+      final AidokuPlugin plugin = await AidokuPlugin.fromAix(
+        _aix('en.weebcentral-v6.aix'),
+        httpClient: client,
+      );
+      try {
+        final MangaPageResult result = await plugin.searchManga('Onimai', 1);
+        final String? key = result.manga.firstOrNull?.key;
+        if (key == null)
+          throw StateError(
+            'Weeb Central search returned no results; nothing to capture',
+          );
+        await plugin.getMangaDetails(key, includeChapters: true);
+        final List<String> warnings = plugin.drainWarnings();
+        if (warnings.isNotEmpty)
+          throw StateError('Weeb Central produced host warnings: $warnings');
       } finally {
         plugin.dispose();
       }
