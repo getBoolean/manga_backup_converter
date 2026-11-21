@@ -223,7 +223,7 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 |---|---|---|
 | MangaDex | Netsky community `MangaDex` 3.0.6 (GPL-3.0): search (2 hits, first the Onimai title), next page (empty), details, 223 chapters (replayed). Chapter IDs are identical to the 0.9 bundle's | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
 | WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
-| MangaFire | **Substitute:** no surveyed 0.8 catalog lists MangaFire, so the cell is kittycatgit `Mangahub` 4.0.0, a Cloudflare-fronted site (`CLOUDFLARE_BYPASS_REQUIRED`). Search, details, 21 chapters (replayed); Cloudflare did not challenge the capture session. The challenge and bypass paths are proven with synthetic challenge answers and a scripted `BrowserPort` (below) | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
+| MangaFire | **Substitute:** no surveyed 0.8 catalog lists MangaFire, so the cell is kittycatgit `Mangahub` 4.0.0, a Cloudflare-fronted site (`CLOUDFLARE_BYPASS_REQUIRED`). Search, details of the Onimai title, 176 chapters (replayed); Cloudflare did not challenge either capture session. The challenge and bypass paths are proven with synthetic challenge answers and a scripted `BrowserPort` (below) | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
 
 Chapter identities are the site's own and identical across families: WeebCentral's first chapter is
 `01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
@@ -243,11 +243,12 @@ Every query carries an access token twice, as the `mhub_access` cookie and the `
 rejects a request where they differ. The source mints a token until the site sets one, then uses the site's. Its
 interceptor echoes `getDefaultUserAgent()`, throws `Error("CLOUDFLARE BYPASS ERROR: …")` on a challenge page
 (`cf-mitigated: challenge`, or 403/503 with challenge markers), and reads `set-cookie` from `response.headers`.
-The capture session (2026-11-21, query `Oshimai`, a word of Mangahub's title "Onii-Chan wa Oshimai"; `Onimai` was
-not tried) made 3 requests at least 1.5 s apart and was not challenged.
-The 11 hits include `onii-chan-wa-oshimai` and `onii-chan-is-done-for`; the scenario takes the first hit, which is
-another title (`oshimai`, "Oshimai", Kawasaki Tadataka, 21 chapters). Replay keys ignore request headers and
-captures drop `Set-Cookie`, so in replay the source runs on its own minted token.
+The captures search `Oshimai`, a word of Mangahub's title "Onii-Chan wa Oshimai" (`Onimai` was not tried). The 11
+hits start with another title (`oshimai`), so the Mangahub bundle names its hit (`PinnedBundle.targetMangaId`) and
+the scenario fetches `onii-chan-wa-oshimai` by ID, not the first hit: "Onii-Chan wa Oshimai", Nekotoufu, ongoing,
+176 chapters (chapters 1–117 and 59 fractional entries, a few titled `<deleted>`), the first being chapter
+`117`. Both capture sessions (2026-11-21, 3 requests each, at least 1.5 s apart) were not challenged. Replay keys
+ignore request headers and captures drop `Set-Cookie`, so in replay the source runs on its own minted token.
 
 Tests (`cloudflare08_test.dart` with handwritten bundles, and the Mangahub group in `source_execution_test.dart`
 with the real bundle over the committed capture) show:
@@ -334,8 +335,12 @@ pinned bundle of that site, from both families, for the fixed query `Onimai` (Ma
 address, and Cloudflare snippets carried ray IDs. Tests and the e2e suite replay with `--replay`; a request without
 a capture fails the operation loudly, even when the source catches the error.
 
-`mangahub/` was recorded on 2026-11-21 in one session (3 exchanges, JSON API responses; the sanitiser found nothing
-to strip, and no token, address or ray ID is in them). The sanitiser now also blanks Cloudflare interstitial
+`mangahub/` was first recorded on 2026-11-21 in one session (3 exchanges, JSON API responses) whose details and
+chapters were those of the first hit, `oshimai`. After the scenario was changed to select `onii-chan-wa-oshimai`, a
+second session (`--only=kittycatgit-0.8/Mangahub --out=<temp>`, then `--merge=<temp>`; 3 requests, no challenge)
+re-recorded the search (an identical body) and added that title's details and chapters, and `--prune` deleted the 2
+`oshimai` exchanges. The sanitiser found nothing to strip in either session, and no token, address or ray ID is in
+the bodies. The sanitiser now also blanks Cloudflare interstitial
 tokens (`cRay`, `__cf_chl_*`, and the opaque `_cf_chl_opt` values) in case a later session is challenged.
 
 The MangaDex 0.8 cell's exchanges come from second sessions that ran one bundle each

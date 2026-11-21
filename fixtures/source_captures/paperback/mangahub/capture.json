@@ -4,7 +4,7 @@
   "source": "mangahub",
   "recordedAt": "2026-11-21T07:56:15.902290Z",
   "recordedBy": "tool/capture_source_fixtures.dart",
-  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart",
+  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart; exchanges of kittycatgit-0.8/Mangahub re-recorded in a second session at 2026-11-21T08:39:57.372101Z (3 exchanges, replacing 1), sanitized; pruned to the exchanges the current bundles request (2 removed)",
   "volatileQueryParameters": [],
   "exchanges": [
     {
@@ -31,19 +31,19 @@
       "request": {
         "method": "POST",
         "url": "https://mangahub.io/graphql",
-        "bodySha256": "4f07a66ffb56ff6b40666413621bd56ca753b5f32b597c072e1c37a1ed4e94a0"
+        "bodySha256": "d15372051cfaa27b52eb64424c636d4813a4fb568c71f05dea98a00183b3fc6d"
       },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=utf-8"
         },
-        "body": "bodies/91b6b8228ea007ba1fef9c5dd14cce19fc286e802da08471af4599f726517779.bin"
+        "body": "bodies/1fcb5344281e088a6092e39e622ba4876b7dc53174c13df4b1aab67a35545a73.bin"
       },
       "artifact": {
         "sourceUrl": "https://mangahub.io/graphql",
-        "sha256": "91b6b8228ea007ba1fef9c5dd14cce19fc286e802da08471af4599f726517779",
-        "size": 5084,
+        "sha256": "1fcb5344281e088a6092e39e622ba4876b7dc53174c13df4b1aab67a35545a73",
+        "size": 23033,
         "licence": "Third-party Mangahub API response; not openly licensed; retained only as an interoperability test fixture."
       }
     },
@@ -51,19 +51,19 @@
       "request": {
         "method": "POST",
         "url": "https://mangahub.io/graphql",
-        "bodySha256": "02f02842770e576456567bce2676a55bf0b9c54aaaf70618336e2d84230e9457"
+        "bodySha256": "36b98c8f9c10566cc154da984944359caaa2b55a3d0ccd0c73fbf312c987669b"
       },
       "response": {
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=utf-8"
         },
-        "body": "bodies/760d6db4e213c0e2cf599374305d3e56ab992be357e389f406d71a677d0bb36d.bin"
+        "body": "bodies/85b84401ab9f63a7f68ff6b27aaf5603c0296916e08e9bf2159dce8e7df6d5b0.bin"
       },
       "artifact": {
         "sourceUrl": "https://mangahub.io/graphql",
-        "sha256": "760d6db4e213c0e2cf599374305d3e56ab992be357e389f406d71a677d0bb36d",
-        "size": 2707,
+        "sha256": "85b84401ab9f63a7f68ff6b27aaf5603c0296916e08e9bf2159dce8e7df6d5b0",
+        "size": 22273,
         "licence": "Third-party Mangahub API response; not openly licensed; retained only as an interoperability test fixture."
       }
     }

@@ -201,16 +201,18 @@ void main() {
       final SearchPage page = _page(run);
       check(page.hits).length.equals(11);
       check(page.nextCursor).isNull();
-      check(page.hits.map((SearchHit h) => h.ref.mangaId)).contains('onii-chan-wa-oshimai');
-      // The scenario takes the first hit, which is another title.
+      // The first hit is another title; the scenario selects the Onimai hit by ID.
       check(page.hits.first.ref.mangaId).equals('oshimai');
+      check(page.hits.map((SearchHit h) => h.ref.mangaId)).contains('onii-chan-wa-oshimai');
+      check(run.detailsRef!.mangaId).equals('onii-chan-wa-oshimai');
       final MangaSnapshot s = _snapshot(run);
-      check(s.metadata.title).equals('Oshimai');
-      check(s.metadata.authors).deepEquals(<String>['Kawasaki Tadataka']);
-      check(s.metadata.status).equals(PublishingStatus.completed);
-      _checkChapters(s, count: 21);
-      check(s.chapters.first.chapterId).equals('21');
-      check(s.chapters.first.chapterNumber).equals(21);
+      check(s.ref.mangaId).equals('onii-chan-wa-oshimai');
+      check(s.metadata.title).equals('Onii-Chan wa Oshimai');
+      check(s.metadata.authors).deepEquals(<String>['Nekotoufu']);
+      check(s.metadata.status).equals(PublishingStatus.ongoing);
+      _checkChapters(s, count: 176);
+      check(s.chapters.first.chapterId).equals('117');
+      check(s.chapters.first.chapterNumber).equals(117);
     });
 
     test('the access token: header and cookie agree, and the site-issued token replaces the minted one', () async {
@@ -221,7 +223,7 @@ void main() {
       final HostUnderTest h = await HostUnderTest.load(repo.bundle('Mangahub'), PaperbackApiFamily.v08, client: client);
       try {
         check((await h.search('Oshimai')).items).length.equals(11);
-        await h.details('oshimai');
+        await h.details('onii-chan-wa-oshimai');
         check(client.seen).length.equals(3);
         final tokens = <String>[];
         for (final http.BaseRequest r in client.seen) {
@@ -298,9 +300,9 @@ void main() {
       try {
         final PaperbackSearchPage page = await h.search('Oshimai');
         check(page.items).length.equals(11);
-        final Map<String, Object?> details = await h.details('oshimai');
-        check((details['metadata']! as Map<String, Object?>)['title']).equals('Oshimai');
-        check(details['chapters']! as List<Object?>).length.equals(21);
+        final Map<String, Object?> details = await h.details('onii-chan-wa-oshimai');
+        check((details['metadata']! as Map<String, Object?>)['title']).equals('Onii-Chan wa Oshimai');
+        check(details['chapters']! as List<Object?>).length.equals(176);
         // One browser session, for the source's own bypass request.
         final ScriptedPage browser = port.pages.single;
         check(browser.loads.single.$1).equals(Uri.parse('https://mangahub.io'));
@@ -362,7 +364,7 @@ void main() {
       check(client.misses).isEmpty();
       final BundleRun run = runs.single;
       check(_page(run).hits).length.equals(11);
-      _checkChapters(_snapshot(run), count: 21);
+      _checkChapters(_snapshot(run), count: 176);
       // `show` was served under the supervisor's interaction timeout.
       check(port.pages.single.shown).equals(1);
       check(port.closed).length.equals(1);

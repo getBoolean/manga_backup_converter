@@ -16,30 +16,33 @@
         "nextCursor": null
       },
       "details": {
-        "mangaId": "oshimai",
-        "title": "Oshimai",
+        "mangaId": "onii-chan-wa-oshimai",
+        "title": "Onii-Chan wa Oshimai",
         "authors": [
-          "Kawasaki Tadataka"
+          "Nekotoufu"
         ],
-        "status": "completed",
-        "chapters": 21,
+        "status": "ongoing",
+        "chapters": 176,
         "firstChapter": {
-          "chapterId": "21",
+          "chapterId": "117",
           "sourceOrder": 0,
           "context": {
             "apiFamily": "paperback-0.8",
-            "sortingIndex": 21,
+            "sortingIndex": 176,
             "langCode": "en"
           },
-          "title": "Chapter 21",
-          "chapterNumber": 21.0,
+          "title": "Chapter 117",
+          "chapterNumber": 117.0,
           "volumeNumber": null,
           "scanlators": [],
           "language": "en",
-          "dateUploaded": "2026-03-15T20:08:21.000Z",
+          "dateUploaded": "2026-10-31T00:16:54.000Z",
           "url": null
         }
       }
     }
-  ]
+  ],
+  "rerecorded": {
+    "kittycatgit-0.8/Mangahub": "2026-11-21T08:39:57.158611Z"
+  }
 }
