@@ -79,6 +79,7 @@ final class PaperbackSourceWorker {
     this.workerVersion = '0.1.0',
     void Function(String line)? log,
     this.maxFrameBytes = protocolMaxFrameBytes,
+    this.onRuntimeCreated,
   }) : _log = log ?? ((String _) {}) {
     this.adapter = adapter ?? adapterFactory?.call(_browser);
   }
@@ -106,6 +107,13 @@ final class PaperbackSourceWorker {
   final String workerVersion;
   final int maxFrameBytes;
   final void Function(String line) _log;
+
+  /// Called with each package runtime as soon as it exists, before any JS
+  /// runs. The in-app isolate launcher uses it to publish the runtime's
+  /// interrupt token to the owning isolate, which can then stop JS while
+  /// this isolate is blocked inside the engine
+  /// (`isolatePaperbackLauncher`).
+  final void Function(SourceJsRuntime runtime)? onRuntimeCreated;
 
   final Map<String, SourceJsRuntime> _packages = <String, SourceJsRuntime>{};
   final Map<String, _InFlight> _inFlight = <String, _InFlight>{};
@@ -317,6 +325,7 @@ final class PaperbackSourceWorker {
         }
         _packages.remove(packageId)?.dispose();
         final runtime = SourceJsRuntime(limits: limits, name: packageId, log: _log);
+        onRuntimeCreated?.call(runtime);
         op.runtime = runtime;
         try {
           final PackageLoadResponse response = await adapter.load(runtime, request, op.cancel.token);
