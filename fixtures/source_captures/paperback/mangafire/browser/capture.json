@@ -1,0 +1,111 @@
+{
+  "format": 1,
+  "ecosystem": "paperback",
+  "source": "mangafire-browser",
+  "recordedAt": "2026-11-21T23:16:37.370853Z",
+  "recordedBy": "tool/capture_source_fixtures.dart",
+  "notes": "Recorded by capture_paperback_sources.dart --browser (desktop helper --record); sanitized; kept only mangafire.to, s.mfcdn.nl outside /cdn-cgi/; kept only mangafire.to, s.mfcdn.nl outside /cdn-cgi/; kept only what an offline replay served",
+  "volatileQueryParameters": [],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://s.mfcdn.nl/build/mf/assets/main-to9r6n-C5Ac0ix7.css",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/css"
+        },
+        "body": "bodies/cc430aea0d11408695b7c00448c69a17ef9ad5b53015e675d8765b31a9c06001.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://s.mfcdn.nl/build/mf/assets/main-to9r6n-C5Ac0ix7.css",
+        "sha256": "cc430aea0d11408695b7c00448c69a17ef9ad5b53015e675d8765b31a9c06001",
+        "size": 133106,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://s.mfcdn.nl/build/mf/assets/rolldown-runtime-to9r6n-QTnfLwEv.js",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/javascript"
+        },
+        "body": "bodies/5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://s.mfcdn.nl/build/mf/assets/rolldown-runtime-to9r6n-QTnfLwEv.js",
+        "sha256": "5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75",
+        "size": 694,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://s.mfcdn.nl/build/mf/assets/polyfill-to9r6n-CrkErVq0.js",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/javascript"
+        },
+        "body": "bodies/46c620dc93f60b800cfa3f66b9825459a66e0b164e6cb76c7b2552e4a7a178e6.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://s.mfcdn.nl/build/mf/assets/polyfill-to9r6n-CrkErVq0.js",
+        "sha256": "46c620dc93f60b800cfa3f66b9825459a66e0b164e6cb76c7b2552e4a7a178e6",
+        "size": 155202,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://s.mfcdn.nl/build/mf/assets/main-to9r6n-B7h3oPSn.js",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/javascript"
+        },
+        "body": "bodies/c1c008997c7b8331f0be03aa09effd41e3c4a0ab6741fa4a27acce68e226dfd0.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://s.mfcdn.nl/build/mf/assets/main-to9r6n-B7h3oPSn.js",
+        "sha256": "c1c008997c7b8331f0be03aa09effd41e3c4a0ab6741fa4a27acce68e226dfd0",
+        "size": 630123,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/assets/mangafire/logo.png",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "image/png"
+        },
+        "body": "bodies/f174cded1cba5e94df4994d0c279dcd4e3e0f615edd1da8df689f906ee3ac6c8.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/assets/mangafire/logo.png",
+        "sha256": "f174cded1cba5e94df4994d0c279dcd4e3e0f615edd1da8df689f906ee3ac6c8",
+        "size": 5044,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}

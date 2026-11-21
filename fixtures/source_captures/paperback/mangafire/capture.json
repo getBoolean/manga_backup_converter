@@ -4,7 +4,7 @@
   "source": "mangafire",
   "recordedAt": "2026-11-21T01:20:53.808421Z",
   "recordedBy": "tool/capture_source_fixtures.dart",
-  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart",
+  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart; exchanges of inkdex-0.9/MangaFire re-recorded in a second session at 2026-11-21T23:15:36.617400Z (6 exchanges, replacing 2), sanitized",
   "volatileQueryParameters": [],
   "exchanges": [
     {
@@ -39,12 +39,92 @@
         "headers": {
           "content-type": "text/html; charset=utf-8"
         },
-        "body": "bodies/d5d96aa4128c0e77ecc338e72d31268ac9fe6f091fffd3d06b558dbd3474f1a7.bin"
+        "body": "bodies/e0fc239312c19ae3428b68625ce952dfbf8ad657325ce8c6a39eed9dc13302d3.bin"
       },
       "artifact": {
         "sourceUrl": "https://mangafire.to",
-        "sha256": "d5d96aa4128c0e77ecc338e72d31268ac9fe6f091fffd3d06b558dbd3474f1a7",
+        "sha256": "e0fc239312c19ae3428b68625ce952dfbf8ad657325ce8c6a39eed9dc13302d3",
         "size": 3616,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles?content_rating%5B%5D=safe&content_rating%5B%5D=suggestive&keyword=Onimai&limit=30&order%5Brelevance%5D=desc&page=1&vrf=8sK3xtqdFZdOu6WNqS1bZ0shnUDqyRXMnh4NlZ7aYCPUhmAbm1C1qPzeL_OIIf0obIggCZIHJHIF_VdagQOsZhrpZQ2iX6s5nvL1RtXi5fMWw5Bz1oXf8PgNebGBtrzE_5HWTJV3ZK1QFYs0oWLA9A",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/bec65922722e8079b4d4aed29d313f71c9cb994f940526a7e8bc4e1437a37b8f.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles?content_rating%5B%5D=safe&content_rating%5B%5D=suggestive&keyword=Onimai&limit=30&order%5Brelevance%5D=desc&page=1&vrf=8sK3xtqdFZdOu6WNqS1bZ0shnUDqyRXMnh4NlZ7aYCPUhmAbm1C1qPzeL_OIIf0obIggCZIHJHIF_VdagQOsZhrpZQ2iX6s5nvL1RtXi5fMWw5Bz1oXf8PgNebGBtrzE_5HWTJV3ZK1QFYs0oWLA9A",
+        "sha256": "bec65922722e8079b4d4aed29d313f71c9cb994f940526a7e8bc4e1437a37b8f",
+        "size": 15549,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles?content_rating%5B%5D=safe&content_rating%5B%5D=suggestive&keyword=Onimai&limit=30&order%5Brelevance%5D=desc&page=2&vrf=8sK3xtqdFZdOu6WNqS1bZ0shnUDqyRXMnh4NlZ7aYCPUhmAbm1C1qPzeL_OIIf0obIggCZIHJHIF_VdagQOsZhrpZQ2iX6s5nvL1RtXi5fMWw5Bz1oXf8PgNebGBtrzE_5HWTJV3ZK1QFYs0oWLAGA",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/f4de645d97f2060b2347ff4b30ed5018c22157bf220277e9853806b18c76e80d.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles?content_rating%5B%5D=safe&content_rating%5B%5D=suggestive&keyword=Onimai&limit=30&order%5Brelevance%5D=desc&page=2&vrf=8sK3xtqdFZdOu6WNqS1bZ0shnUDqyRXMnh4NlZ7aYCPUhmAbm1C1qPzeL_OIIf0obIggCZIHJHIF_VdagQOsZhrpZQ2iX6s5nvL1RtXi5fMWw5Bz1oXf8PgNebGBtrzE_5HWTJV3ZK1QFYs0oWLAGA",
+        "sha256": "f4de645d97f2060b2347ff4b30ed5018c22157bf220277e9853806b18c76e80d",
+        "size": 15102,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles/72k68?vrf=8sK3xtqdFdvqEJTLKQ",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/7384127f438a254f54a804b4edcf344f95d725b138c3a542029f53315c0cbbc0.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles/72k68?vrf=8sK3xtqdFdvqEJTLKQ",
+        "sha256": "7384127f438a254f54a804b4edcf344f95d725b138c3a542029f53315c0cbbc0",
+        "size": 1291,
+        "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://mangafire.to/api/titles/72k68/chapters?language=en&limit=200&order=desc&page=1&sort=number&vrf=8sK3xtqdFdvqEJTLKRgUXANN9LmmhlOGdkR2JpKFBH148cL3-z_jBxkLh5-w2C2vxtPMWmQU-OLW-jpyJ8zTp1InrUWqrpostSs",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/d1833a576730729862b7837e6d03ac909732ece193a0cf73b717a3dd53eef2a9.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://mangafire.to/api/titles/72k68/chapters?language=en&limit=200&order=desc&page=1&sort=number&vrf=8sK3xtqdFdvqEJTLKRgUXANN9LmmhlOGdkR2JpKFBH148cL3-z_jBxkLh5-w2C2vxtPMWmQU-OLW-jpyJ8zTp1InrUWqrpostSs",
+        "sha256": "d1833a576730729862b7837e6d03ac909732ece193a0cf73b717a3dd53eef2a9",
+        "size": 10014,
         "licence": "Third-party MangaFire page content; not openly licensed; retained only as an interoperability test fixture."
       }
     }

@@ -22,6 +22,9 @@ dev_dependencies:
   app_lints:
     path: ../app_lints
   checks: ^0.3.0
+  # The capture tool's browser recorder (manual runs) and the browser replay tests.
+  desktop_webview:
+    path: ../desktop_webview
   test: ^1.24.0
 
 executables:

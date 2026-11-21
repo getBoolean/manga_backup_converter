@@ -296,25 +296,41 @@ void main() {
     late File? manifest;
     setUpAll(() async => manifest = await _helperManifest());
 
-    test('Paperback executeInWebView reaches the helper, and closing the owner leaves no helper process', () async {
+    test('Paperback MangaFire executeInWebView runs in the helper (signing search and details where the browser '
+        'capture replays), and closing the owner leaves no helper process', () async {
       if (manifest == null) {
         markTestSkipped(_helperSkip ?? 'desktop WebView helper not built');
         return;
       }
-      final (DesktopBrowserPort? port, String? why) = createCliBrowserPort(
-        interactive: false,
-        dataRoot: Directory(p.join(temp.path, 'webview')),
-        manifest: manifest,
-        offline: true,
+      // Browser capture replay needs the helper's replace tier (WebView2). On
+      // WebKit engines the page's site scripts cannot be served, so the VRF
+      // capture fails inside the page, as before the capture existed.
+      final bool replayable = Platform.isWindows;
+      final BrowserCaptureReplay? replay = replayable
+          ? BrowserCaptureReplay(loadCaptureSet(Directory(p.join(paperbackFixtures.path, 'mangafire', 'browser'))))
+          : null;
+      // The CLI's browser policy, offline.
+      final browser = DesktopBrowserPort(
+        DesktopWebViewConfig(
+          helperExecutable: RuntimeArtifactManifest.load(
+            manifest!,
+          ).findForHost(RuntimeArtifactManifest.webviewHelper)!.verifiedFile(),
+          dataRoot: Directory(p.join(temp.path, 'webview')),
+          startupTimeout: CliBrowserPolicy.helperStartup,
+          shutdownGrace: CliBrowserPolicy.helperShutdownGrace,
+          allowVisibleWindows: false,
+          offline: true,
+          replay: replay,
+          wipeRetry: CliBrowserPolicy.wipeRetry,
+        ),
       );
-      check(why).isNull();
-      final DesktopBrowserPort browser = port!;
       final DesktopTachiRuntime tachi = tachiRuntime(FixtureFetch(const <FixtureRepository>[]), browser: browser);
       final RuntimeRegistry runtimes = registry(tachi, browser: browser, paperbackSites: const <String>['mangafire']);
       final owner = ConversionOwner();
       await owner.adopt(browser.dispose);
       await tachi.attach(owner);
-      SourceFailure? searchFailure;
+      SourceOutcome<PluginSearchPageResult>? searched;
+      DetailsOutcome? details;
       int? helperPid;
       String? engine;
       String? engineVersion;
@@ -331,7 +347,9 @@ void main() {
         final ExtensionEntry mangaFire = entries.firstWhere((ExtensionEntry e) => e.id.endsWith('#MangaFire'));
         final List<PluginSource> plugins = await loader.loadPlugins(<ExtensionEntry>[mangaFire], owner: owner);
         check(plugins).length.equals(1);
-        searchFailure = (await plugins.single.search('Onimai', 1)).failureOrNull;
+        searched = await plugins.single.search('Onimai', 1);
+        final PluginSearchResult? hit = searched.valueOrNull?.results.firstOrNull;
+        if (hit != null) details = await plugins.single.fetchDetails(hit.ref);
         helperPid = browser.helperInfo?.pid;
         engine = browser.helperInfo?.engine;
         engineVersion = browser.helperInfo?.engineVersion;
@@ -342,17 +360,35 @@ void main() {
       } finally {
         await owner.close();
       }
-      // The worker's executeInWebView opened a session in the real helper
-      // for MangaFire's own identity. The page's site scripts are not
-      // captured (no browser capture exists), so offline replay blocks them
-      // and the VRF capture fails inside the page: a source error, not a
-      // missing browser capability.
+      // The worker's executeInWebView opened sessions in the real helper for
+      // MangaFire's own identity.
       check(browser.debugOpenedSources.map((SourceIdentity s) => s.sourceId)).contains('MangaFire');
       check(helperPid).isNotNull();
-      check(searchFailure)
-          .isA<SourceErrorFailure>()
-          .has((SourceErrorFailure f) => f.message, 'message')
-          .contains('VRF capture timed out');
+      final String outcome;
+      if (replay != null) {
+        // The page's scripts, served from the capture, signed the requests
+        // the worker then replayed.
+        final PluginSearchPageResult page = searched.valueOrNull!;
+        check(page.results).length.equals(30);
+        check(page.results.first.title).equals('Highschool ONIMAI');
+        final MangaSnapshot snapshot = (details! as DetailsFetched).manga.snapshot;
+        check(snapshot.chapters).length.equals(86);
+        check(
+          replay.misses.where(
+            (CaptureKey k) =>
+                Uri.parse(k.url).host == 'mangafire.to' &&
+                !k.url.contains('/cdn-cgi/') &&
+                !k.url.endsWith('/assets/mangafire/favicon.svg'),
+          ),
+        ).isEmpty();
+        outcome = 'passed: 30 search hits, details of the first hit with ${snapshot.chapters.length} chapters';
+      } else {
+        check(searched.failureOrNull)
+            .isA<SourceErrorFailure>()
+            .has((SourceErrorFailure f) => f.message, 'message')
+            .contains('VRF capture timed out');
+        outcome = 'failed: VRF capture timed out (browser capture replay needs the replace tier, which $engine lacks)';
+      }
       _writeReceipt('${Platform.operatingSystem}-paperback-executeinwebview-helper', <String, Object?>{
         'webview': <String, Object?>{'engine': engine, 'engineVersion': engineVersion},
         'artifact': <String, Object?>{
@@ -361,9 +397,16 @@ void main() {
           'sha256': mangaFireBinding?.sha256,
         },
         'apiFamily': 'paperback-0.9',
-        'operation': 'search (executeInWebView through the desktop helper, offline replay)',
+        'operation': replay != null
+            ? 'search, details and chapters (executeInWebView through the desktop helper, offline replay)'
+            : 'search (executeInWebView through the desktop helper, offline replay)',
         'query': 'Onimai',
-        'outcome': 'failed: VRF capture timed out (the page site scripts are not captured)',
+        'outcome': outcome,
+        if (replay != null) ...<String, Object?>{
+          'browserCapture': 'fixtures/source_captures/paperback/mangafire/browser',
+          'browserRequestsServed': replay.served.length,
+          'browserRequestsFailedClosed': replay.misses.length,
+        },
         'browserSessionsOpened': browser.debugOpenedSources.length,
         'helperExitedAfterOwnerClose': !_processAlive(helperPid!),
       });

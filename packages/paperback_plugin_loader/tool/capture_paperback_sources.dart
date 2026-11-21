@@ -38,8 +38,21 @@
 // Bundles come from the committed fixtures and are admitted against their
 // pinned SHA-256; nothing else is downloaded.
 //
-// No browser port is attached, so a source that needs `executeInWebView`
-// records only the requests it makes before that call.
+// Without `--browser` no browser port is attached, so a source that needs
+// `executeInWebView` records only the requests it makes before that call.
+//
+// Browser recorder (`tool/browser_capture_run.dart`):
+//   dart run tool/capture_paperback_sources.dart <site> --only=<repo>/<id> --out=<empty dir> --browser
+// records the worker's HTTP into `<dir>` and the WebView helper's page,
+// subresource, XHR and fetch exchanges into `<dir>/browser/` in one session,
+// then replays both offline in the same invocation and prints every miss.
+// Only the site's own hosts are recorded (`browserCaptureHosts`), never
+// Cloudflare's `/cdn-cgi/`, and the capture is then pruned to what the offline
+// replay served. `--prune-browser=<dir>` (with `--only`) does the same to an
+// existing recording, without network. Copy the
+// verified `<dir>/browser/` to `fixtures/source_captures/paperback/<site>/browser/`
+// and merge the worker capture with `--merge=<dir>`. Needs the helper built
+// (`dart run tool/build_helper.dart` in packages/desktop_webview).
 import 'dart:convert';
 import 'dart:io';
 
@@ -48,6 +61,7 @@ import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 
 import '../test/support/paperback_scenarios.dart';
+import 'browser_capture_run.dart';
 import 'sanitize_captures.dart';
 
 Future<void> main(List<String> args) async {
@@ -59,17 +73,21 @@ Future<void> main(List<String> args) async {
   final String? merge = flag('merge');
   final String? drop = flag('drop');
   final bool prune = args.contains('--prune');
+  final bool browser = args.contains('--browser');
+  final String? pruneBrowser = flag('prune-browser');
   final bool usage =
       sites.isEmpty ||
       sites.any((String s) => !captureSites.containsKey(s)) ||
       (only != null && (sites.length != 1 || !captureSites[sites.single]!.any((PinnedBundle b) => b.label == only))) ||
-      ((out != null || merge != null) && only == null) ||
+      ((out != null || merge != null || pruneBrowser != null) && only == null) ||
       (out != null && merge != null) ||
-      ((drop != null || prune) && (sites.length != 1 || only != null || out != null || merge != null));
+      ((drop != null || prune) && (sites.length != 1 || only != null || out != null || merge != null)) ||
+      (browser && out == null) ||
+      (pruneBrowser != null && (only == null || out != null || merge != null));
   if (usage) {
     stderr.writeln(
       'usage: capture_paperback_sources.dart <${captureSites.keys.join('|')}>... '
-      '[--only=<repo>/<id> (--out=<dir> | --merge=<dir>)] | <site> [--drop=<repo>/<id>] [--prune]',
+      '[--only=<repo>/<id> (--out=<dir> [--browser] | --merge=<dir>)] | <site> [--drop=<repo>/<id>] [--prune]',
     );
     exitCode = 64;
     return;
@@ -88,7 +106,17 @@ Future<void> main(List<String> args) async {
   final String exe = await _buildWorker(build);
   try {
     for (final site in sites) {
-      await _capture(site, exe, only: only, out: out == null ? null : Directory(out));
+      if (pruneBrowser != null) {
+        // A recording made before the site's browser rule: prune it, then
+        // replay it offline again. No network.
+        await minimiseBrowserCapture(site, exe, only: only!, dir: Directory(pruneBrowser));
+      } else if (browser) {
+        final dir = Directory(out!);
+        if (dir.existsSync() && dir.listSync().isNotEmpty) throw StateError('$out is not empty');
+        await captureWithBrowser(site, exe, only: only!, dir: dir);
+      } else {
+        await _capture(site, exe, only: only, out: out == null ? null : Directory(out));
+      }
     }
   } finally {
     build.deleteSync(recursive: true);
@@ -267,6 +295,12 @@ void _drop(Directory dir, String label) {
 /// Replays [site]'s scenario offline (in-process worker, committed capture
 /// only) and deletes the exchanges and bodies it never requested.
 Future<void> _prune(Directory dir, String site) async {
+  // This replay has no browser, so a source that signs requests in a page
+  // (MangaFire's executeInWebView) would stop before its API calls and every
+  // one of them would be deleted as unrequested.
+  if (Directory('${dir.path}/browser').existsSync()) {
+    throw StateError('--prune cannot replay ${dir.path}: it has a browser capture, and this replay has no browser');
+  }
   final client = MultiReplayHttpClient.load(<Directory>[dir]);
   final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
   final supervisor = WorkerSupervisor(

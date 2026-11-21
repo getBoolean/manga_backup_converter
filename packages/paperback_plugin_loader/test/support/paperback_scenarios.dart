@@ -88,6 +88,19 @@ const Map<String, String> captureTerms = <String, String>{
       'Third-party Mangahub API response; not openly licensed; retained only as an interoperability test fixture.',
 };
 
+/// The hosts a site's browser capture (`<site>/browser/`) keeps: the site
+/// and its own static asset host. Third-party hosts (fonts, analytics,
+/// share counters) are never recorded, and neither is Cloudflare's
+/// `/cdn-cgi/` (bot-management scripts and beacons whose URLs carry ray IDs
+/// and per-client tokens). Replay fails what is not kept, closed.
+const Map<String, Set<String>> browserCaptureHosts = <String, Set<String>>{
+  'mangafire': <String>{'mangafire.to', 's.mfcdn.nl'},
+};
+
+/// Whether [site]'s browser capture keeps a request to [url].
+bool keepBrowserExchange(String site, Uri url) =>
+    (browserCaptureHosts[site]?.contains(url.host) ?? false) && !url.path.startsWith('/cdn-cgi/');
+
 /// The repository root: the first ancestor holding `fixtures/source_captures`.
 Directory repoRootDir() {
   Directory dir = Directory.current.absolute;

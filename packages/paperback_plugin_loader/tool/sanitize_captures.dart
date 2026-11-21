@@ -77,9 +77,6 @@ int sanitizeCaptureDir(Directory dir) {
     final String digest = sha256Hex(out);
     final newBody = '$captureBodiesDirName/$digest.bin';
     File('${dir.path}/$newBody').writeAsBytesSync(out);
-    if (newBody != e.bodyFile && !manifest.exchanges.any((CaptureExchange o) => o != e && o.bodyFile == e.bodyFile)) {
-      bodyFile.deleteSync();
-    }
     exchanges.add(
       CaptureExchange(
         key: e.key,
@@ -95,6 +92,13 @@ int sanitizeCaptureDir(Directory dir) {
         ),
       ),
     );
+  }
+  // An original body no exchange references any more is deleted, including
+  // one several exchanges shared: it still holds what the rules removed.
+  final referenced = <String>{for (final CaptureExchange e in exchanges) e.bodyFile};
+  for (final CaptureExchange e in manifest.exchanges) {
+    final original = File('${dir.path}/${e.bodyFile}');
+    if (!referenced.contains(e.bodyFile) && original.existsSync()) original.deleteSync();
   }
   manifestFile.writeAsStringSync(
     CaptureManifest(
