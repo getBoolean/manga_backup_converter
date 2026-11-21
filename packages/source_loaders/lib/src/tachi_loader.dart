@@ -82,7 +82,9 @@ class TachiPluginLoader extends PluginLoader {
           : await trust.check(tachiTrustEcosystem, repository.baseUrl, repository.signingKeyFingerprint);
       if (refused != null) {
         _refused[repository.baseUrl.toString()] = refused;
-        onWarning?.call('Repository ${repository.baseUrl} was not admitted (${refused.reason.wire}): ${refused.message}');
+        onWarning?.call(
+          'Repository ${repository.baseUrl} was not admitted (${refused.reason.wire}): ${refused.message}',
+        );
         continue;
       }
       _refused.remove(repository.baseUrl.toString());
