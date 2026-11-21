@@ -409,6 +409,7 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
     unsafe { controller.addContentRuleList(&rules) };
   }
   let wk = webview.webview();
+  keep_hidden_pages_running(&wk);
   let inner = unsafe { wk.navigationDelegate() };
   let nav = mtm.alloc::<NavDelegate>().set_ivars(NavDelegateIvars {
     shared,
@@ -420,6 +421,26 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
   let nav: Retained<NavDelegate> = unsafe { msg_send![super(nav), init] };
   unsafe { wk.setNavigationDelegate(Some(ProtocolObject::from_ref(&*nav))) };
   Ok(Native { controller, _handler: handler, _nav: nav })
+}
+
+/// The helper's windows stay hidden unless an interaction shows them, and
+/// WebKit throttles a hidden page's timers (measured: a 10 s `setTimeout`
+/// took over 30 s) and may suspend its web process, so in-page timeouts such
+/// as a source's challenge or capture wait would outlast the operation
+/// deadline. WKPreferences' hidden-page timer throttling and visibility-based
+/// process suppression switches (WebKit SPI, present since macOS 10.12) are
+/// turned off where the selectors exist; otherwise nothing is changed.
+fn keep_hidden_pages_running(wk: &WKWebView) {
+  use objc2::{runtime::Bool, sel};
+  unsafe {
+    let prefs = wk.configuration().preferences();
+    if prefs.respondsToSelector(sel!(_setHiddenPageDOMTimerThrottlingEnabled:)) {
+      let _: () = msg_send![&*prefs, _setHiddenPageDOMTimerThrottlingEnabled: Bool::NO];
+    }
+    if prefs.respondsToSelector(sel!(_setPageVisibilityBasedProcessSuppressionEnabled:)) {
+      let _: () = msg_send![&*prefs, _setPageVisibilityBasedProcessSuppressionEnabled: Bool::NO];
+    }
+  }
 }
 
 pub fn respond(_rid: u64, _answer: Answer) {}
