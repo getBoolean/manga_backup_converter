@@ -76,8 +76,10 @@ class InteractionDeadlineTest {
         timer.fired = true
         d.pause(5_000)
         assertTrue(d.expired)
+        // The disarm cleared the platform's stop mark, so it is fired again at once rather than paused.
+        assertEquals(listOf(1_000L, 0L), timer.arms)
         d.resume()
-        assertEquals(listOf(1_000L), timer.arms, "a fired deadline was re-armed")
+        assertEquals(listOf(1_000L, 0L), timer.arms, "a fired deadline was paused or resumed")
     }
 
     @Test
@@ -88,7 +90,7 @@ class InteractionDeadlineTest {
         timer.fired = true
         d.resume()
         assertTrue(d.expired)
-        assertEquals(2, timer.arms.size)
+        assertEquals(listOf(1_000L, 1_100L, 0L), timer.arms, "the overrun was not fired again after the disarm")
     }
 
     @Test

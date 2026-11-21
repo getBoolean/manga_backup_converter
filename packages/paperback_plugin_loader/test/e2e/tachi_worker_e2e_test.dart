@@ -100,7 +100,7 @@ const ArtifactProfile _rawProfile = ArtifactProfile(
 
 void main() {
   final String? skip = _skipReason();
-  group('Tachi worker over protocol 1.3', skip: skip, () {
+  group('Tachi worker over protocol 1.2', skip: skip, () {
     late Directory temp;
     late ArtifactCache cache;
     late WorkerSupervisor supervisor;

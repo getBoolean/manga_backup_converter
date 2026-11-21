@@ -193,9 +193,11 @@ The worker negotiates minor 1.3 (`Wire.MINOR_VERSION`); against an older supervi
   The accounting (`PausableDeadline`) runs over any arm/disarm timer: while paused the timer is armed for
   the remaining budget plus `timeoutMs`, so a lost `interaction.ended` still ends the operation; a deadline
   that fired before the pause stays fired; a `cancel` during the pause still fires; nothing re-arms after the
-  operation ends. The desktop worker has no deadline of its own (the supervisor's applies), so on desktop
-  this changes nothing; the iOS embedding (`ios/host/.../IosPlatform.java`) pauses its native watchdog
-  through it.
+  operation ends. A fire found when disarming is armed again at zero, because the iOS watchdog's disarm
+  clears the thread's stop mark. The desktop worker has no deadline of its own (the supervisor's applies),
+  so on desktop this changes nothing. The iOS embedding (`ios/host/.../IosPlatform.java`) pauses its native
+  watchdog through it; that path is compile-checked only (`javac` against the worker classes), never run on
+  a device or simulator. JVM tests cover the accounting with a scheduler-backed test platform.
 - **Interaction.** `WebViewBackend.showForInteraction(completionChannels, onOutcome)` (reached through
   `WebView.hostBackend()`: no Android API makes a WebView visible here) sends `host.browser.show` without
   holding the WebView's request chain, so the extension's evaluate, cookie and close calls proceed during

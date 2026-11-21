@@ -29,8 +29,11 @@ class WebkitProtocol13Test {
         /** Waits for `host.browser.endInteraction`; with [message], a page message on `bridge` arrives first. */
         data class OnEnd(val message: Boolean = true) : Show
 
-        /** The user closes the window after [ms]; [outcome] false answers as a pre-1.3 supervisor would. */
-        data class Close(val ms: Long, val outcome: Boolean = true) : Show
+        /**
+         * The user closes the window after [ms] ([laterMs] for every show after the first);
+         * [outcome] false answers as a pre-1.3 supervisor would.
+         */
+        data class Close(val ms: Long, val outcome: Boolean = true, val laterMs: Long = ms) : Show
 
         /** The interaction bound elapses after [ms] and the show fails with [code]. */
         data class Bound(val ms: Long, val code: String) : Show
@@ -44,6 +47,7 @@ class WebkitProtocol13Test {
     class FakePort13(private val h: () -> WorkerHarness, private val show: Show, private val events: Boolean = true) : (Frame) -> JsonObject {
         val frames = CopyOnWriteArrayList<Frame>()
         private val sessions = AtomicInteger()
+        private val shows = AtomicInteger()
         private val ends = ConcurrentHashMap<String, CompletableFuture<Unit>>()
         private val active = HashMap<String, Int>()
         val hang = CountDownLatch(1)
@@ -98,6 +102,7 @@ class WebkitProtocol13Test {
 
         private fun show(of: String, session: String): JsonObject {
             val started = System.nanoTime()
+            val index = shows.getAndIncrement()
             synchronized(active) {
                 val n = active.getOrDefault(of, 0)
                 active[of] = n + 1
@@ -124,19 +129,19 @@ class WebkitProtocol13Test {
                         return buildJsonObject { put("outcome", "completed") }
                     }
                     is Show.Close -> {
-                        Thread.sleep(show.ms)
+                        Thread.sleep(if (index == 0) show.ms else show.laterMs)
                         end()
                         return if (show.outcome) buildJsonObject { put("outcome", "closed") } else JsonObject(emptyMap())
                     }
                     is Show.Bound -> {
                         Thread.sleep(show.ms)
                         end()
-                        throw WorkerError(show.code, "browser interaction exceeded its ${show.ms} ms bound", "host.browser.show")
+                        throw WorkerError(show.code, "browser interaction exceeded its ${show.ms} ms bound")
                     }
                 }
             } catch (e: java.util.concurrent.TimeoutException) {
                 end()
-                throw WorkerError(ErrorCode.INTERACTION_REQUIRED, "no endInteraction arrived", "host.browser.show")
+                throw WorkerError(ErrorCode.INTERACTION_REQUIRED, "no endInteraction arrived")
             }
         }
 
@@ -251,9 +256,11 @@ class WebkitProtocol13Test {
     }
 
     @Test
-    fun `overlapping shows of one operation pause once`() {
+    fun `overlapping shows of one operation pause once and resume only when the last ends`() {
+        // The first show closes well inside the budget and the second long after it: a worker that resumed on
+        // the first show's rres would run into its deadline while the second is still pending.
         val platform = TestDeadlinePlatform(budgetMs = 1_500)
-        withPort(Show.Close(3_000), platform = platform) { h, port, pkg ->
+        withPort(Show.Close(300, laterMs = 3_000), platform = platform) { h, port, pkg ->
             assertEquals("outcome=closed,outcome=closed", title(h, pkg, "showtwice"))
             assertEquals(2, port.ops.count { it == "host.browser.show" })
             assertEquals(1, events(h, "interaction.started"))

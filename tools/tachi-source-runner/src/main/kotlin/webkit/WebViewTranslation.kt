@@ -368,11 +368,14 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         bridge.endInteraction(environment, pending.session)
     }
 
-    /** The interaction bound is `interaction-required` (protocol 1.3), including an older peer's `timeout`. */
+    /**
+     * The interaction bound is `interaction-required` (protocol 1.3), including an older peer's `timeout`,
+     * named as `host.browser.show` (the protocol carries `operation` only with `capability-unavailable`).
+     */
     private fun interactionFailure(failure: Throwable): Throwable {
         val cause = (failure as? java.util.concurrent.CompletionException)?.cause ?: failure
-        if (cause is WorkerError && cause.code == ErrorCode.TIMEOUT) {
-            return InteractionRequiredException(cause.message ?: "browser interaction timed out", "host.browser.show", cause)
+        if (cause is WorkerError && (cause.code == ErrorCode.TIMEOUT || cause.code == ErrorCode.INTERACTION_REQUIRED)) {
+            return InteractionRequiredException(cause.message ?: "browser interaction timed out", cause.operation ?: "host.browser.show", cause)
         }
         return cause
     }

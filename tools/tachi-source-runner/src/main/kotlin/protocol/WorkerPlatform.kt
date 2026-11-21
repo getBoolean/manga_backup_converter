@@ -102,7 +102,9 @@ interface DeadlineTimer {
  * whose timer can only be armed and disarmed ([DeadlineTimer]). The operation gets [budgetMs] of
  * running time; time between [pause] and [resume] is not counted.
  *
- * - A deadline that fired before a pause stays fired; pausing does not revive the operation.
+ * - A deadline that fired before a pause stays fired; pausing does not revive the operation. Because a
+ *   disarm may clear the platform's stop mark (the iOS watchdog does), a fire found at a disarm is armed
+ *   again at zero, so the operation stays stopped until [close].
  * - While paused the timer is armed for the remaining budget plus the pause's bound.
  * - [expireNow] fires whatever is armed, paused or not, so a `cancel` during an interaction still stops it.
  * - Nothing re-arms after [close]: the operation thread may already be running another operation.
@@ -138,10 +140,7 @@ class PausableDeadline(
     override fun pause(boundMs: Long) {
         if (closed || paused || fired) return
         val now = nanoTime()
-        if (timer.disarm()) {
-            fired = true
-            return
-        }
+        if (timer.disarm()) return refire()
         usedNanos += now - runningSince
         paused = true
         timer.arm(remainingMs + maxOf(0L, boundMs))
@@ -151,12 +150,15 @@ class PausableDeadline(
     override fun resume() {
         if (closed || !paused) return
         paused = false
-        if (timer.disarm()) {
-            fired = true
-            return
-        }
+        if (timer.disarm()) return refire()
         runningSince = nanoTime()
         timer.arm(remainingMs)
+    }
+
+    /** The deadline had fired: keep the operation stopped (the disarm may have cleared the platform's mark). */
+    private fun refire() {
+        fired = true
+        timer.arm(0)
     }
 
     @Synchronized
