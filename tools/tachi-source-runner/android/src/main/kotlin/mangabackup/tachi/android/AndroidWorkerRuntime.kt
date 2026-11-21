@@ -20,7 +20,11 @@ import java.io.OutputStream
  * - `--challenge-once PATH` (debug) answers the first request to PATH with
  *   MangaFire's captcha 403 before replaying, to drive the browser path;
  * - `--offline-browser` (debug) points the process's WebViews at a loopback
- *   proxy that refuses every request, so no page load reaches a server.
+ *   proxy that refuses every request, so no page load reaches a server;
+ * - `--interactive-challenges MS` lets a Cloudflare challenge open the
+ *   service's visible challenge Activity for at most MS milliseconds while
+ *   the app is visible; without it (unattended) challenges fail as
+ *   interaction-required.
  * Release builds refuse every debug-only argument.
  */
 object AndroidWorkerRuntime {
@@ -40,13 +44,20 @@ object AndroidWorkerRuntime {
 
     val debugHooksAvailable: Boolean get() = debugHooks != null
 
-    class Started(val worker: Worker, val options: WorkerOptions, val notes: Map<String, String>)
+    class Started(
+        val worker: Worker,
+        val options: WorkerOptions,
+        val notes: Map<String, String>,
+        /** Bound of an interactive challenge, or null when challenges are not shown (unattended). */
+        val challengeTimeoutMs: Long?,
+    )
 
     fun start(context: Context, runtime: AndroidPackageRuntime, args: List<String>, input: InputStream, output: OutputStream): Started {
         val replay = ArrayList<String>()
         val challenge = ArrayList<String>()
         val limits = LinkedHashMap<String, Long>()
         var offlineBrowser = false
+        var challengeTimeoutMs: Long? = null
         var i = 0
         fun value(): String = args.getOrNull(++i) ?: throw IllegalArgumentException("${args[i - 1]} needs a value")
         while (i < args.size) {
@@ -54,6 +65,8 @@ object AndroidWorkerRuntime {
                 "--replay" -> replay += value()
                 "--challenge-once" -> challenge += value()
                 "--offline-browser" -> offlineBrowser = true
+                "--interactive-challenges" -> challengeTimeoutMs = value().toLongOrNull()?.takeIf { it > 0 }
+                    ?: throw IllegalArgumentException("--interactive-challenges needs a positive millisecond bound")
                 "--limit" -> {
                     val (k, v) = value().split('=', limit = 2).takeIf { it.size == 2 } ?: throw IllegalArgumentException("--limit needs NAME=VALUE")
                     limits[k] = v.toLongOrNull() ?: throw IllegalArgumentException("--limit $k needs an integer")
@@ -83,6 +96,6 @@ object AndroidWorkerRuntime {
             browser = false,
             platform = AndroidHostPlatform,
         )
-        return Started(Worker(input, output, options, runtime), options, notes)
+        return Started(Worker(input, output, options, runtime), options, notes, challengeTimeoutMs)
     }
 }

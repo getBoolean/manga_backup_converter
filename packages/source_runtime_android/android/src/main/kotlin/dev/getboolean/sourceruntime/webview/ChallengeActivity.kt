@@ -36,6 +36,8 @@ class ChallengeActivity : Activity() {
         val view = WebView(this)
         view.settings.javaScriptEnabled = true
         view.settings.domStorageEnabled = true
+        // A clearance cookie is bound to the user agent that earned it.
+        intent.getStringExtra(EXTRA_USER_AGENT)?.let { view.settings.userAgentString = it }
         view.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                 !ChallengeLauncher.isWebUrl(request.url.toString())
@@ -57,6 +59,7 @@ class ChallengeActivity : Activity() {
 
     companion object {
         const val EXTRA_URL = "url"
+        const val EXTRA_USER_AGENT = "userAgent"
 
         @Volatile
         var current: ChallengeActivity? = null
@@ -87,7 +90,7 @@ internal object ChallengeLauncher {
      * Shows [url] in the challenge Activity and waits (bounded) until it is on
      * screen. Returns `interaction-required` while the app is not visible.
      */
-    fun show(context: Context, url: String, timeoutMs: Long): JSONObject {
+    fun show(context: Context, url: String, timeoutMs: Long, userAgent: String? = null): JSONObject {
         if (!isWebUrl(url)) return JSONObject().put("result", "capability-unavailable").put("reason", "only http(s) URLs")
         if (!appVisible(context)) return JSONObject().put("result", "interaction-required")
         val latch = CountDownLatch(1)
@@ -96,10 +99,29 @@ internal object ChallengeLauncher {
         context.startActivity(
             Intent(context, ChallengeActivity::class.java)
                 .putExtra(ChallengeActivity.EXTRA_URL, url)
+                .putExtra(ChallengeActivity.EXTRA_USER_AGENT, userAgent)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
         val ok = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
         return JSONObject().put("result", if (ok) "shown" else "timeout").put("activityPid", Process.myPid())
+    }
+
+    /**
+     * A Cloudflare challenge in interactive use (U12, carried from U11): shows
+     * [url] with the request's [userAgent] and waits until the user closes
+     * the Activity, at most [timeoutMs]. Returns false when the app is not
+     * visible (interaction-required) or the bound elapsed (the Activity is
+     * closed). Its cookies stay in this process's WebView store, from which
+     * the package's HTTP jar copies them on the retried request.
+     */
+    fun solve(context: Context, url: String, userAgent: String?, timeoutMs: Long): Boolean {
+        val started = System.currentTimeMillis()
+        val shown = show(context, url, timeoutMs, userAgent)
+        if (shown.optString("result") != "shown") return false
+        val remaining = (timeoutMs - (System.currentTimeMillis() - started)).coerceAtLeast(0)
+        val userClosed = closed?.await(remaining, TimeUnit.MILLISECONDS) ?: false
+        if (!userClosed) close(5_000)
+        return userClosed
     }
 
     fun close(timeoutMs: Long): JSONObject {

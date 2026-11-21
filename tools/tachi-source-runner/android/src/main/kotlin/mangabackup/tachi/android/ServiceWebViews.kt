@@ -20,13 +20,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * `:source_runtime` process (KTD19). The service never routes them through a
  * BrowserPort, so it applies KTD20's storage rule itself.
  *
- * Isolation: androidx.webkit profiles can isolate cookies and storage, but a
- * profile must be assigned with `WebViewCompat.setProfile` before anything
- * else touches the WebView, and the extension constructs and configures its
- * own `android.webkit.WebView`. Without rewriting extension bytecode there is
- * no point at which the host can assign it, so per-source browser isolation
- * is reported unavailable (with the reason) even where the installed WebView
- * supports multi-profile. Every source in the process shares the default
+ * Isolation: androidx.webkit profiles can isolate cookies and storage. U12
+ * probed when `WebViewCompat.setProfile` still succeeds, in this process and
+ * the app process (WebView 134, emulator receipt `isolation-probe`): after
+ * construction, a settings change and `addJavascriptInterface` it does; after
+ * the first load or `evaluateJavascript` it throws. So a profile could be
+ * assigned to an extension-created WebView only by code that holds the
+ * reference between construction and first load, and no host code does: the
+ * extension constructs, configures and loads its own `android.webkit.WebView`
+ * (keiyoushi `runWebViewBlocking` in one main-looper task). Without rewriting
+ * extension bytecode, per-source browser isolation is reported unavailable
+ * (with the reason) even where the installed WebView supports multi-profile. Every source in the process shares the default
  * profile; the service wipes it when a browser-using source's session closes
  * and before any WebView exists after a (re)start, and fails the browser
  * capability if the wipe cannot be confirmed.
@@ -39,7 +43,36 @@ class ServiceWebViews(private val context: Context) : WorkerBrowser {
     private val browserPackages = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<PackageEnvironment, Boolean>())
 
     fun packageLoaded(environment: PackageEnvironment, referencesWebView: Boolean) {
-        if (referencesWebView) browserPackages += environment
+        if (!referencesWebView) return
+        browserPackages += environment
+        // Cookies the package's WebViews acquire reach its HTTP calls (U12, carried from U11).
+        environment.cookieJar.browserCookies = ::webViewCookies
+    }
+
+    /**
+     * The service WebView store's cookies for [url] (name and value only, as
+     * CookieManager reports them), read on the main looper with a bound.
+     * Only packages whose code uses WebView read it, so only they may
+     * initialize WebView (on the main looper) through this.
+     */
+    fun webViewCookies(url: okhttp3.HttpUrl): List<okhttp3.Cookie> {
+        val header = java.util.concurrent.atomic.AtomicReference<String?>()
+        val done = CountDownLatch(1)
+        main.post {
+            header.set(runCatching { CookieManager.getInstance().getCookie(url.toString()) }.getOrNull())
+            done.countDown()
+        }
+        if (!done.await(COOKIE_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)) return emptyList()
+        return header.get()?.split(';')?.mapNotNull { pair ->
+            val eq = pair.indexOf('=')
+            if (eq <= 0) return@mapNotNull null
+            okhttp3.Cookie.Builder()
+                .name(pair.substring(0, eq).trim())
+                .value(pair.substring(eq + 1).trim())
+                .hostOnlyDomain(url.host)
+                .path("/")
+                .build()
+        }.orEmpty()
     }
 
     fun packageClosed(environment: PackageEnvironment) {
@@ -73,8 +106,9 @@ class ServiceWebViews(private val context: Context) : WorkerBrowser {
             "webViewMultiProfile" to probed,
             "sourceBrowserIsolation" to "unavailable",
             "sourceBrowserIsolationReason" to
-                "extension-created android.webkit.WebView instances cannot be assigned an androidx.webkit profile before first use " +
-                "without rewriting extension bytecode; the service wipes the shared profile at session close and on start (KTD19)",
+                "setProfile succeeds only before a WebView's first load or evaluateJavascript (U12 probe), and extension code " +
+                "constructs and loads its own android.webkit.WebView with no host hook in between unless extension bytecode is " +
+                "rewritten; the service wipes the shared profile at session close and on start (KTD19)",
         )
     }
 
@@ -111,6 +145,7 @@ class ServiceWebViews(private val context: Context) : WorkerBrowser {
         /** Data directory suffix of the service process's WebView (KTD19). */
         const val DATA_DIRECTORY_SUFFIX = "source_runtime"
         const val WIPE_TIMEOUT_SECONDS = 15L
+        const val COOKIE_READ_TIMEOUT_MS = 2_000L
 
         /**
          * Removes every byte of WebView data the service process left behind

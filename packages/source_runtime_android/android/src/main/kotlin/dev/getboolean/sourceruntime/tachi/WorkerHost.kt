@@ -55,6 +55,14 @@ internal class WorkerHost(private val context: Context) {
         val s = Session(pipe, out, replyTo)
         session = s
         installErr(replyTo)
+        // Interactive runs only: a Cloudflare challenge opens the visible
+        // challenge Activity (unattended runs keep interaction-required).
+        eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor.challengeSolver =
+            started.challengeTimeoutMs?.let { bound ->
+                { url: String, userAgent: String? ->
+                    dev.getboolean.sourceruntime.webview.ChallengeLauncher.solve(context, url, userAgent, bound)
+                }
+            }
         Thread({
             val code = try {
                 started.worker.run()
@@ -62,6 +70,7 @@ internal class WorkerHost(private val context: Context) {
                 Log.e(TAG, "worker crashed", t)
                 70
             }
+            eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor.challengeSolver = null
             s.exit(code)
         }, "tachi-worker").apply { isDaemon = true }.start()
         null
