@@ -319,6 +319,7 @@ internal class BrowserSessionView(
         private set
 
     private var scripts = mutableListOf<ScriptHandler>()
+    private val pendingEvaluations = HashSet<Long>()
 
     @Volatile private var observe = false
 
@@ -436,8 +437,12 @@ internal class BrowserSessionView(
                 nav = Nav(callId, base)
                 view.loadDataWithBaseURL(base, a.getString("html"), "text/html", "utf-8", null)
             }
-            "evaluate" -> view.evaluateJavascript(a.getString("script")) { value ->
-                if (webView == null) host.failReply(callId, "closed", "Session $id closed") else host.okReply(callId, JSONObject().put("value", value ?: "null"))
+            "evaluate" -> {
+                pendingEvaluations += callId
+                view.evaluateJavascript(a.getString("script")) { value ->
+                    if (!pendingEvaluations.remove(callId)) return@evaluateJavascript
+                    if (webView == null) host.failReply(callId, "closed", "Session $id closed") else host.okReply(callId, JSONObject().put("value", value ?: "null"))
+                }
             }
             "setStartScripts" -> {
                 for (h in scripts) h.remove()
@@ -496,6 +501,9 @@ internal class BrowserSessionView(
         BrowserInteractionActivity.hide(id)
         nav?.let { host.failReply(it.callId, "closed", "Session $id closed") }
         nav = null
+        // A destroyed WebView never calls back for evaluations still running.
+        for (callId in pendingEvaluations) host.failReply(callId, "closed", "Session $id closed")
+        pendingEvaluations.clear()
         val view = webView ?: return
         webView = null
         observe = false

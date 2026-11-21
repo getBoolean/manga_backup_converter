@@ -133,12 +133,12 @@ final BrowserCapabilities androidWebViewCapabilities = BrowserCapabilities(
     BrowserFeature.observeNavigations,
     BrowserFeature.observeSubresources,
     BrowserFeature.observeRequestHeaders,
+    // shouldInterceptRequest reports sec-ch-ua* on Android System WebView
+    // (U12 emulator receipt `request-observation`, WebView 134).
+    BrowserFeature.observeClientHints,
     BrowserFeature.scriptErrors,
   },
   unavailable: const <BrowserFeature, String>{
-    BrowserFeature.observeClientHints:
-        'WebViewClient.shouldInterceptRequest reports only the headers a page or loadUrl set; the network stack '
-        'adds Chromium client hints (sec-ch-ua*) after interception',
     BrowserFeature.observeRequestBodies: 'WebResourceRequest does not expose request bodies',
     BrowserFeature.replaceRequests:
         'Substituting a response means answering shouldInterceptRequest on a Chromium IO thread, which would '
@@ -557,9 +557,16 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
   /// Sends [op] for this session and returns the reply, or `null` when the
   /// session closed or was fenced before it arrived (late reply discarded).
   Future<_Reply?> _send(String op, [Map<String, Object?> args = const <String, Object?>{}]) async {
-    final _Reply r = await _port._call(op, <String, Object?>{...args, 'session': id});
-    return _ignoreCallbacks ? null : r;
+    // Never outlives the session: a WebView call issued just before the
+    // session closed may never be answered.
+    final _Reply? r = await Future.any(<Future<_Reply?>>[
+      _port._call(op, <String, Object?>{...args, 'session': id}),
+      _closedSignal.future,
+    ]);
+    return r == null || _ignoreCallbacks ? null : r;
   }
+
+  final Completer<_Reply?> _closedSignal = Completer<_Reply?>();
 
   BrowserOutcome<T> _failure<T>(_Reply r, String operation) => switch (r.code) {
     _Code.superseded || _Code.closed || _Code.disposed => BrowserCancelled<T>(r.message),
@@ -744,10 +751,13 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
         if (channel is! String || text is! String) return;
         final void Function(String)? handler = _channels[channel];
         if (handler == null) return;
-        // WebView reports a loadData document as its `data:` URL; its origin
-        // is the base URL the session loaded it with.
+        // WebView reports a loadData document's URL as `about:blank` (or its
+        // `data:` URL); its origin is the base URL the session loaded it
+        // with. The engine-attested frame origin is still checked against it.
         final String raw = event['document'] as String? ?? '';
-        final Uri? document = raw.isEmpty || raw.startsWith('data:') ? _dataDocument : Uri.tryParse(raw);
+        final Uri? document = _dataDocument != null && (raw.isEmpty || raw == 'about:blank' || raw.startsWith('data:'))
+            ? _dataDocument
+            : Uri.tryParse(raw);
         final Uri? origin = Uri.tryParse(event['origin'] as String? ?? '');
         if (document == null || origin == null) {
           _port._log('dropped a "$channel" message: unreadable document or frame origin');
@@ -1004,6 +1014,7 @@ void 0;''';
   }
 
   void _settleAll(String reason) {
+    if (!_closedSignal.isCompleted) _closedSignal.complete(null);
     for (final _Op<Object?> op in _pending.toList()) {
       op.cancel(reason);
     }
