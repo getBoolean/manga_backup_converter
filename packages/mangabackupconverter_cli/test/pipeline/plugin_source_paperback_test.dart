@@ -178,6 +178,29 @@ void main() {
     }
   });
 
+  test('two bundles from one repository keep separate remembered decisions', () async {
+    final PaperbackPluginLoader l = loader();
+    final List<ExtensionEntry> entries = await l.fetchExtensionLists(<String>[
+      'https://inkdex.github.io/extensions/0.9/stable/',
+    ], trust: gate());
+    final owner = ConversionOwner();
+    try {
+      for (final id in <String>['WeebCentral', 'MangaDex']) {
+        final ExtensionEntry e = entries.firstWhere((ExtensionEntry x) => x.id.endsWith('#$id'));
+        final Uint8List bytes = File('${fixtures.path}/inkdex-0.9/$id/index.js').readAsBytesSync();
+        check(await l.loadPluginFromBytes(e, bytes, owner: owner)).isA<SourceSuccess<PluginSource>>();
+      }
+      check(asked.map((RepositoryTrustRequest r) => r.repository.fragment).toList()).deepEquals(<String>[
+        'WeebCentral',
+        'MangaDex',
+      ]);
+      check(asked.any((RepositoryTrustRequest r) => r.isChange)).isFalse();
+      check(store.fingerprints).length.equals(2);
+    } finally {
+      await owner.close();
+    }
+  });
+
   test('a rejected or changed bundle never opens; changed cached bytes ask again and can be refused', () async {
     final PaperbackPluginLoader l = loader();
     final List<ExtensionEntry> entries = await l.fetchExtensionLists(<String>[

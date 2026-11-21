@@ -74,7 +74,9 @@ final class PaperbackWorkerPlan {
   /// handshake's `operationDeadlineMs`).
   final Duration deadlineHeadroom;
 
-  /// Time to let a cancelled operation settle: the same measured tail.
+  /// Time to let a cancelled operation settle. The worker reads a `cancel`
+  /// frame only between job slices, so this is one job slice plus the
+  /// measured deadline tail.
   final Duration cancelGrace;
 
   /// Bound on worker start-up to handshake (process start, isolate and
@@ -116,7 +118,7 @@ PaperbackWorkerPlan planPaperbackWorker({
   return PaperbackWorkerPlan(
     sizing: sizing,
     deadlineHeadroom: headroom,
-    cancelGrace: headroom,
+    cancelGrace: sizing.limits.jobSlice + headroom,
     handshakeDeadline: const Duration(seconds: 30),
   );
 }

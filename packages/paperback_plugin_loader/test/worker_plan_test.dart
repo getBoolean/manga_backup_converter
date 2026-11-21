@@ -24,6 +24,8 @@ void main() {
     check(plan.sizing.warnings).isEmpty();
     // Supervisor headroom: the measured tail times four.
     check(plan.deadlineHeadroom).equals(referenceDeadlineTail * 4);
+    // A cancel frame is read between job slices: one slice plus the tail.
+    check(plan.cancelGrace).equals(limits.jobSlice + plan.deadlineHeadroom);
     check(plan.arguments)
         .contains('--deadline-headroom-ms=${((referenceDeadlineTail * 4).inMicroseconds + 999) ~/ 1000}');
     check(parseWorkerArguments(plan.arguments).limits.memoryLimitBytes).equals(limits.memoryLimitBytes);

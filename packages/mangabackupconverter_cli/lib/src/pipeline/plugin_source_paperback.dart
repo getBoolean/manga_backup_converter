@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -54,7 +55,24 @@ class PaperbackPluginLoader extends PluginLoader {
       onSettings: onSettings,
       worker: (ConversionOwner? owner) async {
         if (supervisor == null) {
+          // The worker is this executable re-launched; under `dart run` the
+          // resolved executable is the Dart VM, which has no such command.
+          final String exe = p.basenameWithoutExtension(Platform.resolvedExecutable).toLowerCase();
+          if (exe == 'dart' || exe == 'flutter_tester') {
+            return const SourceFailed<WorkerSupervisor>(
+              RuntimeUnavailableFailure(
+                'Paperback sources need the built CLI executable (dart build cli); '
+                'they cannot run under dart run',
+              ),
+            );
+          }
           final PaperbackWorkerPlan plan = planPaperbackWorker();
+          // KTD25: record the rule, its inputs and the derived limits, and any
+          // cap that left a limit below the measured need.
+          onLog?.call('[paperback] sizing ${jsonEncode(plan.sizing.toJson())}');
+          for (final String warning in plan.sizing.warnings) {
+            onLog?.call('[paperback] sizing warning: $warning');
+          }
           final created = WorkerSupervisor(
             spec: WorkerSpec(
               label: 'paperback',

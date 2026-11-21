@@ -228,7 +228,8 @@ Chapter identities are the site's own and identical across families: WeebCentral
 `01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
 
 **MangaDex 0.8 cell.** The 0.8 bundle sets `user-agent` to the host's `getDefaultUserAgent()` (a mobile Safari
-string) and `referer: https://mangadex.org`. The 0.9 bundle sends neither and was not challenged in the same
+string) and `referer: https://mangadex.org`. The 0.9 bundle also sends a `referer` but no user agent (so the
+HTTP client's default), and was not challenged in the same
 capture session. The likely trigger is a browser user agent on a client that runs no JavaScript; this is not
 verified, because one capture run per source was authorised. Re-capture with a different `getDefaultUserAgent()`
 once a second run is approved, or treat MangaDex's challenge as `interaction-required` at the U8 browser join.
