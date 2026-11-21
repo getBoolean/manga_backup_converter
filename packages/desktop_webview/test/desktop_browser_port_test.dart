@@ -493,11 +493,11 @@ Future<void> main() async {
       check(killed.existsSync()).isTrue();
       await port.debugKillHelper();
       // A killed helper's WebView2 browser process can stay in termination
-      // for 1-90 s (measured on WebView2 157), holding the directory; how long is up to the
+      // for 1-110 s (measured on WebView2 157), holding the directory; how long is up to the
       // OS, so wait until the directory can be released (the condition the
       // wipe needs) rather than racing it. The next test covers a wipe that
       // meets a directory still in use.
-      await _waitUntilReleasable(killed, const Duration(seconds: 180));
+      await _waitUntilReleasable(killed, const Duration(seconds: 240));
       await open(port, 'a'); // starts a fresh helper, whose start-up wipe runs
       check(port.helperInfo!.wipeRemoved).equals(1);
       check(port.helperInfo!.wipeFailed).equals(0);
@@ -507,7 +507,7 @@ Future<void> main() async {
         for (final FileSystemEntity e in root.listSync()) p.basename(e.path),
       ]..remove('h-${port.helperInfo!.pid}');
       check(left).isEmpty();
-    }, timeout: const Timeout(Duration(minutes: 5)));
+    }, timeout: const Timeout(Duration(minutes: 6)));
 
     test('a directory still in use is left whole and reported; a later wipe removes it', () async {
       final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');

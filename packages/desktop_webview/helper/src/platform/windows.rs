@@ -74,7 +74,7 @@ pub fn display_missing() -> Option<String> {
 ///
 /// Measured on WebView2 157: after a kill, the job ends the crashpad, GPU and
 /// utility processes at once, but the browser process can stay in
-/// termination for 1-90 s, holding the data directory; the client's wipe
+/// termination for 1-110 s, holding the data directory; the client's wipe
 /// retry budget (`wipe` `retryMs`) covers that.
 pub fn contain_child_processes() -> Result<(), String> {
   use windows::Win32::{
