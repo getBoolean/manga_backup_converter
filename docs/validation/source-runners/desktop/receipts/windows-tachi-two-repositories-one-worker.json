@@ -1,0 +1,65 @@
+{
+  "kind": "source-runner-conversion",
+  "evidence": "replayed-capture",
+  "recordedAt": "2026-11-21T21:05:53.583014Z",
+  "hostCommit": "0b59d977304726f7ab3b4978d5d953826d90b743",
+  "hostDirty": false,
+  "os": "windows",
+  "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
+  "dart": "3.14.0",
+  "protocol": "1.3",
+  "workerVersion": "0.1.0",
+  "sizing": {
+    "rule": {
+      "source": "docs/validation/source-runners/desktop/benchmark-windows-11-2026-11-20-idle.json (2026-11-20T17:39:10.517983800Z, idle machine) for all limits except the handshake; docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-21T04:27:40.191846500Z, loaded machine) for maxStartupToHandshakeMs",
+      "coresFactor": 36.2,
+      "baseHeapMiB": 67.0,
+      "perPackageHeapMiB": 3.0,
+      "p99OperationMs": 4021.1,
+      "deadlineFactor": 50.0,
+      "maxCancelSettleMs": 5.9,
+      "maxShutdownMs": 55.0,
+      "graceFactor": 3.0,
+      "interactionTimeoutMs": 300000,
+      "maxPoolSize": 3,
+      "maxStartupToHandshakeMs": 3112.5,
+      "handshakeFactor": 10.0
+    },
+    "derived": {
+      "poolSize": 3,
+      "operationDeadlineMs": 201055,
+      "cancelGraceMs": 165,
+      "interactionTimeoutMs": 300000,
+      "shutdownGraceMs": 165,
+      "handshakeDeadlineMs": 31125
+    }
+  },
+  "java": "jdk21.0.13_1",
+  "artifacts": [
+    {
+      "kind": "jar",
+      "url": "https://github.com/keiyoushi/extensions/releases/download/d9420cd/tachiyomi-all.mangadex-v1.6.4.jar",
+      "sha256": "6bba080add3f0ce25622523996bec22bd4828d6fecfbd2b816d420d8af49cb86"
+    },
+    {
+      "kind": "jar",
+      "url": "https://github.com/keiyoushi/extensions/releases/download/3cf15bc/tachiyomi-en.weebcentral-v1.6.27.jar",
+      "sha256": "8b287c95536381e1ef26d59c5c570de9b2afdf66f7c147cbe7c37d6238f0fce1"
+    }
+  ],
+  "apiFamily": "tachi-1.6",
+  "repositories": 2,
+  "jvmWorkerLaunches": 1,
+  "operation": "convert paperback -> mihon",
+  "query": "Onimai",
+  "outcome": "completed",
+  "destination": {
+    "format": "mihon",
+    "chapters": 114
+  },
+  "report": {
+    "mangaTransferred": 1,
+    "chapterStateTransferred": 2,
+    "chapterStateRecords": 2
+  }
+}

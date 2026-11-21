@@ -1,0 +1,25 @@
+{
+  "kind": "source-runner-conversion",
+  "evidence": "replayed-capture",
+  "recordedAt": "2026-11-21T21:06:12.028294Z",
+  "hostCommit": "0b59d977304726f7ab3b4978d5d953826d90b743",
+  "hostDirty": false,
+  "os": "windows",
+  "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
+  "dart": "3.14.0",
+  "webview": {
+    "engine": "webview2",
+    "engineVersion": "157.0.4341.60"
+  },
+  "artifact": {
+    "kind": "paperback-bundle-0.9",
+    "url": "https://inkdex.github.io/extensions/0.9/stable/MangaFire/index.js",
+    "sha256": "193ba19c1f837f1f5a4ac2fe2a378c4546ce8cd048670ae93f684cbd4a280eab"
+  },
+  "apiFamily": "paperback-0.9",
+  "operation": "search (executeInWebView through the desktop helper, offline replay)",
+  "query": "Onimai",
+  "outcome": "failed: VRF capture timed out (the page site scripts are not captured)",
+  "browserSessionsOpened": 1,
+  "helperExitedAfterOwnerClose": true
+}
