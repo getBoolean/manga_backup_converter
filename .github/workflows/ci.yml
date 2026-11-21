@@ -196,6 +196,91 @@ jobs:
         with:
           files: "**/*/lcov.info"
 
+  benchmarks:
+    name: KTD25 benchmarks (${{ matrix.os }}, non-gating)
+    needs: [analyze]
+    runs-on: ${{ matrix.os }}
+    # A report, never a gate: timings depend on the runner. Compare the
+    # uploaded results with the committed ones (docs/CI.md).
+    continue-on-error: true
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            architecture: x64
+          - os: windows-latest
+            architecture: x64
+          - os: macos-14
+            architecture: arm64
+    steps:
+      - name: Enable Git Long Paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: ${{ matrix.architecture }}
+
+      - name: Activate Melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Install Rust toolchain
+        if: runner.os == 'Windows' || runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Bootstrap Melos
+        run: melos bootstrap
+
+      - name: Setup Java JDK (Tachi worker)
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Create report directory
+        shell: bash
+        run: mkdir -p build/benchmarks
+
+      - name: Paperback bundle benchmark (JIT)
+        run: flutter test packages/paperback_plugin_loader/benchmark/paperback_bundles_benchmark_test.dart
+        env:
+          QJS_BENCH_OUT: ${{ github.workspace }}/build/benchmarks/paperback-bundles-jit.json
+
+      - name: Paperback bundle benchmark (AOT, as the worker ships)
+        working-directory: packages/paperback_plugin_loader
+        shell: bash
+        run: |
+          dart build cli -t benchmark/bundle_benchmark_main.dart -o ../../build/bench-aot
+          exe=../../build/bench-aot/bundle/bin/bundle_benchmark_main
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          "$exe" ../../fixtures/source_captures/paperback ../../build/benchmarks/paperback-bundles-aot.json
+
+      - name: Tachi worker benchmark (quick)
+        working-directory: tools/tachi-source-runner
+        shell: bash
+        run: ./gradlew --no-daemon --quiet benchmark -PbenchmarkArgs="--quick" > ../../build/benchmarks/tachi-worker-quick.json
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ktd25-benchmarks-${{ matrix.os }}
+          path: build/benchmarks/
+          if-no-files-found: ignore
+
   test_web:
     name: Test (Web)
     needs: [analyze]
@@ -937,33 +1022,64 @@ jobs:
       - name: Bootstrap Melos
         run: melos bootstrap
 
-      - name: Build CLI
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      # The pinned Corretto archive the package jlinks (tools/tachi-source-runner/runtime/jre-pins.json).
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      # dart build cli bundle + JVM worker + jlinked JRE + WebView helper + licences
+      # (scripts/package_cli.dart); the executable keeps its name so the
+      # installer's PATH entry and the runtime discovery stay stable.
+      - name: Package CLI
         uses: nick-fields/retry@v2
         with:
-          timeout_minutes: 30
+          timeout_minutes: 45
           max_attempts: 3
           retry_on: error
-          command: |
-            cd packages/mangabackupconverter_cli
-            dart build cli
+          command: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: Package CLI
-        run: |
-          cd packages/mangabackupconverter_cli/build/cli/windows_x64/bundle
-          mv bin/mangabackupconverter_cli.exe bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.exe
-        shell: bash
+      # Copies the package into a path with spaces, runs it with no system
+      # Java/Dart/Gradle/Rust on PATH, checks manifest hashes and licences,
+      # starts every bundled runtime offline and checks nothing outlives a
+      # close or a killed CLI.
+      - name: Smoke test packaged CLI
+        run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-windows.json
+
+      - name: Check evidence receipts
+        run: dart run tool/check_evidence_receipts.dart build/package-smoke-windows.json
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-smoke-windows
+          path: build/package-smoke-windows.json
+          if-no-files-found: ignore
 
       - name: Upload CLI Bundle
         uses: actions/upload-artifact@v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows
-          path: packages/mangabackupconverter_cli/build/cli/windows_x64/bundle/
+          path: build/package/windows-x64/
 
       - name: Compile Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: packages/mangabackupconverter_cli/installer/windows_setup.iss
-          options: /DBundleDir=${{ github.workspace }}\packages\mangabackupconverter_cli\build\cli\windows_x64\bundle /DAppVersion=${{ env.BRANCH_NAME }} /O${{ github.workspace }}\installer-output
+          options: /DBundleDir=${{ github.workspace }}\build\package\windows-x64 /DAppVersion=${{ env.BRANCH_NAME }} /O${{ github.workspace }}\installer-output
 
       - name: Rename Installer
         run: |
@@ -979,8 +1095,8 @@ jobs:
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/windows_x64
-          Compress-Archive -Path bundle/* -DestinationPath ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
+          cd build/package
+          Compress-Archive -Path windows-x64/* -DestinationPath ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
         shell: pwsh
 
       - name: Release CLI
@@ -988,7 +1104,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: |
-            packages/mangabackupconverter_cli/build/cli/windows_x64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
+            build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
             installer-output/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows-setup.exe
           allowUpdates: true
           omitBodyDuringUpdate: true
@@ -1090,6 +1206,48 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
           path: packages/mangabackupconverter_cli/build/cli/linux_x64/bundle/
+
+      # Packaged build with the bundled runtime (U8). Non-gating: the WebView
+      # helper has not yet been built or run on Linux (docs/source-runners.md).
+      - name: Install WebKitGTK and Xvfb (WebView helper)
+        continue-on-error: true
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev xvfb
+
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        continue-on-error: true
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      - name: Package CLI with bundled runtime (non-gating)
+        id: package_runtime
+        continue-on-error: true
+        run: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Smoke test packaged CLI (non-gating)
+        if: steps.package_runtime.outcome == 'success'
+        continue-on-error: true
+        run: xvfb-run -a dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-linux-x64.json
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-smoke-linux-x64
+          path: build/package-smoke-linux-x64.json
+          if-no-files-found: ignore
 
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
@@ -1193,6 +1351,44 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
           path: packages/mangabackupconverter_cli/build/cli/macos_arm64/bundle/
+
+      # Packaged build with the bundled runtime (U8). Non-gating: the WebView
+      # helper has not yet been built or run on macOS (docs/source-runners.md).
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        continue-on-error: true
+        uses: actions/setup-java@v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      - name: Package CLI with bundled runtime (non-gating)
+        id: package_runtime
+        continue-on-error: true
+        run: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Smoke test packaged CLI (non-gating)
+        if: steps.package_runtime.outcome == 'success'
+        continue-on-error: true
+        run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-macos-arm64.json
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-smoke-macos-arm64
+          path: build/package-smoke-macos-arm64.json
+          if-no-files-found: ignore
 
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')

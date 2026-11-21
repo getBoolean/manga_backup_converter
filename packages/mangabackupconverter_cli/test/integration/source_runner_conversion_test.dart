@@ -7,6 +7,7 @@
 @Timeout(Duration(minutes: 20))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -227,12 +228,17 @@ void main() {
         acceptPartial: true,
       );
       final output = _MemoryOutput();
+      WorkerSupervisor? workerSeen;
       final ConversionResult result =
           await ConversionJob(
             formats: cliFormatRegistry(),
             runtimes: registry(tachi),
             selection: selection,
-            onOwnerOpened: tachi.attach,
+            onOwnerOpened: (ConversionOwner owner) async {
+              await tachi.attach(owner);
+              // Read the handshake for the receipt before the owner closes the scope.
+              await owner.adopt(() => workerSeen = tachi.scope?.supervisors[WorkerKind.jvm]);
+            },
           ).run(
             ConversionRequest(
               input: await _paperbackInput(),
@@ -254,6 +260,31 @@ void main() {
       check(m.source.toString()).equals(_weebCentralId);
       check(m.chapters.length).isGreaterThan(100);
       check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
+      _writeReceipt('windows-tachi-two-repositories-one-worker', <String, Object?>{
+        ..._workerIdentity(workerSeen),
+        'java': _worker.location?.java == null ? null : p.basename(p.dirname(p.dirname(_worker.location!.java))),
+        'artifacts': <Object?>[
+          for (final TachiCapture c in tachiCaptures())
+            if (c.source != 'all.mangafire')
+              <String, Object?>{
+                'kind': 'jar',
+                'url': c.urlOf(TachiArtifactKind.jar).toString(),
+                'sha256': c.sha256Of(TachiArtifactKind.jar),
+              },
+        ],
+        'apiFamily': 'tachi-1.6',
+        'repositories': 2,
+        'jvmWorkerLaunches': launcher.launched.length,
+        'operation': 'convert paperback -> mihon',
+        'query': 'Onimai',
+        'outcome': 'completed',
+        'destination': <String, Object?>{'format': 'mihon', 'chapters': m.chapters.length},
+        'report': <String, Object?>{
+          'mangaTransferred': result.report.count(RecordKind.manga, RecordDisposition.transferred),
+          'chapterStateTransferred': result.report.count(RecordKind.chapterState, RecordDisposition.transferred),
+          'chapterStateRecords': result.report.count(RecordKind.chapterState),
+        },
+      });
       // The conversion owner closed the scope: the worker exited.
       for (final WorkerProcess w in launcher.launched) {
         check(await w.exitCode.timeout(const Duration(seconds: 30))).isA<int>();
@@ -285,6 +316,9 @@ void main() {
       await tachi.attach(owner);
       SourceFailure? searchFailure;
       int? helperPid;
+      String? engine;
+      String? engineVersion;
+      ArtifactBinding? mangaFireBinding;
       try {
         final PluginLoader loader = runtimes
             .runtimeFor(const Paperback())!
@@ -299,6 +333,12 @@ void main() {
         check(plugins).length.equals(1);
         searchFailure = (await plugins.single.search('Onimai', 1)).failureOrNull;
         helperPid = browser.helperInfo?.pid;
+        engine = browser.helperInfo?.engine;
+        engineVersion = browser.helperInfo?.engineVersion;
+        mangaFireBinding = browser.debugOpenedSources
+            .where((SourceIdentity s) => s.sourceId == 'MangaFire')
+            .firstOrNull
+            ?.artifact;
       } finally {
         await owner.close();
       }
@@ -313,13 +353,60 @@ void main() {
           .isA<SourceErrorFailure>()
           .has((SourceErrorFailure f) => f.message, 'message')
           .contains('VRF capture timed out');
+      _writeReceipt('windows-paperback-executeinwebview-helper', <String, Object?>{
+        'webview': <String, Object?>{'engine': engine, 'engineVersion': engineVersion},
+        'artifact': <String, Object?>{
+          'kind': 'paperback-bundle-0.9',
+          'url': '${_inkdex}MangaFire/index.js',
+          'sha256': mangaFireBinding?.sha256,
+        },
+        'apiFamily': 'paperback-0.9',
+        'operation': 'search (executeInWebView through the desktop helper, offline replay)',
+        'query': 'Onimai',
+        'outcome': 'failed: VRF capture timed out (the page site scripts are not captured)',
+        'browserSessionsOpened': browser.debugOpenedSources.length,
+        'helperExitedAfterOwnerClose': !_processAlive(helperPid!),
+      });
       // Owner closed: no session left, helper exited.
       check(browser.debugOpenSessions).equals(0);
       check(browser.helperInfo).isNull();
-      check(_processAlive(helperPid!)).isFalse();
+      check(_processAlive(helperPid)).isFalse();
     });
   });
 }
+
+/// Writes [receipt] as `<SRT_RECEIPT_DIR>/<name>.json` when that variable
+/// is set (qualification runs); otherwise does nothing. Receipts carry only
+/// identity, public artifact URLs and digests, the public query, outcomes and
+/// counts (plan, *Evidence Identity*); `tool/check_evidence_receipts.dart`
+/// checks them before they are committed.
+void _writeReceipt(String name, Map<String, Object?> receipt) {
+  final String? dir = Platform.environment['SRT_RECEIPT_DIR'];
+  if (dir == null || dir.isEmpty) return;
+  final ProcessResult commit = Process.runSync('git', <String>['rev-parse', 'HEAD']);
+  final ProcessResult dirty = Process.runSync('git', <String>['status', '--porcelain', '--untracked-files=no']);
+  final file = File(p.join(dir, '$name.json'))..parent.createSync(recursive: true);
+  file.writeAsStringSync(
+    '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+      'kind': 'source-runner-conversion',
+      'evidence': 'replayed-capture',
+      'recordedAt': DateTime.now().toUtc().toIso8601String(),
+      'hostCommit': (commit.stdout as String).trim(),
+      'hostDirty': (dirty.stdout as String).trim().isNotEmpty,
+      'os': Platform.operatingSystem,
+      'osVersion': Platform.operatingSystemVersion,
+      'dart': Platform.version.split(' ').first,
+      ...receipt,
+    })}\n',
+  );
+}
+
+/// The receipt fields of a started worker supervisor.
+Map<String, Object?> _workerIdentity(WorkerSupervisor? s) => <String, Object?>{
+  'protocol': '${s?.handshake?.protocolVersion}.${s?.handshake?.protocolMinor}',
+  'workerVersion': s?.handshake?.workerVersion,
+  'sizing': <String, Object?>{'rule': s?.handshake?.sizing?.rule, 'derived': s?.handshake?.sizing?.derived?.toJson()},
+};
 
 /// Whether a process with [pid] is still running.
 bool _processAlive(int pid) {

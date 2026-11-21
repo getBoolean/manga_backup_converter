@@ -1,5 +1,9 @@
+; BundleDir is the package written by scripts/package_cli.dart (bin, lib,
+; runtime, licenses). The layout is kept: the executable finds its native code
+; assets in ..\lib and its bundled runtime (JRE, Tachi worker, WebView helper)
+; in ..\runtime.
 #ifndef BundleDir
-  #define BundleDir "..\..\build\cli\_\bundle"
+  #define BundleDir "..\..\..\build\package\windows-x64"
 #endif
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -16,11 +20,17 @@ Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
 ChangesEnvironment=yes
-UninstallDisplayIcon={app}\mangabackupconverter_cli.exe
+UninstallDisplayIcon={app}\bin\mangabackupconverter_cli.exe
+
+[InstallDelete]
+; A previous version's runtime (an older JRE) must not survive an upgrade.
+Type: filesandordirs; Name: "{app}\runtime"
 
 [Files]
-Source: "{#BundleDir}\bin\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "{#BundleDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
 Source: "{#BundleDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs
+Source: "{#BundleDir}\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs
+Source: "{#BundleDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs
 
 [Icons]
 Name: "{group}\Uninstall MangaBackupConverter CLI"; Filename: "{uninstallexe}"
@@ -66,11 +76,11 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
-    AddToPath(ExpandConstant('{app}'));
+    AddToPath(ExpandConstant('{app}\bin'));
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
-    RemoveFromPath(ExpandConstant('{app}'));
+    RemoveFromPath(ExpandConstant('{app}\bin'));
 end;

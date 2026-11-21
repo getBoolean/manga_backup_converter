@@ -124,7 +124,7 @@ Future<void> runRuntimeCheck(List<String> args) async {
         'pid': port.helperInfo?.pid,
         'engine': port.helperInfo?.engine,
         'engineVersion': port.helperInfo?.engineVersion,
-        'title': title,
+        'evaluated': title,
       };
       ok = ok && title == '"ok"';
     }
