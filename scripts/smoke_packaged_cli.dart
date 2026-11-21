@@ -254,8 +254,19 @@ Map<String, String> _scrubbedEnvironment() {
   if (Platform.isWindows) {
     final String sysRoot = get('SystemRoot') ?? r'C:\Windows';
     return <String, String>{
+      // OS variables every Windows session has (without them some system
+      // components write to a literal "%SystemDrive%" directory); no
+      // toolchain variable is kept.
       'SystemRoot': sysRoot,
       'windir': sysRoot,
+      'SystemDrive': ?get('SystemDrive'),
+      'ProgramData': ?get('ProgramData'),
+      'ProgramFiles': ?get('ProgramFiles'),
+      'ProgramFiles(x86)': ?get('ProgramFiles(x86)'),
+      'PATHEXT': ?get('PATHEXT'),
+      'OS': ?get('OS'),
+      'PROCESSOR_ARCHITECTURE': ?get('PROCESSOR_ARCHITECTURE'),
+      'NUMBER_OF_PROCESSORS': ?get('NUMBER_OF_PROCESSORS'),
       'PATH':
           '$sysRoot\\System32;$sysRoot;$sysRoot\\System32\\Wbem;$sysRoot\\System32\\WindowsPowerShell\\v1.0',
       'TEMP': ?get('TEMP'),
