@@ -58,8 +58,8 @@ Future<void> main(List<String> args) async {
       File(p.join(pkg.path, 'runtime', 'runtime-manifest.json'))
           .readAsStringSync(),
     ) as Map<String, Object?>;
-    final Map<String, String> files = (manifest['files']! as Map<String, Object?>)
-        .cast<String, String>();
+    final Map<String, String> files =
+        (manifest['files']! as Map<String, Object?>).cast<String, String>();
     final mismatched = <String>[
       for (final MapEntry<String, String> f in files.entries)
         if (!File(p.join(pkg.path, f.key)).existsSync() ||

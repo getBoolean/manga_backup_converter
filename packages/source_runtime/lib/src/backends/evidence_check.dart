@@ -68,8 +68,8 @@ final class EvidenceCheck {
   final List<String> seededMarkers;
 
   static final RegExp _secretField = RegExp(
-    r'^(password|passwd|pass|pwd|secret|secrets|token|tokens|access_?token|refresh_?token|id_?token|auth|'
-    r'authorization|proxy-authorization|cookie|cookies|set-cookie|api_?key|apikey|client_?secret|session_?id|'
+    '^(password|passwd|pass|pwd|secret|secrets|token|tokens|access_?token|refresh_?token|id_?token|auth|'
+    'authorization|proxy-authorization|cookie|cookies|set-cookie|api_?key|apikey|client_?secret|session_?id|'
     r'sessionid|bearer|credential|credentials|private_?key)$',
     caseSensitive: false,
   );
@@ -100,7 +100,7 @@ final class EvidenceCheck {
 
   static final List<(RegExp, String)> _diagnosticValues = <(RegExp, String)>[
     (RegExp(r'\n\s+at [\w$.<>]+\('), 'JVM stack trace'),
-    (RegExp(r'Exception in thread '), 'JVM stack trace'),
+    (RegExp('Exception in thread '), 'JVM stack trace'),
     (RegExp(r'#\d+\s+\S+ \((package|file|dart):'), 'Dart stack trace'),
     (RegExp(r'^\[(jvm|paperback|desktop_webview|browser)\] ', multiLine: true), 'worker log line'),
   ];
@@ -108,7 +108,7 @@ final class EvidenceCheck {
   static final RegExp _url = RegExp(r'''[a-z][a-z0-9+.-]*://[^\s"'<>]+''', caseSensitive: false);
 
   static final RegExp _credentialParam = RegExp(
-    r'^(token|access_?token|refresh_?token|key|api_?key|apikey|password|passwd|pass|pwd|secret|sig|signature|'
+    '^(token|access_?token|refresh_?token|key|api_?key|apikey|password|passwd|pass|pwd|secret|sig|signature|'
     r'session|sessionid|sid|auth|code|jwt|x-amz-signature|x-amz-credential)$',
     caseSensitive: false,
   );
@@ -124,7 +124,7 @@ final class EvidenceCheck {
     switch (value) {
       case final Map<String, Object?> map:
         for (final MapEntry<String, Object?> e in map.entries) {
-          final String child = '$path.${e.key}';
+          final child = '$path.${e.key}';
           if (_secretField.hasMatch(e.key) && !_isEmpty(e.value)) {
             out.add(EvidenceViolation(child, 'secret-field', 'field "${e.key}" names a secret'));
             continue;
