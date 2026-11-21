@@ -20,7 +20,8 @@ const WorkerSpec inAppPaperbackSpec = WorkerSpec(label: 'paperback', executable:
 
 /// A test adapter whose `search` never yields to Dart on its own: `sync`
 /// spins in one JS call, `jobs` chains promise jobs forever, `host` awaits a
-/// host call that never completes. Built inside the worker isolate.
+/// host call that never completes, `memory` allocates in one JS call until
+/// the engine's memory limit stops it. Built inside the worker isolate.
 final class LoopingAdapter implements PaperbackPackageAdapter {
   const LoopingAdapter();
 
@@ -39,6 +40,7 @@ globalThis.spin = function (mode) {
   if (mode === 'sync') { for (;;) {} }
   if (mode === 'jobs') { return new Promise(function () { (function f() { Promise.resolve().then(f); })(); }); }
   if (mode === 'host') { return never(); }
+  if (mode === 'memory') { var a = []; for (;;) { a.push(new Array(4096).fill(a.length)); } }
   return 'ok:' + mode;
 };
 void 0;

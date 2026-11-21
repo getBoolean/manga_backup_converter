@@ -1,3 +1,5 @@
+import javax.inject.Inject
+
 // Android library for the `:source_runtime` service process and the Kotlin
 // facades that Dart drives through JNIgen bindings (KTD17, KTD18, KTD23).
 // Conventions follow the Flutter 3.50 Kotlin plugin template (AGP 9.3.1,
@@ -62,6 +64,41 @@ android {
     defaultConfig {
         minSdk = 28
         consumerProguardFiles("consumer-rules.pro")
+    }
+}
+
+// Debug-only Paperback fixtures (U12): the pinned bundles, catalogs and replay
+// captures under fixtures/source_captures/paperback/ reach the device as
+// assets at source_captures/paperback/ in debug builds only, for the
+// integration tests. Release variants never get this directory.
+abstract class PaperbackFixtureAssets : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val fixtures: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @get:Inject
+    abstract val fs: FileSystemOperations
+
+    @TaskAction
+    fun run() {
+        fs.sync {
+            from(fixtures)
+            into(outputDir.dir("source_captures/paperback"))
+        }
+    }
+}
+
+val paperbackFixtureAssets = tasks.register<PaperbackFixtureAssets>("paperbackFixtureAssets") {
+    fixtures.set(layout.projectDirectory.dir("../../../fixtures/source_captures/paperback"))
+    outputDir.set(layout.buildDirectory.dir("generated/srtPaperbackFixtures"))
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(paperbackFixtureAssets, PaperbackFixtureAssets::outputDir)
     }
 }
 

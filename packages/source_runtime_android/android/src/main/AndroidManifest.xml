@@ -17,5 +17,13 @@
             android:process=":source_runtime"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+        <!-- Visible browser interactions of the app-process BrowserPort
+             (U12, KTD20): in the app process, beside the WebViews it shows.
+             Not exported. No configChanges, so a rotation recreates it and
+             it re-attaches the session's WebView. -->
+        <activity
+            android:name="dev.getboolean.sourceruntime.browser.BrowserInteractionActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
     </application>
 </manifest>

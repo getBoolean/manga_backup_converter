@@ -1888,3 +1888,653 @@ final class $FixtureAssets$Type$ extends jni$_.JType<FixtureAssets> {
   @core$_.override
   String get className => r'dev/getboolean/sourceruntime/tachi/FixtureAssets';
 }
+
+/// from: `dev.getboolean.sourceruntime.browser.AppBrowserHost$Companion`
+extension type AppBrowserHost$Companion._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/browser/AppBrowserHost$Companion');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<AppBrowserHost$Companion> type = $AppBrowserHost$Companion$Type$();
+  static final _id_new$ = _class.constructorId(
+    r'(Lkotlin/jvm/internal/DefaultConstructorMarker;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `synthetic public void <init>(kotlin.jvm.internal.DefaultConstructorMarker defaultConstructorMarker)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory AppBrowserHost$Companion(
+    jni$_.JObject? defaultConstructorMarker,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$defaultConstructorMarker = defaultConstructorMarker?.reference ?? jni$_.jNullReference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$defaultConstructorMarker.pointer,
+    ).object<AppBrowserHost$Companion>();
+  }
+}
+
+extension AppBrowserHost$Companion$$Methods on AppBrowserHost$Companion {
+  static final _id_get$fEATURES = AppBrowserHost$Companion._class.instanceMethodId(
+    r'getFEATURES',
+    r'()Ljava/util/List;',
+  );
+
+  static final _get$fEATURES =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final java.util.List<java.lang.String> getFEATURES()`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JList<jni$_.JString> get fEATURES {
+    final _$$selfRef = reference;
+    return _get$fEATURES(_$$selfRef.nonNullPointer, _id_get$fEATURES.pointer).object<jni$_.JList<jni$_.JString>>();
+  }
+
+  static final _id_failure = AppBrowserHost$Companion._class.instanceMethodId(
+    r'failure',
+    r'(Ljava/lang/String;Ljava/lang/String;)Lorg/json/JSONObject;',
+  );
+
+  static final _failure =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun failure(code: kotlin.String, message: kotlin.String): org.json.JSONObject`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JObject failure(
+    jni$_.JString string,
+    jni$_.JString string1,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    final _$string1 = string1.reference;
+    return _failure(
+      _$$selfRef.nonNullPointer,
+      _id_failure.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+    ).object<jni$_.JObject>();
+  }
+
+  static final _id_isWebUrl = AppBrowserHost$Companion._class.instanceMethodId(
+    r'isWebUrl',
+    r'(Ljava/lang/String;)Z',
+  );
+
+  static final _isWebUrl =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun isWebUrl(url: kotlin.String?): kotlin.Boolean`
+  core$_.bool isWebUrl(
+    jni$_.JString? string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _isWebUrl(_$$selfRef.nonNullPointer, _id_isWebUrl.pointer, _$string.pointer).boolean;
+  }
+
+  static final _id_isNavigable = AppBrowserHost$Companion._class.instanceMethodId(
+    r'isNavigable',
+    r'(Ljava/lang/String;)Z',
+  );
+
+  static final _isNavigable =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun isNavigable(url: kotlin.String?): kotlin.Boolean`
+  core$_.bool isNavigable(
+    jni$_.JString? string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string?.reference ?? jni$_.jNullReference;
+    return _isNavigable(_$$selfRef.nonNullPointer, _id_isNavigable.pointer, _$string.pointer).boolean;
+  }
+
+  static final _id_wipeStore = AppBrowserHost$Companion._class.instanceMethodId(
+    r'wipeStore',
+    r'(Landroid/webkit/CookieManager;Landroid/webkit/WebStorage;Lkotlin/jvm/functions/Function2;)V',
+  );
+
+  static final _wipeStore =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun wipeStore(cookies: android.webkit.CookieManager, storage: android.webkit.WebStorage, done: kotlin.Function2<kotlin.Boolean, org.json.JSONObject, kotlin.Unit>): kotlin.Unit`
+  void wipeStore(
+    jni$_.JObject cookieManager,
+    jni$_.JObject webStorage,
+    jni$_.JObject function2,
+  ) {
+    final _$$selfRef = reference;
+    final _$cookieManager = cookieManager.reference;
+    final _$webStorage = webStorage.reference;
+    final _$function2 = function2.reference;
+    _wipeStore(
+      _$$selfRef.nonNullPointer,
+      _id_wipeStore.pointer,
+      _$cookieManager.pointer,
+      _$webStorage.pointer,
+      _$function2.pointer,
+    ).check();
+  }
+}
+
+final class $AppBrowserHost$Companion$Type$ extends jni$_.JType<AppBrowserHost$Companion> {
+  @jni$_.internal
+  const $AppBrowserHost$Companion$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/browser/AppBrowserHost$Companion;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/browser/AppBrowserHost$Companion';
+}
+
+/// from: `dev.getboolean.sourceruntime.browser.AppBrowserHost`
+extension type AppBrowserHost._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/browser/AppBrowserHost');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<AppBrowserHost> type = $AppBrowserHost$Type$();
+  static final _id_Companion = _class.staticFieldId(
+    r'Companion',
+    r'Ldev/getboolean/sourceruntime/browser/AppBrowserHost$Companion;',
+  );
+
+  /// from: `static public final dev.getboolean.sourceruntime.browser.AppBrowserHost$Companion Companion`
+  /// The returned object must be released after use, by calling the [release] method.
+  static AppBrowserHost$Companion get Companion =>
+      _id_Companion.get(_class, AppBrowserHost$Companion.type) as AppBrowserHost$Companion;
+
+  static final _id_OP_INIT = _class.staticFieldId(
+    r'OP_INIT',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_INIT`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_INIT => _id_OP_INIT.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_OP_WIPE_ALL = _class.staticFieldId(
+    r'OP_WIPE_ALL',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_WIPE_ALL`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_WIPE_ALL => _id_OP_WIPE_ALL.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_OP_OPEN = _class.staticFieldId(
+    r'OP_OPEN',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_OPEN`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_OPEN => _id_OP_OPEN.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_OP_STATE = _class.staticFieldId(
+    r'OP_STATE',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_STATE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_STATE => _id_OP_STATE.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_OP_ABANDON = _class.staticFieldId(
+    r'OP_ABANDON',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_ABANDON`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_ABANDON => _id_OP_ABANDON.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_OP_PROBE_PROFILE = _class.staticFieldId(
+    r'OP_PROBE_PROFILE',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String OP_PROBE_PROFILE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get OP_PROBE_PROFILE => _id_OP_PROBE_PROFILE.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_PROFILE_PREFIX = _class.staticFieldId(
+    r'PROFILE_PREFIX',
+    r'Ljava/lang/String;',
+  );
+
+  /// from: `static public final java.lang.String PROFILE_PREFIX`
+  /// The returned object must be released after use, by calling the [release] method.
+  static jni$_.JString get PROFILE_PREFIX => _id_PROFILE_PREFIX.get(_class, jni$_.JString.type) as jni$_.JString;
+
+  static final _id_new$ = _class.constructorId(
+    r'(Landroid/content/Context;Ldev/getboolean/sourceruntime/browser/AppBrowserListener;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.Context context, dev.getboolean.sourceruntime.browser.AppBrowserListener appBrowserListener)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory AppBrowserHost(
+    jni$_.JObject context,
+    AppBrowserListener appBrowserListener,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context.reference;
+    final _$appBrowserListener = appBrowserListener.reference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$context.pointer,
+      _$appBrowserListener.pointer,
+    ).object<AppBrowserHost>();
+  }
+}
+
+extension AppBrowserHost$$Methods on AppBrowserHost {
+  static final _id_call = AppBrowserHost._class.instanceMethodId(
+    r'call',
+    r'(JLjava/lang/String;Ljava/lang/String;)V',
+  );
+
+  static final _call =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int64, jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun call(callId: kotlin.Long, op: kotlin.String, args: kotlin.String): kotlin.Unit`
+  void call(
+    core$_.int j,
+    jni$_.JString string,
+    jni$_.JString string1,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    final _$string1 = string1.reference;
+    _call(_$$selfRef.nonNullPointer, _id_call.pointer, j, _$string.pointer, _$string1.pointer).check();
+  }
+
+  static final _id_dispose = AppBrowserHost._class.instanceMethodId(
+    r'dispose',
+    r'()V',
+  );
+
+  static final _dispose =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public fun dispose(): kotlin.Unit`
+  void dispose() {
+    final _$$selfRef = reference;
+    _dispose(_$$selfRef.nonNullPointer, _id_dispose.pointer).check();
+  }
+}
+
+final class $AppBrowserHost$Type$ extends jni$_.JType<AppBrowserHost> {
+  @jni$_.internal
+  const $AppBrowserHost$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/browser/AppBrowserHost;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/browser/AppBrowserHost';
+}
+
+/// from: `dev.getboolean.sourceruntime.browser.AppBrowserListener`
+extension type AppBrowserListener._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/browser/AppBrowserListener');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<AppBrowserListener> type = $AppBrowserListener$Type$();
+
+  /// Maps a specific port to the implemented interface.
+  static final core$_.Map<core$_.int, $AppBrowserListener> _$impls = {};
+  static jni$_.JObjectPtr _$invoke(
+    core$_.int port,
+    jni$_.JObjectPtr descriptor,
+    jni$_.JObjectPtr args,
+  ) {
+    return _$invokeMethod(
+      port,
+      jni$_.MethodInvocation.fromAddresses(
+        0,
+        descriptor.address,
+        args.address,
+      ),
+    );
+  }
+
+  static final jni$_.Pointer<
+    jni$_.NativeFunction<jni$_.JObjectPtr Function(jni$_.Int64, jni$_.JObjectPtr, jni$_.JObjectPtr)>
+  >
+  _$invokePointer = jni$_.Pointer.fromFunction(_$invoke);
+
+  static jni$_.Pointer<jni$_.Void> _$invokeMethod(
+    core$_.int $p,
+    jni$_.MethodInvocation $i,
+  ) {
+    try {
+      final $d = $i.methodDescriptor.toDartString(releaseOriginal: true);
+      final $a = $i.args;
+      if ($d == r'onReply(JZLjava/lang/String;)V') {
+        _$impls[$p]!.onReply(
+          ($a![0] as jni$_.JLong).toDartInt(releaseOriginal: true),
+          ($a![1] as jni$_.JBoolean).toDartBool(releaseOriginal: true),
+          ($a![2] as jni$_.JString),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d == r'onEvent(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V') {
+        _$impls[$p]!.onEvent(
+          ($a![0] as jni$_.JString),
+          ($a![1] as jni$_.JString),
+          ($a![2] as jni$_.JString),
+        );
+        return jni$_.nullptr;
+      }
+    } catch (e) {
+      return jni$_.ProtectedJniExtensions.newDartException(e);
+    }
+    return jni$_.nullptr;
+  }
+
+  static void implementIn(
+    jni$_.JImplementer implementer,
+    $AppBrowserListener $impl,
+  ) {
+    late final jni$_.RawReceivePort $p;
+    $p = jni$_.RawReceivePort(($m) {
+      if ($m == null) {
+        _$impls.remove($p.sendPort.nativePort);
+        $p.close();
+        return;
+      }
+      final $i = jni$_.MethodInvocation.fromMessage($m);
+      final $r = _$invokeMethod($p.sendPort.nativePort, $i);
+      $i.args?.release();
+      jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
+    });
+    implementer.add(
+      r'dev.getboolean.sourceruntime.browser.AppBrowserListener',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.onReply$async) r'onReply(JZLjava/lang/String;)V',
+        if ($impl.onEvent$async) r'onEvent(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V',
+      ],
+    );
+    final $a = $p.sendPort.nativePort;
+    _$impls[$a] = $impl;
+  }
+
+  factory AppBrowserListener.implement(
+    $AppBrowserListener $impl,
+  ) {
+    final $i = jni$_.JImplementer();
+    implementIn($i, $impl);
+    return $i.implement<AppBrowserListener>();
+  }
+}
+
+extension AppBrowserListener$$Methods on AppBrowserListener {
+  static final _id_onReply = AppBrowserListener._class.instanceMethodId(
+    r'onReply',
+    r'(JZLjava/lang/String;)V',
+  );
+
+  static final _onReply =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int64, jni$_.Int32, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              core$_.int,
+              core$_.int,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun onReply(callId: kotlin.Long, ok: kotlin.Boolean, payload: kotlin.String): kotlin.Unit`
+  void onReply(
+    core$_.int j,
+    core$_.bool z,
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    _onReply(_$$selfRef.nonNullPointer, _id_onReply.pointer, j, z ? 1 : 0, _$string.pointer).check();
+  }
+
+  static final _id_onEvent = AppBrowserListener._class.instanceMethodId(
+    r'onEvent',
+    r'(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V',
+  );
+
+  static final _onEvent =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun onEvent(sessionId: kotlin.String, kind: kotlin.String, payload: kotlin.String): kotlin.Unit`
+  void onEvent(
+    jni$_.JString string,
+    jni$_.JString string1,
+    jni$_.JString string2,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    final _$string1 = string1.reference;
+    final _$string2 = string2.reference;
+    _onEvent(
+      _$$selfRef.nonNullPointer,
+      _id_onEvent.pointer,
+      _$string.pointer,
+      _$string1.pointer,
+      _$string2.pointer,
+    ).check();
+  }
+}
+
+abstract base mixin class $AppBrowserListener {
+  factory $AppBrowserListener({
+    required void Function(core$_.int j, core$_.bool z, jni$_.JString string) onReply,
+    core$_.bool onReply$async,
+    required void Function(jni$_.JString string, jni$_.JString string1, jni$_.JString string2) onEvent,
+    core$_.bool onEvent$async,
+  }) = _$AppBrowserListener;
+
+  void onReply(core$_.int j, core$_.bool z, jni$_.JString string);
+  core$_.bool get onReply$async => false;
+  void onEvent(jni$_.JString string, jni$_.JString string1, jni$_.JString string2);
+  core$_.bool get onEvent$async => false;
+}
+
+final class _$AppBrowserListener with $AppBrowserListener {
+  _$AppBrowserListener({
+    required void Function(core$_.int j, core$_.bool z, jni$_.JString string) onReply,
+    this.onReply$async = false,
+    required void Function(jni$_.JString string, jni$_.JString string1, jni$_.JString string2) onEvent,
+    this.onEvent$async = false,
+  }) : _onReply = onReply,
+       _onEvent = onEvent;
+
+  final void Function(core$_.int j, core$_.bool z, jni$_.JString string) _onReply;
+  final core$_.bool onReply$async;
+  final void Function(jni$_.JString string, jni$_.JString string1, jni$_.JString string2) _onEvent;
+  final core$_.bool onEvent$async;
+
+  void onReply(core$_.int j, core$_.bool z, jni$_.JString string) {
+    return _onReply(j, z, string);
+  }
+
+  void onEvent(jni$_.JString string, jni$_.JString string1, jni$_.JString string2) {
+    return _onEvent(string, string1, string2);
+  }
+}
+
+final class $AppBrowserListener$Type$ extends jni$_.JType<AppBrowserListener> {
+  @jni$_.internal
+  const $AppBrowserListener$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/browser/AppBrowserListener;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/browser/AppBrowserListener';
+}

@@ -136,6 +136,22 @@ void main() {
     check(watch.elapsed).isLessThan(const Duration(seconds: 2));
   });
 
+  test('memory exhaustion in one JS call stops at the native memory limit while the isolate is blocked', () async {
+    final IsolateWorkerHarness h = await IsolateWorkerHarness.start(
+      PaperbackIsolateWorkerConfig(
+        limits: testLimits(operationDeadline: const Duration(minutes: 5)),
+        clientFactory: fakeHttp,
+        adapterFactory: (_, _, _) => const LoopingAdapter(),
+      ),
+    );
+    await h.handshake();
+    check((await h.loadLoopPackage()).error).isNull();
+    final ProtocolFrame reply = await h.reply(h.search('memory')).timeout(const Duration(seconds: 30));
+    check(reply.error!['code']).equals('source-error');
+    check(reply.error!['message']! as String).contains('memory limit');
+    check(await h.shutdown()).equals(0);
+  });
+
   test('a host call that never completes is bounded by the deadline', () async {
     final IsolateWorkerHarness h = await IsolateWorkerHarness.start(
       _loopConfig(deadline: const Duration(milliseconds: 300)),

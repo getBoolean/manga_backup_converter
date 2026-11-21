@@ -57,7 +57,51 @@ internal object ServiceDiagnostics {
             done.await(15, java.util.concurrent.TimeUnit.SECONDS)
             out.put("cookieNames", cookies)
         }
+        args.optJSONObject("webStorage")?.let { out.put("webStorage", webStorage(context, it)) }
         debugReport()?.let { out.put("debug", JSONObject(it)) }
+        return out
+    }
+
+    /**
+     * Web storage probe (U12, carried from U11): a WebView on the service's
+     * main looper loads a data document with the http(s) [origin] as base URL
+     * (no network), optionally stores `localStorage["srt-probe"]`, and reads
+     * it back with the origins `WebStorage` reports. Proves the session-close
+     * and start-up wipes remove web storage, not only cookies.
+     */
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
+    private fun webStorage(context: Context, args: JSONObject): JSONObject {
+        val origin = args.getString("origin")
+        val set = args.optString("set").takeIf { it.isNotEmpty() }
+        val out = JSONObject().put("origin", origin)
+        val done = java.util.concurrent.CountDownLatch(1)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        main.post {
+            try {
+                val view = android.webkit.WebView(context)
+                view.settings.javaScriptEnabled = true
+                view.settings.domStorageEnabled = true
+                view.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun onPageFinished(webView: android.webkit.WebView, url: String?) {
+                        val script = (if (set != null) "localStorage.setItem('srt-probe', ${JSONObject.quote(set)}); " else "") +
+                            "localStorage.getItem('srt-probe')"
+                        webView.evaluateJavascript(script) { value ->
+                            out.put("value", value)
+                            android.webkit.WebStorage.getInstance().getOrigins { origins ->
+                                out.put("storageOrigins", JSONArray((origins as? Map<*, *>)?.keys?.map { it.toString() }.orEmpty()))
+                                webView.destroy()
+                                done.countDown()
+                            }
+                        }
+                    }
+                }
+                view.loadDataWithBaseURL(origin, "<html><body>probe</body></html>", "text/html", "utf-8", null)
+            } catch (t: Throwable) {
+                out.put("error", t.toString())
+                done.countDown()
+            }
+        }
+        if (!done.await(15, java.util.concurrent.TimeUnit.SECONDS)) out.put("error", "timed out")
         return out
     }
 

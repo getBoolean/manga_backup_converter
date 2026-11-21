@@ -146,6 +146,8 @@ class SourceRuntimeService : Service() {
             expectedSha256 = args.getString("sha256"),
         )
         "webViewProbe" -> webViews.probe(dataDirectorySuffixApplied)
+        // U12: can a profile be assigned to a WebView after the steps an extension takes first?
+        "profileProbe" -> org.json.JSONObject(dev.getboolean.sourceruntime.browser.ProfileProbe.runBlocking(applicationContext))
         "webViewRelease" -> webViews.release()
         "gc" -> JSONObject().also { RuntimeDiagnostics.collectJavaGarbage() }
         "diagnostics" -> ServiceDiagnostics.collect(applicationContext, worker, startupWipe, args)

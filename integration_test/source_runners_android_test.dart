@@ -1,5 +1,6 @@
-// U13: the Aidoku runner on Android (KTD22). Runs on an Android device or
-// emulator:
+// U13: the Aidoku runner on Android (KTD22), U11's Tachi cases and U12's
+// Paperback and app-process BrowserPort cases (android_u12_cases.dart). Runs
+// on an Android device or emulator:
 //   flutter test integration_test/source_runners_android_test.dart -d <device>
 //
 // The existing Aidoku host runs unchanged in the app process (one WASM
@@ -33,6 +34,7 @@ import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';
 import 'package:tachi_plugin_loader/testing.dart';
 
 import 'aidoku_fixture_bundle.g.dart';
+import 'android_u12_cases.dart';
 
 const Duration _noHang = Duration(seconds: 60);
 const ArtifactProfile _profile = ArtifactProfile(
@@ -1101,7 +1103,7 @@ void _tachiCases() {
     }
   }, timeout: _tachiTimeout);
 
-  test('tachi: extension WebViews run in the service; cookies are wiped at session close and on service start', () async {
+  test('tachi: extension WebViews run in the service; cookies and web storage are wiped at session close and on service start', () async {
     final stack = _TachiStack(root, fixtures: true);
     try {
       final TachiSourcePackage cookies = await stack.openId(
@@ -1131,6 +1133,17 @@ void _tachiCases() {
         reason: 'a real WebView in :source_runtime',
       );
       expect(setTitle, endsWith('cookies=k'));
+      // Web storage (U12, carried from U11): stored in the same shared profile.
+      Future<Map<String, Object?>> storage([String? set]) async =>
+          (await _diagnostics(<String, Object?>{
+                'webStorage': <String, Object?>{
+                  'origin': 'https://cookies.test/',
+                  'set': ?set,
+                },
+              }))['webStorage']!
+              as Map<String, Object?>;
+      final Map<String, Object?> stored = await storage('kept');
+      expect(stored['value'], '"kept"');
       // One shared profile: until A's session closes, B sees A's cookie (isolation is reported unavailable).
       final String sharedTitle = _ok(
         await b.search(const SearchRequest(query: 'get')),
@@ -1151,6 +1164,12 @@ void _tachiCases() {
         endsWith('cookies='),
         reason: "A's session close wiped the shared WebView profile",
       );
+      final Map<String, Object?> storageAfterClose = await storage();
+      expect(
+        storageAfterClose['value'],
+        'null',
+        reason: "A's session close wiped web storage",
+      );
       final Map<String, Object?> d2 = await _diagnostics(<String, Object?>{
         'cookieUrls': <String>['https://cookies.test/'],
       });
@@ -1161,6 +1180,7 @@ void _tachiCases() {
 
       // Service start wipe: leave a cookie behind, kill the process, and check the next start removed the data.
       _ok(await b.search(const SearchRequest(query: 'set:beta')), 'B set');
+      expect((await storage('left-behind'))['value'], '"left-behind"');
       expect(supervisor.events.whereType<WorkerRestartedEvent>(), isEmpty);
       final gate = AndroidSourceRuntime();
       await gate.bind().timeout(_noHang);
@@ -1178,6 +1198,12 @@ void _tachiCases() {
       );
       final Map<String, Object?> d3 = await _diagnostics();
       expect(d3['startupWipe'], contains('app_webview_source_runtime'));
+      final Map<String, Object?> storageAfterRestart = await storage();
+      expect(
+        storageAfterRestart['value'],
+        'null',
+        reason: 'the restarted service wiped web storage first',
+      );
       // Offline proof: a WebView page load in the service process reaches only the refusing loopback proxy.
       final String net = _ok(
         await b.search(const SearchRequest(query: 'net')),
@@ -1203,6 +1229,11 @@ void _tachiCases() {
         'sharedBeforeClose': sharedTitle,
         'afterSessionClose': afterClose,
         'afterRestart': afterRestart,
+        'webStorage': <String, Object?>{
+          'stored': stored,
+          'afterSessionClose': storageAfterClose,
+          'afterRestart': storageAfterRestart,
+        },
         'browserIsolation': isolation,
         'cookieNamesBeforeClose': d1['cookieNames'],
         'startupWipe': d3['startupWipe'],
@@ -1558,4 +1589,6 @@ void _tachiCases() {
       await scope.close();
     }
   }, timeout: _tachiTimeout);
+
+  registerU12Cases();
 }
