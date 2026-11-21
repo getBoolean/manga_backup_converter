@@ -109,6 +109,18 @@ void main() {
       check(runtime.prepareCount).equals(1);
     });
 
+    test('a package may open browser sessions only for its own sources', () async {
+      final TachiSourcePackage package = await open(await prepared(await listing(weebCentral)));
+      final SourceIdentity own = package.sessions.single.identity;
+      check(runtime.browserIdentity(weebCentral, own.sourceId)).isNotNull()
+        ..has((SourceIdentity i) => i.packageId, 'packageId').equals(weebCentral)
+        ..has((SourceIdentity i) => i.artifact.sha256, 'artifact').equals(own.artifact.sha256);
+      // Another package's or an unknown source, a missing package, or no package: refused.
+      check(runtime.browserIdentity(weebCentral, '6084907896154116083')).isNull();
+      check(runtime.browserIdentity(mangaFireId, own.sourceId)).isNull();
+      check(runtime.browserIdentity(null, own.sourceId)).isNull();
+    });
+
     test('three packages across two repositories share one worker, with one download and one prepare each', () async {
       final mirror = FixtureRepository(
         baseUrl: Uri.parse('https://mirror.example/tachi/repo'),

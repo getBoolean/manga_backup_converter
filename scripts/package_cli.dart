@@ -380,6 +380,8 @@ String _notice(String javaVersion, Map<String, Object?> pins) =>
 | desktop_webview_helper (wry, tao and their crates) | `runtime/desktop_webview/` | MIT (helper); crates in `desktop_webview_helper-crates.txt` |
 | QuickJS-ng | `lib/` (native asset) | MIT, `quickjs-ng-LICENSE` |
 | wasm3 | `lib/` (native asset) | MIT, `wasm3-LICENSE` |
+| Rust scraper bridge (scraper 0.25, html5ever) | `lib/scraper_bridge` (native asset) | MIT/Apache-2.0 crates; texts not bundled (gap) |
+| SQLite | `lib/sqlite3` (native asset, `sqlite3` package) | public domain |
 | Paperback host library (Cheerio and its dependencies) | inside the CLI executable | `paperback-host-lib-LICENSES.txt` |
 
 No extension, repository or source artifact is bundled: repositories, extensions and

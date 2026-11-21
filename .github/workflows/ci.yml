@@ -1059,7 +1059,9 @@ jobs:
         run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-windows.json
 
       - name: Check evidence receipts
-        run: dart run tool/check_evidence_receipts.dart build/package-smoke-windows.json
+        run: |
+          dart run tool/check_evidence_receipts.dart build/package-smoke-windows.json
+          dart run tool/check_evidence_receipts.dart
 
       - name: Upload smoke receipt
         if: always()

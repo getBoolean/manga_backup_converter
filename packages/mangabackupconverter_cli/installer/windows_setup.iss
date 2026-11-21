@@ -25,6 +25,11 @@ UninstallDisplayIcon={app}\bin\mangabackupconverter_cli.exe
 [InstallDelete]
 ; A previous version's runtime (an older JRE) must not survive an upgrade.
 Type: filesandordirs; Name: "{app}\runtime"
+; Earlier versions installed the executable in {app} itself; remove it so an
+; upgraded machine cannot keep running the old CLI. (The old {app} PATH entry
+; is left: it no longer holds an executable, and removing it by substring would
+; also cut the new {app}\bin entry.)
+Type: files; Name: "{app}\mangabackupconverter_cli.exe"
 
 [Files]
 Source: "{#BundleDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
