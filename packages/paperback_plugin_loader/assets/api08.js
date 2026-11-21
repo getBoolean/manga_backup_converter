@@ -8,7 +8,8 @@
 // - `schedule` runs `interceptor.interceptRequest`, sends `url + param`,
 //   then runs `interceptor.interceptResponse` on the packed response;
 // - cookies become one `cookie` header (`a=1;b=2;`), a missing user agent
-//   becomes `Paperback-iOS`;
+//   becomes `Paperback-iOS` (an echoed `getDefaultUserAgent()` is not sent;
+//   see `schedule`);
 // - an object body is form-encoded when the content type says so, otherwise
 //   JSON (axios' default);
 // - `rawData` is the body bytes with a UTF-8 `toString`.
@@ -100,7 +101,14 @@
       for (const c of this._jar) if (domainMatches(host, c.domain)) cookieData += c.name + '=' + c.value + ';';
       for (const c of request.cookies || []) cookieData += c.name + '=' + c.value + ';';
       if (cookieData) headers['cookie'] = cookieData;
-      if (!Object.keys(headers).some((k) => k.toLowerCase() === 'user-agent')) headers['user-agent'] = 'Paperback-iOS';
+      // A missing user agent becomes `Paperback-iOS` (reference host). A source
+      // that echoes `getDefaultUserAgent()` sends none, so the HTTP client's
+      // own applies, as for 0.9 sources that set none: the host is not a
+      // browser, and MangaDex's edge challenges a browser user agent on a
+      // client that runs no JavaScript. A source-chosen value is sent as is.
+      const uaKey = Object.keys(headers).find((k) => k.toLowerCase() === 'user-agent');
+      if (uaKey === undefined) headers['user-agent'] = 'Paperback-iOS';
+      else if (headers[uaKey] === H.defaultUserAgent) delete headers[uaKey];
       const body = encodeBody(request.data, headers);
       const wire = { url, method: String(request.method || 'GET').toUpperCase(), headers, body, timeoutMs: this.requestTimeout };
       let attempts = Math.max(0, Number(retry) || 0);

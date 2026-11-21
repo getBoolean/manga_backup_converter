@@ -49,17 +49,35 @@
       "apiFamily": "paperback-0.8",
       "sha256": "20a21b1400675cbd830cff42357dd81f2b751f90da5f1599d2e4a5de0d08f8db",
       "search": {
-        "failure": {
-          "code": "source-error",
-          "message": "SyntaxError: unexpected token: '<'"
-        }
+        "hits": 0,
+        "first": null,
+        "nextCursor": null
       },
       "details": {
-        "failure": {
-          "code": "source-error",
-          "message": "SyntaxError: unexpected token: '<'"
+        "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+        "title": "ONIMAI: Giờ tao là chị mày!",
+        "authors": [],
+        "status": "unknown",
+        "chapters": 174,
+        "firstChapter": {
+          "chapterId": "106147e6-0551-4a7c-9b01-2c6206c7a2d2",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "langCode": "🇻🇳"
+          },
+          "title": null,
+          "chapterNumber": 1.0,
+          "volumeNumber": 1.0,
+          "scanlators": [],
+          "language": "🇻🇳",
+          "dateUploaded": "2025-04-20T02:36:41.000Z",
+          "url": null
         }
       }
     }
-  ]
+  ],
+  "rerecorded": {
+    "neihc1002-0.8/Mangadex": "2026-11-21T06:06:12.149399Z"
+  }
 }

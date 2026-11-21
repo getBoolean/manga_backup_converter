@@ -82,6 +82,25 @@ void main() {
     }
   });
 
+  test('user agent: the host sends what the source sets, and adds none of its own', () async {
+    final HostUnderTest h = await _load09(
+      _searchSource('''
+        const ua = await Application.getDefaultUserAgent();
+        await Application.scheduleRequest({ url: 'https://example.test/echo', method: 'GET', headers: { 'user-agent': ua } });
+        await Application.scheduleRequest({ url: 'https://example.test/missing', method: 'GET' });
+        return { items: [] };'''),
+      handler: (http.Request r) async => http.Response('', 200),
+    );
+    try {
+      await h.search('q');
+      check(<String, String?>{
+        for (final http.Request r in h.requests) r.url.path: r.headers['user-agent'],
+      }).deepEquals(<String, String?>{'/echo': paperbackDefaultUserAgent, '/missing': null});
+    } finally {
+      h.dispose();
+    }
+  });
+
   test('redirects run through the redirect handler and carry cookies set by each hop', () async {
     final HostUnderTest h = await _load09(
       _searchSource(

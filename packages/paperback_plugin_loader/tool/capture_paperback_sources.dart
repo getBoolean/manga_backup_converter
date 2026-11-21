@@ -7,6 +7,16 @@
 // Usage (from packages/paperback_plugin_loader):
 //   dart run tool/capture_paperback_sources.dart <site>...      (mangadex, weebcentral, mangafire)
 //
+// Re-recording one bundle without touching the other bundles' exchanges:
+//   dart run tool/capture_paperback_sources.dart <site> --only=<repo>/<id> --out=<empty dir>
+//   (inspect <empty dir>, then)
+//   dart run tool/capture_paperback_sources.dart <site> --only=<repo>/<id> --merge=<that dir>
+// `--out` records and sanitises into a directory outside the fixtures.
+// `--merge` replaces the committed exchanges the new recording also holds,
+// and the redirect chains they started, with the new ones; drops orphaned
+// bodies; replaces that bundle's entry in `scenario.json`; and notes the
+// second session in `capture.json`.
+//
 // For each site it builds the worker executable once (`dart build cli`),
 // starts it with `--record=fixtures/source_captures/paperback/<site>`, and
 // runs `runSiteScenario` for every pinned bundle of that site, from both API
@@ -32,16 +42,35 @@ import '../test/support/paperback_scenarios.dart';
 import 'sanitize_captures.dart';
 
 Future<void> main(List<String> args) async {
-  if (args.isEmpty || args.any((String s) => !captureSites.containsKey(s))) {
-    stderr.writeln('usage: capture_paperback_sources.dart <${captureSites.keys.join('|')}>...');
+  String? flag(String name) =>
+      args.where((String a) => a.startsWith('--$name=')).map((String a) => a.substring(name.length + 3)).firstOrNull;
+  final List<String> sites = args.where((String a) => !a.startsWith('--')).toList();
+  final String? only = flag('only');
+  final String? out = flag('out');
+  final String? merge = flag('merge');
+  final bool usage =
+      sites.isEmpty ||
+      sites.any((String s) => !captureSites.containsKey(s)) ||
+      (only != null && (sites.length != 1 || !captureSites[sites.single]!.any((PinnedBundle b) => b.label == only))) ||
+      ((out != null || merge != null) && only == null) ||
+      (out != null && merge != null);
+  if (usage) {
+    stderr.writeln(
+      'usage: capture_paperback_sources.dart <${captureSites.keys.join('|')}>... '
+      '[--only=<repo>/<id> (--out=<dir> | --merge=<dir>)]',
+    );
     exitCode = 64;
+    return;
+  }
+  if (merge != null) {
+    _merge(Directory('${paperbackFixtures().path}/${sites.single}'), Directory(merge), only!);
     return;
   }
   final Directory build = Directory.systemTemp.createTempSync('paperback_worker_build');
   final String exe = await _buildWorker(build);
   try {
-    for (final site in args) {
-      await _capture(site, exe);
+    for (final site in sites) {
+      await _capture(site, exe, only: only, out: out == null ? null : Directory(out));
     }
   } finally {
     build.deleteSync(recursive: true);
@@ -62,8 +91,9 @@ Future<String> _buildWorker(Directory out) async {
   return Directory('${out.path}/bundle/bin').listSync().whereType<File>().single.path;
 }
 
-Future<void> _capture(String site, String exe) async {
-  final dir = Directory('${paperbackFixtures().path}/$site');
+Future<void> _capture(String site, String exe, {String? only, Directory? out}) async {
+  final Directory dir = out ?? Directory('${paperbackFixtures().path}/$site');
+  if (out != null && out.existsSync() && out.listSync().isNotEmpty) throw StateError('${out.path} is not empty');
   stdout.writeln('== $site -> ${dir.path}');
   final supervisor = WorkerSupervisor(
     spec: WorkerSpec(
@@ -92,7 +122,10 @@ Future<void> _capture(String site, String exe) async {
     onLog: stderr.writeln,
   );
   final Directory cacheDir = Directory.systemTemp.createTempSync('paperback_capture_cache');
-  final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
+  final repos = <PinnedRepository>[
+    for (final PinnedBundle b in captureSites[site]!)
+      if (only == null || b.label == only) PinnedRepository.load(b.repoDir),
+  ];
   final client = http.Client();
   final provider = PaperbackSourceProvider(
     // Catalogs and bundles come from the fixtures; this client is never used
@@ -103,7 +136,7 @@ Future<void> _capture(String site, String exe) async {
     worker: () async => (await supervisor.start()).map((_) => supervisor),
   );
   try {
-    final List<BundleRun> runs = await runSiteScenario(provider, site);
+    final List<BundleRun> runs = await runSiteScenario(provider, site, only: only);
     final String report = const JsonEncoder.withIndent('  ').convert(<String, Object?>{
       'site': site,
       'query': qualificationQuery,
@@ -122,3 +155,72 @@ Future<void> _capture(String site, String exe) async {
     cacheDir.deleteSync(recursive: true);
   }
 }
+
+/// Merges the single-bundle recording in [from] (made with `--only=[only]
+/// --out`) into the committed capture [into].
+void _merge(Directory into, Directory from, String only) {
+  final intoFile = File('${into.path}/$captureManifestFileName');
+  final CaptureManifest committed = _readManifest(intoFile);
+  final CaptureManifest fresh = _readManifest(File('${from.path}/$captureManifestFileName'));
+  final freshKeys = <CaptureKey>{for (final CaptureExchange e in fresh.exchanges) e.key};
+  // Committed exchanges the new session re-requested, and every hop their
+  // redirects led to (the old challenge pages), are replaced.
+  final byKey = <CaptureKey, CaptureExchange>{
+    for (final CaptureExchange e in committed.exchanges) e.key: e,
+  };
+  final dropped = <CaptureKey>{};
+  final pending = <CaptureKey>[...freshKeys.where(byKey.containsKey)];
+  while (pending.isNotEmpty) {
+    final CaptureKey k = pending.removeLast();
+    if (!dropped.add(k)) continue;
+    final CaptureExchange e = byKey[k]!;
+    final String? location = e.headers['location'];
+    if (e.status >= 300 && e.status < 400 && location != null) {
+      final CaptureKey next = committed.keyFor('GET', Uri.parse(e.key.url).resolve(location), null);
+      if (byKey.containsKey(next)) pending.add(next);
+    }
+  }
+  final exchanges = <CaptureExchange>[
+    ...committed.exchanges.where((CaptureExchange e) => !dropped.contains(e.key)),
+    ...fresh.exchanges,
+  ];
+  for (final CaptureExchange e in fresh.exchanges) {
+    File('${from.path}/${e.bodyFile}').copySync('${into.path}/${e.bodyFile}');
+  }
+  final kept = <String>{for (final CaptureExchange e in exchanges) e.bodyFile};
+  for (final CaptureExchange e in committed.exchanges) {
+    final body = File('${into.path}/${e.bodyFile}');
+    if (!kept.contains(e.bodyFile) && body.existsSync()) body.deleteSync();
+  }
+  intoFile.writeAsStringSync(
+    CaptureManifest(
+      ecosystem: committed.ecosystem,
+      source: committed.source,
+      recordedAt: committed.recordedAt,
+      notes:
+          '${committed.notes}; exchanges of $only re-recorded in a second session at '
+          '${fresh.recordedAt.toUtc().toIso8601String()} (${fresh.exchanges.length} exchanges, replacing '
+          '${dropped.length}), sanitized',
+      volatileQueryParameters: committed.volatileQueryParameters,
+      exchanges: exchanges,
+    ).encode(),
+  );
+  final scenarioFile = File('${into.path}/scenario.json');
+  final scenario = jsonDecode(scenarioFile.readAsStringSync()) as Map<String, Object?>;
+  final freshScenario = jsonDecode(File('${from.path}/scenario.json').readAsStringSync()) as Map<String, Object?>;
+  final Object? freshRun = (freshScenario['runs']! as List<Object?>).single;
+  scenario['runs'] = <Object?>[
+    for (final Object? r in scenario['runs']! as List<Object?>)
+      if ((r! as Map<String, Object?>)['bundle'] == only) freshRun else r,
+  ];
+  scenario['rerecorded'] = <String, Object?>{
+    ...?(scenario['rerecorded'] as Map<String, Object?>?),
+    only: freshScenario['recordedAt'],
+  };
+  const encoder = JsonEncoder.withIndent('  ');
+  scenarioFile.writeAsStringSync('${encoder.convert(scenario)}\n');
+  stdout.writeln('merged ${fresh.exchanges.length} exchanges into ${into.path}, replaced ${dropped.length}');
+}
+
+CaptureManifest _readManifest(File f) =>
+    CaptureManifest.fromJson(jsonDecode(f.readAsStringSync()) as Map<String, Object?>);

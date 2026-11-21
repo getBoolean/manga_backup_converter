@@ -220,19 +220,25 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 
 | Qualification source | `paperback-0.8` | `paperback-0.9` |
 |---|---|---|
-| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed). Search and details ran, but MangaDex answered both with its edge browser challenge (`302` to `mangadex.org/edge/challenge`, POWBlock proof of work), and the source fails on the HTML. **Open cell** (below) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
+| MangaDex | neihc1002 `Mangadex` 1.0.0 (third-party, configured for Vietnamese, unlicensed): search (0 hits, see below), details, 174 chapters (replayed) | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
 | WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
 | MangaFire | **Missing cell.** No surveyed 0.8 catalog lists MangaFire: Paperback default 0.8, Netsky 0.8, neihc1002 0.8, GabrielCWT 0.8 and numby 0.8 (SHA-256 in each `artifacts.json`). Not substituted; it needs an explicit coverage revision | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
 
 Chapter identities are the site's own and identical across families: WeebCentral's first chapter is
 `01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
 
-**MangaDex 0.8 cell.** The 0.8 bundle sets `user-agent` to the host's `getDefaultUserAgent()` (a mobile Safari
-string) and `referer: https://mangadex.org`. The 0.9 bundle also sends a `referer` but no user agent (so the
-HTTP client's default), and was not challenged in the same
-capture session. The likely trigger is a browser user agent on a client that runs no JavaScript; this is not
-verified, because one capture run per source was authorised. Re-capture with a different `getDefaultUserAgent()`
-once a second run is approved, or treat MangaDex's challenge as `interaction-required` at the U8 browser join.
+**MangaDex 0.8 cell.** The first capture run met MangaDex's edge browser challenge (`302` to
+`mangadex.org/edge/challenge`, POWBlock proof of work) on every request of the 0.8 bundle. That bundle's
+interceptor sets `user-agent` to `getDefaultUserAgent()` (a mobile Safari string) plus `referer:
+https://mangadex.org`; the 0.9 bundle sets only the referer and was not challenged. The 0.8 adapter now sends no
+user agent when a source echoes `getDefaultUserAgent()`, so the HTTP client's own applies, as for the 0.9 bundle;
+a missing user agent still becomes `Paperback-iOS` and a source-chosen one is sent unchanged.
+`getDefaultUserAgent()` still reports the browser string in both families (0.9 passes it to `executeInWebView`).
+A second, single-bundle capture session on 2026-11-21 with that change was not challenged. What the bundle
+returns is its own behaviour, not the host's: it hard-codes `contentRating[]=suggestive` and defaults to `vi`, so
+the search for the `safe`-rated Onimai is a real empty result; details use the pinned fallback id
+(`ed996855-…`); the feed holds 174 Vietnamese chapters; authors are empty and status is unknown because its
+parser never fills them (`if (author)` on an empty string; Vietnamese status strings). No settings were seeded.
 
 ### Trust and admission (KTD6)
 
@@ -261,7 +267,7 @@ reference runtime, `@paperback/runtime-polyfills` 0.8.7 and 1.0.0-alpha.94 (MIT)
 
 | Capability | 0.8 (`App`) | 0.9 (`Application`) |
 |---|---|---|
-| Requests | `createRequestManager().schedule`: `interceptRequest`, then `url + param`, then `interceptResponse` on the packed `Response` (`data` as UTF-8, `rawData` as bytes). Object bodies are form-encoded when the content type says so, otherwise JSON. A non-2xx status resolves, since sources check `status` | `scheduleRequest` returns `[Response, ArrayBuffer]`. Request interceptors run in registration order, each given the previous result; response interceptors run in reverse order. Object bodies are sent as multipart form data |
+| Requests | `createRequestManager().schedule`: `interceptRequest`, then `url + param`, then `interceptResponse` on the packed `Response` (`data` as UTF-8, `rawData` as bytes). A missing user agent becomes `Paperback-iOS`; an echoed `getDefaultUserAgent()` is not sent. Object bodies are form-encoded when the content type says so, otherwise JSON. A non-2xx status resolves, since sources check `status` | `scheduleRequest` returns `[Response, ArrayBuffer]`. Request interceptors run in registration order, each given the previous result; response interceptors run in reverse order. Object bodies are sent as multipart form data |
 | Redirects | followed hop by hop (at most 5) | followed hop by hop through `setRedirectHandler`, which may replace or cancel the next hop |
 | Cookies | `request.cookies` plus an in-memory manager cookie store (`cookieStore`), fed by every hop's `Set-Cookie` | `request.cookies` becomes one `Cookie` header; `Set-Cookie` becomes `response.cookies`; cookies set by a redirect hop travel with the next hop |
 | Rate limits | `requestsPerSecond` spacing on JS timers | the bundles' own `BasicRateLimiter` over `Application.sleep` |
@@ -293,6 +299,14 @@ pinned bundle of that site, from both families, for the fixed query `Onimai`, wi
 address, and Cloudflare snippets carried ray IDs. Tests and the e2e suite replay with `--replay`; a request without
 a capture fails the operation loudly, even when the source catches the error.
 
+The neihc1002 `Mangadex` exchanges were re-recorded on 2026-11-21 in a second session that ran only that bundle
+(`capture_paperback_sources.dart mangadex --only=neihc1002-0.8/Mangadex --out=<temp>`, then `--merge=<temp>`):
+3 requests, at least 1.5 s apart, no challenge. The merge replaced the first run's two challenge redirects and
+challenge pages, and the details exchange the two bundles share (same URL; the new body is byte-identical,
+SHA-256 `716abcc3…`). `capture.json` notes the second session and `scenario.json` records it under
+`rerecorded`. The new bodies are JSON API responses; the sanitiser found nothing to strip, and no network
+address, ray ID or token is in them.
+
 ### Limits (KTD25)
 
 `benchmark/bundle_benchmark.dart` measures the pinned bundles on the replayed captures: each bundle's load, and
@@ -307,7 +321,7 @@ instant for CPU timing (they are host waits). Reference device: Windows 11 x64, 
 | WeebCentral 0.9 load / search / details | 119 / 29 / 1,143 ms | 134 / 39 / 1,701 ms | 4.6 / 4.6 / 6.5 MB | 67 / 212 / 212 KB |
 | WeebCentral 0.8 (GabrielCWT) load / search / details | 90 / 52 / 1,205 ms | 112 / 79 / 2,389 ms | 3.7 / 3.8 / 5.8 MB | 133 / 212 / 212 KB |
 | WeebCentral 0.8 (numby) load / search / details | 683 / 83 / 1,152 ms | 1,118 / 176 / 1,856 ms | 6.3 / 6.4 / 7.5 MB | 71 / 212 / 212 KB |
-| MangaDex 0.8 load, MangaFire 0.9 load | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
+| MangaDex 0.8 load, MangaFire 0.9 load (MangaDex 0.8 search and details not yet benchmarked) | 62, 89 ms | 143, 117 ms | 3.6, 3.6 MB | 122, 67 KB |
 
 - **Profile** (`paperbackBundleProfile`, replacing U5's synthetic one): peak heap 9.71 MB (MangaDex details mapping
   a 1 MB chapter feed), peak stack 217 KB (Cheerio and parse5 over WeebCentral pages), slowest operation 2.39 s

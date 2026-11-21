@@ -234,7 +234,8 @@ const String api08Js = r'''// Paperback 0.8 host adapter (U6, KTD6): the `App` g
 // - `schedule` runs `interceptor.interceptRequest`, sends `url + param`,
 //   then runs `interceptor.interceptResponse` on the packed response;
 // - cookies become one `cookie` header (`a=1;b=2;`), a missing user agent
-//   becomes `Paperback-iOS`;
+//   becomes `Paperback-iOS` (an echoed `getDefaultUserAgent()` is not sent;
+//   see `schedule`);
 // - an object body is form-encoded when the content type says so, otherwise
 //   JSON (axios' default);
 // - `rawData` is the body bytes with a UTF-8 `toString`.
@@ -326,7 +327,14 @@ const String api08Js = r'''// Paperback 0.8 host adapter (U6, KTD6): the `App` g
       for (const c of this._jar) if (domainMatches(host, c.domain)) cookieData += c.name + '=' + c.value + ';';
       for (const c of request.cookies || []) cookieData += c.name + '=' + c.value + ';';
       if (cookieData) headers['cookie'] = cookieData;
-      if (!Object.keys(headers).some((k) => k.toLowerCase() === 'user-agent')) headers['user-agent'] = 'Paperback-iOS';
+      // A missing user agent becomes `Paperback-iOS` (reference host). A source
+      // that echoes `getDefaultUserAgent()` sends none, so the HTTP client's
+      // own applies, as for 0.9 sources that set none: the host is not a
+      // browser, and MangaDex's edge challenges a browser user agent on a
+      // client that runs no JavaScript. A source-chosen value is sent as is.
+      const uaKey = Object.keys(headers).find((k) => k.toLowerCase() === 'user-agent');
+      if (uaKey === undefined) headers['user-agent'] = 'Paperback-iOS';
+      else if (headers[uaKey] === H.defaultUserAgent) delete headers[uaKey];
       const body = encodeBody(request.data, headers);
       const wire = { url, method: String(request.method || 'GET').toUpperCase(), headers, body, timeoutMs: this.requestTimeout };
       let attempts = Math.max(0, Number(retry) || 0);
@@ -863,7 +871,7 @@ const String hostLibJs = r'''(()=>{var is=Object.create;var yt=Object.defineProp
 /// SHA-256 of each embedded asset (LF line endings).
 const Map<String, String> embeddedAssetSha256 = <String, String>{
   'prelude.js': 'd6c336f1152662140bcd12b6d3a0617740a10a70b5e1b628531271c4f8e06c9f',
-  'api08.js': '660f6e7a4b43a4832e235cacd233972c94ea426147b4d4542bfaa8ab0c45401c',
+  'api08.js': '0299b7251dc89f1a3ad9ecbdf80e141a65000b9085c0559accdbcb28884fd4f3',
   'api09.js': '3a174e8715e53e1d9862a188b11e737ab47b4c53b597f831cfd847d034345a3d',
   'ops.js': '0d83b1b55296c44a121b0247375b8e66cf316e7635e3e26e432ba9a114afa7b9',
   'paperback_host_lib.js': '43cab475bf02f03721b25a9ab88251c7886ad8b8273b5d022a3a2ebef764d95b',

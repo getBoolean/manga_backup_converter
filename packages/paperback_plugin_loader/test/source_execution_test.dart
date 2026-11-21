@@ -12,6 +12,7 @@ library;
 import 'dart:io';
 
 import 'package:checks/checks.dart';
+import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
@@ -137,21 +138,51 @@ void main() {
     check(s.chapters.first.dateUploaded).isNotNull();
   });
 
-  test("MangaDex 0.8 (neihc1002): the recorded run met MangaDex's browser challenge, and it fails visibly", () async {
-    // The capture recorded MangaDex's edge challenge (302 to
-    // /edge/challenge) for this bundle's requests, which send the host's
-    // browser user agent. The source parses the challenge page as JSON and
-    // fails; the failure is reported, never an empty result. This cell stays
-    // open (docs/source-runners.md).
+  test('MangaDex 0.8 (neihc1002) echoes getDefaultUserAgent, and the host puts no user agent on the wire', () async {
+    // Replay keys ignore headers, so this pins what the capture sent: the
+    // bundle's interceptor sets `user-agent: getDefaultUserAgent()` and a
+    // referer; the 0.8 adapter drops the echoed default, so the HTTP client's
+    // own user agent applies (as for the 0.9 bundle, which sets none).
+    final repo = PinnedRepository.load('neihc1002-0.8');
+    final HostUnderTest h = await HostUnderTest.load(
+      repo.bundle('Mangadex'),
+      PaperbackApiFamily.v08,
+      handler: (http.Request r) async => http.Response('{"result":"ok","data":[],"total":0}', 200),
+    );
+    try {
+      await h.search(qualificationQuery);
+      check(h.requests).isNotEmpty();
+      for (final http.Request r in h.requests) {
+        check(r.url.host).equals('api.mangadex.org');
+        check(r.headers.keys.map((String k) => k.toLowerCase()))
+            .not((Subject<Iterable<String>> it) => it.contains('user-agent'));
+        check(r.headers['referer']).equals('https://mangadex.org');
+      }
+    } finally {
+      h.dispose();
+    }
+  });
+
+  test('MangaDex 0.8 (neihc1002) searches, fetches details and the complete chapter feed (JSON API)', () async {
+    // Re-recorded with no host user agent on the wire (the test above): no
+    // edge challenge. The bundle hard-codes `contentRating[]=suggestive` and
+    // defaults to Vietnamese, so the search for the `safe`-rated Onimai is a
+    // real, empty result and details use the pinned fallback manga.
     final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay('mangadex');
     check(client.misses).isEmpty();
+    check(client.served.map((CaptureKey k) => k.url).where((String u) => u.contains('/edge/challenge'))).isEmpty();
     final BundleRun neihc = runs.firstWhere((BundleRun r) => r.family == PaperbackApiFamily.v08);
-    check(neihc.page1)
-        .isA<SourceFailed<SearchPage>>()
-        .has((SourceFailed<SearchPage> f) => f.failure, 'failure')
-        .isA<SourceErrorFailure>();
-    check(neihc.details).isA<SourceFailed<MangaSnapshot>>();
-    check(client.served.map((CaptureKey k) => k.url).where((String u) => u.contains('/edge/challenge'))).isNotEmpty();
+    final SearchPage page = _page(neihc);
+    check(page.hits).isEmpty();
+    check(page.nextCursor).isNull();
+    check(neihc.detailsRef!.mangaId).equals('ed996855-70de-449f-bba2-e8e24224c14d');
+    final MangaSnapshot s = _snapshot(neihc);
+    check(s.metadata.title).equals('ONIMAI: Giờ tao là chị mày!');
+    _checkChapters(s, count: 174);
+    check(s.chapters.first.chapterId).equals('106147e6-0551-4a7c-9b01-2c6206c7a2d2');
+    check(s.chapters.first.chapterNumber).equals(1);
+    check(s.chapters.first.context['apiFamily']).equals('paperback-0.8');
+    check(s.chapters.first.dateUploaded).isNotNull();
   });
 
   test('MangaFire 0.9 without a browser port: a named capability failure, not an empty result', () async {

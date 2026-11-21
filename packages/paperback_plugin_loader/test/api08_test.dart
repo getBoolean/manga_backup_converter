@@ -86,6 +86,27 @@ void main() {
     }
   });
 
+  test('user agent: an echoed default is not sent, a chosen one is, a missing one becomes Paperback-iOS', () async {
+    final HostUnderTest h = await _load08(
+      '''
+      const ua = await this.requestManager.getDefaultUserAgent();
+      await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/echo', method: 'GET', headers: { 'User-Agent': ua } }), 0);
+      await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/chosen', method: 'GET', headers: { 'user-agent': 'Custom/1.0' } }), 0);
+      await this.requestManager.schedule(App.createRequest({ url: 'https://example.test/missing', method: 'GET' }), 0);
+      return App.createPagedResults({ results: [App.createPartialSourceManga({ mangaId: ua, title: 't', image: '' })] });''',
+      handler: (http.Request r) async => http.Response('', 200),
+    );
+    try {
+      // getDefaultUserAgent still reports the host's (browser) user agent.
+      check((await h.search('q')).items.single['mangaId']).equals(paperbackDefaultUserAgent);
+      check(<String, String?>{
+        for (final http.Request r in h.requests) r.url.path: r.headers['user-agent'],
+      }).deepEquals(<String, String?>{'/echo': null, '/chosen': 'Custom/1.0', '/missing': 'Paperback-iOS'});
+    } finally {
+      h.dispose();
+    }
+  });
+
   test('bodies: form-urlencoded objects, JSON objects, raw strings', () async {
     final HostUnderTest h = await _load08(
       '''

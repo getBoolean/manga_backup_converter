@@ -162,9 +162,13 @@ final class BundleRun {
 /// fetch details with chapters for the first hit (or the bundle's fallback
 /// manga). The capture run and the replay tests call exactly this, so they
 /// make exactly the same requests.
-Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String site) async {
+///
+/// [only] restricts the run to the bundle with that label (a re-recording of
+/// one bundle, `capture_paperback_sources.dart --only`).
+Future<List<BundleRun>> runSiteScenario(PaperbackSourceProvider provider, String site, {String? only}) async {
   final runs = <BundleRun>[];
   for (final PinnedBundle b in captureSites[site]!) {
+    if (only != null && b.label != only) continue;
     final repo = PinnedRepository.load(b.repoDir);
     final PaperbackCatalogEntry entry = repo.entry(b.sourceId);
     final run = BundleRun(b, entry.family, repo.pinnedSha256(b.sourceId));
