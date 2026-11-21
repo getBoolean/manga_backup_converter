@@ -113,10 +113,6 @@ dev_dependencies:
   source_runtime_testing:
     path: packages/source_runtime_testing
   sqflite_common_ffi_web: ^0.4.3+1
-  # Tachi catalog/trust/artifact logic composed over the Android backend in
-  # integration_test/source_runners_android_test.dart (U11).
-  tachi_plugin_loader:
-    path: packages/tachi_plugin_loader
 
 flutter:
   uses-material-design: true
