@@ -6,6 +6,7 @@ import mangabackup.tachi.host.HostTransport
 import mangabackup.tachi.host.RuntimeManifest
 import mangabackup.tachi.host.SizingReport
 import mangabackup.tachi.host.SizingRule
+import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.WorkerClient
 import mangabackup.tachi.protocol.WorkerOptions
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -45,6 +46,7 @@ class HandshakeDeadlineTest {
             networkMode = "test",
             stateRoot = TestSupport.tempDir("hs"),
             browser = false,
+            platform = DesktopPlatform,
         )
         val (client, thread) = WorkerClient.inProcess(options)
         try {

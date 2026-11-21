@@ -14,6 +14,7 @@ import mangabackup.tachi.host.replay.CaptureFormat
 import mangabackup.tachi.host.replay.ExchangeHandler
 import mangabackup.tachi.host.replay.LoopbackTransport
 import mangabackup.tachi.protocol.ArtifactBinding
+import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.WorkerClient
 import mangabackup.tachi.protocol.WorkerOptions
 import mockwebserver3.MockResponse
@@ -254,6 +255,7 @@ fun main(args: Array<String>) {
         networkMode = "record",
         stateRoot = Files.createTempDirectory("tachi-capture-").toFile(),
         browser = false,
+        platform = DesktopPlatform,
     )
     val (client, _) = WorkerClient.inProcess(options)
     val log = StringBuilder()

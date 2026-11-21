@@ -212,12 +212,17 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
             }
         }
 
-        /** Whether any class of the artifact references android.webkit.WebView (the source may need a browser). */
+        private val DEX_ENTRY = Regex("""^classes\d*\.dex$""")
+
+        /**
+         * Whether any class of the artifact (JVM classes, or the DEX files of an
+         * original APK) references android.webkit.WebView: the source may need a browser.
+         */
         fun referencesWebView(jar: File): Boolean {
             val needle = "android/webkit/WebView".toByteArray()
             ZipFile(jar).use { zip ->
                 for (e in zip.entries()) {
-                    if (!e.name.endsWith(".class")) continue
+                    if (!e.name.endsWith(".class") && !DEX_ENTRY.matches(e.name)) continue
                     val bytes = zip.getInputStream(e).use { it.readBytes() }
                     if (indexOf(bytes, needle) >= 0) return true
                 }

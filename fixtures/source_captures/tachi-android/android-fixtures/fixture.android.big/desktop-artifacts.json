@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "artifacts": [
+    {
+      "kind": "apk",
+      "path": "fixture.android.big.apk",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.big.apk",
+      "sha256": "11d7556e6d4ca31a0edb4544fcd57bcd14f294311de2df05fc5d71eefdd73cb1"
+    },
+    {
+      "kind": "jar",
+      "path": "absent.jar",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/absent/fixture.android.big.jar",
+      "sha256": ""
+    }
+  ]
+}

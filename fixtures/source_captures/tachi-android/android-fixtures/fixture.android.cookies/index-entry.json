@@ -1,0 +1,25 @@
+{
+  "name": "U11 cookies",
+  "packageName": "fixture.android.cookies",
+  "resources": {
+    "apkUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.cookies.apk"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "1",
+  "versionName": "1.6.1",
+  "contentWarning": "CONTENT_WARNING_SAFE",
+  "sources": [
+    {
+      "id": "799549823167104760",
+      "name": "Android Cookies A",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    },
+    {
+      "id": "2216374031117053527",
+      "name": "Android Cookies B",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    }
+  ]
+}

@@ -26,3 +26,8 @@ plugins {
 }
 
 include(":app")
+
+// Android Tachi source host (U11): shares the desktop worker's platform-neutral
+// sources; packages/source_runtime_android depends on it.
+include(":tachi_source_host")
+project(":tachi_source_host").projectDir = file("../tools/tachi-source-runner/android")

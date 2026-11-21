@@ -19,6 +19,7 @@ import mangabackup.tachi.host.replay.CaptureFormat;
 import mangabackup.tachi.host.replay.LoopbackTransport;
 import mangabackup.tachi.host.replay.ReplayLog;
 import mangabackup.tachi.host.replay.ReplayTransport;
+import mangabackup.tachi.protocol.JvmPackageRuntime;
 import mangabackup.tachi.protocol.Worker;
 import mangabackup.tachi.protocol.WorkerOptions;
 import mockwebserver3.MockResponse;
@@ -101,7 +102,7 @@ public final class IosWorkerHost {
                 WorkerOptions.DEFAULT_USER_AGENT,
                 new IosPlatform(worker, Long.parseLong(nativeDeadline)));
         try {
-            return new Worker(new ChannelInput(worker), new ChannelOutput(worker, IosNatives.STDOUT), workerOptions).run();
+            return new Worker(new ChannelInput(worker), new ChannelOutput(worker, IosNatives.STDOUT), workerOptions, JvmPackageRuntime.INSTANCE).run();
         } finally {
             if (transport instanceof AutoCloseable c) {
                 try {

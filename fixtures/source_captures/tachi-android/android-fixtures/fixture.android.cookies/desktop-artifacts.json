@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "artifacts": [
+    {
+      "kind": "apk",
+      "path": "fixture.android.cookies.apk",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.cookies.apk",
+      "sha256": "9d06872aca3aa4307258bc4ba08ff35cd3f79d4ceab77ad8d48b4e419f78a5c8"
+    },
+    {
+      "kind": "jar",
+      "path": "absent.jar",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/absent/fixture.android.cookies.jar",
+      "sha256": ""
+    }
+  ]
+}

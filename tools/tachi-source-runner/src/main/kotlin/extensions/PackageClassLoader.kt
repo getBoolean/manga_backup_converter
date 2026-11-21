@@ -1,5 +1,6 @@
 package mangabackup.tachi.extensions
 
+import mangabackup.tachi.host.DesktopPackageScope
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageOwned
 import java.io.File
@@ -83,18 +84,13 @@ class PackageClassLoader(
     }
 
     companion object {
-        /** Packages the host owns. Extension packages (`eu.kanade.tachiyomi.extension.*`, R8-renamed `eu.kanade.tachiyomi.a.*`) are not listed. */
-        val HOST_PREFIXES = listOf(
-            "java.", "javax.", "jdk.", "sun.", "com.sun.", "org.w3c.", "org.xml.",
-            "kotlin.", "kotlinx.", "okhttp3.", "okio.", "mockwebserver3.", "org.jsoup.", "org.jspecify.", "rx.",
-            "uy.kohesive.", "dev.mihon.", "android.", "androidx.", "org.brotli.", "com.squareup.",
-            "app.cash.quickjs.", "tachiyomi.core.", "mihon.core.", "mangabackup.tachi.",
-            "eu.kanade.tachiyomi.source.", "eu.kanade.tachiyomi.network.", "eu.kanade.tachiyomi.util.",
-        )
-        private val HOST_CLASSES = setOf("eu.kanade.tachiyomi.AppInfo")
+        init {
+            DesktopPackageScope.install()
+        }
 
-        fun isHostOwned(className: String): Boolean =
-            className in HOST_CLASSES || HOST_PREFIXES.any { className.startsWith(it) }
+        val HOST_PREFIXES: List<String> get() = HostOwnership.HOST_PREFIXES
+
+        fun isHostOwned(className: String): Boolean = HostOwnership.isHostOwned(className)
 
         private fun isHostOwnedResource(resource: String): Boolean {
             if (!resource.endsWith(".class")) return false

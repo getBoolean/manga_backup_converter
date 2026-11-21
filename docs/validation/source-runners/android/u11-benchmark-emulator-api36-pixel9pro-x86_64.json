@@ -1,0 +1,50 @@
+{
+  "evidence": "emulator",
+  "device": "Pixel_9_Pro AVD, Android 16 (API 36), x86_64",
+  "cores": 4,
+  "handshakeMs": {
+    "n": 3,
+    "p50": 2529,
+    "p99": 2772,
+    "max": 2772
+  },
+  "dispatchRoundTripMs": {
+    "n": 90,
+    "p50": 10,
+    "p99": 36,
+    "max": 47
+  },
+  "qualificationOperationMs": {
+    "n": 18,
+    "p50": 748,
+    "p99": 4442,
+    "max": 4442
+  },
+  "cancelSettleMs": {
+    "n": 3,
+    "p50": 1,
+    "p99": 7,
+    "max": 7
+  },
+  "killToRebindMs": {
+    "n": 3,
+    "p50": 2964,
+    "p99": 3386,
+    "max": 3386
+  },
+  "killToRehydratedMs": {
+    "n": 3,
+    "p50": 3939,
+    "p99": 4353,
+    "max": 4353
+  },
+  "shutdownMs": {
+    "n": 3,
+    "p50": 412,
+    "p99": 415,
+    "max": 415
+  },
+  "servicePidAfter": 28798,
+  "recordedAt": "2026-11-21",
+  "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --plain-name \"tachi benchmark\""
+}

@@ -10,6 +10,11 @@ import android.os.Process
 import android.os.RemoteException
 import android.util.Log
 import android.webkit.WebView
+import dev.getboolean.sourceruntime.tachi.FrameTransport
+import dev.getboolean.sourceruntime.tachi.RuntimeCodes
+import dev.getboolean.sourceruntime.tachi.ServiceDiagnostics
+import dev.getboolean.sourceruntime.tachi.WorkerHost
+import mangabackup.tachi.android.ServiceWebViews
 import org.json.JSONObject
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -17,27 +22,32 @@ import java.util.concurrent.Executors
 /**
  * The private `:source_runtime` service process (KTD17).
  *
- * It owns every Tachi package class loader and source call. Calls arrive as
- * one-way [RuntimeProtocol.DISPATCH] transactions and run on service-owned
- * threads; each reply goes back one-way on the caller's reply binder. A call
- * that never returns (a CPU loop) is ended only by killing this process,
- * which the client does with the PID reported by [RuntimeProtocol.HELLO].
+ * It owns every Tachi package class loader and source call: the shared
+ * protocol worker runs here ([WorkerHost], driven by `TachiWorkerConnection`
+ * in the app process). Gate and diagnostics calls arrive as one-way
+ * [RuntimeProtocol.DISPATCH] transactions and run on service-owned threads;
+ * each reply goes back one-way on the caller's reply binder. A call that never
+ * returns (a CPU loop) is ended only by killing this process, which the client
+ * does with the PID reported by [RuntimeProtocol.HELLO].
+ *
+ * On every start, before anything touches WebView, the service deletes the
+ * WebView data an earlier (possibly killed) instance left behind (KTD19/KTD20)
+ * and any artifacts it had staged, then applies its data directory suffix.
  */
 class SourceRuntimeService : Service() {
     private lateinit var executor: ExecutorService
     private lateinit var webViews: WebViewHolder
+    private lateinit var worker: WorkerHost
 
     override fun onCreate() {
         super.onCreate()
         // Must run before anything in this process touches WebView or
-        // CookieManager (KTD19). Below API 28 the call does not exist; see
-        // docs/validation/source-runners/android/ for the U17 decision.
-        dataDirectorySuffixApplied = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix(WEBVIEW_DATA_SUFFIX)
-            true
-        } else {
-            false
-        }
+        // CookieManager (KTD19). minSdk is 28, so the suffix call always exists.
+        startupWipe = ServiceWebViews.wipeDataDirectories(applicationContext)
+        WebView.setDataDirectorySuffix(WEBVIEW_DATA_SUFFIX)
+        dataDirectorySuffixApplied = true
+        worker = WorkerHost(applicationContext)
+        worker.runtime.staging.clear()
         executor = Executors.newCachedThreadPool { runnable ->
             Thread(runnable, "source-runtime-call").apply { isDaemon = true }
         }
@@ -46,6 +56,16 @@ class SourceRuntimeService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder = binder
+
+    override fun onUnbind(intent: Intent): Boolean {
+        // No client is left. A worker must not outlive its supervisor: the next
+        // supervisor would find this process busy. End it, as a killed worker would.
+        if (worker.isOpen) {
+            Log.i(TAG, "last client unbound with a worker running; ending the process")
+            Process.killProcess(Process.myPid())
+        }
+        return false
+    }
 
     override fun onDestroy() {
         executor.shutdownNow()
@@ -60,6 +80,32 @@ class SourceRuntimeService : Service() {
                     reply?.writeNoException()
                     reply?.writeInt(Process.myPid())
                     reply?.writeInt(Build.VERSION.SDK_INT)
+                    return true
+                }
+                RuntimeCodes.WORKER_OPEN -> {
+                    data.enforceInterface(RuntimeProtocol.DESCRIPTOR)
+                    val args = data.readString() ?: "[]"
+                    val replyTo = data.readStrongBinder() ?: return true
+                    // Off the Binder thread: starting may take seconds.
+                    executor.execute { worker.openAndReport(args, replyTo) }
+                    return true
+                }
+                RuntimeCodes.WORKER_FRAME_IN -> {
+                    data.enforceInterface(RuntimeProtocol.DESCRIPTOR)
+                    val received = try {
+                        FrameTransport.read(data)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "dropped a malformed frame transfer: ${e.message}")
+                        return true
+                    }
+                    // One-way transactions to this binder arrive in order; keep the
+                    // order by opening and queueing here (both are bounded and quick).
+                    try {
+                        worker.onFrame(received.open())
+                    } catch (e: Exception) {
+                        Log.e(TAG, "frame from the app failed validation; ending the worker", e)
+                        Process.killProcess(Process.myPid())
+                    }
                     return true
                 }
                 RuntimeProtocol.DISPATCH -> {
@@ -102,6 +148,13 @@ class SourceRuntimeService : Service() {
         "webViewProbe" -> webViews.probe(dataDirectorySuffixApplied)
         "webViewRelease" -> webViews.release()
         "gc" -> JSONObject().also { RuntimeDiagnostics.collectJavaGarbage() }
+        "diagnostics" -> ServiceDiagnostics.collect(applicationContext, worker, startupWipe, args)
+        "showChallenge" -> dev.getboolean.sourceruntime.webview.ChallengeLauncher.show(
+            applicationContext,
+            args.getString("url"),
+            args.optLong("timeoutMs", 15_000),
+        )
+        "closeChallenge" -> dev.getboolean.sourceruntime.webview.ChallengeLauncher.close(args.optLong("timeoutMs", 15_000))
         else -> throw IllegalArgumentException("unknown op: $op")
     }
 
@@ -131,6 +184,11 @@ class SourceRuntimeService : Service() {
 
         @Volatile
         var dataDirectorySuffixApplied = false
+            private set
+
+        /** WebView data directories removed at this process's start. */
+        @Volatile
+        var startupWipe: List<String> = emptyList()
             private set
 
         fun currentProcessName(): String =

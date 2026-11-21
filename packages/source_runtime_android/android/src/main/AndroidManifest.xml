@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Tachi sources fetch their sites from the :source_runtime process. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application>
         <!-- Private, same-UID Tachi runtime process (KTD17/KTD18). Not
              exported: only this app can bind it, which is the trust
@@ -7,5 +9,13 @@
             android:name="dev.getboolean.sourceruntime.SourceRuntimeService"
             android:exported="false"
             android:process=":source_runtime" />
+        <!-- Visible source challenges, in the same process as the service so
+             they share its WebView profile (KTD19). Not exported. -->
+        <activity
+            android:name="dev.getboolean.sourceruntime.webview.ChallengeActivity"
+            android:exported="false"
+            android:process=":source_runtime"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
     </application>
 </manifest>

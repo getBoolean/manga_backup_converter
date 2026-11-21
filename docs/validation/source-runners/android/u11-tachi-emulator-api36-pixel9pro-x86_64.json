@@ -1,0 +1,279 @@
+{
+  "format": 1,
+  "unit": "U11",
+  "evidence": "emulator",
+  "device": "AVD Pixel_9_Pro, Android 16 (API 36), x86_64, WebView 134.0.6998.135, debug build (android-x64), Flutter 3.50.0",
+  "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded",
+  "date": "2026-11-21",
+  "result": "20/20 passed (8 U13 Aidoku cases, 11 U11 Tachi scenarios, 1 benchmark)",
+  "receipts": [
+    {
+      "scenario": "qualification-apks",
+      "evidence": "emulator",
+      "worker": "tachi-android",
+      "protocolMinor": 2,
+      "packages": {
+        "eu.kanade.tachiyomi.extension.all.mangadex": {
+          "artifactSha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
+          "sources": 62,
+          "searchedSource": "2499283573021220255",
+          "hits": 2,
+          "title": "Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)",
+          "chapters": 15,
+          "loadMs": 1473,
+          "searchMs": 1150,
+          "detailsMs": 761
+        },
+        "eu.kanade.tachiyomi.extension.en.weebcentral": {
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "sources": 1,
+          "searchedSource": "2131019126180322627",
+          "hits": 1,
+          "title": "ONIMAI - I'm Now Your Sister!",
+          "chapters": 114,
+          "loadMs": 516,
+          "searchMs": 492,
+          "detailsMs": 4609
+        },
+        "eu.kanade.tachiyomi.extension.all.mangafire": {
+          "artifactSha256": "f2d1f69dfca4fcf930f696873807e6ec0f4dd1626aed0f0c779dfbab876f70f8",
+          "sources": 7,
+          "searchedSource": "6084907896154116083",
+          "hits": 50,
+          "title": "Highschool ONIMAI",
+          "chapters": 86,
+          "loadMs": 871,
+          "searchMs": 760,
+          "detailsMs": 875
+        }
+      },
+      "liveLoaders": 3,
+      "replayServed": 10,
+      "replayMisses": [],
+      "descriptorFramesSent": 3,
+      "prepareCount": 3
+    },
+    {
+      "scenario": "two-repositories-duplicates-staging",
+      "evidence": "emulator",
+      "repositories": [
+        "https://raw.githubusercontent.com/keiyoushi/extensions/repo",
+        "https://fixtures.invalid/u11/repo"
+      ],
+      "packages": [
+        "eu.kanade.tachiyomi.extension.en.weebcentral",
+        "fixture.android.busy",
+        "fixture.android.dup"
+      ],
+      "liveLoaders": 3,
+      "duplicateRejection": "source IDs [2409223436869060766] of fixture.android.dup2 (3f8d735499b2046cc0839ad305a6c7516663cfc691f2c67c59879520143f3cda) are already hosted by fixture.android.dup (db0173fc0d5ed4b9fb53cd6e51e94814097edf235b86eafe28eb575a26b33d8b)",
+      "staged": [
+        {
+          "name": "7a53282bdf852e58-1.apk",
+          "mode": "r--------",
+          "canWrite": false
+        },
+        {
+          "name": "9195460413a71abe-2.apk",
+          "mode": "r--------",
+          "canWrite": false
+        },
+        {
+          "name": "db0173fc0d5ed4b9-3.apk",
+          "mode": "r--------",
+          "canWrite": false
+        }
+      ]
+    },
+    {
+      "scenario": "admission-rejections",
+      "evidence": "emulator",
+      "outcomes": {
+        "tampered": "input.bin: APK signature is not valid: APK integrity check failed. CHUNKED_SHA256 digest mismatch. Expected: <546d6f06df5ce1e952b2d2824333bbd675d4580501f539a5d1f512759ca5bb51>, actual: <bb047e04bd9edaf414d513e2a345d6dc556ff608f5d13479590742b1b54faf93>",
+        "resigned": "input.bin is signed by untrusted certificate a72f0e127e30039329d5af1fa52544d832c4184b86a3d4cfc2fb03498b2c4b35",
+        "wrong-anchor": "input.bin is signed by untrusted certificate 9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+      },
+      "liveLoaders": 0
+    },
+    {
+      "scenario": "descriptor-transport",
+      "evidence": "emulator",
+      "chapters": 20000,
+      "chapterJsonBytes": 10751121,
+      "serviceDescriptorFramesSent": 1,
+      "serviceDescriptorFramesReceived": 0,
+      "serviceDescriptorsClosed": 1
+    },
+    {
+      "scenario": "ae10-kill-rehydrate",
+      "evidence": "emulator",
+      "pidBefore": 15632,
+      "pidAfter": 15718,
+      "loopFailure": "timeout: search exceeded its deadline; worker restarted",
+      "restartReason": "search for fixture.android.busy did not settle after cooperative cancel",
+      "requeued": [],
+      "failed": [],
+      "reloadFailures": [],
+      "queuedHits": 1,
+      "maxDartTickGapMs": 343,
+      "startupWipe": [
+        "app_webview_source_runtime"
+      ],
+      "events": [
+        "WorkerStartedEvent",
+        "WorkerStartedEvent",
+        "WorkerRestartedEvent"
+      ]
+    },
+    {
+      "scenario": "password-not-persisted",
+      "evidence": "emulator",
+      "title": "password=set;token=true",
+      "needleHits": {
+        "needle0": [],
+        "needle1": []
+      },
+      "sharedPrefsFiles": [
+        "WebViewChromiumPrefs.xml"
+      ]
+    },
+    {
+      "scenario": "service-webview-cookies",
+      "evidence": "emulator",
+      "set": "webview=fixture:42;pid=15885;cookies=k",
+      "sharedBeforeClose": "webview=-;pid=15885;cookies=k",
+      "afterSessionClose": "webview=-;pid=15885;cookies=",
+      "afterRestart": "webview=-;pid=16003;cookies=",
+      "browserIsolation": {
+        "webViewPackage": "com.google.android.webview 134.0.6998.135",
+        "webViewMultiProfile": "true",
+        "sourceBrowserIsolation": "unavailable",
+        "sourceBrowserIsolationReason": "extension-created android.webkit.WebView instances cannot be assigned an androidx.webkit profile before first use without rewriting extension bytecode; the service wipes the shared profile at session close and on start (KTD19)"
+      },
+      "cookieNamesBeforeClose": {
+        "https://cookies.test/": [
+          "k"
+        ]
+      },
+      "startupWipe": [
+        "app_webview_source_runtime"
+      ],
+      "webViewDataDirs": [
+        {
+          "name": "app_webview_source_runtime",
+          "bytes": 108980
+        }
+      ],
+      "proxyCheck": "net=net::ERR_PROXY_CONNECTION_FAILED",
+      "refusedBrowserRequests": []
+    },
+    {
+      "scenario": "ae11-mangafire-webview",
+      "evidence": "emulator",
+      "outcome": "source-error: IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually. (cause IOException: Failed to solve shape-selecting captcha. Open in WebView to solve manually.)",
+      "searchMs": 2743,
+      "challengesServed": 1,
+      "refusedBrowserRequests": [],
+      "replayMisses": [],
+      "servicePid": 16094,
+      "webViewDataDirs": [
+        {
+          "name": "app_webview_source_runtime",
+          "bytes": 109316
+        }
+      ],
+      "workerLog": []
+    },
+    {
+      "scenario": "jni-references",
+      "evidence": "emulator",
+      "rounds": 10,
+      "totalBefore": 474,
+      "totalAfter": 482,
+      "ownedBefore": 3,
+      "ownedAfter": 1,
+      "classDelta": {
+        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10,
+        "com.github.dart_lang.jni.PortProxyBuilder": -2
+      }
+    },
+    {
+      "scenario": "challenge-activity",
+      "evidence": "emulator",
+      "fileUrl": {
+        "result": "capability-unavailable",
+        "reason": "only http(s) URLs"
+      },
+      "shown": {
+        "result": "shown",
+        "activityPid": 16963
+      },
+      "closed": {
+        "result": "closed"
+      },
+      "workerPid": 16963
+    },
+    {
+      "scenario": "production-start",
+      "evidence": "emulator",
+      "arguments": [],
+      "worker": "tachi-android",
+      "limits": {
+        "poolSize": 2,
+        "operationDeadlineMs": 133260,
+        "cancelGraceMs": 2075,
+        "shutdownGraceMs": 2075
+      }
+    }
+  ],
+  "benchmarkRerun": [
+    {
+      "evidence": "emulator",
+      "device": "Pixel_9_Pro AVD, Android 16 (API 36), x86_64",
+      "cores": 4,
+      "handshakeMs": {
+        "n": 3,
+        "p50": 2735,
+        "p99": 2964,
+        "max": 2964
+      },
+      "dispatchRoundTripMs": {
+        "n": 90,
+        "p50": 13,
+        "p99": 43,
+        "max": 47
+      },
+      "qualificationOperationMs": {
+        "n": 18,
+        "p50": 681,
+        "p99": 4508,
+        "max": 4508
+      },
+      "cancelSettleMs": {
+        "n": 3,
+        "p50": 1,
+        "p99": 5,
+        "max": 5
+      },
+      "killToRebindMs": {
+        "n": 3,
+        "p50": 3129,
+        "p99": 4266,
+        "max": 4266
+      },
+      "killToRehydratedMs": {
+        "n": 3,
+        "p50": 4278,
+        "p99": 5501,
+        "max": 5501
+      },
+      "shutdownMs": {
+        "n": 3,
+        "p50": 489,
+        "p99": 508,
+        "max": 508
+      },
+      "servicePidAfter": 17641
+    }
+  ]
+}

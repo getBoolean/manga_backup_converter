@@ -3,6 +3,7 @@ package mangabackup.tachi
 import mangabackup.tachi.host.HostTransport
 import mangabackup.tachi.host.SizingReport
 import mangabackup.tachi.host.replay.ReplayTransport
+import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerOptions
 import java.io.File
@@ -65,6 +66,7 @@ fun main(args: Array<String>) {
         networkMode = if (replay.isEmpty()) "live" else "replay",
         stateRoot = root,
         browser = browser,
+        platform = DesktopPlatform,
     )
     if (replay.isNotEmpty()) System.err.println("[worker] network mode: replay from ${replay.joinToString()} (fails closed on any uncaptured request)")
     val code = try {

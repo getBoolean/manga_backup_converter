@@ -1,0 +1,4 @@
+tachiyomi-all.mangadex-v1.6.4.apk: 526 external member refs, 348 on the host (not framework), 0 unresolved
+tachiyomi-en.weebcentral-v1.6.27.apk: 339 external member refs, 230 on the host (not framework), 0 unresolved
+tachiyomi-all.mangafire-v1.6.38.apk: 579 external member refs, 362 on the host (not framework), 0 unresolved
+TOTAL unresolved: 0

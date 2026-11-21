@@ -50,15 +50,17 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
-        // The U17 gate's pinned extension APK reaches the device only in
-        // debug builds (integration tests); release builds never carry it.
+        // Debug-only fixture asset folder: the pinned extension APKs and their
+        // replay captures (fixtures/source_captures/tachi/<package>/) reach the
+        // device only in debug builds (integration tests); release builds
+        // never carry them.
         getByName("debug") {
-            assets.srcDirs("../../../fixtures/source_captures/tachi")
+            assets.srcDirs("../../../fixtures/source_captures/tachi", "../../../fixtures/source_captures/tachi-android")
         }
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
         consumerProguardFiles("consumer-rules.pro")
     }
 }
@@ -69,44 +71,15 @@ kotlin {
     }
 }
 
-// Pinned Tachi source API: mihonapp/extensions-lib 1.6.0, the API that the
-// pinned extension (extensionLib 1.6) compiles against. It is a compile-time
-// stub library: its method bodies throw "Stub!". It sits on the service
-// process's parent class path so extension DEX links against parent-owned
-// host API types (KTD17). U11 replaces the stub bodies with a real host.
-//
-// The AAR also carries stub copies of androidx.preference and android.content
-// classes, which collide with the real androidx.preference that the app
-// already ships (shared_preferences_android). Only the eu.kanade.tachiyomi
-// classes are repackaged; the real libraries provide the rest.
-val sourceApiVersion = "1.6.0"
-val sourceApiAar: Configuration by configurations.creating {
-    isTransitive = false
-}
-
-val sourceApiJar = tasks.register<Jar>("sourceApiJar") {
-    archiveFileName.set("tachi-source-api-$sourceApiVersion.jar")
-    destinationDirectory.set(layout.buildDirectory.dir("source-api"))
-    from({
-        sourceApiAar.files.map { aar ->
-            zipTree(zipTree(aar).matching { include("classes.jar") }.singleFile)
-        }
-    }) {
-        include("eu/kanade/tachiyomi/**")
-    }
-}
-
+// The Tachi source host (KTD17): the real Mihon source API, OkHttp, jsoup,
+// kotlinx, Injekt, apksig and the Android worker platform, built from the
+// shared desktop worker sources by tools/tachi-source-runner/android (included
+// as ":tachi_source_host" by the app's android/settings.gradle.kts). It sits on
+// the service process's parent class path, so extension DEX links against
+// parent-owned host API types.
 dependencies {
     // @Keep on the facade types that only Dart (JNIgen) references.
     implementation("androidx.annotation:annotation:1.10.0")
-    sourceApiAar("com.github.mihonapp:extensions-lib:$sourceApiVersion@aar")
-    implementation(files(sourceApiJar))
-    // Runtime closure declared by extensions-lib 1.6.0's POM.
-    implementation("com.squareup.okhttp3:okhttp:5.4.0")
-    implementation("io.reactivex:rxjava:1.3.8")
-    implementation("io.reactivex:rxandroid:1.2.1")
-    implementation("org.jsoup:jsoup:1.22.2")
-    implementation("com.github.mihonapp:injekt:91edab2317")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("androidx.preference:preference:1.2.1")
+    implementation(project(":tachi_source_host"))
+    implementation("androidx.webkit:webkit:1.14.0")
 }

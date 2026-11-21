@@ -11,7 +11,8 @@ data class WorkerOptions(
     val stateRoot: File,
     val browser: Boolean = true,
     val defaultUserAgent: String = DEFAULT_USER_AGENT,
-    val platform: WorkerPlatform = DesktopPlatform,
+    /** The hosting process: [DesktopPlatform] for the desktop worker; Android and iOS pass their own. */
+    val platform: WorkerPlatform,
 ) {
     companion object {
         const val WORKER_NAME = "tachi-jvm"

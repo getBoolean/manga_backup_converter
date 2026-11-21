@@ -160,3 +160,102 @@ Command: `flutter test integration_test/source_runners_android_test.dart -d <emu
 - The eight cases on a physical ARM64 device, in a release-profile build (R16). The arm64-v8a and armeabi-v7a libraries were packaged but never loaded. These runs were debug builds; `flutter test integration_test` does not run release builds.
 - **"A missing ABI fails at build time" is not tested.** A failed code-asset hook does fail the build, but no build was forced to drop an ABI, which would need an `android/` abiFilters change outside this unit.
 - Live-site behaviour is re-checked only by rerunning the capture tool.
+
+---
+
+# U11 Tachi APK sources on Android — receipts
+
+Plan: U11 (KTD17, KTD18, KTD19, KTD9, KTD23, KTD25; R15, R16, R17; AE10, AE11). **Emulator evidence only.** These runs do not satisfy R16. See "U11: still needs a physical ARM64 device".
+
+| Receipt | Device or build | Result |
+|---|---|---|
+| [`u11-tachi-emulator-api36-pixel9pro-x86_64.json`](u11-tachi-emulator-api36-pixel9pro-x86_64.json) | AVD `Pixel_9_Pro`, Android 16 (API 36), x86_64, WebView 134.0.6998.135, debug build | 20/20 in one run of the file: 8 U13 cases, 11 U11 scenarios, 1 benchmark |
+| [`u11-benchmark-emulator-api36-pixel9pro-x86_64.json`](u11-benchmark-emulator-api36-pixel9pro-x86_64.json) | same AVD | KTD25 inputs of the provisional Android sizing rule |
+| [`u11-release-keep-rules-check.txt`](u11-release-keep-rules-check.txt) | `flutter build apk --release` (R8) | 0 unresolved host references for the three pinned APKs (static resolution; the release APK was not run) |
+| [`u11-dependency-closure-releaseRuntimeClasspath.txt`](u11-dependency-closure-releaseRuntimeClasspath.txt) | `:tachi_source_host:releaseRuntimeClasspath` | resolved host closure |
+
+Command: `flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded` (debug, android-x64, Flutter 3.50.0). Each U11 case prints a `U11_RECEIPT` JSON line; the receipt file collects them. Host contract test: `flutter test packages/source_runtime_android/test/tachi_backend_contract_test.dart`. Desktop worker suite after the shared refactor: `./gradlew test` in `tools/tachi-source-runner`, 71/71.
+
+## How it runs
+
+- **Shared worker, Binder stdio.** The desktop Tachi worker (`tools/tachi-source-runner`, protocol v1) runs unchanged inside `:source_runtime`. Package handling sits behind `PackageRuntime`: `JvmPackageRuntime` (dex2jar, child-first JVM loading, KTD20 webkit shim, `StackWalker`; desktop and iOS) and `AndroidPackageRuntime` (original APK DEX on ART, real `android.webkit`). The hosting process sits behind the shared `WorkerPlatform` (U9): `AndroidHostPlatform` reports `platform: android` and its pid, with no platform deadline and no artifact rewrite. The service compiles the shared `Wire` (protocol minor 3, the desktop worker's); the U11 emulator receipts below were recorded at minor 2, before the integration, and were not re-run after it. Frames travel one-way over Binder in both directions. A frame over 32 KiB travels as a read-only `SharedMemory` descriptor with its length and SHA-256, validated and closed on every path (`FrameTransport`). The 16 MiB logical frame limit still applies.
+- **Dart side.** `lib/src/tachi_backend.dart` presents one service worker lifetime as the `WorkerProcess` the desktop `WorkerSupervisor` drives. Deadlines, cooperative cancel, kill by PID, restart, reload of hosted packages and generation fencing are therefore the supervisor's existing behaviour. The composition root builds `TachiRuntime` (tachi_plugin_loader: catalog, trust gate, artifact cache) over it, with the artifact policy forced to APK. KTD16: the package imports `source_runtime` only. `TachiWorkerConnection` and `TachiWorkerListener` are bound through JNIgen (`tool/jnigen.dart`). Every listener method is async, and Binder threads only hand work to the connection's executor. No platform channel exists (`test/no_platform_channel_test.dart`).
+- **Host module.** `tools/tachi-source-runner/android` (`:tachi_source_host`, included by `android/settings.gradle.kts`) compiles the shared sources by an explicit include list. Excluded are the desktop `android.*`/`androidx.*` stubs, the webkit shim, `root/` launch code, dex2jar and its fixes, the JVM class loader and `ios/`. The replay transport is compiled into debug builds only. The real Mihon source API replaces U17's stub `extensions-lib`, so source construction succeeds.
+- **Admission.** `artifact.prepare` verifies the APK with pinned apksig against the request's `trustedSigners` and only copies the bytes; nothing executes. A JAR is refused (KTD17). `package.load` never loads the path it gets, because that is an app cache file that may be writable. It copies the file into `noBackupFilesDir/source_runtime/staged/`, marks it read-only before writing through the open descriptor, re-checks the digest, the mode and the parent directory, and only then creates the class loader.
+- **Loading.** There is one child-first `BaseDexClassLoader` per package, with host-owned prefixes delegated to the parent. Package scope on ART comes from the nearest stack frame that exactly one live package loader defines, with the thread-bound package as fallback. Extensions get `AndroidHostApplication`, a real `ContextWrapper` over the service context. Its `getSharedPreferences` returns the package's in-memory stores, seeded from the protocol 1.1 settings snapshot (values, string sets, per-source scopes). `getPackageName` returns the app's real name, which WebView needs.
+- **Process lifetime.** There is one worker per service process. `shutdown` or the last unbind ends the process, so the app always sees the end as a binder death. `WORKER_OPEN` is one-way; its outcome arrives as `WORKER_STARTED`, and the Dart start is bounded by the handshake deadline. WebView is only ever initialized on the service's main looper.
+- **WebView.** `setDataDirectorySuffix("source_runtime")` is applied in `onCreate`, after deleting the WebView data a previous (possibly killed) instance left (`app_webview_source_runtime`, the WebView cache). Extension-created `android.webkit.WebView`s run unmodified on the service main looper. `ChallengeActivity` (`android:process=":source_runtime"`, not exported, http/https only) shows visible challenges and returns `interaction-required` while no app Activity is visible.
+
+## Results (emulator)
+
+| Scenario | Result |
+|---|---|
+| Pinned real APKs, one service | MangaDex 1.6.4: 62 sources, IDs equal the index; search "Onimai" returned 2 hits, details returned 15 chapters. WeebCentral 1.6.27: 1 source, 1 hit, 114 chapters. MangaFire 1.6.38: 7 sources, 50 hits, 86 chapters. 3 live loaders in one PID, 0 replay misses. The handshake reports `tachi-android` with a PID other than the app's |
+| Two repositories, distinct loaders, duplicates | keiyoushi WeebCentral, plus fixture `busy` and `dup` from a second repository, ran in one service as 3 loaders; `busy` and `dup` both define `fixture.android.FixtureSource`. Loading `dup2`, which shares a source ID with `dup`, fails `artifact-incompatible` and names both packages and both digests. No loader was left behind |
+| Read-only staging | Every staged APK is `r--------` and not writable by the process (receipt `two-repositories-duplicates-staging`). Mutable-path rejection holds **by construction**: `package.load` never loads the path it is given; it loads its own staged copy only after `requireLoadable` (parent directory, mode, digest). No passing test feeds it a writable or outside path, because the protocol cannot reach that check with one, and the U17 gate case that covered writable and tampered staged files now stops earlier at its obsolete `Stub!` assertion (see notes) |
+| Tamper, re-sign, wrong anchor | One flipped byte of WeebCentral fails with a CHUNKED_SHA256 mismatch. The `busy` fixture re-signed with a throwaway key generated per build (signer `a72f0e12…`) fails as an untrusted certificate under the fixture repository's anchor. WeebCentral under the wrong anchor fails the same way. 0 loaders and 0 staged files followed. All are refused in `artifact.prepare`, before any loader |
+| Descriptor transport | 20,000 chapters (about 10.7 MB of chapter JSON) arrived intact through a descriptor frame. The service closed every descriptor it sent or received |
+| AE10 | The fixture's call-free CPU loop hit `operationDeadlineMs=4000`, cooperative cancel did not settle within `cancelGraceMs=500`, and the supervisor killed the PID. Death was observed, the service rebound with a new PID, and both packages reloaded (`reloadFailures` empty). The looping search failed `timeout` and was not re-sent (`requeued` empty). With `poolSize=1`, a request queued behind the loop succeeded after the restart. The largest Dart 16 ms tick gap was 60 ms |
+| Password never on disk | A seeded `password` secret, and a token the fixture writes beside it, appear in no file under the app's data directory after the session runs and closes. The only `shared_prefs` file is WebView's own `WebViewChromiumPrefs.xml` |
+| Service WebViews and storage wipe | The fixture built a real WebView in the `:source_runtime` PID (JS returned `fixture:42`). Until A's session closed, source B saw A's cookie in the shared profile (no per-source isolation; see below). After A's session closed it saw none, and after a kill and restart it saw none (`startupWipe` removed `app_webview_source_runtime`). **Cookies verified only**: `WebStorage.deleteAllData()` runs in the same wipe, but no test checks web storage |
+| Offline WebView proof | Debug builds point the process's WebViews at a loopback refuser through `ProxyController`, with no DIRECT fallback. A WebView page load ends in `net::ERR_PROXY_CONNECTION_FAILED`, with no DNS lookup and no network |
+| AE11 (replayed) | A captcha 403 fired once, and MangaFire's `runWebViewBlocking` ran `solver.html` in a real WebView in the service process (the `app_webview_source_runtime` directory filled). Offline, its subresources fail, so the solver gives up. The search fails `source-error` with the extension's own "Failed to solve shape-selecting captcha" message, and no request reached a server |
+| Production configuration | `AndroidTachiBackend()` with no arguments (live transport, no replay, no proxy override) starts, handshakes with the committed sizing rule (pool 2, operation deadline 133,260 ms, cancel and shutdown grace 2,075 ms) and shuts down. No package was loaded, so nothing reached a server |
+| Challenge Activity | `https://…` was shown in `ChallengeActivity` in the worker's PID, then closed. A `file:` URL was refused as `capability-unavailable` |
+| JNI references | Over 10 rounds of worker start and close, package and jni listener references returned to baseline (`PortProxyBuilder` −2). The only growth is `LoadedApk$ServiceDispatcher$InnerConnection` (+10), one per `bindService`, held by system_server until its own GC, as U17 recorded. The worker connection reaches its listener only through relays that are cleared at exit, so these do not pin the Dart proxy |
+
+**Open decision — per-source browser isolation is not met.** The brief asks for per-source androidx.webkit profiles where supported, and the installed WebView supports multi-profile (`webViewMultiProfile: true`). The service does not apply them. A profile must be assigned with `WebViewCompat.setProfile` before first use, and the extension constructs and configures its own WebView; the claim that no host hook exists before that first use is reasoning, not a demonstrated probe. Options: a probe (setProfile right after construction vs after a load) and, if a hook exists, per-source profiles; bytecode rewriting of WebView construction; or accepting the shared profile with the wipe rule. The handshake reports `sourceBrowserIsolation: unavailable` with that reason, and the service applies KTD19's rule instead: it wipes the shared profile at a browser-using source's session close and at every service start, and fails the browser capability if it cannot confirm the wipe.
+
+Wiping the shared profile at one source's session close also wipes it under any other browser-using source in flight in the same service.
+
+## KTD25 sizing (provisional, emulator)
+
+Benchmark (3 rounds): handshake p99 2772 ms (bind, process start and handshake); dispatch round trip p50 10 / p99 36 ms; qualification search or details p99 4442 ms (replay); cancel settle ≤ 7 ms; kill → rebind p99 3386 ms; kill → all packages rehydrated p99 4353 ms; shutdown p99 415 ms.
+
+These give the rule in `tools/tachi-source-runner/android/src/main/resources/tachi-worker-sizing.json`:
+- operation deadline: 4442 × 30 = 133,260 ms
+- cancel and shutdown grace: 415 × 5 = 2,075 ms
+- handshake deadline: 2772 × 5 = 13,860 ms (`androidTachiHandshakeDeadline`)
+
+Pool size (`0.5 × cores`, at most 2) and the per-package heap bound were **not** benchmarked, and the factors (30×, 5×, 5×) were chosen, not measured; they are provisional bounds. The benchmark ran with WebView already initialized by `--offline-browser`; in production the wipe at package unload or shutdown may cold-start WebView inside the 2,075 ms grace (unverified). A rerun in the final pass measured handshake p99 3276 ms and rehydration p99 5069 ms, both inside the derived bounds. Replay latency excludes real network time, so the operation deadline must be re-derived from physical-device live runs.
+
+## SDK and dependency minimums
+
+- App: minSdk **28** (`android/app/build.gradle.kts`; KTD19, user decision). targetSdk and compileSdk are 36 (Flutter 3.50 defaults). Verified in the release APK with `aapt2 dump badging`.
+- Host closure declared floors: okhttp-android 5.4.0, zstd-kmp(-okio)-android 0.4.0, androidx.webkit 1.14.0 and androidx.startup 1.2.0 declare 21; androidx.preference 1.2.1, appcompat 1.1.0 and core 1.8.0 declare 14; the JARs (Kotlin 2.4.20, kotlinx coroutines/serialization 1.11.0, okio 3.17.0, jsoup 1.22.2, rxjava 1.3.8, injekt, apksig 9.5.1) declare none. The closure floor is **21**. The pinned extensions declare **26** (MangaDex, WeebCentral and MangaFire all report `minSdkVersion:'26'`). The fixtures are built for 28.
+- `zstd-kmp-android` adds `libzstd-kmp.so` for 4 ABIs. Extensions reference `okhttp3.zstd.Zstd`, so it is part of the app-provided surface.
+
+## Release keep rules
+
+`tools/tachi-source-runner/android/consumer-rules.pro` keeps the extension surface: `eu.kanade.tachiyomi.**`, `tachiyomi.**`, `mihon.**`, `dev.mihon.**`, Kotlin and kotlinx, OkHttp/Okio, jsoup, RxJava, Injekt, androidx.preference, androidx.webkit, brotli and zstd. It also keeps `mangabackup.tachi.**`, plus signatures, annotations and inner classes. The plugin's own rules keep the JNIgen facade types.
+
+Verification (static; the release APK was not run): `tools/tachi-source-runner/android/tool/check_keep_rules.py` dexdumps each pinned APK and lists every class, method and field it references but does not define, outside the Android framework. It then resolves each one by its original name and signature through the superclass and interface chain in the release APK's DEX. Results for the R8 release APK: MangaDex 348, WeebCentral 230 and MangaFire 362 host member references, all resolved. The release APK's own code is obfuscated (R8 ran); it keeps the JNIgen facade's public members by name and packages `tachi-worker-sizing.json` and the coroutines `MainDispatcherFactory` service entry; and it contains no fixture assets, no replay transport, no MockWebServer and no debug hooks.
+
+## Fixtures
+
+- The pinned keiyoushi APKs and captures (`fixtures/source_captures/tachi/`) reach the device only through the plugin's debug asset folder.
+- The synthetic U11 fixture extensions (`fixtures/source_captures/tachi-android/android-fixtures/`) are built by `tools/tachi-source-runner/android/fixtures/build_fixtures.sh`:
+  - sources in `android/fixtures/kotlin`
+  - d8, aapt2 and apksigner from build-tools 36.0.0
+  - a test-only key, committed with its password in the script (`android/fixtures/test-signing.p12`, signer `a4ae79f5…7f8c`); the re-signing case uses a second throwaway key generated per build and never committed
+- The fixtures are `busy`, `prefs`, `big`, `dup`, `dup2` and `cookies`, plus `busy` re-signed with the throwaway key. They make no network requests and also reach the device through the debug asset folder only.
+
+## U11: still needs a physical ARM64 device
+
+- Every scenario above on a physical ARM64 device, release profile (R16, AE10, AE11), with the three qualification sources run live as well as replayed.
+- The KTD25 benchmark on devices of different capability: live operation latency for the operation deadline, plus pool size and heap per package.
+- MangaFire's challenge **success** path. It needs real OpenCV and a live challenge; offline replay only exercises the WebView path. A MangaFire challenge failure keeps M2 open.
+- API 28 itself (emulator or device), with MangaFire's service-process WebView alongside an app-process WebView.
+- Whether `androidx.startup`, which okhttp-android pulls in, initializes anything unwanted in `:source_runtime` on real devices.
+
+## U11 notes and gaps
+
+- **Network contact in development runs.** Before the proxy's DIRECT fallback was removed, the AE11 case ran four times on the emulator (one of those runs succeeded through the solver), and the two runs of the proxy check before the fix let Chromium resolve `proxy-check.invalid` itself (DNS lookups). Chromium falls back to DIRECT when the proxy refuses a tunnel, so in those runs WebView subresource requests (MangaFire's solver page) may have reached the real network. Every receipt above comes from runs after the fix, which fail closed.
+- **WebView cookies and OkHttp.** WebView-acquired cookies are not copied into the package's OkHttp jar. OkHttp keeps the per-package in-memory jar (KTD9), while WebView keeps the process profile. Mihon shares a single CookieManager-backed jar; a source that relies on that sharing after a solved challenge is unverified.
+- **Cloudflare interaction.** The `CloudflareInterceptor` still fails with `interaction-required` (the desktop behaviour). It does not open `ChallengeActivity` yet; the Activity and its visible-only launcher exist and are tested directly.
+- **Resources.** `Context.getString(resId)` resolves against the app's resources, not the extension's: the extension's resources are not merged. None of the qualification sources call it.
+- **Not implemented:**
+  - Pausing new work and fencing callbacks when the app is backgrounded (KTD18 lifecycle).
+  - The app-scoped conversion job and its recovery from the KTD8 journal (the journal exists in `manga_backup_core` but is not exercised on Android).
+  - Activity recreation was not run. The worker lives in a bound service; nothing in U11 ties it to an Activity, and `MainActivity` handles configuration changes itself.
+- **U17 gate test.** `integration_test/android_runtime_gate_test.dart` passes 4/5 on this branch. Scenario 2 asserts `construction['ok'] == false` with `Stub!`; with the real host, MangaDex's sources now construct (`ok` true), so the case stops there, before its writable and tampered staged-file checks. The file is outside U11's ownership: it needs its construction assertion updated.

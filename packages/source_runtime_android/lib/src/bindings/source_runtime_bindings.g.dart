@@ -1158,3 +1158,733 @@ final class $RuntimeDiagnostics$Type$ extends jni$_.JType<RuntimeDiagnostics> {
   @core$_.override
   String get className => r'dev/getboolean/sourceruntime/RuntimeDiagnostics';
 }
+
+/// from: `dev.getboolean.sourceruntime.tachi.TachiWorkerConnection$Companion`
+extension type TachiWorkerConnection$Companion._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/tachi/TachiWorkerConnection$Companion');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<TachiWorkerConnection$Companion> type = $TachiWorkerConnection$Companion$Type$();
+  static final _id_new$ = _class.constructorId(
+    r'(Lkotlin/jvm/internal/DefaultConstructorMarker;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `synthetic public void <init>(kotlin.jvm.internal.DefaultConstructorMarker defaultConstructorMarker)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory TachiWorkerConnection$Companion(
+    jni$_.JObject? defaultConstructorMarker,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$defaultConstructorMarker = defaultConstructorMarker?.reference ?? jni$_.jNullReference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$defaultConstructorMarker.pointer,
+    ).object<TachiWorkerConnection$Companion>();
+  }
+}
+
+final class $TachiWorkerConnection$Companion$Type$ extends jni$_.JType<TachiWorkerConnection$Companion> {
+  @jni$_.internal
+  const $TachiWorkerConnection$Companion$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/tachi/TachiWorkerConnection$Companion;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/tachi/TachiWorkerConnection$Companion';
+}
+
+/// from: `dev.getboolean.sourceruntime.tachi.TachiWorkerConnection`
+extension type TachiWorkerConnection._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/tachi/TachiWorkerConnection');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<TachiWorkerConnection> type = $TachiWorkerConnection$Type$();
+  static final _id_Companion = _class.staticFieldId(
+    r'Companion',
+    r'Ldev/getboolean/sourceruntime/tachi/TachiWorkerConnection$Companion;',
+  );
+
+  /// from: `static public final dev.getboolean.sourceruntime.tachi.TachiWorkerConnection$Companion Companion`
+  /// The returned object must be released after use, by calling the [release] method.
+  static TachiWorkerConnection$Companion get Companion =>
+      _id_Companion.get(_class, TachiWorkerConnection$Companion.type) as TachiWorkerConnection$Companion;
+
+  /// from: `static public final int KILLED`
+  static const KILLED = 137;
+
+  /// from: `static public final int START_FAILED`
+  static const START_FAILED = 70;
+  static final _id_new$ = _class.constructorId(
+    r'(Landroid/content/Context;Ldev/getboolean/sourceruntime/tachi/TachiWorkerListener;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.Context context, dev.getboolean.sourceruntime.tachi.TachiWorkerListener tachiWorkerListener)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory TachiWorkerConnection(
+    jni$_.JObject context,
+    TachiWorkerListener tachiWorkerListener,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context.reference;
+    final _$tachiWorkerListener = tachiWorkerListener.reference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$context.pointer,
+      _$tachiWorkerListener.pointer,
+    ).object<TachiWorkerConnection>();
+  }
+}
+
+extension TachiWorkerConnection$$Methods on TachiWorkerConnection {
+  static final _id_get$pid = TachiWorkerConnection._class.instanceMethodId(
+    r'getPid',
+    r'()I',
+  );
+
+  static final _get$pid =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallIntMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final int getPid()`
+  core$_.int get pid {
+    final _$$selfRef = reference;
+    return _get$pid(_$$selfRef.nonNullPointer, _id_get$pid.pointer).integer;
+  }
+
+  static final _id_get$descriptorFramesReceived = TachiWorkerConnection._class.instanceMethodId(
+    r'getDescriptorFramesReceived',
+    r'()J',
+  );
+
+  static final _get$descriptorFramesReceived =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallLongMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final long getDescriptorFramesReceived()`
+  core$_.int get descriptorFramesReceived {
+    final _$$selfRef = reference;
+    return _get$descriptorFramesReceived(_$$selfRef.nonNullPointer, _id_get$descriptorFramesReceived.pointer).long;
+  }
+
+  static final _id_get$descriptorsClosed = TachiWorkerConnection._class.instanceMethodId(
+    r'getDescriptorsClosed',
+    r'()J',
+  );
+
+  static final _get$descriptorsClosed =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallLongMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public final long getDescriptorsClosed()`
+  core$_.int get descriptorsClosed {
+    final _$$selfRef = reference;
+    return _get$descriptorsClosed(_$$selfRef.nonNullPointer, _id_get$descriptorsClosed.pointer).long;
+  }
+
+  static final _id_start = TachiWorkerConnection._class.instanceMethodId(
+    r'start',
+    r'(Ljava/lang/String;)Z',
+  );
+
+  static final _start =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun start(argsJson: kotlin.String): kotlin.Boolean`
+  core$_.bool start(
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    return _start(_$$selfRef.nonNullPointer, _id_start.pointer, _$string.pointer).boolean;
+  }
+
+  static final _id_send = TachiWorkerConnection._class.instanceMethodId(
+    r'send',
+    r'(Ljava/lang/String;)Z',
+  );
+
+  static final _send =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun send(frame: kotlin.String): kotlin.Boolean`
+  core$_.bool send(
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    return _send(_$$selfRef.nonNullPointer, _id_send.pointer, _$string.pointer).boolean;
+  }
+
+  static final _id_kill = TachiWorkerConnection._class.instanceMethodId(
+    r'kill',
+    r'()Z',
+  );
+
+  static final _kill =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public fun kill(): kotlin.Boolean`
+  core$_.bool kill() {
+    final _$$selfRef = reference;
+    return _kill(_$$selfRef.nonNullPointer, _id_kill.pointer).boolean;
+  }
+
+  static final _id_close = TachiWorkerConnection._class.instanceMethodId(
+    r'close',
+    r'()V',
+  );
+
+  static final _close =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public fun close(): kotlin.Unit`
+  void close() {
+    final _$$selfRef = reference;
+    _close(_$$selfRef.nonNullPointer, _id_close.pointer).check();
+  }
+}
+
+final class $TachiWorkerConnection$Type$ extends jni$_.JType<TachiWorkerConnection> {
+  @jni$_.internal
+  const $TachiWorkerConnection$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/tachi/TachiWorkerConnection;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/tachi/TachiWorkerConnection';
+}
+
+/// from: `dev.getboolean.sourceruntime.tachi.TachiWorkerListener`
+extension type TachiWorkerListener._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/tachi/TachiWorkerListener');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<TachiWorkerListener> type = $TachiWorkerListener$Type$();
+
+  /// Maps a specific port to the implemented interface.
+  static final core$_.Map<core$_.int, $TachiWorkerListener> _$impls = {};
+  static jni$_.JObjectPtr _$invoke(
+    core$_.int port,
+    jni$_.JObjectPtr descriptor,
+    jni$_.JObjectPtr args,
+  ) {
+    return _$invokeMethod(
+      port,
+      jni$_.MethodInvocation.fromAddresses(
+        0,
+        descriptor.address,
+        args.address,
+      ),
+    );
+  }
+
+  static final jni$_.Pointer<
+    jni$_.NativeFunction<jni$_.JObjectPtr Function(jni$_.Int64, jni$_.JObjectPtr, jni$_.JObjectPtr)>
+  >
+  _$invokePointer = jni$_.Pointer.fromFunction(_$invoke);
+
+  static jni$_.Pointer<jni$_.Void> _$invokeMethod(
+    core$_.int $p,
+    jni$_.MethodInvocation $i,
+  ) {
+    try {
+      final $d = $i.methodDescriptor.toDartString(releaseOriginal: true);
+      final $a = $i.args;
+      if ($d == r'onStarted(II)V') {
+        _$impls[$p]!.onStarted(
+          ($a![0] as jni$_.JInteger).toDartInt(releaseOriginal: true),
+          ($a![1] as jni$_.JInteger).toDartInt(releaseOriginal: true),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d == r'onStartFailed(Ljava/lang/String;)V') {
+        _$impls[$p]!.onStartFailed(
+          ($a![0] as jni$_.JString),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d == r'onFrame(Ljava/lang/String;)V') {
+        _$impls[$p]!.onFrame(
+          ($a![0] as jni$_.JString),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d == r'onLog(Ljava/lang/String;)V') {
+        _$impls[$p]!.onLog(
+          ($a![0] as jni$_.JString),
+        );
+        return jni$_.nullptr;
+      }
+      if ($d == r'onExit(I)V') {
+        _$impls[$p]!.onExit(
+          ($a![0] as jni$_.JInteger).toDartInt(releaseOriginal: true),
+        );
+        return jni$_.nullptr;
+      }
+    } catch (e) {
+      return jni$_.ProtectedJniExtensions.newDartException(e);
+    }
+    return jni$_.nullptr;
+  }
+
+  static void implementIn(
+    jni$_.JImplementer implementer,
+    $TachiWorkerListener $impl,
+  ) {
+    late final jni$_.RawReceivePort $p;
+    $p = jni$_.RawReceivePort(($m) {
+      if ($m == null) {
+        _$impls.remove($p.sendPort.nativePort);
+        $p.close();
+        return;
+      }
+      final $i = jni$_.MethodInvocation.fromMessage($m);
+      final $r = _$invokeMethod($p.sendPort.nativePort, $i);
+      $i.args?.release();
+      jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
+    });
+    implementer.add(
+      r'dev.getboolean.sourceruntime.tachi.TachiWorkerListener',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.onStarted$async) r'onStarted(II)V',
+        if ($impl.onStartFailed$async) r'onStartFailed(Ljava/lang/String;)V',
+        if ($impl.onFrame$async) r'onFrame(Ljava/lang/String;)V',
+        if ($impl.onLog$async) r'onLog(Ljava/lang/String;)V',
+        if ($impl.onExit$async) r'onExit(I)V',
+      ],
+    );
+    final $a = $p.sendPort.nativePort;
+    _$impls[$a] = $impl;
+  }
+
+  factory TachiWorkerListener.implement(
+    $TachiWorkerListener $impl,
+  ) {
+    final $i = jni$_.JImplementer();
+    implementIn($i, $impl);
+    return $i.implement<TachiWorkerListener>();
+  }
+}
+
+extension TachiWorkerListener$$Methods on TachiWorkerListener {
+  static final _id_onStarted = TachiWorkerListener._class.instanceMethodId(
+    r'onStarted',
+    r'(II)V',
+  );
+
+  static final _onStarted =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Int32, jni$_.Int32)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, core$_.int, core$_.int)
+          >();
+
+  /// from: `public fun onStarted(pid: kotlin.Int, sdkInt: kotlin.Int): kotlin.Unit`
+  void onStarted(
+    core$_.int i,
+    core$_.int i1,
+  ) {
+    final _$$selfRef = reference;
+    _onStarted(_$$selfRef.nonNullPointer, _id_onStarted.pointer, i, i1).check();
+  }
+
+  static final _id_onStartFailed = TachiWorkerListener._class.instanceMethodId(
+    r'onStartFailed',
+    r'(Ljava/lang/String;)V',
+  );
+
+  static final _onStartFailed =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun onStartFailed(message: kotlin.String): kotlin.Unit`
+  void onStartFailed(
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    _onStartFailed(_$$selfRef.nonNullPointer, _id_onStartFailed.pointer, _$string.pointer).check();
+  }
+
+  static final _id_onFrame = TachiWorkerListener._class.instanceMethodId(
+    r'onFrame',
+    r'(Ljava/lang/String;)V',
+  );
+
+  static final _onFrame =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun onFrame(frame: kotlin.String): kotlin.Unit`
+  void onFrame(
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    _onFrame(_$$selfRef.nonNullPointer, _id_onFrame.pointer, _$string.pointer).check();
+  }
+
+  static final _id_onLog = TachiWorkerListener._class.instanceMethodId(
+    r'onLog',
+    r'(Ljava/lang/String;)V',
+  );
+
+  static final _onLog =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
+          >();
+
+  /// from: `public fun onLog(line: kotlin.String): kotlin.Unit`
+  void onLog(
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$string = string.reference;
+    _onLog(_$$selfRef.nonNullPointer, _id_onLog.pointer, _$string.pointer).check();
+  }
+
+  static final _id_onExit = TachiWorkerListener._class.instanceMethodId(
+    r'onExit',
+    r'(I)V',
+  );
+
+  static final _onExit =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.VarArgs<(jni$_.Int32,)>)
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, core$_.int)>();
+
+  /// from: `public fun onExit(code: kotlin.Int): kotlin.Unit`
+  void onExit(
+    core$_.int i,
+  ) {
+    final _$$selfRef = reference;
+    _onExit(_$$selfRef.nonNullPointer, _id_onExit.pointer, i).check();
+  }
+}
+
+abstract base mixin class $TachiWorkerListener {
+  factory $TachiWorkerListener({
+    required void Function(core$_.int i, core$_.int i1) onStarted,
+    core$_.bool onStarted$async,
+    required void Function(jni$_.JString string) onStartFailed,
+    core$_.bool onStartFailed$async,
+    required void Function(jni$_.JString string) onFrame,
+    core$_.bool onFrame$async,
+    required void Function(jni$_.JString string) onLog,
+    core$_.bool onLog$async,
+    required void Function(core$_.int i) onExit,
+    core$_.bool onExit$async,
+  }) = _$TachiWorkerListener;
+
+  void onStarted(core$_.int i, core$_.int i1);
+  core$_.bool get onStarted$async => false;
+  void onStartFailed(jni$_.JString string);
+  core$_.bool get onStartFailed$async => false;
+  void onFrame(jni$_.JString string);
+  core$_.bool get onFrame$async => false;
+  void onLog(jni$_.JString string);
+  core$_.bool get onLog$async => false;
+  void onExit(core$_.int i);
+  core$_.bool get onExit$async => false;
+}
+
+final class _$TachiWorkerListener with $TachiWorkerListener {
+  _$TachiWorkerListener({
+    required void Function(core$_.int i, core$_.int i1) onStarted,
+    this.onStarted$async = false,
+    required void Function(jni$_.JString string) onStartFailed,
+    this.onStartFailed$async = false,
+    required void Function(jni$_.JString string) onFrame,
+    this.onFrame$async = false,
+    required void Function(jni$_.JString string) onLog,
+    this.onLog$async = false,
+    required void Function(core$_.int i) onExit,
+    this.onExit$async = false,
+  }) : _onStarted = onStarted,
+       _onStartFailed = onStartFailed,
+       _onFrame = onFrame,
+       _onLog = onLog,
+       _onExit = onExit;
+
+  final void Function(core$_.int i, core$_.int i1) _onStarted;
+  final core$_.bool onStarted$async;
+  final void Function(jni$_.JString string) _onStartFailed;
+  final core$_.bool onStartFailed$async;
+  final void Function(jni$_.JString string) _onFrame;
+  final core$_.bool onFrame$async;
+  final void Function(jni$_.JString string) _onLog;
+  final core$_.bool onLog$async;
+  final void Function(core$_.int i) _onExit;
+  final core$_.bool onExit$async;
+
+  void onStarted(core$_.int i, core$_.int i1) {
+    return _onStarted(i, i1);
+  }
+
+  void onStartFailed(jni$_.JString string) {
+    return _onStartFailed(string);
+  }
+
+  void onFrame(jni$_.JString string) {
+    return _onFrame(string);
+  }
+
+  void onLog(jni$_.JString string) {
+    return _onLog(string);
+  }
+
+  void onExit(core$_.int i) {
+    return _onExit(i);
+  }
+}
+
+final class $TachiWorkerListener$Type$ extends jni$_.JType<TachiWorkerListener> {
+  @jni$_.internal
+  const $TachiWorkerListener$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/tachi/TachiWorkerListener;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/tachi/TachiWorkerListener';
+}
+
+/// from: `dev.getboolean.sourceruntime.tachi.FixtureAssets`
+extension type FixtureAssets._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/tachi/FixtureAssets');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<FixtureAssets> type = $FixtureAssets$Type$();
+  static final _id_INSTANCE = _class.staticFieldId(
+    r'INSTANCE',
+    r'Ldev/getboolean/sourceruntime/tachi/FixtureAssets;',
+  );
+
+  /// from: `static public final dev.getboolean.sourceruntime.tachi.FixtureAssets INSTANCE`
+  /// The returned object must be released after use, by calling the [release] method.
+  static FixtureAssets get INSTANCE => _id_INSTANCE.get(_class, FixtureAssets.type) as FixtureAssets;
+}
+
+extension FixtureAssets$$Methods on FixtureAssets {
+  static final _id_copyDirectory = FixtureAssets._class.instanceMethodId(
+    r'copyDirectory',
+    r'(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;',
+  );
+
+  static final _copyDirectory =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_CallObjectMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public fun copyDirectory(context: android.content.Context, assetDir: kotlin.String): kotlin.String`
+  /// The returned object must be released after use, by calling the [release] method.
+  jni$_.JString copyDirectory(
+    jni$_.JObject context,
+    jni$_.JString string,
+  ) {
+    final _$$selfRef = reference;
+    final _$context = context.reference;
+    final _$string = string.reference;
+    return _copyDirectory(
+      _$$selfRef.nonNullPointer,
+      _id_copyDirectory.pointer,
+      _$context.pointer,
+      _$string.pointer,
+    ).object<jni$_.JString>();
+  }
+}
+
+final class $FixtureAssets$Type$ extends jni$_.JType<FixtureAssets> {
+  @jni$_.internal
+  const $FixtureAssets$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/tachi/FixtureAssets;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/tachi/FixtureAssets';
+}

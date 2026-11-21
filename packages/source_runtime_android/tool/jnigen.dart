@@ -25,6 +25,9 @@ const List<String> _facadeClasses = <String>[
   'dev.getboolean.sourceruntime.AppWebViewProbe',
   'dev.getboolean.sourceruntime.ProbeListener',
   'dev.getboolean.sourceruntime.RuntimeDiagnostics',
+  'dev.getboolean.sourceruntime.tachi.TachiWorkerConnection',
+  'dev.getboolean.sourceruntime.tachi.TachiWorkerListener',
+  'dev.getboolean.sourceruntime.tachi.FixtureAssets',
 ];
 
 Future<void> main() async {

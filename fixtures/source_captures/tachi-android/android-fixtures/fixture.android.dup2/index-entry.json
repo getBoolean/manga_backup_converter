@@ -1,0 +1,19 @@
+{
+  "name": "U11 dup2",
+  "packageName": "fixture.android.dup2",
+  "resources": {
+    "apkUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.dup2.apk"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "1",
+  "versionName": "1.6.1",
+  "contentWarning": "CONTENT_WARNING_SAFE",
+  "sources": [
+    {
+      "id": "2409223436869060766",
+      "name": "Android Dup",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "artifacts": [
+    {
+      "kind": "apk",
+      "path": "fixture.android.busy.apk",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.busy.apk",
+      "sha256": "9195460413a71abe341ddfee19c63167ca3da498df2fd6738a1ed135ca7def4e"
+    },
+    {
+      "kind": "jar",
+      "path": "absent.jar",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/absent/fixture.android.busy.jar",
+      "sha256": ""
+    }
+  ]
+}

@@ -37,6 +37,25 @@ val fixtureExtB: SourceSet by sourceSets.creating {
     kotlin.srcDir("src/fixtureCommon/kotlin")
 }
 
+// Synthetic fixture extensions for the Android service tests (U11): compiled
+// against the real android.jar first (so android.* resolves to the framework,
+// not the desktop shims) and the host API, then dexed, packaged and signed by
+// android/fixtures/build_fixtures.sh. Needs ANDROID_SDK_ROOT (or ANDROID_HOME);
+// only the androidFixtureJar task resolves it.
+val androidSdkRoot: String? = System.getenv("ANDROID_SDK_ROOT") ?: System.getenv("ANDROID_HOME")
+val androidFixtureExt: SourceSet by sourceSets.creating {
+    kotlin.srcDir("android/fixtures/kotlin")
+    compileClasspath = files(androidSdkRoot?.let { "$it/platforms/android-36/android.jar" } ?: "missing-android-sdk/android.jar") +
+        sourceSets.main.get().output + sourceSets.main.get().compileClasspath
+}
+tasks.register<Jar>("androidFixtureJar") {
+    group = "verification"
+    description = "Compiles the U11 Android fixture extensions (input to android/fixtures/build_fixtures.sh)."
+    archiveFileName = "android-fixtures.jar"
+    destinationDirectory = layout.buildDirectory.dir("android-fx")
+    from(androidFixtureExt.output)
+}
+
 // Manual capture tool: records live site responses once. Never run by tests.
 val capture: SourceSet by sourceSets.creating {
     compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath

@@ -7,13 +7,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import mangabackup.tachi.extensions.ApkConverter
 import mangabackup.tachi.extensions.ArtifactException
-import mangabackup.tachi.extensions.ArtifactVerifier
 import mangabackup.tachi.extensions.Digests
-import mangabackup.tachi.extensions.ExtensionLoader
+import mangabackup.tachi.extensions.ExtensionFactories
 import mangabackup.tachi.extensions.ExtensionPackage
-import mangabackup.tachi.extensions.PackageClassLoader
+import mangabackup.tachi.extensions.HostOwnership
 import mangabackup.tachi.extensions.SourceOperations
 import mangabackup.tachi.extensions.UnsupportedApiException
 import mangabackup.tachi.host.HostInjekt
@@ -22,9 +20,6 @@ import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
 import mangabackup.tachi.host.withHandshake
-import mangabackup.tachi.shim.HostFailures
-import mangabackup.tachi.shim.UnsupportedHostApi
-import mangabackup.tachi.webkit.BrowserBridge
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStream
@@ -32,6 +27,7 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.ArrayDeque
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -42,18 +38,26 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * The single desktop Tachi worker (KTD1, KTD4). Reads protocol frames from
- * [input], writes frames to [output] (and nothing else), and hosts every
- * loaded package in its own class loader.
+ * The single Tachi worker (KTD1, KTD4): the desktop JVM process, the iOS
+ * embedding (KTD11) and the Android `:source_runtime` service (KTD17), which
+ * differ only in their [PackageRuntime] (how packages are prepared, loaded and
+ * browsed) and [WorkerPlatform] (process identity, platform deadlines, artifact
+ * rewrite). Reads protocol frames from [input], writes frames to [output] (and
+ * nothing else), and hosts every loaded package in its own class loader.
  *
  * Concurrency: one operation at a time per package, enforced here even though
  * the supervisor already guarantees it; different packages run concurrently on
  * a fixed pool of [WorkerLimits.poolSize] threads (KTD25). Deadlines are the
- * supervisor's; the worker answers `cancel` cooperatively by cancelling the
+ * supervisor's (plus iOS's native one); the worker answers `cancel` cooperatively by cancelling the
  * operation's coroutine, its package's HTTP calls and browser sessions, and
  * interrupting its thread.
  */
-class Worker(input: InputStream, private val output: OutputStream, private val options: WorkerOptions) {
+class Worker(
+    input: InputStream,
+    private val output: OutputStream,
+    private val options: WorkerOptions,
+    private val runtime: PackageRuntime,
+) {
     private val reader = BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8), 1 shl 16)
     private val writeLock = Any()
 
@@ -84,7 +88,8 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
     private val reverseIds = AtomicLong()
     private val envIds = AtomicLong()
 
-    val browser = BrowserBridge(this)
+    /** Browser hooks; set in init (the runtime may need this worker to build them). */
+    val browser: WorkerBrowser
 
     /** A package loaded in this process. */
     class LoadedState(val pkg: ExtensionPackage, val artifact: ArtifactBinding, val ops: SourceOperations)
@@ -163,8 +168,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
 
     init {
         HostInjekt.install()
-        HostFailures.install { failure -> PackageScope.current()?.currentOperation?.recordHostFailure(failure) }
-        mangabackup.tachi.webkit.WebkitHost.install(browser)
+        browser = runtime.attach(this)
     }
 
     /** Runs until `shutdown` or end of input. Returns the process exit code. */
@@ -286,19 +290,18 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             ok = buildJsonObject {
                 put("protocolVersion", Wire.VERSION)
                 put("protocolMinor", protocolMinor)
-                put("worker", WorkerOptions.WORKER_NAME)
+                put("worker", runtime.workerName)
                 put("workerVersion", WorkerOptions.WORKER_VERSION)
                 options.platform.pid()?.let { put("pid", it) }
                 put("capabilities", buildJsonObject {
-                    put("apiFamilies", buildJsonArray { ExtensionLoader.apiFamilies.sorted().forEach { add(JsonPrimitive(it)) } })
+                    put("apiFamilies", buildJsonArray { runtime.apiFamilies.sorted().forEach { add(JsonPrimitive(it)) } })
                     put("browser", options.browser)
                 })
                 // KTD25 limits and sizing (1.1), then additive runtime identity fields readers ignore.
                 put("limits", options.sizing.limits.toJson().withHandshake(options.sizing.rule))
                 put("sizing", options.sizing.toJson())
                 put("networkMode", options.networkMode)
-                put("javaVersion", Runtime.version().toString())
-                put("javaVendor", System.getProperty("java.vendor").orEmpty())
+                for ((key, value) in runtime.runtimeIdentity()) put(key, value)
                 put("hostCompatibility", WorkerOptions.HOST_COMPATIBILITY)
                 put("platform", options.platform.name)
             },
@@ -396,7 +399,7 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             "artifact.prepare" -> prepare(p)
             "package.load" -> load(task.packageId, p)
             "package.unload" -> {
-                packages.remove(task.packageId)?.pkg?.close()
+                packages.remove(task.packageId)?.let { closePackage(it.pkg) }
                     ?: throw WorkerError(ErrorCode.RUNTIME_UNAVAILABLE, "package ${task.packageId} is not loaded")
                 JsonObject(emptyMap())
             }
@@ -407,7 +410,16 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
             }
             "search" -> requireLoaded(task.packageId).ops.search(p, state = requireLoaded(task.packageId))
             "details" -> requireLoaded(task.packageId).ops.details(p, state = requireLoaded(task.packageId))
-            "dispose" -> requireLoaded(task.packageId).ops.dispose(p)
+            "dispose" -> {
+                val state = requireLoaded(task.packageId)
+                val reply = state.ops.dispose(p)
+                // A dispose without handles closes the source's session (protocol › dispose).
+                val sourceId = runCatching { p.optObj("source")?.optStr("sourceId") }.getOrNull()
+                if (sourceId != null && p["handles"].let { it == null || it is kotlinx.serialization.json.JsonNull }) {
+                    browser.sourceSessionClosed(state.pkg.environment, sourceId)
+                }
+                reply
+            }
             else -> throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "unknown operation ${task.frame.op}")
         }
     }
@@ -433,32 +445,21 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
                 val copy = File(staging, "input.bin")
                 input.copyTo(copy, overwrite = true)
                 Digests.requireSha256(copy, artifact.sha256, "Input artifact")
-                // KTD5/KTD11: a platform rewrite pass applies identically to both paths, after verification.
+                // KTD5/KTD11: a platform rewrite pass applies identically to both artifact paths, after verification.
                 val rewrite = options.platform.artifactRewrite
-                val unrewritten = if (rewrite == null) output else File(staging, "prepared.jar")
-                val (producer, converter) = when (artifact.kind) {
-                    "jar" -> {
-                        ArtifactVerifier.verifyJar(copy, trusted)
-                        ApkConverter.writeAtomically(unrewritten.toPath(), copy.readBytes())
-                        "tachi-jvm/jar-verify" to "jar-verify.1"
-                    }
-                    "apk" -> {
-                        ArtifactVerifier.verifyApk(copy, trusted)
-                        ApkConverter.convert(copy, unrewritten)
-                        "tachi-jvm/apk-dex2jar" to ApkConverter.CONVERTER_VERSION
-                    }
-                    else -> throw ArtifactException("artifact kind '${artifact.kind}' is not a Tachi artifact (jar or apk)")
-                }
+                val unrewritten = if (rewrite == null) output else File(staging, "prepared.bin")
+                val prepared = runtime.prepare(artifact.kind, copy, unrewritten, trusted)
                 if (rewrite != null) {
-                    val rewritten = File(staging, "rewritten.jar")
+                    val rewritten = File(staging, "rewritten.bin")
                     rewrite.rewrite(unrewritten, rewritten)
-                    ApkConverter.writeAtomically(output.toPath(), rewritten.readBytes())
+                    // The staging directory sits beside the output, so this is a same-directory atomic replace.
+                    Files.move(rewritten.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
                 }
                 val digest = Digests.sha256(output)
-                val versions = listOfNotNull(converter, rewrite?.version, WorkerOptions.HOST_COMPATIBILITY)
+                val versions = listOfNotNull(prepared.converterVersion, rewrite?.version, WorkerOptions.HOST_COMPATIBILITY)
                 return buildJsonObject {
-                    put("artifact", ArtifactBinding(digest, "jar", artifact.version).toJson())
-                    put("producer", producer)
+                    put("artifact", ArtifactBinding(digest, prepared.kind, artifact.version).toJson())
+                    put("producer", prepared.producer)
                     put("converterVersion", versions.joinToString("+"))
                 }
             } finally {
@@ -472,23 +473,37 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
 
     private fun load(packageId: String, p: JsonObject): JsonObject {
         val artifact = ArtifactBinding.from(p.obj("artifact"))
-        if (artifact.kind != "jar") throw ArtifactException("package.load needs a prepared jar, got kind '${artifact.kind}'")
+        if (artifact.kind != runtime.loadableKind) {
+            throw ArtifactException("package.load needs a prepared ${runtime.loadableKind}, got kind '${artifact.kind}'")
+        }
         val path = File(p.str("path"))
         val settings = SettingsCodec.from(p.obj("settings"))
         Digests.requireSha256(path, artifact.sha256, "Staged artifact")
-        packages.remove(packageId)?.pkg?.close()
+        packages.remove(packageId)?.let { closePackage(it.pkg) }
         val stateDir = File(options.stateRoot, "pkg-${envIds.incrementAndGet()}")
-        val env = PackageEnvironment(packageId, stateDir, options.transport, options.defaultUserAgent, settings)
+        val env = runtime.environment(packageId, stateDir, options, settings)
         val pkg = try {
-            PackageScope.bind(env) { ExtensionLoader.load(path, env) }
+            PackageScope.bind(env) { runtime.load(path, artifact, env) }
         } catch (t: Throwable) {
             env.close()
+            runtime.packageClosed(env)
             throw t
+        }
+        // Source IDs are unique across every package hosted in this worker (U11); report both identities.
+        for (other in packages.values) {
+            val clash = pkg.sources.map { it.id }.intersect(other.pkg.sources.map { it.id }.toSet())
+            if (clash.isNotEmpty()) {
+                closePackage(pkg)
+                throw ArtifactException(
+                    "source IDs ${clash.sorted()} of $packageId (${artifact.sha256}) are already hosted by " +
+                        "${other.pkg.packageId} (${other.artifact.sha256})",
+                )
+            }
         }
         val state = LoadedState(pkg, artifact, SourceOperations(pkg, artifact))
         packages[packageId] = state
         val requiresBrowser = SourceOperations.referencesWebView(path)
-        val family = ExtensionLoader.apiFamily(pkg.manifest.libVersion)
+        val family = ExtensionFactories.apiFamily(pkg.manifest.libVersion)
         return buildJsonObject {
             put("sources", buildJsonArray {
                 for (source in pkg.sources) {
@@ -569,10 +584,18 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         }
     }
 
+    private fun closePackage(pkg: ExtensionPackage) {
+        try {
+            pkg.close()
+        } finally {
+            runtime.packageClosed(pkg.environment)
+        }
+    }
+
     private fun closeAll() {
         for (state in packages.values) {
             try {
-                state.pkg.close()
+                closePackage(state.pkg)
             } catch (e: Exception) {
                 System.err.println("[worker] closing ${state.pkg.packageId}: $e")
             }
@@ -584,6 +607,10 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
 
     companion object {
         /** Maps a failure to a protocol error (KTD4 error codes; distinct host errors per U3). */
+        /** Host-specific failure mapping, installed by the platform before any operation runs. */
+        @Volatile
+        var platformHostError: (Throwable) -> WorkerError? = { null }
+
         fun mapError(t: Throwable, task: OperationContext?): WorkerError {
             if (t is WorkerError) return t
             if (task?.isCancelled == true) return WorkerError(ErrorCode.CANCELLED, "cancelled")
@@ -603,12 +630,12 @@ class Worker(input: InputStream, private val output: OutputStream, private val o
         private fun hostError(t: Throwable): WorkerError? = when (t) {
             is WorkerError -> t.takeIf { it.code != ErrorCode.CANCELLED }
             is HostOperationException -> WorkerError(t.code, t.message ?: t.code, t.operation, t)
-            is UnsupportedHostApi -> WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, t.message ?: "unsupported", "host.api:${t.api()}", t)
+            is mangabackup.tachi.shim.UnsupportedHostApi -> WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, t.message ?: "unsupported", "host.api:${t.api()}", t)
             is NoClassDefFoundError, is ClassNotFoundException -> {
                 val name = (t.message ?: "").replace('/', '.').substringBefore(' ')
-                if (PackageClassLoader.isHostOwned(name)) WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, "missing host class $name", "host.class:$name", t) else null
+                if (HostOwnership.isHostOwned(name)) WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, "missing host class $name", "host.class:$name", t) else null
             }
-            else -> null
+            else -> platformHostError(t)
         }
     }
 }

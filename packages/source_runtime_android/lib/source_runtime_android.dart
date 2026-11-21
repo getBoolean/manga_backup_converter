@@ -5,3 +5,4 @@ library;
 
 export 'src/aidoku_backend.dart';
 export 'src/android_source_runtime.dart';
+export 'src/tachi_backend.dart';

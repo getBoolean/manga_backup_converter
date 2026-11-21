@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * the WebView that owns the session. Sessions are closed before their operation
  * replies, because no reverse request may follow the reply.
  */
-class BrowserBridge(private val worker: Worker) {
+class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.WorkerBrowser {
     private val sessionsByOperation = ConcurrentHashMap<String, MutableSet<WebViewTranslation>>()
     private val bySession = ConcurrentHashMap<String, WebViewTranslation>()
 
@@ -59,7 +59,7 @@ class BrowserBridge(private val worker: Worker) {
     }
 
     /** A `host.browser.message` event. A malformed one (for example a non-string message) is dropped, never fatal. */
-    fun onMessage(payload: JsonObject) {
+    override fun onMessage(payload: JsonObject) {
         fun str(key: String) = (payload[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
         val session = str("session") ?: return
         val name = str("name") ?: return
@@ -73,7 +73,7 @@ class BrowserBridge(private val worker: Worker) {
      * handler that blocks (or makes its own reverse request) cannot stop the reader from delivering
      * the `rres` frames everything else is waiting for. A malformed event is dropped.
      */
-    fun onRequest(payload: JsonObject) {
+    override fun onRequest(payload: JsonObject) {
         val event = BrowserRequestEvent.parse(payload) ?: return
         bySession[event.session]?.onPlatformRequest(event)
     }
@@ -100,7 +100,7 @@ class BrowserBridge(private val worker: Worker) {
     }
 
     /** Closes every session an operation opened; bounded so a stuck port cannot hold the reply. */
-    fun closeSessionsOf(operationId: String) {
+    override fun closeSessionsOf(operationId: String) {
         val views = sessionsByOperation.remove(operationId) ?: return
         val closes = views.mapNotNull { it.closeSession() }
         for (c in closes) {
@@ -112,11 +112,11 @@ class BrowserBridge(private val worker: Worker) {
         }
     }
 
-    fun cancelOperation(operationId: String) {
+    override fun cancelOperation(operationId: String) {
         sessionsByOperation[operationId]?.forEach { it.cancelPending() }
     }
 
-    fun operationFinished(operationId: String) {
+    override fun operationFinished(operationId: String) {
         sessionsByOperation.remove(operationId)?.forEach { it.cancelPending() }
     }
 

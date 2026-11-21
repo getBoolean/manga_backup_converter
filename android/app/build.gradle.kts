@@ -20,8 +20,10 @@ android {
         applicationId = "dev.getboolean.mangabackupconverter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // 24 required by Flutter 3.50 (patrol needs 21, super_native_extensions 23).
-        minSdk = 24
+        // 28 for all features (KTD19, user decision on U17's evidence): the
+        // `:source_runtime` process needs WebView.setDataDirectorySuffix, which
+        // does not exist below API 28. Flutter 3.50 itself needs 24.
+        minSdk = 28
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

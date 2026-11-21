@@ -13,6 +13,7 @@ import mangabackup.tachi.host.SizingReport
 import mangabackup.tachi.host.SizingRule
 import mangabackup.tachi.host.replay.ReplayTransport
 import mangabackup.tachi.protocol.ArtifactBinding
+import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.WorkerClient
 import mangabackup.tachi.protocol.WorkerOptions
 import mangabackup.tachi.protocol.optStr
@@ -432,6 +433,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
             networkMode = "replay",
             stateRoot = Files.createTempDirectory("bench-heap-").toFile(),
             browser = false,
+            platform = DesktopPlatform,
         )
         val (client, _) = WorkerClient.inProcess(options)
         client.handshake()

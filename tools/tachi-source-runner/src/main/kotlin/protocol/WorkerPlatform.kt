@@ -3,11 +3,14 @@ package mangabackup.tachi.protocol
 import java.io.File
 
 /**
- * What differs between the hosts that run this worker (KTD11 "shared host
- * code"). The desktop worker is its own process and needs nothing here. The
- * iOS embedding (`tools/tachi-source-runner/ios/host`) runs the same classes
+ * What differs between the processes that host this worker (KTD11 "shared host
+ * code"): handshake identity, operation deadlines and a prepared-JAR rewrite.
+ * The desktop worker ([DesktopPlatform]) and the Android `:source_runtime`
+ * service are their own processes and need nothing beyond their pid. The iOS
+ * embedding (`tools/tachi-source-runner/ios/host`) runs the same classes
  * inside the app's single VM and supplies native operation deadlines and its
- * artifact rewrite pass through this interface.
+ * artifact rewrite pass through this interface. How packages are prepared and
+ * loaded is the separate [PackageRuntime].
  *
  * The shared code is compiled for class-file 65 (Java 21) and uses only APIs
  * present in both the desktop JRE 21 and the mobile JDK 26 class library.
@@ -59,27 +62,17 @@ interface OperationGuard : AutoCloseable {
     override fun close()
 }
 
-/** The desktop worker: deadlines are the supervisor's, and prepared JARs are not rewritten. */
-object DesktopPlatform : WorkerPlatform {
-    override val name = "desktop"
+/** The guard of a platform whose deadlines are the supervisor's alone (desktop, Android): nothing to stop. */
+object NoOperationGuard : OperationGuard {
+    override val expired = false
 
-    override fun pid(): Long = ProcessHandle.current().pid()
+    override fun expireNow() {}
 
-    override val artifactRewrite: ArtifactRewrite? = null
+    override fun pause(boundMs: Long) {}
 
-    override fun enterOperation(thread: Thread, onExpire: Runnable): OperationGuard = NoGuard
+    override fun resume() {}
 
-    private object NoGuard : OperationGuard {
-        override val expired = false
-
-        override fun expireNow() {}
-
-        override fun pause(boundMs: Long) {}
-
-        override fun resume() {}
-
-        override fun close() {}
-    }
+    override fun close() {}
 }
 
 /**

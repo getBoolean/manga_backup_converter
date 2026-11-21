@@ -62,8 +62,10 @@ class PackageEnvironment(
     private val transport: HostTransport,
     val defaultUserAgent: String,
     settings: HostSettings,
+    applicationFactory: (PackageEnvironment) -> HostApplication = ::HostApplication,
 ) {
-    val application: HostApplication = HostApplication(this)
+    /** The package's Application/Context. On Android it wraps the service context; on desktop the shim's. */
+    val application: HostApplication = applicationFactory(this)
     val cookieJar = PackageCookieJar()
 
     private val threadIds = AtomicInteger()
@@ -157,8 +159,12 @@ class PackageEnvironment(
     }
 }
 
-/** The Application each package receives (Injekt `Application`/`Context`). */
-class HostApplication internal constructor(val environment: PackageEnvironment) : android.app.Application() {
+/**
+ * The Application each package receives (Injekt `Application`/`Context`).
+ * Preferences are the package's in-memory stores, never the framework's
+ * file-backed ones (KTD9). Open so a platform can attach a real base context.
+ */
+open class HostApplication(val environment: PackageEnvironment) : android.app.Application() {
     override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = environment.preferences(name)
 
     override fun getPackageName(): String = environment.packageId
@@ -172,7 +178,6 @@ class HostApplication internal constructor(val environment: PackageEnvironment) 
     override fun getClassLoader(): ClassLoader =
         environment.classLoader ?: throw UnsupportedHostApi("Context.getClassLoader (package not loaded)")
 
-    override fun getString(resId: Int): String = throw UnsupportedHostApi("Context.getString (Android resources)")
 }
 
 /**
@@ -180,22 +185,23 @@ class HostApplication internal constructor(val environment: PackageEnvironment) 
  * dispatcher, coroutine and main-looper threads alike, so the first stack frame
  * whose class came from a package class loader is authoritative; the
  * thread-bound package set by the worker around host-initiated calls is the
- * fallback.
+ * fallback. How stack frames map to packages is platform-specific (a JVM
+ * StackWalker on desktop, stack-trace names against package loaders on ART),
+ * so the platform installs a [StackResolver].
  */
 object PackageScope {
-    private val walker: StackWalker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+    /** Maps the calling thread's stack to the package whose class is nearest the top, or null. */
+    fun interface StackResolver {
+        fun fromStack(): PackageEnvironment?
+    }
+
+    @Volatile
+    var stackResolver: StackResolver? = null
+
     @PublishedApi
     internal val bound = ThreadLocal<PackageEnvironment?>()
 
-    fun current(): PackageEnvironment? {
-        val fromStack = walker.walk { frames ->
-            frames.map { (it.declaringClass.classLoader as? PackageOwned)?.environment }
-                .filter { it != null }
-                .findFirst()
-                .orElse(null)
-        }
-        return fromStack ?: bound.get()
-    }
+    fun current(): PackageEnvironment? = stackResolver?.fromStack() ?: bound.get()
 
     fun require(what: String): PackageEnvironment =
         current() ?: throw IllegalStateException("$what requested outside any loaded package")
@@ -210,4 +216,3 @@ object PackageScope {
         }
     }
 }
-
