@@ -25,7 +25,7 @@ import 'package:source_runtime/source_contracts.dart';
 
 /// Native libraries the Aidoku host loads in the app process, as packaged
 /// in `lib/<abi>/` by the wasm3 and scraper build hooks.
-const List<String> aidokuNativeLibraries = <String>['libwasm3.so', 'libscraper.so'];
+const List<String> aidokuNativeLibraries = <String>['libwasm3.so', 'libscraper_bridge.so'];
 
 /// Loads the native library [fileName]; throws if it cannot be loaded.
 typedef NativeLibraryLoader = void Function(String fileName);

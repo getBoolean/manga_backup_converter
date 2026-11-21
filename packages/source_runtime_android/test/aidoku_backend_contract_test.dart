@@ -33,7 +33,7 @@ void main() {
   test('both native libraries are checked, wasm3 first', () {
     final loaded = <String>[];
     AndroidAidokuBackend.register(_Provider('aidoku'), loadLibrary: loaded.add);
-    check(loaded).deepEquals(<String>['libwasm3.so', 'libscraper.so']);
+    check(loaded).deepEquals(<String>['libwasm3.so', 'libscraper_bridge.so']);
   });
 
   test('admits the injected provider itself, not a wrapper', () {
@@ -79,7 +79,7 @@ void main() {
   });
 
   test('on a host without the Android libraries the real loader refuses', () {
-    // Runs on the desktop VM, where libwasm3.so/libscraper.so do not resolve
+    // Runs on the desktop VM, where libwasm3.so/libscraper_bridge.so do not resolve
     // by those names: the default loader must fail visibly, not succeed.
     final SourceOutcome<AndroidAidokuBackend> outcome = AndroidAidokuBackend.register(_Provider('aidoku'));
     check(outcome).isA<SourceFailed<AndroidAidokuBackend>>();

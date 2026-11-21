@@ -1,0 +1,110 @@
+{
+  "unit": "U13 Aidoku runner on Android (M2)",
+  "evidence": "EMULATOR EVIDENCE (not a physical-device receipt; does not satisfy R16)",
+  "device": {
+    "avd": "Pixel_9_Pro",
+    "android": "16",
+    "sdkInt": 36,
+    "abi": "x86_64",
+    "abilist": "x86_64,arm64-v8a",
+    "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:16/BE4B.251210.005/14574095:user/release-keys"
+  },
+  "command": "flutter test integration_test/source_runners_android_test.dart -d <emulator> --reporter expanded",
+  "build": "debug, android-x64, Flutter 3.50.0, branch feat/source-runners-u13",
+  "result": "All tests passed!",
+  "passed": 8,
+  "network": "No request reached a server: the .aix artifacts and capture subsets are embedded (integration_test/aidoku_fixture_bundle.g.dart) and replayed; every source case asserts zero replay misses, and the synthetic cases use clients that never touch the network.",
+  "redaction": "Host paths, temp paths and PIDs omitted. Queries are the fixed public test query (Onimai); no credentials or cookies exist in this run.",
+  "receipts": [
+    {
+      "scenario": "native-libraries",
+      "abi": "android_x64",
+      "loaded": [
+        "libwasm3.so",
+        "libscraper_bridge.so"
+      ]
+    },
+    {
+      "scenario": "source",
+      "sourceId": "multi.mangadex",
+      "artifact": "multi.mangadex-v12.aix",
+      "artifactSha256": "83b28ef41c910117ebd45a699510fcdc9deb0b5e0ae319ff4d5aff0d8889e9ad",
+      "hits": 2,
+      "title": "Onii-chan wa Oshimai!",
+      "chapters": 223,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 531,
+      "searchMs": 379,
+      "detailsMs": 256
+    },
+    {
+      "scenario": "source",
+      "sourceId": "en.weebcentral",
+      "artifact": "en.weebcentral-v6.aix",
+      "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "hits": 1,
+      "title": "ONIMAI - I'm Now Your Sister!",
+      "chapters": 114,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 67,
+      "searchMs": 136,
+      "detailsMs": 333
+    },
+    {
+      "scenario": "source",
+      "sourceId": "multi.mangafire",
+      "artifact": "multi.mangafire-v8.aix",
+      "artifactSha256": "5caf557a0bab317215fd35c69ed3d5253f2256480a5c74fe1389d7dce6aaa541",
+      "hits": 50,
+      "title": "Highschool ONIMAI",
+      "chapters": 86,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 105,
+      "searchMs": 128,
+      "detailsMs": 53
+    },
+    {
+      "scenario": "cancel-in-flight",
+      "failure": "cancelled",
+      "answeredAfterMs": 312,
+      "nextCallHits": 2
+    },
+    {
+      "scenario": "wasm-trap",
+      "failures": [
+        "source-error",
+        "source-error"
+      ]
+    },
+    {
+      "scenario": "isolate-death",
+      "failures": [
+        "runtime-unavailable",
+        "runtime-unavailable"
+      ],
+      "elapsedMs": 59
+    },
+    {
+      "scenario": "headers-rate-limit",
+      "headerValues": [
+        "value-1",
+        "value-2",
+        "value-3",
+        "value-4",
+        "value-5"
+      ],
+      "rateLimit": "2/1s",
+      "windowGapsMs": [
+        995,
+        1025,
+        1003
+      ]
+    }
+  ]
+}
