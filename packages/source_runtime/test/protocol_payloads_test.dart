@@ -1,4 +1,4 @@
-// Round-trips every protocol 1.2 payload through real frame bytes
+// Round-trips every protocol 1.3 payload through real frame bytes
 // (encodeFrame → FrameDecoder → fromJson), so decoded JSON types
 // (Map<String, dynamic>, List<dynamic>) are what the decoders see.
 import 'dart:convert';
@@ -500,6 +500,7 @@ void main() {
         'host.browser.addPageStartScript',
         'host.browser.setRequestInterception',
         'host.browser.respond',
+        'host.browser.endInteraction',
       ]);
       check(
         HostBrowserOperation.values.where((HostBrowserOperation o) => o.sinceMinor == 2).map((o) => o.wire).toList(),
@@ -508,6 +509,9 @@ void main() {
         'host.browser.setRequestInterception',
         'host.browser.respond',
       ]);
+      check(
+        HostBrowserOperation.values.where((HostBrowserOperation o) => o.sinceMinor == 3).map((o) => o.wire).toList(),
+      ).deepEquals(<String>['host.browser.endInteraction']);
     });
 
     test('open', () async {
@@ -547,7 +551,7 @@ void main() {
         const EmptyPayload(),
       );
       await _browserRoundTrip(const HostBrowserSetUserAgent(session: 's-1', userAgent: 'UA/2'), const EmptyPayload());
-      await _browserRoundTrip(const HostBrowserShow(session: 's-1'), const EmptyPayload());
+      await _browserRoundTrip(const HostBrowserShow(session: 's-1'), const HostBrowserShown());
       await _browserRoundTrip(const HostBrowserClose(session: 's-1'), const EmptyPayload());
     });
 
@@ -717,6 +721,9 @@ void main() {
         const InteractionRequiredFailure('i'),
         const StaleReferenceFailure('s'),
         const ArtifactIncompatibleFailure('a'),
+        const TrustFailure(TrustFailureReason.firstSeen, 'f'),
+        const TrustFailure(TrustFailureReason.changed, 'g'),
+        const TrustFailure(TrustFailureReason.refused, 'h'),
         const WorkerRestartedFailure('w'),
         const SourceErrorFailure('e'),
         const CapabilityUnavailableFailure('host.browser.show', 'no display'),
@@ -727,15 +734,116 @@ void main() {
         final ProtocolFrame frame = await _throughBytes(
           ProtocolFrame(type: FrameType.response, id: '1', generation: 1, error: failure.toWire()),
         );
-        final Map<String, Object?> err = frame.error!;
-        final decoded = SourceFailure.fromWire(
-          err['code']! as String,
-          err['message']! as String,
-          operation: err['operation'] as String?,
-        );
+        final decoded = SourceFailure.fromJson(frame.error!);
         check(decoded.runtimeType).equals(failure.runtimeType);
         check(decoded.toString()).equals(failure.toString());
       }
+    });
+
+    test('a trust failure reads as artifact-incompatible to a peer that predates 1.3', () {
+      const failure = TrustFailure(TrustFailureReason.changed, 'signer changed');
+      final Map<String, Object?> err = failure.toWire();
+      check(err).deepEquals(<String, Object?>{
+        'code': 'artifact-incompatible',
+        'message': 'signer changed',
+        'trust': 'changed',
+      });
+      // A 1.2 reader passes only code and message.
+      final old = SourceFailure.fromWire(err['code']! as String, err['message']! as String);
+      check(old)
+          .isA<ArtifactIncompatibleFailure>()
+          .not((Subject<ArtifactIncompatibleFailure> it) => it.isA<TrustFailure>());
+      // An unknown reason from a newer peer keeps the plain failure.
+      check(SourceFailure.fromJson(<String, Object?>{...err, 'trust': 'revoked'}))
+          .isA<ArtifactIncompatibleFailure>()
+          .not((Subject<ArtifactIncompatibleFailure> it) => it.isA<TrustFailure>());
+    });
+
+    test('withMessage keeps the subtype and its extra fields', () {
+      check(const TrustFailure(TrustFailureReason.refused, 'secret').withMessage('[redacted]')).isA<TrustFailure>()
+        ..has((TrustFailure f) => f.reason, 'reason').equals(TrustFailureReason.refused)
+        ..has((TrustFailure f) => f.message, 'message').equals('[redacted]');
+      check(const CapabilityUnavailableFailure('host.browser.show', 'x').withMessage('y'))
+          .isA<CapabilityUnavailableFailure>()
+          .has((CapabilityUnavailableFailure f) => f.operation, 'operation')
+          .equals('host.browser.show');
+    });
+  });
+
+  group('protocol 1.3 additions round-trip through frame bytes', () {
+    test('package.load carries apiFamily, and omits it when absent', () async {
+      final (WorkerRequest<ProtocolPayload> req, _) = await _workerRoundTrip(
+        PackageLoadRequest(artifact: artifact, path: '/p', settings: settings, apiFamily: 'paperback-0.9'),
+        PackageLoadResponse(sources: const <LoadedSource>[]),
+      );
+      check((req as PackageLoadRequest).apiFamily).equals('paperback-0.9');
+      final Map<String, Object?> old = await _asRequest(
+        PackageLoadRequest(artifact: artifact, path: '/p', settings: settings),
+        'package.load',
+      );
+      check(old.containsKey('apiFamily')).isFalse();
+      check(PackageLoadRequest.fromJson(old).apiFamily).isNull();
+    });
+
+    test('the show reply carries its outcome; a pre-1.3 reply reads as unknown', () async {
+      for (final BrowserInteractionEnd end in BrowserInteractionEnd.values) {
+        final (_, ProtocolPayload reply) = await _browserRoundTrip(
+          const HostBrowserShow(session: 's-1'),
+          HostBrowserShown(outcome: end),
+        );
+        check((reply as HostBrowserShown).outcome).equals(end);
+      }
+      check(BrowserInteractionEnd.values.map((BrowserInteractionEnd e) => e.wire)).deepEquals(<String>[
+        'closed',
+        'completed',
+      ]);
+      check(HostBrowserShown.fromJson(const <String, Object?>{}).outcome).isNull();
+      check(HostBrowserShown.fromJson(const <String, Object?>{'outcome': 'later'}).outcome).isNull();
+    });
+
+    test('endInteraction', () async {
+      await _browserRoundTrip(const HostBrowserEndInteraction(session: 's-1'), const EmptyPayload());
+    });
+
+    test('interaction.started and interaction.ended events', () async {
+      const started = WorkerInteractionStarted(of: '3-7', timeout: Duration(minutes: 5));
+      final decodedStart = WorkerInteractionStarted.fromJson(
+        await _asRequest(started, WorkerInteractionStarted.op, type: FrameType.event),
+      );
+      check(decodedStart.of).equals('3-7');
+      check(decodedStart.timeout).equals(const Duration(minutes: 5));
+      check(started.toJson()).deepEquals(<String, Object?>{'of': '3-7', 'timeoutMs': 300000});
+      const ended = WorkerInteractionEnded(of: '3-7', paused: Duration(milliseconds: 1234));
+      final decodedEnd = WorkerInteractionEnded.fromJson(
+        await _asRequest(ended, WorkerInteractionEnded.op, type: FrameType.event),
+      );
+      check(decodedEnd.of).equals('3-7');
+      check(decodedEnd.paused).equals(const Duration(milliseconds: 1234));
+      check(() => WorkerInteractionEnded.fromJson(const <String, Object?>{'of': '3-7'})).throws<FormatException>();
+    });
+
+    test('SettingsPayload resolves one source exactly as SettingsSnapshot does', () async {
+      final snapshot = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'nsfw': false},
+        secrets: const <String, String>{'token': 'pkg'},
+        sources: <String, SourceScopedSettings>{
+          bigSourceId: SourceScopedSettings(
+            values: const <String, Object>{'lang': 'ja'},
+            secrets: const <String, String>{'token': 'src'},
+          ),
+        },
+      );
+      final payload = SettingsPayload.fromJson(
+        await _asRequest(SettingsPayload.fromSnapshot(snapshot), 'settings'),
+      );
+      for (final id in <String>[bigSourceId, 'other']) {
+        check(payload.valuesFor(id)).deepEquals(snapshot.valuesFor(id));
+        check(payload.secretsFor(id)).deepEquals(snapshot.secretsFor(id));
+      }
+      check(payload.valuesFor(bigSourceId)).deepEquals(<String, Object>{'lang': 'ja', 'nsfw': false});
+      check(payload.secretsFor('other')).deepEquals(<String, String>{'token': 'pkg'});
+      check(payload.allSecretValues.toSet()).deepEquals(<String>{'pkg', 'src'});
+      check(payload.needsProtocol11).isTrue();
     });
   });
 

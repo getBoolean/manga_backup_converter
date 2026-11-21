@@ -602,10 +602,20 @@ abstract interface class BrowserSession {
 
   /// Evaluates [script] in the current page; returns its JSON-encoded result.
   ///
+  /// **Promises (protocol 1.3 rule):** when the script's completion value is
+  /// a promise (any thenable), `evaluate` awaits it and returns the JSON of
+  /// the settled value; a rejected promise is a throwing script. `undefined`
+  /// and values JSON cannot encode read as `null`. A promise that never
+  /// settles keeps `evaluate` pending until [cancel], the session closing,
+  /// or a fence; the caller's deadline bounds it. The desktop helper already
+  /// does this; an iOS port can use WKWebView's `callAsyncJavaScript`, and
+  /// an Android port wraps `evaluateJavascript` (which would report `{}`).
+  ///
   /// A script that throws completes with [BrowserScriptError] when
   /// [capabilities] support [BrowserFeature.scriptErrors], and with `null`
   /// otherwise. [BrowserEvaluateCompat.androidCompatible] gives Android's
-  /// `evaluateJavascript` behaviour on every implementation.
+  /// `evaluateJavascript` behaviour for throwing scripts on every
+  /// implementation (a promise result still reads as its settled value).
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel});
 
   /// Registers [script] to run at document start in every frame (child
@@ -669,9 +679,115 @@ abstract interface class BrowserSession {
   Future<BrowserOutcome<void>> setUserAgent(String userAgent, {CancellationToken? cancel});
 
   /// Shows the page for a user interaction, bounded by [timeout].
+  ///
+  /// Completion (protocol 1.3), one outcome per way the interaction ends:
+  /// - **The user closes the window:** [BrowserCompleted]. The session stays
+  ///   open with whatever the user left in it (cookies, storage, page).
+  /// - **[cancel] fires:** the window is hidden and the call returns
+  ///   [BrowserCancelled]; the session stays open and usable. This is how a
+  ///   page's completion signal ends the interaction: see
+  ///   [showBrowserInteraction], which callers use instead of calling this
+  ///   directly.
+  /// - **[timeout] elapses:** the window is hidden and the call returns
+  ///   [BrowserInteractionRequired] naming the timeout; the session stays
+  ///   open.
+  /// - **The session closes or its generation is fenced:** [BrowserCancelled].
+  /// - **No display:** [BrowserInteractionRequired] at once.
+  ///
+  /// Only one of these settles the call; the window is never left shown
+  /// after it returns.
   Future<BrowserOutcome<void>> showForInteraction({required Duration timeout, CancellationToken? cancel});
 
   /// Closes the session and deletes its cookies and web storage. Returns
   /// [BrowserCapabilityUnavailable] if deletion cannot be confirmed (KTD9).
   Future<BrowserOutcome<void>> close();
 }
+
+/// How a visible browser interaction ended (protocol 1.3).
+enum BrowserInteractionEnd {
+  /// The user closed the window.
+  closedByUser('closed'),
+
+  /// The page signalled completion (through a message, a navigation, or a
+  /// cookie the caller watches), and the caller ended the interaction.
+  completedByPage('completed');
+
+  const BrowserInteractionEnd(this.wire);
+
+  /// The `host.browser.show` reply's `outcome` value.
+  final String wire;
+
+  static BrowserInteractionEnd? fromWire(String? wire) {
+    for (final BrowserInteractionEnd e in values) {
+      if (e.wire == wire) return e;
+    }
+    return null;
+  }
+}
+
+/// Shows [session] for a user interaction with the protocol 1.3 completion
+/// rules; every caller (the desktop reverse bridge, in-app adapters) uses
+/// this rather than [BrowserSession.showForInteraction] directly.
+///
+/// The interaction ends at the first of:
+/// - **The user closes the window:**
+///   `BrowserCompleted(BrowserInteractionEnd.closedByUser)`.
+/// - **[completion] completes** (the page signalled completion): the window
+///   is hidden through the show's cancel token, and the result is
+///   `BrowserCompleted(BrowserInteractionEnd.completedByPage)`.
+/// - **[timeout] elapses:** [BrowserInteractionRequired] naming the timeout.
+///   This helper enforces the bound itself, so it holds even if the port
+///   overruns its own.
+/// - **[cancel] fires, or the session closes or is fenced:**
+///   [BrowserCancelled].
+///
+/// Any other port outcome (no display, an unavailable capability) is
+/// returned as is. The session stays open in every case.
+Future<BrowserOutcome<BrowserInteractionEnd>> showBrowserInteraction(
+  BrowserSession session, {
+  required Duration timeout,
+  Future<void>? completion,
+  CancellationToken? cancel,
+}) async {
+  if (cancel?.isCancelled ?? false) {
+    return BrowserCancelled<BrowserInteractionEnd>(cancel!.reason ?? 'cancelled');
+  }
+  final hide = CancellationSource();
+  _InteractionStop? stop;
+  void end(_InteractionStop why, String reason) {
+    if (stop != null) return;
+    stop = why;
+    hide.cancel(reason);
+  }
+
+  final timer = Timer(timeout, () => end(_InteractionStop.timeout, 'Interaction not completed within $timeout'));
+  unawaited(completion?.then((_) => end(_InteractionStop.completed, 'The page signalled completion'), onError: (_) {}));
+  unawaited(cancel?.whenCancelled.then((_) => end(_InteractionStop.cancelled, cancel.reason ?? 'cancelled')));
+  final BrowserOutcome<void> shown;
+  try {
+    shown = await session.showForInteraction(timeout: timeout, cancel: hide.token);
+  } finally {
+    timer.cancel();
+  }
+  return switch (shown) {
+    BrowserCompleted<void>() when stop == _InteractionStop.completed => const BrowserCompleted<BrowserInteractionEnd>(
+      BrowserInteractionEnd.completedByPage,
+    ),
+    BrowserCompleted<void>() => const BrowserCompleted<BrowserInteractionEnd>(BrowserInteractionEnd.closedByUser),
+    BrowserCancelled<void>(:final String reason) => switch (stop) {
+      _InteractionStop.completed => const BrowserCompleted<BrowserInteractionEnd>(
+        BrowserInteractionEnd.completedByPage,
+      ),
+      _InteractionStop.timeout => BrowserInteractionRequired<BrowserInteractionEnd>(reason),
+      _InteractionStop.cancelled || null => BrowserCancelled<BrowserInteractionEnd>(reason),
+    },
+    BrowserInteractionRequired<void>(:final String reason) => BrowserInteractionRequired<BrowserInteractionEnd>(reason),
+    BrowserCapabilityUnavailable<void>(:final String operation, :final String reason) =>
+      BrowserCapabilityUnavailable<BrowserInteractionEnd>(operation, reason),
+    BrowserNavigationFailed<void>(:final Uri url, :final String reason) =>
+      BrowserNavigationFailed<BrowserInteractionEnd>(url, reason),
+    BrowserScriptError<void>(:final String message) => BrowserScriptError<BrowserInteractionEnd>(message),
+  };
+}
+
+enum _InteractionStop { completed, timeout, cancelled }

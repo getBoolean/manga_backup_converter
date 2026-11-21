@@ -1,4 +1,4 @@
-# Source worker protocol, version 1 (minor 1.2)
+# Source worker protocol, version 1 (minor 1.3)
 
 This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:source_runtime`) to a source worker process: the shared Tachi JVM worker (U3) or the Paperback Dart worker (U6). It implements KTD4 of the source runners plan. KTD20 adds the browser reverse requests.
 
@@ -8,16 +8,18 @@ This protocol connects the desktop supervisor (`WorkerSupervisor` in `package:so
 
 The protocol has a major and a minor version. The major version is the envelope's `v`, and is always `1`. Minor versions only add optional fields, so a frame from any 1.x peer parses, and `v` never changes for a minor bump.
 
-- **Negotiation:** the supervisor's `handshake` request offers `protocolVersions: [1]` and `protocolMinor`, its highest minor (currently `2`). The worker replies with `protocolVersion: 1` and `protocolMinor`: the lower of the offer and its own highest minor. A worker that omits `protocolMinor` is a 1.0 worker; a request without it comes from a 1.0 supervisor. Either decodes as `0`.
+- **Negotiation:** the supervisor's `handshake` request offers `protocolVersions: [1]` and `protocolMinor`, its highest minor (currently `3`). The worker replies with `protocolVersion: 1` and `protocolMinor`: the lower of the offer and its own highest minor. A worker that omits `protocolMinor` is a 1.0 worker; a request without it comes from a 1.0 supervisor. Either decodes as `0`.
 - **Violations:** a reply with another major version, or with a `protocolMinor` above the offer, fails the session as `protocol-violation`.
 - **Gating:** the supervisor sends a 1.1 feature only to a worker that negotiated 1.1. Against a 1.0 worker, string-set or source-scoped settings and `artifact.prepare` (which relies on `trustedSigners`) fail locally with `unsupported-api` before anything is sent.
 - **Gating 1.2:** a reverse request introduced in 1.2 (`HostBrowserOperation.sinceMinor`) from a worker that negotiated less is answered `protocol-violation`, and the session continues. The supervisor puts the open reply's `capabilities` and the evaluate reply's `scriptError` only in replies to a 1.2 worker; a 1.1 worker gets the reply it always got (a throwing script reads as `result: "null"`). `ReverseRequest.protocolMinor` carries the negotiated minor to the handler.
+- **Gating 1.3:** `host.browser.endInteraction` from a worker below 1.3 is answered `protocol-violation`. Only a 1.3 worker gets `package.load` `apiFamily`, the `host.browser.show` reply's `outcome`, and the `interaction.started` / `interaction.ended` events; an older worker gets exactly what it got before. The `trust` field on an `artifact-incompatible` error is sent to every peer: one that predates it ignores the unknown field and still reads `artifact-incompatible`.
 
 | Minor | Adds |
 |---|---|
 | 1.0 | The protocol as first shipped. |
 | 1.1 | Handshake `protocolMinor`, `limits` and `sizing`; `artifact.prepare` `trustedSigners`, and the explicit rule that it needs no loaded package; string-set setting values; source-scoped settings (`SettingsPayload.sources`); the browser message channel contract. |
 | 1.2 | Browser capabilities on the `host.browser.open` reply; `scriptError` on the `host.browser.evaluate` reply; `host.browser.addPageStartScript`; request interception (`host.browser.setRequestInterception`, the `host.browser.request` event, `host.browser.respond`) with request bodies; `ipc` and every other identifier allowed as a channel name. |
+| 1.3 | `package.load` `apiFamily`; `host.browser.show` completion rules and its reply's `outcome`; `host.browser.endInteraction`; the `interaction.started` and `interaction.ended` events; the evaluate promise rule; `trust` on `artifact-incompatible` errors. Also, without changing frames: the replace tier names the engine's own reason first, captures may keep allow-listed cookies and `cf-mitigated`, and `SettingsPayload.valuesFor` / `secretsFor`. |
 
 ## Transport
 
@@ -44,7 +46,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 | `of` | string | On `rreq`: the `id` of the request that caused it. |
 | `payload` | object | Request data (`req`, `rreq`, `event`). |
 | `ok` | object | Success data (`res`, `rres`). Exactly one of `ok` and `err` is present. |
-| `err` | object | Failure (`res`, `rres`): `{"code","message","operation"?}`. |
+| `err` | object | Failure (`res`, `rres`): `{"code","message","operation"?,"trust"?}`. `operation` comes with `capability-unavailable`; `trust` (1.3) with `artifact-incompatible`. |
 
 | `t` | Direction | Purpose |
 |---|---|---|
@@ -53,7 +55,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 | `cancel` | supervisor → worker | Cancel the `req` with this `id` cooperatively. Has no payload. |
 | `rreq` | worker → supervisor | A `host.browser.*` reverse request made while serving request `of`. |
 | `rres` | supervisor → worker | Reply to the `rreq` with the same `id`. |
-| `event` | supervisor → worker | A notification that needs no reply (`host.browser.message`, `host.browser.request`). |
+| `event` | supervisor → worker | A notification that needs no reply (`host.browser.message`, `host.browser.request`, `interaction.started`, `interaction.ended`). |
 
 ### Rules
 
@@ -64,7 +66,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 - **Cancellation:** after a `cancel`, stop the operation and reply with `err.code = "cancelled"`. The supervisor discards that reply if the caller has already gone. If the operation does not settle within the cancel grace period, the supervisor kills and restarts the worker.
 - **Concurrency:** the supervisor sends at most one per-package operation at a time for each package. Different packages may run concurrently, up to the pool size. `handshake` and `shutdown` are not package operations. Restart reloads also bypass the package queue.
 - **Loaded packages:** `artifact.prepare` and `package.load` carry `pkg` but must not require the package to be loaded: `artifact.prepare` produces the bytes `package.load` will load. Every other per-package operation (`package.unload`, `settings.update`, `search`, `details`, `dispose`) needs a loaded package and answers `runtime-unavailable` without one. Dart workers use `WorkerRequest.admissionFailure` (backed by `WorkerOperation.requiresLoadedPackage`) for this check.
-- **Deadlines:** each operation's deadline is measured from dispatch, so time spent waiting in the queue does not count. Time spent in `host.browser.show` is excluded from the deadline and bounded separately.
+- **Deadlines:** each operation's deadline is measured from dispatch, so time spent waiting in the queue does not count. Time spent in `host.browser.show` is excluded from the deadline and bounded separately. A 1.3 worker is told when that exclusion starts and ends, and pauses its own engine deadlines to match (see [Interaction](#interaction-13)).
 - **Restart:** a restart fences every older generation, starts a new process, completes the handshake, and reloads every loaded package from its re-verified artifact with its current settings. The operation that hit its deadline fails with `timeout`. Other interrupted operations are re-sent once; a second interruption fails them with `worker-restarted`.
 
 ### Errors
@@ -78,7 +80,7 @@ The protocol has a major and a minor version. The major version is the envelope'
 | `unsupported-api` | The source's API version or family is not supported. |
 | `interaction-required` | Needs a visible user interaction, for example a challenge page. |
 | `stale-reference` | A reference or handle no longer matches the running source or settings, or cannot be rehydrated. Never answer by guessing a replacement. |
-| `artifact-incompatible` | The artifact failed integrity, trust or compatibility checks. |
+| `artifact-incompatible` | The artifact failed integrity, trust or compatibility checks. A failed trust decision (1.3) adds `trust`: `first-seen` (no approved signer or key, and nothing approved it in this run), `changed` (it differs from the approved one) or `refused` (the user or a pinned policy refused it). Dart reads it as `TrustFailure`, a subtype of `ArtifactIncompatibleFailure`; the earlier `trust:` message prefix is retired. An unknown `trust` value reads as plain `artifact-incompatible`. |
 | `worker-restarted` | Interrupted by a restart after its single re-send. |
 | `source-error` | The source code itself failed. |
 | `capability-unavailable` | A host capability is missing. `operation` names it, for example `host.browser.show`. |
@@ -114,7 +116,7 @@ A field marked `?` may be omitted or `null`. Workers may add fields; readers ign
 A package can host many sources (a Tachi factory). Package operations carry the package in `pkg`; a source within it is always addressed by its `sourceId`, the string `package.load` returned:
 
 - **Operations:** `search`, `details` and `dispose` name their source in `source.sourceId` (a full `SourceIdentity`), and `host.browser.open` in `sourceId`. A worker must reject a `sourceId` the package does not host.
-- **Settings (1.1):** `SettingsPayload.values` and `secrets` apply to every source of the package. `SettingsPayload.sources` maps a `sourceId` to that source's own `values` and `secrets`, which override the package-wide entries with the same key. The effective settings of source `S` are therefore `values` overlaid with `sources[S].values`, and likewise for secrets. Keys are plain setting keys; no key carries a source or store prefix.
+- **Settings (1.1):** `SettingsPayload.values` and `secrets` apply to every source of the package. `SettingsPayload.sources` maps a `sourceId` to that source's own `values` and `secrets`, which override the package-wide entries with the same key. The effective settings of source `S` are therefore `values` overlaid with `sources[S].values`, and likewise for secrets. Keys are plain setting keys; no key carries a source or store prefix. Dart workers resolve them with `SettingsPayload.valuesFor(S)` and `secretsFor(S)`, the same rule `SettingsSnapshot` uses (`ScopedSettingsView`); do not keep a copy of the overlay logic.
 - **Tachi mapping:** a Tachi worker seeds the `SharedPreferences` store a source opens (by Tachi convention `source_<id>`) from that source's effective settings, and plain package-wide keys seed every store. The 1.0 convention of `storeName/key` keys is replaced by `sources`; a 1.1 supervisor never sends `/`-prefixed keys for scoping.
 
 ```json
@@ -130,7 +132,7 @@ A package can host many sources (a Tachi factory). Package operations carry the 
 |---|---|---|---|
 | `handshake` | — | `protocolVersions: [int]`, `protocolMinor?: int`, `maxFrameBytes: int` (`HandshakeRequest`) | `protocolVersion: int`, `protocolMinor?: int`, `worker: string`, `workerVersion?`, `pid?: int`, `capabilities: {apiFamilies: [string], browser: bool}`, `limits?: WorkerReportedLimits`, `sizing?: WorkerSizing` (`HandshakeResponse`, `WorkerCapabilities`, `WorkerReportedLimits`, `WorkerSizing`) |
 | `artifact.prepare` | yes (need not be loaded) | `artifact: ArtifactBinding`, `inputPath`, `outputPath`, `trustedSigners: [string]` (`ArtifactPrepareRequest`) | `artifact: ArtifactBinding` (of the output), `producer`, `converterVersion` (`ArtifactPrepareResponse`) |
-| `package.load` | yes | `artifact: ArtifactBinding`, `path`, `settings: SettingsPayload` (`PackageLoadRequest`) | `sources: [{sourceId, name, language?, capabilities: SourceCapabilities}]` (`PackageLoadResponse`, `LoadedSource`) |
+| `package.load` | yes | `artifact: ArtifactBinding`, `path`, `settings: SettingsPayload`, `apiFamily?: string` (1.3) (`PackageLoadRequest`) | `sources: [{sourceId, name, language?, capabilities: SourceCapabilities}]` (`PackageLoadResponse`, `LoadedSource`) |
 | `package.unload` | yes | `{}` (`PackageUnloadRequest`) | `{}` (`EmptyPayload`) |
 | `settings.update` | yes | `settings: SettingsPayload` (`SettingsUpdateRequest`) | `{}` |
 | `search` | yes | `source: SourceIdentity`, `settingsRevision`, `query`, `cursor?` (`WorkerSearchRequest`) | `hits: [SearchHit & {handle?}]`, `nextCursor?`, `warnings: [string]` (`WorkerSearchResponse`, `WorkerSearchHit`) |
@@ -146,11 +148,12 @@ A package can host many sources (a Tachi factory). Package operations carry the 
 - **`artifact.prepare`:** this operation turns a verified input artifact into the form the worker loads, for example APK → JAR through dex2jar, or JAR signature verification (KTD5).
   - **Loaded package:** not required. The package is normally not loaded yet, because this operation produces the bytes `package.load` loads.
   - **Input:** before reading `inputPath`, re-verify it against `artifact.sha256`. Reject a mismatch with `artifact-incompatible`.
-  - **Trust (1.1, KTD5):** `trustedSigners` lists certificate SHA-256 fingerprints (64 lowercase hex digits, sorted) taken from the stored trust anchor: the fingerprint the user approved for the repository, or one a qualification manifest pins. Verify the JAR or APK signature against them and reject any other signer with `artifact-incompatible`. A fingerprint read beside the artifact proves consistency, not provenance, so it never substitutes for this list. A request without `trustedSigners` (a 1.0 supervisor) decodes as an empty list; refuse anything that needs a signer rather than trust another source.
+  - **Trust (1.1, KTD5):** `trustedSigners` lists certificate SHA-256 fingerprints (64 lowercase hex digits, sorted) taken from the stored trust anchor: the fingerprint the user approved for the repository, or one a qualification manifest pins. Verify the JAR or APK signature against them and reject any other signer with `artifact-incompatible`. A fingerprint read beside the artifact proves consistency, not provenance, so it never substitutes for this list. A request without `trustedSigners` (a 1.0 supervisor) decodes as an empty list; refuse anything that needs a signer rather than trust another source. A signer outside the list is a failed trust decision (1.3): answer `artifact-incompatible` with `trust: "refused"` (an unapproved signer) or `"changed"` (the repository's approved signer differs), not a message prefix. The supervisor itself refuses an empty anchor before sending, as `trust: "first-seen"`.
   - **Output:** write only to `outputPath`, a private staging path the supervisor chose.
   - **After the reply:** the sender re-hashes the output and admits it to the artifact cache under an `ArtifactProfile(producer, converterVersion, hostCompatibility)`, never trusting the reported digest alone. `WorkerSupervisor.prepareArtifact` does all of this: it refuses an empty trust anchor and a 1.0 worker before sending, stages the output in a private directory under the cache root, fails a digest mismatch as `artifact-incompatible`, and deletes the staging directory afterwards.
 - **`package.load`:**
   - **Artifact:** `path` is a privately staged artifact that the supervisor re-verified just before sending. Load it into its own child-first class loader (Tachi) or runtime (Paperback).
+  - **API family (1.3, KTD6):** `apiFamily` is the source API family the trust decision bound to the artifact, for example `paperback-0.9` or `tachi-1.5`, carried on `WorkerPackage.apiFamily` so restart reloads send it too. Host the package as that family; reply `unsupported-api` for a family the worker cannot host. It is absent from a pre-1.3 supervisor and for packages without a family; a worker then keeps its earlier behaviour (Paperback reads the family from `ArtifactBinding.kind`, for example `paperback-bundle-0.9`). Once a worker requires 1.3 it should stop reading the family from the kind.
   - **Sources:** enumerate the package's sources. A Tachi factory returns every source; Aidoku-style packages return one.
   - **Failures:** reply `artifact-incompatible` or `unsupported-api` on failure.
   - **Restarts:** after every restart the supervisor resends `package.load` for each loaded package with its current settings, and drops a package whose reload fails.
@@ -180,16 +183,19 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 | `host.browser.getCookies` | `session`, `url` (`HostBrowserGetCookies`) | `cookies: [BrowserCookie]` (`HostBrowserCookies`) |
 | `host.browser.setCookie` | `session`, `url`, `cookie: BrowserCookie` (`HostBrowserSetCookie`) | `{}` |
 | `host.browser.setUserAgent` | `session`, `userAgent` (`HostBrowserSetUserAgent`) | `{}` |
-| `host.browser.show` | `session` (`HostBrowserShow`) | `{}` |
+| `host.browser.show` | `session` (`HostBrowserShow`) | `outcome?`: `closed` or `completed` (1.3) (`HostBrowserShown`) |
 | `host.browser.close` | `session` (`HostBrowserClose`) | `{}` |
 | `host.browser.addPageStartScript` (1.2) | `session`, `script` (`HostBrowserAddPageStartScript`) | `{}` |
 | `host.browser.setRequestInterception` (1.2) | `session`, `mode`: `none`, `observe` or `replace` (`HostBrowserSetRequestInterception`) | `{}` |
 | `host.browser.respond` (1.2) | `session`, `requestId`, `response?: BrowserReplacement` (`HostBrowserRespond`) | `{}` |
+| `host.browser.endInteraction` (1.3) | `session` (`HostBrowserEndInteraction`) | `{}` |
 
 | Event `op` (supervisor → worker) | `payload` (Dart class) |
 |---|---|
 | `host.browser.message` | `session`, `name`, `message` (`HostBrowserMessage`) |
 | `host.browser.request` (1.2) | `session`, `requestId?`, `method`, `url`, `headers`, `bodyBase64?`, `bodyOmitted`, `mainFrame`, `redirect`, `context` (`HostBrowserRequestEvent`) |
+| `interaction.started` (1.3) | `of`, `timeoutMs: int` (`WorkerInteractionStarted`) |
+| `interaction.ended` (1.3) | `of`, `pausedMs: int` (`WorkerInteractionEnded`) |
 
 ### Notes
 
@@ -200,9 +206,55 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
   - **Unconfirmed deletion:** when a close that the supervisor started on its own does not complete (for example, the platform cannot confirm that storage was deleted), the failure is written to the redacted log. There is no worker left to answer.
   - **After the conversion:** when the conversion scope closes, every remaining session closes, and later requests are refused.
   - **Requests in flight:** reverse requests from a fenced generation are cancelled, and their replies are never delivered.
-- **Interaction:** while a `host.browser.show` request is open, the originating operation's deadline is paused. The interaction has its own bound; when it expires, the operation escalates like a deadline.
+- **Interaction:** see [Interaction (1.3)](#interaction-13).
 - **Failure codes:** platform failures map to `cancelled`, `interaction-required`, `capability-unavailable` (with the named operation), or `source-error` (navigation failures). A malformed reverse payload, or a 1.2 operation from a worker that did not negotiate 1.2, is answered `protocol-violation`.
 - **Messages:** page messages arrive as `host.browser.message` events only while the handler is enabled and the session's generation is current.
+
+### Interaction (1.3)
+
+`host.browser.show` shows the session's window so the user can solve a challenge or log in. Every implementation follows `showBrowserInteraction` in `lib/src/contracts/browser_port.dart`; the desktop bridge and in-app adapters call it rather than `BrowserSession.showForInteraction` directly.
+
+**Completion.** The show ends at the first of these, and the session stays open in every case:
+
+| Ends when | Reply to a 1.3 worker | Reply to an older worker |
+|---|---|---|
+| The user closes the window. | `ok` `{"outcome": "closed"}` | `ok` `{}` |
+| The page signals completion: the worker sends `host.browser.endInteraction` for the session. The window is hidden. | `ok` `{"outcome": "completed"}` | (cannot send it) |
+| The interaction bound (`interactionTimeoutMs`) elapses. The window is hidden. | `err` `interaction-required`, message naming the bound | the same |
+| The originating operation is cancelled or hits its backstop, or the session closes or is fenced. | `err` `cancelled` | the same |
+| No display exists. | `err` `interaction-required` at once | the same |
+
+- **Page signals:** the page has no special API. The worker decides what counts as completion: a message on a channel it installed, an observed navigation, or a cookie it polls with `getCookies`. It then sends `host.browser.endInteraction`. Because its `host.browser.show` is still pending, it sends this from another thread, the same rule as `host.browser.respond`. With no show pending in the session the request is answered `cancelled`.
+- **Port obligations:** `BrowserSession.showForInteraction` returns `BrowserCompleted` only when the user closed the window. When its cancel token fires it hides the window and returns `BrowserCancelled`, keeping the session usable; `showBrowserInteraction` maps that to `completed` when it fired the token for a page signal. At its timeout it hides the window and returns `BrowserInteractionRequired`. The helper enforces the bound itself as well, so a port that overruns cannot stretch it.
+- **Bound ownership:** the interaction bound produces `interaction-required`; the operation continues and the worker decides what to do with it. The supervisor keeps a backstop at the bound plus `cancelGraceMs`. Only a show that overruns its bound by that much escalates like a deadline: a cooperative cancel, then a restart.
+
+**Deadline pause.** While any `host.browser.show` of an operation is pending, the supervisor pauses that operation's deadline. A 1.3 worker is told, so it can pause its own engine deadlines (Paperback's QuickJS interrupt budget, any JVM watchdog) for the same span:
+
+- **`interaction.started`:** `{"of": "<request id>", "timeoutMs": <bound>}`. Sent when the first show of operation `of` begins, before the platform shows anything. Overlapping shows of one operation produce one event.
+- **`interaction.ended`:** `{"of": "<request id>", "pausedMs": <ms>}`. Sent when the last overlapping show of `of` ends. It is written before that show's `rres`, so the worker always sees it before the reply.
+- **Worker obligation:** between the two events, do not count time against operation `of`'s engine deadline. Never resume on the `rres` alone: wait for `interaction.ended`. A fenced generation ends every interaction without an `interaction.ended`, because no worker of that generation remains.
+- **Without a supervisor:** an in-app adapter (the Paperback isolate, iOS, Android) has no events. It pauses its engine deadline around its own `showBrowserInteraction` call.
+
+```text
+← {"v":1,"t":"rreq","id":"r7","gen":1,"op":"host.browser.show","of":"1-3","payload":{"session":"s-1"}}
+→ {"v":1,"t":"event","id":"e1-12","gen":1,"op":"interaction.started","payload":{"of":"1-3","timeoutMs":300000}}
+→ {"v":1,"t":"event","id":"e1-13","gen":1,"op":"host.browser.message","payload":{"session":"s-1","name":"solved","message":"ok"}}
+← {"v":1,"t":"rreq","id":"r8","gen":1,"op":"host.browser.endInteraction","of":"1-3","payload":{"session":"s-1"}}
+→ {"v":1,"t":"rres","id":"r8","gen":1,"ok":{}}
+→ {"v":1,"t":"event","id":"e1-14","gen":1,"op":"interaction.ended","payload":{"of":"1-3","pausedMs":8123}}
+→ {"v":1,"t":"rres","id":"r7","gen":1,"ok":{"outcome":"completed"}}
+```
+
+### Evaluate and promises (1.3)
+
+`host.browser.evaluate` **awaits** a returned promise (`BrowserSession.evaluate`):
+
+- **Resolved:** a script whose completion value is a promise, or any thenable, replies with the JSON of the settled value.
+- **Rejected:** a rejected promise is a throwing script: `scriptError` with `scriptErrors`, otherwise `result: "null"`.
+- **No value:** `undefined`, and values JSON cannot encode, read as `null`.
+- **Never settles:** the reply waits until the operation is cancelled, the session closes, or a fence. The operation deadline bounds it.
+
+The desktop helper's eval wrapper already does this. An iOS port can use WKWebView's `callAsyncJavaScript`, which awaits natively. Android's `evaluateJavascript` would report `{}`, so an Android port wraps the script to await it, as it already must to detect throws. `BrowserEvaluateCompat.androidCompatible` still maps a script error to `null`, but a promise result keeps its settled value. The contract suite checks both rules with real JavaScript (`BrowserContractScripts.resolvedPromise`, `delayedPromise` and `rejectedPromise`).
 
 ### Browser message channel (1.1)
 
@@ -254,7 +306,7 @@ A script that throws is reported as `{"result": "null", "scriptError": "<thrown 
 
 - **`observe`:** each request the engine can see is sent as a `host.browser.request` event without `requestId`, and proceeds unchanged. Which requests are reported depends on `observeNavigations` and `observeSubresources`. Where subresources cannot be observed, the worker records the degraded capability (KTD20) and the request still proceeds. Refused as `capability-unavailable` only when neither observe feature exists.
 - **`replace`:** each request is held and sent as a `host.browser.request` event with a `requestId`. The worker answers with `host.browser.respond`: a `response` is served instead of the network response, and `null` lets the request proceed.
-  - **Unavailable:** refused as `capability-unavailable` (operation `setRequestReplacer`, reason naming `replaceRequests`) without the feature. It is also refused when the supervisor has no replacement timeout configured (`BrowserReverseBridge.replacementTimeout`); no default is invented.
+  - **Unavailable:** refused as `capability-unavailable` (operation `setRequestReplacer`, reason naming `replaceRequests`) without the feature. It is also refused when the supervisor has no replacement timeout configured (`BrowserReverseBridge.replacementTimeout`); no default is invented. The engine is asked first (1.3): on an engine without the feature, the refusal carries the engine's own `replaceRequests` reason, and the missing timeout is named only for an engine that has the feature. Asking never installs a replacer, so an observer the worker set keeps running.
   - **Timeout:** a held request with no answer within the replacement timeout proceeds unchanged, and the redacted log records its method and URL without the query.
   - **Late answers:** a `respond` for a request that is no longer held (answered, timed out, or its session closed or fenced) is answered `cancelled`.
   - **Closing:** held requests of a closed or fenced session proceed unchanged and get no event.
@@ -263,15 +315,16 @@ A script that throws is reported as `{"result": "null", "scriptError": "<thrown 
   - **No operation in flight:** `respond` is an `rreq`, so the orphan rule applies. A worker answers only while one of the package's operations is in flight. With none in flight it does not answer, and the request proceeds after the timeout.
 - **Event fields:** `method` (uppercase), `url`, `headers` (as the engine sends them; may include `Cookie` and `Authorization`, so never log them), `mainFrame` (Android's `isForMainFrame`), `redirect`, `context` (`document`, `script`, `fetch`, `xhr`, `image`, `stylesheet`, `other`; unknown values read as `other`), and the body.
 - **Request bodies:** `bodyBase64` carries the body when the engine exposes it (`observeRequestBodies`). `bodyOmitted: true` means the request had a body that the event does not carry: the engine could not read it, or it was larger than 1 MiB (`hostBrowserMaxForwardedBodyBytes`), so one upload can never push a frame past the 16 MiB limit. A body is omitted whole, never truncated.
+- **Captured headers and cookies (1.3):** a capture records only `content-type`, `location`, `retry-after` and `cf-mitigated` (Cloudflare's header-based challenge signal). `Set-Cookie` is recorded only for the cookie names in the capture's `setCookieAllowList`, which is empty unless the scenario in `tool/capture_source_fixtures.dart` names a cookie. Each such cookie is sanitised to name, value, `Path` and `Domain`. A `redact` entry's value is written as `redacted`, so replay shows that a site issued a token, such as Mangahub's `mhub_access`, without committing it. `ReplayHttpClient` serves them as one `set-cookie` header, comma-joined as `package:http` does, and `FakeBrowserPort.replay` stores them in the session's cookie jar.
 - **Offline replay:** captures match on method, canonical URL and body SHA-256 (`CaptureKey`). `browserCaptureReplayReplacer` serves a capture set as a replace-tier handler, so a POST such as MangaFire's `verify` matches only its recorded body. A request with `bodyOmitted` is a recorded miss, never a match against a bodiless capture. `FakeBrowserPort.replay` applies the same rules to requests made from the page.
 - **Conformance:** the contract suite checks main-frame observation with headers and client hints, a POST subresource with its body, observer removal, observation stopping at close, replacement and pass-through, refusal of a redirect replacement, and interceptor exclusivity. On an engine without a feature, each case instead checks the named `capability-unavailable` reason or the documented degradation.
 
 ## Example exchange
 
 ```text
-→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"protocolMinor":2,"maxFrameBytes":16777216}}
-← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"protocolMinor":2,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true},"limits":{"poolSize":2,"operationDeadlineMs":6000,"cancelGraceMs":1800,"interactionTimeoutMs":300000,"shutdownGraceMs":1800},"sizing":{"rule":{"source":"docs/validation/source-runners/desktop/…"},"inputs":{"cores":8,"maxHeapMiB":512},"derived":{"poolSize":2},"overridden":[]}}}
-→ {"v":1,"t":"req","id":"1-2","gen":1,"op":"package.load","pkg":"eu.kanade.x","payload":{"artifact":{"sha256":"ab12…","kind":"jar","version":"1.4.2"},"path":"/…/ab12….bin","settings":{"values":{"lang":"en","nsfw":false},"secrets":{},"revision":"9f…"}}}
+→ {"v":1,"t":"req","id":"1-1","gen":1,"op":"handshake","payload":{"protocolVersions":[1],"protocolMinor":3,"maxFrameBytes":16777216}}
+← {"v":1,"t":"res","id":"1-1","gen":1,"ok":{"protocolVersion":1,"protocolMinor":3,"worker":"tachi-jvm","workerVersion":"0.1.0","pid":4242,"capabilities":{"apiFamilies":["tachi-1.5"],"browser":true},"limits":{"poolSize":2,"operationDeadlineMs":6000,"cancelGraceMs":1800,"interactionTimeoutMs":300000,"shutdownGraceMs":1800},"sizing":{"rule":{"source":"docs/validation/source-runners/desktop/…"},"inputs":{"cores":8,"maxHeapMiB":512},"derived":{"poolSize":2},"overridden":[]}}}
+→ {"v":1,"t":"req","id":"1-2","gen":1,"op":"package.load","pkg":"eu.kanade.x","payload":{"artifact":{"sha256":"ab12…","kind":"jar","version":"1.4.2"},"path":"/…/ab12….bin","settings":{"values":{"lang":"en","nsfw":false},"secrets":{},"revision":"9f…"},"apiFamily":"tachi-1.5"}}
 ← {"v":1,"t":"res","id":"1-2","gen":1,"ok":{"sources":[{"sourceId":"9223372036854775807","name":"X (EN)","language":"en","capabilities":{"operations":["search","mangaDetails","chapterList"],"apiFamilies":["tachi-1.5"],"requiresBrowser":true}}]}}
 → {"v":1,"t":"req","id":"1-3","gen":1,"op":"search","pkg":"eu.kanade.x","payload":{"source":{…},"settingsRevision":"9f…","query":"onimai","cursor":null}}
 ← {"v":1,"t":"rreq","id":"r1","gen":1,"op":"host.browser.open","of":"1-3","payload":{"sourceId":"9223372036854775807"}}

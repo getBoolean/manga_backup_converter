@@ -134,6 +134,40 @@ final class SourceIdentity {
   }
 }
 
+/// Effective per-source settings, shared by [SettingsSnapshot] and the wire
+/// `SettingsPayload` so supervisors and workers resolve a source's settings
+/// with one rule: package-wide entries overlaid with that source's scope.
+mixin ScopedSettingsView {
+  /// Package-wide non-secret values.
+  Map<String, Object> get values;
+
+  /// Package-wide secret values; session memory only (KTD9).
+  Map<String, String> get secrets;
+
+  /// Per-source overrides keyed by source ID.
+  Map<String, SourceScopedSettings> get sources;
+
+  /// The effective non-secret values for [sourceId]: package-wide values
+  /// overridden by that source's scope.
+  Map<String, Object> valuesFor(String sourceId) => <String, Object>{...values, ...?sources[sourceId]?.values};
+
+  /// The effective secrets for [sourceId]: package-wide secrets overridden
+  /// by that source's scope.
+  Map<String, String> secretsFor(String sourceId) => <String, String>{...secrets, ...?sources[sourceId]?.secrets};
+
+  /// Every secret value, package-wide and source-scoped, for redaction.
+  Iterable<String> get allSecretValues sync* {
+    yield* secrets.values;
+    for (final SourceScopedSettings scope in sources.values) {
+      yield* scope.secrets.values;
+    }
+  }
+
+  /// Whether any value is a string set or any source has scoped settings.
+  /// Both need worker protocol 1.1; a 1.0 worker would reject them.
+  bool get needsProtocol11 => sources.isNotEmpty || values.values.any((Object v) => v is List<String>);
+}
+
 /// Settings that apply to one source of a multi-source package (a Tachi
 /// factory hosts many sources in one package).
 ///
@@ -173,7 +207,7 @@ final class SourceScopedSettings {
 /// form from `package.load`), so one source of a multi-source package can be
 /// configured without a key-naming convention.
 @immutable
-final class SettingsSnapshot {
+final class SettingsSnapshot with ScopedSettingsView {
   SettingsSnapshot({
     Map<String, Object> values = const <String, Object>{},
     Map<String, String> secrets = const <String, String>{},
@@ -222,37 +256,20 @@ final class SettingsSnapshot {
 
   /// Package-wide non-secret values: each a [String], [bool], [int] or a
   /// sorted, deduplicated `List<String>`.
+  @override
   final Map<String, Object> values;
 
   /// Package-wide secret values; session memory only.
+  @override
   final Map<String, String> secrets;
 
   /// Per-source overrides keyed by source ID. Empty scopes are dropped.
+  @override
   final Map<String, SourceScopedSettings> sources;
 
   /// Non-secret keys that take part in [revision]; `null` means all of them.
   /// It applies to package-wide and source-scoped keys alike.
   final Set<String>? revisionAllowlist;
-
-  /// Every secret value, package-wide and source-scoped, for redaction.
-  Iterable<String> get allSecretValues sync* {
-    yield* secrets.values;
-    for (final SourceScopedSettings scope in sources.values) {
-      yield* scope.secrets.values;
-    }
-  }
-
-  /// Whether any value is a string set or any source has scoped settings.
-  /// Both need worker protocol 1.1; a 1.0 worker would reject them.
-  bool get needsProtocol11 => sources.isNotEmpty || values.values.any((Object v) => v is List<String>);
-
-  /// The effective non-secret values for [sourceId]: package-wide values
-  /// overridden by that source's scope.
-  Map<String, Object> valuesFor(String sourceId) => <String, Object>{...values, ...?sources[sourceId]?.values};
-
-  /// The effective secrets for [sourceId]: package-wide secrets overridden
-  /// by that source's scope.
-  Map<String, String> secretsFor(String sourceId) => <String, String>{...secrets, ...?sources[sourceId]?.secrets};
 
   /// Durable, secret-free revision: a digest over the allowlisted non-secret
   /// values plus the names (never the values) of the supplied secrets, for

@@ -62,6 +62,17 @@ abstract interface class BrowserPortHarness {
   Uri get echoUrl;
 }
 
+/// A [BrowserPortHarness] that can act as the user of a shown interaction
+/// window (protocol 1.3). Optional: the contract cases that need a user
+/// closing the window pass trivially for a harness that does not implement
+/// it, and are named in the suite so an implementation can list them.
+abstract interface class InteractiveBrowserPortHarness implements BrowserPortHarness {
+  /// Waits until a window shown by `showForInteraction` is visible, then
+  /// closes it as a user would (the window's close button, not an API call
+  /// that cancels the show).
+  Future<void> closeInteractionWindow();
+}
+
 /// Page scripts the contract suite evaluates (protocol 1.2). Each is real
 /// JavaScript; the fetch script also carries a comment the fake reads.
 abstract final class BrowserContractScripts {
@@ -89,6 +100,16 @@ abstract final class BrowserContractScripts {
   /// Posts the frame's own `location.href` on channel [name]; as a
   /// page-start script it reports every frame it runs in.
   static String postLocation(String name) => 'window.$name.postMessage(location.href)';
+
+  /// A promise already resolved with [json] (protocol 1.3 evaluate rule).
+  static String resolvedPromise(String json) => 'Promise.resolve($json)';
+
+  /// A promise that resolves with [json] after [delay] (a `setTimeout`).
+  static String delayedPromise(String json, Duration delay) =>
+      'new Promise(function(r){setTimeout(function(){r($json);},${delay.inMilliseconds});})';
+
+  /// A promise rejected with `new Error(message)`.
+  static String rejectedPromise(String message) => 'Promise.reject(new Error(${jsonEncode(message)}))';
 }
 
 /// Waits until [messages] contains [expected]; fails after a bound so a
@@ -385,13 +406,11 @@ void runBrowserPortContractSuite(
       }
 
       test('showForInteraction reports interaction-required without a display', () async {
+        // With a display, the protocol 1.3 interaction cases cover the show.
+        if (harness.canShowInteraction) return;
         final BrowserSession s = await open(sourceA);
         final BrowserOutcome<void> shown = await s.showForInteraction(timeout: const Duration(seconds: 1));
-        if (harness.canShowInteraction) {
-          check(shown).isA<BrowserCompleted<void>>();
-        } else {
-          check(shown).isA<BrowserInteractionRequired<void>>();
-        }
+        check(shown).isA<BrowserInteractionRequired<void>>();
       });
 
       test('accepts "ipc" as a channel name without breaking evaluation or other channels', () async {
@@ -449,6 +468,130 @@ void runBrowserPortContractSuite(
         check(thrown.androidCompatible.valueOrNull).equals('null');
         // A script that returns null is still a completed null.
         check(await s.evaluate('localStorage.getItem("absent")')).isA<BrowserCompleted<String>>();
+      });
+    });
+
+    group('protocol 1.3 evaluate and promises', () {
+      test('evaluate awaits a returned promise and reports its settled value', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        check((await s.evaluate(BrowserContractScripts.resolvedPromise('42'))).valueOrNull).equals('42');
+        check(
+          (await s.evaluate(
+            BrowserContractScripts.delayedPromise('"later"', const Duration(milliseconds: 50)),
+          )).valueOrNull,
+        ).equals('"later"');
+      });
+
+      test('a rejected promise is a throwing script', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final BrowserOutcome<String> rejected = await s.evaluate(
+          BrowserContractScripts.rejectedPromise('contract-reject'),
+        );
+        if (s.capabilities.supports(BrowserFeature.scriptErrors)) {
+          check(rejected)
+              .isA<BrowserScriptError<String>>()
+              .has((BrowserScriptError<String> e) => e.message, 'message')
+              .contains('contract-reject');
+        } else {
+          check(rejected.valueOrNull).equals('null');
+        }
+      });
+    });
+
+    group('protocol 1.3 interaction completion', () {
+      test('the interaction ends when the page signals completion, and the session stays usable', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final done = Completer<void>();
+        check(
+          await s.setMessageHandler('solved', (_) {
+            if (!done.isCompleted) done.complete();
+          }),
+        ).isA<BrowserCompleted<void>>();
+        final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(
+          s,
+          timeout: const Duration(seconds: 10),
+          completion: done.future,
+        );
+        if (!harness.canShowInteraction) {
+          check(await shown).isA<BrowserInteractionRequired<BrowserInteractionEnd>>();
+          return;
+        }
+        await s.evaluate(BrowserMessageChannel.postScript('solved', 'ok'));
+        check(await shown)
+            .isA<BrowserCompleted<BrowserInteractionEnd>>()
+            .has((BrowserCompleted<BrowserInteractionEnd> c) => c.value, 'value')
+            .equals(BrowserInteractionEnd.completedByPage);
+        check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
+      });
+
+      test('the interaction times out as interaction-required and leaves the session open', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final watch = Stopwatch()..start();
+        final BrowserOutcome<BrowserInteractionEnd> shown = await showBrowserInteraction(
+          s,
+          timeout: const Duration(milliseconds: 300),
+        );
+        check(shown)
+            .isA<BrowserInteractionRequired<BrowserInteractionEnd>>()
+            .has((BrowserInteractionRequired<BrowserInteractionEnd> o) => o.reason.trim(), 'reason')
+            .isNotEmpty();
+        if (harness.canShowInteraction) {
+          check(watch.elapsed).isGreaterOrEqual(const Duration(milliseconds: 250));
+        }
+        check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
+      });
+
+      test('a cancelled interaction resolves as cancelled and leaves the session open', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final cancel = CancellationSource();
+        final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(
+          s,
+          timeout: const Duration(seconds: 10),
+          cancel: cancel.token,
+        );
+        if (!harness.canShowInteraction) {
+          check(await shown).isA<BrowserInteractionRequired<BrowserInteractionEnd>>();
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        cancel.cancel('contract cancel');
+        check(await shown).isA<BrowserCancelled<BrowserInteractionEnd>>();
+        check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
+      });
+
+      test('the interaction completes when the user closes the window', () async {
+        final h = harness;
+        if (h is! InteractiveBrowserPortHarness || !h.canShowInteraction) return;
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(
+          s,
+          timeout: const Duration(seconds: 10),
+        );
+        await h.closeInteractionWindow();
+        check(await shown)
+            .isA<BrowserCompleted<BrowserInteractionEnd>>()
+            .has((BrowserCompleted<BrowserInteractionEnd> c) => c.value, 'value')
+            .equals(BrowserInteractionEnd.closedByUser);
+        check((await s.evaluate('1 + 1')).valueOrNull).equals('2');
+      });
+
+      test('closing the session ends a shown interaction as cancelled', () async {
+        if (!harness.canShowInteraction) return;
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final Future<BrowserOutcome<BrowserInteractionEnd>> shown = showBrowserInteraction(
+          s,
+          timeout: const Duration(seconds: 10),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        check(await s.close()).isA<BrowserCompleted<void>>();
+        check(await shown).isA<BrowserCancelled<BrowserInteractionEnd>>();
       });
     });
 
@@ -664,10 +807,17 @@ void runBrowserPortContractSuite(
 ///
 /// [capabilities] selects the engine profile the fake reports, so the suite
 /// can run against both the full feature set and degraded ones.
-class FakeBrowserPortHarness implements BrowserPortHarness {
-  FakeBrowserPortHarness({this.capabilities});
+///
+/// [interactive] gives the port a display whose simulated user acts only
+/// when told ([closeInteractionWindow]), so the protocol 1.3 interaction
+/// cases run both branches.
+class FakeBrowserPortHarness implements InteractiveBrowserPortHarness {
+  FakeBrowserPortHarness({this.capabilities, this.interactive = false});
 
   final BrowserCapabilities? capabilities;
+
+  /// Whether the port has a display and a user who closes windows on cue.
+  final bool interactive;
 
   final FakeBrowserStore store = FakeBrowserStore();
   FakeBrowserPort? _port;
@@ -694,7 +844,18 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
   final Uri echoUrl = Uri.parse('https://contract.test/echo');
 
   @override
-  bool get canShowInteraction => false;
+  bool get canShowInteraction => interactive;
+
+  @override
+  Future<void> closeInteractionWindow() async {
+    final FakeBrowserPort port = _port!;
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (port.shownInteractions == 0) {
+      if (DateTime.now().isAfter(deadline)) throw StateError('No interaction window was shown');
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    port.closeInteraction();
+  }
 
   FakeWebPage? _resolve(Uri url) {
     if (url == pageUrl) return const FakeWebPage(html: '<html><head><title>contract</title></head></html>');
@@ -721,6 +882,8 @@ class FakeBrowserPortHarness implements BrowserPortHarness {
     requests: _resolveRequest,
     store: store,
     capabilities: capabilities,
+    hasDisplay: interactive,
+    userClosesInteraction: false,
   );
 
   @override

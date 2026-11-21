@@ -1357,7 +1357,7 @@ void main() {
           cache: cache,
           hostCompatibility: 'host-1',
         )).failureOrNull,
-      ).isA<ArtifactIncompatibleFailure>();
+      ).isA<TrustFailure>().has((TrustFailure f) => f.reason, 'reason').equals(TrustFailureReason.firstSeen);
       check(
         (await s.prepareArtifact(
           packageId: 'eu.kanade.refused',
@@ -1407,6 +1407,166 @@ void main() {
         )).failureOrNull,
       ).isA<InteractionRequiredFailure>();
       await bridge.close();
+    });
+  });
+
+  group('protocol 1.3', () {
+    Map<String, Object?> showRequest() => <String, Object?>{
+      'fake': <String, Object?>{
+        'reverse': <String, Object?>{
+          'op': 'host.browser.show',
+          'payload': <String, Object?>{'session': 's-1'},
+        },
+      },
+    };
+
+    test('a 1.3 worker learns when a visible interaction starts and ends, before the show reply', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=3'],
+        onReverseRequest: (ReverseRequest r) async {
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          return const SourceSuccess<Map<String, Object?>>(<String, Object?>{'outcome': 'closed'});
+        },
+      );
+      final SourceOutcome<Map<String, Object?>> out = await s.call('pkg', 'echo', showRequest());
+      check(out.valueOrNull!['eventsAtReply']).isA<List<Object?>>().deepEquals(<Object?>[
+        WorkerInteractionStarted.op,
+        WorkerInteractionEnded.op,
+      ]);
+      final events = <Map<String, Object?>>[
+        for (final Object? e in (await stats(s))['events']! as List<Object?>) e! as Map<String, Object?>,
+      ];
+      final started = WorkerInteractionStarted.fromJson(events[0]['payload']! as Map<String, Object?>);
+      final ended = WorkerInteractionEnded.fromJson(events[1]['payload']! as Map<String, Object?>);
+      check(started.of).equals(ended.of);
+      check(started.of).startsWith('${s.generation}-');
+      check(started.timeout).equals(const Duration(seconds: 5));
+      check(ended.paused).isGreaterOrEqual(const Duration(milliseconds: 150));
+    });
+
+    test('concurrent operations each get their own started and ended, keyed by request', () async {
+      var shows = 0;
+      final release = Completer<void>();
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=3'],
+        onReverseRequest: (ReverseRequest r) async {
+          if (++shows == 1) await release.future;
+          return const SourceSuccess<Map<String, Object?>>(<String, Object?>{});
+        },
+      );
+      final Future<SourceOutcome<Map<String, Object?>>> a = s.call('a', 'echo', showRequest());
+      final Future<SourceOutcome<Map<String, Object?>>> b = s.call('b', 'echo', showRequest());
+      // b's interaction ended before its reply; a's is still open.
+      check((await b).valueOrNull!['eventsAtReply']).isA<List<Object?>>().deepEquals(<Object?>[
+        'interaction.started',
+        'interaction.started',
+        'interaction.ended',
+      ]);
+      release.complete();
+      await a;
+      final events = (await stats(s))['events']! as List<Object?>;
+      final ofs = <String, List<String>>{};
+      for (final e in events) {
+        final event = e! as Map<String, Object?>;
+        ofs
+            .putIfAbsent((event['payload']! as Map<String, Object?>)['of']! as String, () => <String>[])
+            .add(event['op']! as String);
+      }
+      check(ofs.values)
+          .every((Subject<List<String>> it) => it.deepEquals(<String>['interaction.started', 'interaction.ended']));
+      check(ofs).length.equals(2);
+    });
+
+    test('a show interrupted by a restart leaves the re-sent operation with fresh interaction bookkeeping', () async {
+      final firstShow = Completer<void>();
+      var shows = 0;
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=3'],
+        onReverseRequest: (ReverseRequest r) async {
+          if (++shows == 1) {
+            firstShow.complete();
+            // Settles only when the restart cancels it, after the call was
+            // reset for its re-send.
+            await r.cancel.whenCancelled;
+            return SourceFailed<Map<String, Object?>>(CancelledFailure(r.cancel.reason ?? 'cancelled'));
+          }
+          return const SourceSuccess<Map<String, Object?>>(<String, Object?>{'outcome': 'closed'});
+        },
+      );
+      final Future<SourceOutcome<Map<String, Object?>>> a = s.call('a', 'echo', showRequest());
+      await firstShow.future;
+      check((await s.call('b', 'echo', <String, Object?>{'value': 'b', 'fake': crashOnce()})).valueOrNull!['echo'])
+          .equals('b');
+      final SourceOutcome<Map<String, Object?>> resent = await a;
+      check(s.generation).equals(2);
+      check(resent.valueOrNull!['reverse'])
+          .isA<Map<String, Object?>>()
+          .deepEquals(<String, Object?>{'outcome': 'closed'});
+      check(resent.valueOrNull!['eventsAtReply']).isA<List<Object?>>().deepEquals(<Object?>[
+        WorkerInteractionStarted.op,
+        WorkerInteractionEnded.op,
+      ]);
+    });
+
+    test('a 1.2 worker gets no interaction events', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=2'],
+        onReverseRequest: (ReverseRequest r) async => const SourceSuccess<Map<String, Object?>>(<String, Object?>{}),
+      );
+      final SourceOutcome<Map<String, Object?>> out = await s.call('pkg', 'echo', showRequest());
+      check(out.valueOrNull!['eventsAtReply']).isA<List<Object?>>().isEmpty();
+    });
+
+    test('a show that answers within its bound never escalates', () async {
+      final WorkerSupervisor s = supervisor(
+        arguments: <String>['--minor=3'],
+        limits: testLimits(interactionTimeout: const Duration(milliseconds: 300)),
+        onReverseRequest: (ReverseRequest r) async {
+          // The bridge answers interaction-required when the bound elapses.
+          await Future<void>.delayed(r.interactionTimeout!);
+          return const SourceFailed<Map<String, Object?>>(InteractionRequiredFailure('not completed in time'));
+        },
+      );
+      final SourceOutcome<Map<String, Object?>> out = await s.call('pkg', 'echo', showRequest());
+      check((out.valueOrNull!['reverseError']! as Map<String, Object?>)['code']).equals('interaction-required');
+      check(s.generation).equals(1);
+    });
+
+    Future<WorkerPackage> withFamily(String id, String family) async {
+      final WorkerPackage base = await package(id);
+      return WorkerPackage(packageId: id, artifact: base.artifact, settings: base.settings, apiFamily: family);
+    }
+
+    test('package.load carries apiFamily to a 1.3 worker, on restart reloads too', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--minor=3']);
+      check(await s.loadPackage(await withFamily('a', 'paperback-0.9'))).isA<SourceSuccess<PackageLoadResponse>>();
+      check((await stats(s))['apiFamilies']).isA<Map<String, Object?>>().deepEquals(<String, Object?>{
+        'a': 'paperback-0.9',
+      });
+      final int? firstPid = s.pid;
+      check((await s.call('a', 'echo', <String, Object?>{'value': 'x', 'fake': crashOnce()})).valueOrNull!['echo'])
+          .equals('x');
+      check(s.pid).not((Subject<int?> it) => it.equals(firstPid));
+      check((await stats(s))['apiFamilies']).isA<Map<String, Object?>>().deepEquals(<String, Object?>{
+        'a': 'paperback-0.9',
+      });
+    });
+
+    test('package.load omits apiFamily for a 1.2 worker', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--minor=2']);
+      check(await s.loadPackage(await withFamily('a', 'paperback-0.9'))).isA<SourceSuccess<PackageLoadResponse>>();
+      check((await stats(s))['apiFamilies']).isA<Map<String, Object?>>().deepEquals(<String, Object?>{'a': null});
+    });
+
+    test('a trust failure from the worker keeps its reason', () async {
+      final WorkerSupervisor s = supervisor(arguments: <String>['--minor=3']);
+      check(
+          (await s.call('pkg', 'echo', <String, Object?>{
+            'fake': <String, Object?>{'errorTrust': 'changed'},
+          })).failureOrNull,
+        ).isA<TrustFailure>()
+        ..has((TrustFailure f) => f.reason, 'reason').equals(TrustFailureReason.changed)
+        ..has((TrustFailure f) => f.message, 'message').equals('untrusted signer');
     });
   });
 }

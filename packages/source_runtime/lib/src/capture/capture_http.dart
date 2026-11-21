@@ -73,10 +73,15 @@ class ReplayHttpClient extends http.BaseClient {
 }
 
 /// The only response headers written to a capture: what replay needs.
-/// Everything else is dropped, including credentials (`set-cookie`), transfer
-/// framing that no longer describes the stored decoded body, and CDN/edge
-/// headers that identify the recording machine's network or region.
-const Set<String> recordedResponseHeaders = <String>{'content-type', 'location', 'retry-after'};
+/// Everything else is dropped, including credentials (`set-cookie`, except
+/// the sanitised allow-listed cookies in [CaptureExchange.setCookies]),
+/// transfer framing that no longer describes the stored decoded body, and
+/// CDN/edge headers that identify the recording machine's network or region.
+///
+/// `cf-mitigated` is Cloudflare's header-based challenge signal
+/// (`cf-mitigated: challenge`); replay keeps it so a source's challenge
+/// detection sees the same response a live challenge produced.
+const Set<String> recordedResponseHeaders = <String>{'content-type', 'location', 'retry-after', 'cf-mitigated'};
 
 /// HTTP client that forwards to a real client and records exchanges (record
 /// mode). Used only by `tool/capture_source_fixtures.dart`; no test uses it.
@@ -84,14 +89,25 @@ const Set<String> recordedResponseHeaders = <String>{'content-type', 'location',
 /// Requests are spaced at least [minInterval] apart. Request headers are not
 /// recorded, only [recordedResponseHeaders] are kept, and a URL that would
 /// need redaction aborts the recording rather than committing a credential.
+///
+/// Cookies: a `Set-Cookie` is recorded only for a name in
+/// [setCookieAllowList] (empty by default), sanitised to name, value, `Path`
+/// and `Domain` ([CapturedCookie]). A [CapturedCookieValue.redact] value is
+/// written as [CapturedCookie.redactedValue] and registered with the
+/// redactor, so a later request URL that carries it aborts the recording.
+/// The live scenario still receives the real allow-listed values, so it can
+/// keep using a site-issued token while recording; other cookies reach it
+/// no more than they reach a replay.
 class RecordingHttpClient extends http.BaseClient {
   RecordingHttpClient(
     this._inner, {
     required this.minInterval,
     required this.licence,
     this.volatileQueryParameters = const <String>{},
+    Map<String, CapturedCookieValue> setCookieAllowList = const <String, CapturedCookieValue>{},
     Redactor? redactor,
-  }) : _redactor = redactor ?? Redactor();
+  }) : setCookieAllowList = Map<String, CapturedCookieValue>.unmodifiable(setCookieAllowList),
+       _redactor = redactor ?? Redactor();
 
   final http.Client _inner;
   final Duration minInterval;
@@ -101,8 +117,15 @@ class RecordingHttpClient extends http.BaseClient {
 
   /// Query parameters matched by name only (for example a current date).
   final Set<String> volatileQueryParameters;
+
+  /// Cookie names whose `Set-Cookie` is recorded, and how (see the class
+  /// documentation). Written to the manifest.
+  final Map<String, CapturedCookieValue> setCookieAllowList;
   final Redactor _redactor;
-  final Map<CaptureKey, (CaptureExchange, Uint8List)> _recorded = <CaptureKey, (CaptureExchange, Uint8List)>{};
+
+  /// Each exchange, its body, and the headers the live caller receives.
+  final Map<CaptureKey, (CaptureExchange, Uint8List, Map<String, String>)> _recorded =
+      <CaptureKey, (CaptureExchange, Uint8List, Map<String, String>)>{};
   DateTime? _last;
 
   /// Number of distinct exchanges recorded.
@@ -116,7 +139,7 @@ class RecordingHttpClient extends http.BaseClient {
       throw StateError('Refusing to record a URL that carries credentials: ${_redactor.redact(liveUrl)}');
     }
     final key = CaptureKey.forRequest(request.method, request.url, requestBody, volatile: volatileQueryParameters);
-    final (CaptureExchange, Uint8List)? existing = _recorded[key];
+    final (CaptureExchange, Uint8List, Map<String, String>)? existing = _recorded[key];
     if (existing == null) {
       final DateTime? last = _last;
       if (last != null) {
@@ -135,6 +158,7 @@ class RecordingHttpClient extends http.BaseClient {
         for (final MapEntry<String, String> h in live.headers.entries)
           if (recordedResponseHeaders.contains(h.key.toLowerCase())) h.key.toLowerCase(): h.value,
       };
+      final (List<CapturedCookie> recordedCookies, List<String> liveCookies) = _cookies(live.headers);
       _recorded[key] = (
         CaptureExchange(
           key: key,
@@ -142,18 +166,47 @@ class RecordingHttpClient extends http.BaseClient {
           headers: headers,
           bodyFile: '$captureBodiesDirName/$digest.bin',
           artifact: CaptureArtifact(sourceUrl: liveUrl, sha256: digest, size: body.length, licence: licence),
+          setCookies: recordedCookies,
         ),
         body,
+        <String, String>{...headers, if (liveCookies.isNotEmpty) 'set-cookie': liveCookies.join(', ')},
       );
     }
-    final (CaptureExchange exchange, Uint8List body) = _recorded[key]!;
+    final (CaptureExchange exchange, Uint8List body, Map<String, String> liveHeaders) = _recorded[key]!;
     return http.StreamedResponse(
       Stream<List<int>>.value(body),
       exchange.status,
       contentLength: body.length,
       request: request,
-      headers: exchange.headers,
+      headers: liveHeaders,
     );
+  }
+
+  /// The allow-listed cookies of a live response: as recorded (sanitised,
+  /// redacted where configured) and as the live caller receives them.
+  (List<CapturedCookie>, List<String>) _cookies(Map<String, String> liveHeaders) {
+    final recorded = <CapturedCookie>[];
+    final live = <String>[];
+    if (setCookieAllowList.isEmpty) return (recorded, live);
+    for (final MapEntry<String, String> h in liveHeaders.entries) {
+      if (h.key.toLowerCase() != 'set-cookie') continue;
+      for (final ParsedSetCookie c in parseSetCookieHeader(h.value)) {
+        final CapturedCookieValue? mode = setCookieAllowList[c.name];
+        if (mode == null) continue;
+        final redact = mode == CapturedCookieValue.redact;
+        if (redact) _redactor.addSecret(c.value);
+        final captured = CapturedCookie(
+          name: c.name,
+          value: redact ? CapturedCookie.redactedValue : c.value,
+          path: c.path,
+          domain: c.domain,
+          redacted: redact,
+        );
+        recorded.add(captured);
+        live.add(CapturedCookie(name: c.name, value: c.value, path: c.path, domain: c.domain).toHeader());
+      }
+    }
+    return (recorded, live);
   }
 
   /// Writes `capture.json` and `bodies/` into [dir], replacing earlier files.
@@ -161,7 +214,7 @@ class RecordingHttpClient extends http.BaseClient {
     final bodiesDir = Directory(p.join(dir.path, captureBodiesDirName));
     if (bodiesDir.existsSync()) bodiesDir.deleteSync(recursive: true);
     bodiesDir.createSync(recursive: true);
-    for (final (CaptureExchange e, Uint8List body) in _recorded.values) {
+    for (final (CaptureExchange e, Uint8List body, _) in _recorded.values) {
       File(p.join(dir.path, e.bodyFile)).writeAsBytesSync(body);
     }
     final manifest = CaptureManifest(
@@ -170,7 +223,8 @@ class RecordingHttpClient extends http.BaseClient {
       recordedAt: DateTime.now().toUtc(),
       notes: notes,
       volatileQueryParameters: volatileQueryParameters,
-      exchanges: <CaptureExchange>[for (final (CaptureExchange e, Uint8List _) in _recorded.values) e],
+      setCookieAllowList: setCookieAllowList,
+      exchanges: <CaptureExchange>[for (final (CaptureExchange e, _, _) in _recorded.values) e],
     );
     File(p.join(dir.path, captureManifestFileName)).writeAsStringSync(manifest.encode());
   }
