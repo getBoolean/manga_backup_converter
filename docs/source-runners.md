@@ -91,7 +91,7 @@ classes in different packages do not collide, and unloading a package releases i
 | Main thread | worker-owned `android.os.Looper` main thread (`tachi-main`) and `Dispatchers.Main` over it |
 | `AppInfo` | reports version 0.19.0 / code 19, chosen to match the Mihon source API the host implements (not an official Mihon release identity) |
 | `JavaScriptEngine` | **unsupported**: fails with `capability-unavailable` (`host.api:eu.kanade.tachiyomi.network.JavaScriptEngine.evaluate`). None of the qualification extensions call it. |
-| Cloudflare | challenge pages are detected and reported `interaction-required` (`host.browser.show`); solving them through the browser port joins at U8 |
+| Cloudflare | challenge pages are detected and reported `interaction-required` (`host.browser.show`). The browser port is joined (U8, *Desktop browser join* below), but this interceptor does not yet open a WebView and show it: solving a challenge from the Tachi side has no production caller yet (open) |
 
 Settings: `SettingsPayload.values`/`secrets` seed every preference store the package opens.
 `SettingsPayload.sources` (protocol 1.1) maps a `sourceId` to that source's own `values`/`secrets`, which
@@ -167,7 +167,8 @@ Fixtures: `fixtures/source_captures/tachi/<source>/` (artifacts, `index-entry.js
 
 - Only the browser surface used by the keiyoushi helper and the qualification sources is translated.
 - Heap and metaspace use per package are not reported to the supervisor.
-- No CI job runs these JVM tests or the benchmark smoke yet.
+- CI runs the JVM tests on Linux (`test` job) and the benchmark in quick mode on each desktop OS as a non-gating
+  report (`benchmarks` job, U8).
 - Live transcripts of the one-time captures: `docs/validation/source-runners/desktop/captures/`.
 
 ### Protocol 1.1 (resolved gaps)
@@ -210,8 +211,9 @@ The worker negotiates minor 1.3 (`Wire.MINOR_VERSION`); against an older supervi
   interaction bound is `interaction-required`, including an older peer's `timeout`, and stays the operation's
   error even if the source then waits out the deadline. Against a 1.2 supervisor `endInteraction` cannot be
   sent; the operation carries a warning and the show ends at a close or its bound.
-  No production caller uses `showForInteraction` yet: Cloudflare challenges are still reported
-  `interaction-required` until the U8 browser join; the qualification sources use headless WebViews.
+  No production caller uses `showForInteraction` yet: the U8 join connects the shim to the desktop helper, but
+  `CloudflareInterceptor` still reports a challenge as `interaction-required` instead of solving it in a shown
+  WebView (open); the qualification sources use headless WebViews.
 - **Evaluate.** The host awaits a returned promise; the shim passes the settled value through (a rejected
   promise reads as `"null"`, like a throw). Android would report `{}` for a promise, which no source can
   use, and Dart's `BrowserEvaluateCompat.androidCompatible` keeps the settled value too. Evaluations stay
@@ -244,7 +246,7 @@ also failed the start-up wipe test below. No macOS or Linux cell is an expected 
 | Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
 |---|---|---|---|
 | Build | pass (debug and `--release`; 739 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, with `CC_aarch64_apple_darwin` set to LLVM clang for one objc2 build script), including the script message handler; x64 not checked | not run. `cargo check --target x86_64-unknown-linux-gnu` cannot run on the Windows host (the build scripts need the target's system libraries through pkg-config) |
-| BrowserPort contract suite (protocol 1.3, `source_runtime_testing`) | pass: all 54 contract cases and the `knownFailures` check, no known failures, no skips. The 1.3 promise-evaluate cases ran against the helper. The desktop harness reports `canShowInteraction` false, so the five 1.3 interaction-completion cases took the no-display path: three checked `interaction-required`, and *completes when the user closes the window* and *closing the session ends a shown interaction* returned without checking anything. Page-signalled completion and the `closedByUser` outcome are not exercised on the helper (U8) | not run | not run |
+| BrowserPort contract suite (protocol 1.3, `source_runtime_testing`) | pass (2026-11-21, U8): 54 passed, 1 skipped, no `knownFailures`. The desktop harness is interactive where a display exists, so the five 1.3 interaction-completion cases run on the helper with a visible window: the page signals completion through a message channel (`completedByPage`), the "user" closes the window with a native `WM_CLOSE` posted to its HWND (the helper's `debugRequestClose` test hook; it arrives as `CloseRequested`, `closedByUser`), the bound times out as `interaction-required`, a cancel ends it, and closing the session ends a shown interaction as cancelled. The skipped case is *showForInteraction reports interaction-required without a display*, which only runs where no display exists (headless Linux, or `DWV_NO_DISPLAY=1`); the display-only cases are marked skipped, not passed, in that environment | not run | not run |
 | Reported protocol 1.2 capabilities (`ready` `capabilities.browser`) | all eight available: `pageStartScripts`, `observeNavigations`, `observeSubresources`, `observeRequestHeaders`, `observeClientHints`, `observeRequestBodies`, `replaceRequests`, `scriptErrors` | available: `pageStartScripts`. Unavailable with WKWebView reasons: request observation (not wired), subresources, client hints (WebKit sends none), bodies, replacement, and `scriptErrors` (implemented engine-independently but not yet run on a Mac) | as macOS, with WebKitGTK reasons (`resource-load-started` not wired) |
 | Page bridge transport | pass: `window.chrome.webview.postMessage` with `WebMessageReceived`, captured at document start under a non-identifier property; no wry IPC, so `ipc`, `chrome` and `webkit` all work as channel names | compiled: WebKit script message handler `dwvHost` (`WKScriptMessage.frameInfo` gives the posting frame) | written: script message handler `dwvHost` via `UserContentManager` (no frame identity; the page script's `location.origin` is used) |
 | Script errors (`BrowserScriptError`) | pass: only a thrown script or rejected promise is `script-error`; a missing page bridge and a navigation away are separate codes that complete `null` | not run (reported unavailable) | not run (reported unavailable) |
@@ -256,7 +258,7 @@ also failed the start-up wipe test below. No macOS or Linux cell is an expected 
 | Origin rule (cross-origin frame, `about:blank` dropped) | pass. The page script reports the frame's origin and `top.location.origin`, which a cross-origin frame cannot read; on WebView2 the engine's document URL must agree too. Same-origin direct child frames get the channel and are delivered (frame message events are forwarded); nested frames are not subscribed | not run (wry reports the posting frame's URL) | not run (posting frame's `location.origin` used) |
 | Cookies read/write; domain and path derived from the URL | pass | not run | not run |
 | Two sessions' cookie and web-storage isolation | pass (InPrivate profile per session) | not run (non-persistent `WKWebsiteDataStore` per WebView) | not run (ephemeral `WebContext` per WebView) |
-| Non-persistent store / start-up wipe | pass. InPrivate; browsing data cleared and confirmed on close. A one-off probe hard-killed the helper mid-session: 0 rows in the profile's Cookies database (a script-set cookie and a server cookie with `Max-Age`), and no localStorage or IndexedDB on disk. A directory is renamed before deletion, so a directory still in use is left whole and reported by name. The helper runs in a kill-on-close job object (its effect on the other WebView2 processes was not compared against a run without it). After a kill, the WebView2 browser process can stay in termination for 1-110 s (measured; cause not identified), holding the directory. `wipe` retries within the client's `DesktopWebViewConfig.wipeRetry` budget; with no budget (the product default until U8 sizes one under KTD25), `wipeAllSourceData` right after a helper crash returns capability-unavailable until that process has exited. Tests: planted stale directory; a killed helper's directory removed by the next helper's start-up wipe once released; a directory held open is reported and left whole; one wipe that keeps retrying until the directory is released | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
+| Non-persistent store / start-up wipe | pass. InPrivate; browsing data cleared and confirmed on close. A one-off probe hard-killed the helper mid-session: 0 rows in the profile's Cookies database (a script-set cookie and a server cookie with `Max-Age`), and no localStorage or IndexedDB on disk. A directory is renamed before deletion, so a directory still in use is left whole and reported by name. The helper runs in a kill-on-close job object (its effect on the other WebView2 processes was not compared against a run without it). After a kill, the WebView2 browser process can stay in termination for 1-110 s (measured; cause not identified), holding the directory. `wipe` retries within the client's `DesktopWebViewConfig.wipeRetry` budget. The CLI sets 120 s (`CliBrowserPolicy.wipeRetry`, U8): the slowest measured release (110 s) with margin; the CLI never calls `wipeAllSourceData` on a conversion's path, and the helper's own start-up wipe is a single attempt, so a held directory never delays a conversion. Tests: planted stale directory; a killed helper's directory removed by the next helper's start-up wipe once released; a directory held open is reported and left whole; one wipe that keeps retrying until the directory is released | not run (non-persistent; no data directory) | not run (ephemeral; no data directory) |
 | Visible window, interaction timeout, user close | pass (window shown; timeout hides it; close completes; session close cancels) | not run | not run |
 | Scheme policy in the helper (load, `loadData` base, cookies, redirects, new windows denied) | pass. A 302 to `file:` surfaces only as Chromium `REDIRECT_FAILED`, which the helper maps to the named policy failure (a redirect loop maps the same way) | not run (wry navigation handler) | not run (wry navigation handler) |
 | User-agent override at runtime | pass | not run (`setCustomUserAgent`) | not run (`WebSettings`) |
@@ -283,7 +285,12 @@ real OpenCV and a live challenge, and is unverified. On WebView2 the user-agent 
 Android Chrome. Whether MangaFire rejects that mismatch, or a Chrome user agent with no client hints on WebKit, is
 unverified until a live capture.
 
-**Start-up wipe flake (bounded, cause unidentified).** `start-up wipe › the next helper removes a killed helper
+**Start-up wipe flake (U8: made load-robust).** The test now first waits until no running process names the killed
+helper's data directory on its command line (WebView2 passes it as `--user-data-dir`), then until the directory can be
+renamed, and only then starts the next helper: a directory can be renamed while a terminating browser process still
+has it open with delete sharing, which is how the single start-up attempt could still fail. The favicon flake is fixed
+too: the body-replay test counts only its own `/body-replay` misses (WebView2 requests `/favicon.ico` itself).
+The earlier record follows. **Start-up wipe flake (bounded, cause unidentified).** `start-up wipe › the next helper removes a killed helper
 directory` failed about 2 of 3 runs: the test started the next helper at once and then looped on `wipeAllSourceData`
 for 20 s while the killed helper's WebView2 browser process was still terminating and holding the directory. The test
 now waits until the directory can be released (bound 240 s), then checks that the next helper's start-up wipe removed
@@ -300,6 +307,52 @@ Enforce offline replay on WebKit: candidates are a blackhole proxy with a loopba
 needs a navigation-delegate hook wry does not expose. Re-check MangaFire on both WebKit engines. The WSL Ubuntu on
 the Windows host has WSLg (`DISPLAY=:0`) but no `webkit2gtk-4.1`/`gtk+-3.0` development packages and no Rust;
 nothing was installed.
+
+## Desktop browser join (U8)
+
+The CLI composition registers one `DesktopBrowserPort` per conversion (`packages/mangabackupconverter_cli/lib/src/commands/desktop_runtime.dart`) and gives it to both workers:
+
+- **Tachi:** `DesktopTachiRuntime(browserPort: ...)` passes it to the conversion's `ConversionRuntimeScope`, so the JVM worker's `host.browser.*` reverse requests (the `android.webkit` shim) are served by the helper. A package may open sessions only for the sources it enumerated (`TachiRuntime.browserIdentity`).
+- **Paperback:** `desktopPaperbackLoader` now runs the worker in its own `ConversionRuntimeScope` (it used a bare supervisor with no reverse-request handler, so `executeInWebView` had no browser at all). A bundle may open sessions only for its own sources (`PaperbackSourceProvider.browserIdentity`).
+- **Ownership:** the port is adopted into the conversion owner first, so it closes last: the workers and their bridges close (fencing every session), then the port disposes the helper. `test/integration/source_runner_conversion_test.dart` checks that no session and no helper process remain.
+- **Where the helper comes from:** `--webview-helper <runtime-artifacts.json>`, else the packaged `runtime/desktop_webview/`, else the development build (`packages/desktop_webview/build/helper/`). The client verifies the helper's SHA-256 before launch. Without a helper, every browser request fails as `capability-unavailable` and `--verbose` says why.
+
+**What triggers `showForInteraction`.** A source asks for a visible interaction (`host.browser.show`: Paperback's Cloudflare bypass after its 8 s headless wait; the Tachi shim's `WebViewBackend.showForInteraction`, which no Tachi production code calls yet). Interactive runs (a terminal) create the port with visible windows allowed, so the helper's window opens for the user; it ends when the page signals completion, the user closes it, or after 5 minutes (`interaction-required`), and the engine deadline is paused meanwhile (protocol 1.3). Unattended runs never open a window: the show returns `interaction-required` at once, and the conversion reports it.
+
+**Bounds** (`CliBrowserPolicy`; KTD25 policy values of the composition root, not engine measurements):
+
+| Bound | Value | Why |
+|---|---|---|
+| Interaction | 5 min | a person solving a challenge needs minutes; the Paperback desktop worker already used it |
+| Held-request replacement (`browserReplacementTimeout`) | 30 s | the hosts' own per-request network timeout: a held request never waits longer than the request itself could. The bridge asks the session's capabilities first, so an engine without the replace tier still names its own reason |
+| Helper start-up / shutdown grace | 60 s / 10 s | the values the contract suite has run with |
+| `wipeRetry` | 120 s | measured WebView2 releases after a kill took 1-110 s; see the matrix row |
+
+**MangaFire (AE11), Windows.** Replayed: the Tachi MangaFire sources need no browser in the committed captures (no challenge fired). Paperback 0.9 MangaFire reaches the real helper through the composition and fails inside the page because its site scripts are not captured. No live browser capture run was made in U8: the capture tool records HTTP exchanges only, so recording the helper's subresource traffic needs a browser recorder (a replace-tier replacer that fetches and records each request) that does not exist yet. The MangaFire cell therefore stays **open** on Windows (and is not run on macOS or Linux), which keeps M1 open.
+
+## Desktop packaging (U8)
+
+`scripts/package_cli.dart` builds the package for the host it runs on; `scripts/smoke_packaged_cli.dart` checks it. Layout (`build/package/<os>-<arch>/`, installed unchanged by the Windows installer):
+
+| Path | Contents |
+|---|---|
+| `bin/` | the CLI executable; it is also the Paperback worker (`__paperback-worker`) and the runtime self-check (`__runtime-check`) |
+| `lib/` | native code assets from `dart build cli` (QuickJS-ng, wasm3, scraper) |
+| `runtime/tachi/` | the JVM worker (`installDist` `lib/`) and `tachi-runtime.json`, whose `java` is `../jre/bin/java` |
+| `runtime/jre/` | Amazon Corretto 21.0.13.1.2 jlinked from the archive pinned in `tools/tachi-source-runner/runtime/jre-pins.json` (URL and SHA-256 per OS/arch; downloaded once into the git-ignored `build/runtime-cache/`; never committed). Modules: jdeps over the worker plus what extension code commonly reaches (charsets, locale data, EC TLS, zipfs, management, naming, sql, desktop) |
+| `runtime/desktop_webview/` | the helper (`cargo build --locked --release`) and its `runtime-artifacts.json` |
+| `runtime/runtime-manifest.json` | host commit, JRE pin and version, and every shipped file's SHA-256 |
+| `licenses/` | the project licence, `NOTICE.md`, the worker's `THIRD_PARTY.md`, QuickJS-ng and wasm3 licences, the Paperback host library's licences, and the helper's crates with their declared licences (from `cargo metadata`; full crate licence texts are not bundled, a gap). The JRE's own `legal/` stays inside `runtime/jre/` |
+
+No extension, repository or source artifact is bundled; `package_cli.dart` fails if a fixture or `tachiyomi-*` artifact is found in the output.
+
+**WebView prerequisites** (documented, not bundled): Windows needs the WebView2 Runtime (preinstalled on Windows 11; the Evergreen Bootstrapper installs it elsewhere); Linux needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`) and a display; macOS uses the system WKWebView.
+
+**Windows results (2026-11-21, Windows 11 Pro 26300, WebView2 157.0.4341.60).** Package 96 MB, 225 files. The smoke test passed every check: copied into a path with spaces; manifest hashes and licences; no fixture shipped; no `java`, `dart`, `flutter`, `gradle`, `cargo`, `rustc` or `node` on the scrubbed PATH (JAVA_HOME and TACHI_JAVA_HOME removed); `--help`; the bundled JRE reports 21.0.13.1; `__runtime-check` started the JVM worker (protocol 1.3, on the bundled JRE), the Paperback worker (protocol 1.3, QuickJS loaded) and the helper (offline session, local HTML evaluated); closing left none of the three processes; killing the CLI mid-session left none either (each exits when its stdin closes; no WebView2 child of the helper was still terminating). Receipt: `docs/validation/source-runners/desktop/receipts/windows-package-smoke.json`. The replayed Tachi loader suite and the CLI integration and six-direction tests also passed with `TACHI_JAVA_HOME` set to the jlinked JRE.
+
+**JRE floor.** The worker refuses a JRE below 21.0.13.1 (exit code 3, `below the security floor` on stderr): the Kotlin unit test checks the comparison, and `packages/tachi_plugin_loader/test/jre_floor_test.dart` launches the installed worker with a real older JRE (`TACHI_BELOW_FLOOR_JAVA_HOME`, or `JAVA_HOME` when it is older; here Liberica 21.0.4) and then the same worker on the floor JRE.
+
+**Not done:** macOS and Linux packages were never built or smoke-tested (the CI jobs are wired and non-gating); the installer was not compiled locally (Inno Setup is not installed here; CI compiles it); the Windows package is unsigned.
 
 ## Paperback host (`packages/paperback_plugin_loader`, U6)
 
@@ -337,7 +390,7 @@ source URL, SHA-256, size, retrieval time and licence). Retrieved 2026-11-21.
 |---|---|---|
 | MangaDex | Netsky community `MangaDex` 3.0.6 (GPL-3.0): search (2 hits, first the Onimai title), next page (empty), details, 223 chapters (replayed). Chapter IDs are identical to the 0.9 bundle's | Inkdex `MangaDex` 1.0.0-alpha.28: search, details, 223 chapters (replayed) |
 | WeebCentral | GabrielCWT `WeebCentral` 1.1.1 (host-injected Cheerio) and numby `WeebCentral` 2.0.12 (bundled Cheerio): search, details, 114 chapters each (replayed) | Inkdex `WeebCentral` 1.0.0-alpha.25: search, details, 114 chapters (replayed) |
-| MangaFire | **Substitute:** no surveyed 0.8 catalog lists MangaFire, so the cell is kittycatgit `Mangahub` 4.0.0, a Cloudflare-fronted site (`CLOUDFLARE_BYPASS_REQUIRED`). Search, details of the Onimai title, 176 chapters (replayed); Cloudflare did not challenge either capture session. The challenge and bypass paths are proven with synthetic challenge answers and a scripted `BrowserPort` (below) | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. **Open until U8** (real desktop helper) |
+| MangaFire | **Substitute:** no surveyed 0.8 catalog lists MangaFire, so the cell is kittycatgit `Mangahub` 4.0.0, a Cloudflare-fronted site (`CLOUDFLARE_BYPASS_REQUIRED`). Search, details of the Onimai title, 176 chapters (replayed); Cloudflare did not challenge either capture session. The challenge and bypass paths are proven with synthetic challenge answers and a scripted `BrowserPort` (below) | Inkdex `MangaFire` 1.0.0-alpha.24 signs every API request through `executeInWebView` (a VRF capture in the page), so search and details need a browser. Without one they fail as `capability-unavailable(executeInWebView)`. Through a scripted `BrowserPort` over worker reverse requests the call completes and its result reaches the source. U8: through the CLI composition the call reaches the real desktop helper (a session for MangaFire's own identity, the page loaded with its base URL); offline replay blocks the page's site scripts, which no capture holds, so the VRF capture times out inside the page (`source-error`, not a missing capability). **Open:** completing it needs a live browser capture run (none recorded; see *Desktop browser join*) |
 
 Chapter identities are the site's own and identical across families: WeebCentral's first chapter is
 `01KWM07QYFJMAP46S1A3ZVDWYG` in all three bundles.
@@ -424,9 +477,10 @@ JavaScript:
 
 A failed trust decision is a `TrustFailure` (`artifact-incompatible` with `trust`, protocol 1.3): `changed` for
 bytes that differ from the admitted digest (the worker's re-hash), `refused` when the trust decision answers no,
-and `first-seen` for an artifact the provider never admitted in this run. The decision callback answers only yes
-or no, so a refusal cannot yet say whether the bundle was new or changed; that needs the core `RepositoryTrustGate`
-to report it. Family and shape mismatches stay plain `artifact-incompatible`. Failures are rebuilt with
+and `first-seen` for an artifact the provider never admitted in this run. The CLI answers through
+`RepositoryTrustGate.check` (U8), which names the reason: `refused` when the user said no, and, when nobody could be
+asked (`TrustDecision.unanswered`, an unattended run), `first-seen` or `changed` from the remembered fingerprint. A
+host that passes only the yes/no `trust` callback still gets `refused`. Family and shape mismatches stay plain `artifact-incompatible`. Failures are rebuilt with
 `SourceFailure.fromJson`, so the reason survives the worker, the supervisor and the bundle glue.
 
 ### Host adapters
