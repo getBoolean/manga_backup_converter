@@ -57,7 +57,7 @@ Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
   }
 }
 
-/// Waits until no running process has [dir]'s name on its command line.
+/// Waits until no running process has [dir]'s path on its command line.
 Future<void> _waitForNoProcessUsing(Directory dir, DateTime deadline) async {
   final String name = dir.absolute.path.replaceAll("'", "''");
   while (true) {
@@ -66,7 +66,7 @@ Future<void> _waitForNoProcessUsing(Directory dir, DateTime deadline) async {
       '-NonInteractive',
       '-Command',
       "@(Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*$name*' -and "
-          "\$_.ProcessId -ne \$PID }).Count",
+          r"$_.ProcessId -ne $PID }).Count",
     ]);
     if (r.exitCode == 0 && (r.stdout as String).trim() == '0') return;
     if (DateTime.now().isAfter(deadline)) {
