@@ -183,36 +183,43 @@ class PaperbackPluginLoader extends PluginLoader {
       return const SourceFailed<PluginSource>(UnsupportedApiFailure('Not a Paperback extension entry'));
     }
     _owner = owner ?? _owner;
+    // Written without switch-pattern bindings and with the closer in its own
+    // class: the Dart 3.14 AOT compiler crashes (linearscan "unreachable
+    // code") on the equivalent pattern-matching form of this method.
     final SourceOutcome<ArtifactLease> admitted = await _provider.admit(_catalogEntry(entry), bytes);
-    final ArtifactLease lease;
-    switch (admitted) {
-      case SourceFailed<ArtifactLease>(:final SourceFailure failure):
-        return SourceFailed<PluginSource>(failure);
-      case SourceSuccess<ArtifactLease>(:final ArtifactLease value):
-        lease = value;
-    }
+    final ArtifactLease? lease = admitted.valueOrNull;
+    if (lease == null) return SourceFailed<PluginSource>(admitted.failureOrNull!);
     final settings = SettingsSnapshot();
     onSettings?.call(settings);
     final SourceOutcome<SourcePackage> opened = await _provider.openPackage(lease, settings);
-    switch (opened) {
-      case SourceFailed<SourcePackage>(:final SourceFailure failure):
-        lease.release();
-        return SourceFailed<PluginSource>(failure);
-      case SourceSuccess<SourcePackage>(value: final SourcePackage package):
-        Future<void> close() async {
-          await package.close();
-          lease.release();
-        }
-
-        await owner?.adopt(close);
-        final SourceSession? session = package.sessions.firstOrNull;
-        if (session == null) {
-          await close();
-          return const SourceFailed<PluginSource>(ArtifactIncompatibleFailure('Package exposes no source'));
-        }
-        final plugin = SessionPluginSource(session, onDispose: close);
-        await owner?.adopt(plugin.dispose);
-        return SourceSuccess<PluginSource>(plugin);
+    final SourcePackage? package = opened.valueOrNull;
+    if (package == null) {
+      lease.release();
+      return SourceFailed<PluginSource>(opened.failureOrNull!);
     }
+    final closer = _PackageCloser(package, lease);
+    await owner?.adopt(closer.close);
+    final SourceSession? session = package.sessions.firstOrNull;
+    if (session == null) {
+      await closer.close();
+      return const SourceFailed<PluginSource>(ArtifactIncompatibleFailure('Package exposes no source'));
+    }
+    final plugin = SessionPluginSource(session, onDispose: closer.close);
+    await owner?.adopt(plugin.dispose);
+    return SourceSuccess<PluginSource>(plugin);
   }
+}
+
+/// Closes an opened package and releases its artifact lease, once.
+final class _PackageCloser {
+  _PackageCloser(this._package, this._lease);
+
+  final SourcePackage _package;
+  final ArtifactLease _lease;
+  Future<void>? _closing;
+
+  Future<void> close() => _closing ??= () async {
+    await _package.close();
+    _lease.release();
+  }();
 }

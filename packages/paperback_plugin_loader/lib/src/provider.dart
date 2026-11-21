@@ -166,13 +166,10 @@ final class PaperbackSourceProvider implements SourceProvider {
       );
     }
     final SourceOutcome<WorkerSupervisor> started = await worker();
-    final WorkerSupervisor supervisor;
-    switch (started) {
-      case SourceFailed<WorkerSupervisor>(:final SourceFailure failure):
-        return SourceFailed<SourcePackage>(failure);
-      case SourceSuccess<WorkerSupervisor>(:final WorkerSupervisor value):
-        supervisor = value;
-    }
+    // Not a pattern switch assigning a deferred final: the Dart 3.14 AOT
+    // compiler crashes (linearscan "unreachable code") on that form here.
+    final WorkerSupervisor? supervisor = started.valueOrNull;
+    if (supervisor == null) return SourceFailed<SourcePackage>(started.failureOrNull!);
     final SourceOutcome<PackageLoadResponse> loaded = await supervisor.loadPackage(
       WorkerPackage(packageId: entry.packageId, artifact: artifact, settings: settings),
       cancel: cancel,
