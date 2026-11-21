@@ -87,6 +87,9 @@ jobs:
       - name: Run Dart Analyzer
         run: melos run analyze
 
+      - name: Verify Android Aidoku fixture bundle is current
+        run: dart run tool/generate_android_aidoku_fixtures.dart --check
+
   test:
     name: Test (${{ matrix.os }})
     timeout-minutes: 30
