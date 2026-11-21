@@ -262,7 +262,7 @@ void main() {
       check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
       _writeReceipt('${Platform.operatingSystem}-tachi-two-repositories-one-worker', <String, Object?>{
         ..._workerIdentity(workerSeen),
-        'java': _worker.location?.java == null ? null : p.basename(p.dirname(p.dirname(_worker.location!.java))),
+        'java': _worker.location?.java == null ? null : _jreName(_worker.location!.java),
         'artifacts': <Object?>[
           for (final TachiCapture c in tachiCaptures())
             if (c.source != 'all.mangafire')
@@ -415,4 +415,13 @@ bool _processAlive(int pid) {
     return (r.stdout as String).contains(' $pid ');
   }
   return Process.runSync('kill', <String>['-0', '$pid']).exitCode == 0;
+}
+
+/// The JRE directory name of a `java` executable: `<jre>/bin/java`, or the
+/// `.jdk` bundle on macOS (`<name>.jdk/Contents/Home/bin/java`).
+String _jreName(String java) {
+  final String home = p.dirname(p.dirname(java));
+  return p.basename(home) == 'Home' && p.basename(p.dirname(home)) == 'Contents'
+      ? p.basename(p.dirname(p.dirname(home)))
+      : p.basename(home);
 }
