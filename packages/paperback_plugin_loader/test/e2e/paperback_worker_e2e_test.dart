@@ -22,7 +22,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
-import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
@@ -61,12 +60,12 @@ Future<String> _build(String entrypoint, Directory out) async {
   return exes.single.path;
 }
 
-WorkerSupervisor _supervisor(String executable) {
+WorkerSupervisor _supervisor(String executable, {List<String> extraArguments = const <String>[]}) {
   return WorkerSupervisor(
     spec: WorkerSpec(
       label: 'paperback',
       executable: executable,
-      arguments: _limitArgs,
+      arguments: <String>[..._limitArgs, ...extraArguments],
       environment: scrubbedEnvironment(),
     ),
     // The worker reports only operationDeadlineMs; the caller supplies the rest.
@@ -117,7 +116,11 @@ void main() {
   }
 
   test('the shipped worker negotiates 1.1, reports its benchmarked limit, and refuses an absent package', () async {
-    final WorkerSupervisor supervisor = _supervisor(shippedWorker);
+    // Replay mode over one committed capture set, so any request fails closed.
+    final WorkerSupervisor supervisor = _supervisor(
+      shippedWorker,
+      extraArguments: <String>['--replay=${paperbackFixtures().path}/weebcentral'],
+    );
     try {
       final SourceOutcome<HandshakeResponse> started = await supervisor.start();
       final HandshakeResponse handshake = (started as SourceSuccess<HandshakeResponse>).value;
@@ -245,7 +248,8 @@ void main() {
         for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir),
       ];
       final provider = PaperbackSourceProvider(
-        client: http.Client(),
+        // The test bypasses catalog and bundle downloads; any request fails.
+        client: MultiReplayHttpClient(const <CaptureSet>[]),
         cache: ArtifactCache(Directory('${temp.path}/$site-cache')),
         trust: PinnedRepository.pinnedTrust(repos),
         worker: () async => (await supervisor.start()).map((_) => supervisor),

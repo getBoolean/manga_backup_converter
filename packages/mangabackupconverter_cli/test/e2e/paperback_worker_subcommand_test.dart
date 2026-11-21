@@ -11,7 +11,6 @@ library;
 import 'dart:io';
 
 import 'package:checks/checks.dart';
-import 'package:http/http.dart' as http;
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
@@ -82,7 +81,8 @@ void main() {
       );
       const pinned = 'bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966';
       final provider = PaperbackSourceProvider(
-        client: http.Client(),
+        // The bundle is admitted from the fixture; any provider request fails.
+        client: MultiReplayHttpClient(const <CaptureSet>[]),
         cache: ArtifactCache(cache),
         // A trusted pinned artifact digest (KTD6).
         trust: (Uri key, String fingerprint) async => fingerprint == 'paperback-0.9:sha256:$pinned',

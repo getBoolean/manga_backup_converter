@@ -33,9 +33,8 @@ final Directory _installLib = Directory(
   '$_runner/build/install/tachi-source-runner/lib',
 );
 final File _prefsJar = File('$_runner/build/fx/fixture-prefs.jar');
-final File _weebCentralJar = File(
-  '${_root.path}/fixtures/source_captures/tachi/en.weebcentral/tachiyomi-en.weebcentral-v1.6.27.jar',
-);
+final Directory _weebCentralCaptures = Directory('${_root.path}/fixtures/source_captures/tachi/en.weebcentral');
+final File _weebCentralJar = File('${_weebCentralCaptures.path}/tachiyomi-en.weebcentral-v1.6.27.jar');
 
 String? _javaExecutable() {
   final exe = Platform.isWindows ? 'java.exe' : 'java';
@@ -76,6 +75,9 @@ WorkerSupervisor _supervisor(Directory state) => WorkerSupervisor(
       '--state-dir',
       state.path,
       '--no-browser',
+      // Replay over the committed capture set: any uncaptured request fails closed.
+      '--replay',
+      _weebCentralCaptures.path,
       // Small explicit limits for a test (KTD25); the worker adopts them as overrides.
       for (final String limit in const <String>[
         'poolSize=2',
