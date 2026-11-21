@@ -235,15 +235,16 @@ Status key: **pass** = ran and passed here; **compiled** = type-checks for the t
 neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,
 `flutter test packages/desktop_webview/test --concurrency 1`: all passed, 0 skipped, against the protocol 1.2 contract
 suite with no `knownFailures`) and from the integration run on 2026-11-21 against the protocol 1.3 contract suite
-(contract cases all passed, no `knownFailures`, no skips; outside the contract suite, one run failed
-`request bodies reach the replacer, and capture replay matches on the body hash` with two capture misses instead of
-one, and a rerun failed the start-up wipe test below; each passed when run again). No macOS or Linux cell is an
-expected value.
+(no contract case failed, no `knownFailures`, no skips; see the contract row for which 1.3 cases ran a display path).
+Outside the contract suite that run failed `request bodies reach the replacer, and capture replay matches on the body
+hash` intermittently: WebView2's own `GET /favicon.ico` sometimes reaches the replay replacer after it is set and is a
+second miss (the test counts every miss); the test passed alone twice and in one of two later file runs. A file rerun
+also failed the start-up wipe test below. No macOS or Linux cell is an expected value.
 
 | Behaviour | Windows (WebView2) | macOS (WKWebView) | Linux (WebKitGTK) |
 |---|---|---|---|
 | Build | pass (debug and `--release`; 739 KB standalone exe) | compiled (`cargo check --target aarch64-apple-darwin`, with `CC_aarch64_apple_darwin` set to LLVM clang for one objc2 build script), including the script message handler; x64 not checked | not run. `cargo check --target x86_64-unknown-linux-gnu` cannot run on the Windows host (the build scripts need the target's system libraries through pkg-config) |
-| BrowserPort contract suite (protocol 1.3, `source_runtime_testing`) | pass: all 54 contract cases (the 1.2 cases plus the 1.3 promise-evaluate and interaction-completion cases) and the `knownFailures` check, no known failures, no skips | not run | not run |
+| BrowserPort contract suite (protocol 1.3, `source_runtime_testing`) | pass: all 54 contract cases and the `knownFailures` check, no known failures, no skips. The 1.3 promise-evaluate cases ran against the helper. The desktop harness reports `canShowInteraction` false, so the five 1.3 interaction-completion cases took the no-display path: three checked `interaction-required`, and *completes when the user closes the window* and *closing the session ends a shown interaction* returned without checking anything. Page-signalled completion and the `closedByUser` outcome are not exercised on the helper (U8) | not run | not run |
 | Reported protocol 1.2 capabilities (`ready` `capabilities.browser`) | all eight available: `pageStartScripts`, `observeNavigations`, `observeSubresources`, `observeRequestHeaders`, `observeClientHints`, `observeRequestBodies`, `replaceRequests`, `scriptErrors` | available: `pageStartScripts`. Unavailable with WKWebView reasons: request observation (not wired), subresources, client hints (WebKit sends none), bodies, replacement, and `scriptErrors` (implemented engine-independently but not yet run on a Mac) | as macOS, with WebKitGTK reasons (`resource-load-started` not wired) |
 | Page bridge transport | pass: `window.chrome.webview.postMessage` with `WebMessageReceived`, captured at document start under a non-identifier property; no wry IPC, so `ipc`, `chrome` and `webkit` all work as channel names | compiled: WebKit script message handler `dwvHost` (`WKScriptMessage.frameInfo` gives the posting frame) | written: script message handler `dwvHost` via `UserContentManager` (no frame identity; the page script's `location.origin` is used) |
 | Script errors (`BrowserScriptError`) | pass: only a thrown script or rejected promise is `script-error`; a missing page bridge and a navigation away are separate codes that complete `null` | not run (reported unavailable) | not run (reported unavailable) |
