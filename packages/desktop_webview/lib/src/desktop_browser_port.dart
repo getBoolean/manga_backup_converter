@@ -21,6 +21,7 @@ final class DesktopWebViewConfig {
     this.launcher,
     this.onLog,
     this.extraArguments = const <String>[],
+    this.wipeRetry,
   });
 
   /// The verified helper binary (see `RuntimeArtifactManifest`).
@@ -54,6 +55,12 @@ final class DesktopWebViewConfig {
 
   /// Appended to the helper's arguments (tests).
   final List<String> extraArguments;
+
+  /// How long [DesktopBrowserPort.wipeAllSourceData] keeps retrying a stale
+  /// data directory that is still in use (a dead helper's browser processes
+  /// releasing files), or `null` for a single attempt. The helper's own
+  /// start-up wipe always makes a single attempt.
+  final Duration? wipeRetry;
 }
 
 /// The helper's JSON for a replacement (`respond` command).
@@ -161,7 +168,9 @@ class DesktopBrowserPort implements BrowserPort {
   Future<BrowserOutcome<void>> wipeAllSourceData() async {
     final (HelperProcess? helper, BrowserOutcome<void>? failed) = await _ensureHelper<void>('wipeAllSourceData');
     if (helper == null) return failed!;
-    return switch (await helper.request('wipe')) {
+    return switch (await helper.request('wipe', <String, Object?>{
+      if (config.wipeRetry != null) 'retryMs': config.wipeRetry!.inMilliseconds,
+    })) {
       HelperOk() => const BrowserCompleted<void>(null),
       HelperError(:final String message) => BrowserCapabilityUnavailable<void>('wipeAllSourceData', message),
       HelperGone(:final String reason) => BrowserCancelled<void>(reason),
@@ -251,41 +260,7 @@ class DesktopBrowserPort implements BrowserPort {
 /// One source-scoped WebView session in the helper.
 class DesktopBrowserSession implements BrowserSession {
   DesktopBrowserSession._(this._port, this._helper, this.id, this.source, this.generation)
-    : capabilities = capabilitiesFor(_helper.info);
-
-  /// Reason given for features the helper's protocol 1.1 transport cannot
-  /// provide yet; the helper transport follow-up lane adds them.
-  static const String _followUp = 'not provided by desktop helper protocol 1.1 (helper transport follow-up lane)';
-
-  /// The protocol 1.2 [BrowserCapabilities] each session of a helper
-  /// reporting [info] has: derived from what the helper reports, never
-  /// assumed.
-  @visibleForTesting
-  static BrowserCapabilities capabilitiesFor(HelperInfo info) {
-    final HelperCapabilities c = info.capabilities;
-    final observeAny = c.requestObserve != 'none';
-    return BrowserCapabilities(
-      available: <BrowserFeature>{
-        BrowserFeature.pageStartScripts,
-        if (observeAny) BrowserFeature.observeNavigations,
-        if (c.requestObserve == 'all') BrowserFeature.observeSubresources,
-        if (observeAny) BrowserFeature.observeRequestHeaders,
-        if (observeAny && info.engine == 'webview2') BrowserFeature.observeClientHints,
-        if (c.requestReplace) BrowserFeature.replaceRequests,
-      },
-      unavailable: <BrowserFeature, String>{
-        BrowserFeature.observeNavigations: 'the ${info.engine} helper reports no request observation',
-        BrowserFeature.observeSubresources: 'the ${info.engine} helper observes no subresource requests',
-        BrowserFeature.observeRequestHeaders: 'the ${info.engine} helper reports no request observation',
-        BrowserFeature.observeClientHints: '${info.engine} sends no Chromium client hints',
-        BrowserFeature.observeRequestBodies: 'request bodies are $_followUp',
-        BrowserFeature.replaceRequests: 'the ${info.engine} helper cannot substitute responses (WebView2 only)',
-        // The helper's `script-error` reply also covers "no script bridge" and
-        // "navigated away", so it cannot be reported as a thrown script.
-        BrowserFeature.scriptErrors: 'thrown-script reporting is $_followUp',
-      },
-    );
-  }
+    : capabilities = _helper.info.capabilities.browser;
 
   final DesktopBrowserPort _port;
   final HelperProcess _helper;
@@ -416,11 +391,15 @@ class DesktopBrowserSession implements BrowserSession {
 
   void _stop() => unawaited(_helper.request('stop', <String, Object?>{'session': id}));
 
-  /// Evaluates [script]; a promise result is awaited. A script that throws
-  /// completes with `null`, as Android's `evaluateJavascript` does, and the
-  /// error is logged. [capabilities] lack [BrowserFeature.scriptErrors]
-  /// (the helper's `script-error` reply also covers a missing script
-  /// bridge), so [BrowserScriptError] is never returned.
+  /// Evaluates [script]; a promise result is awaited.
+  ///
+  /// A script that throws (or a rejected promise) is the helper's
+  /// `script-error`: [BrowserScriptError] when [capabilities] support
+  /// [BrowserFeature.scriptErrors], otherwise `null` as Android's
+  /// `evaluateJavascript` gives. The helper's other non-results complete with
+  /// `null` too, and are logged: `no-script-bridge` (no document with the
+  /// page bridge, e.g. the initial `about:blank`) and `navigated` (the page
+  /// navigated away before the script completed).
   @override
   Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel}) async {
     final BrowserCancelled<String>? dead = _dead<String>(cancel);
@@ -435,9 +414,16 @@ class DesktopBrowserSession implements BrowserSession {
     }
     unawaited(
       _helper.request('eval', <String, Object?>{'session': id, 'script': script}).then((HelperReply reply) {
-        if (reply case HelperError(code: 'script-error', :final String message)) {
-          _port.config.onLog?.call('[desktop_webview] script error in session $id: $message');
-          settle.settle(const BrowserCompleted<String>('null'));
+        if (reply case HelperError(
+          code: final String code && ('script-error' || 'no-script-bridge' || 'navigated'),
+          :final message,
+        )) {
+          _port.config.onLog?.call('[desktop_webview] $code in session $id: $message');
+          settle.settle(
+            code == 'script-error' && capabilities.supports(BrowserFeature.scriptErrors)
+                ? BrowserScriptError<String>(message)
+                : const BrowserCompleted<String>('null'),
+          );
           return;
         }
         settle.settle(
@@ -460,7 +446,8 @@ class DesktopBrowserSession implements BrowserSession {
   Future<BrowserOutcome<void>> setMessageHandler(String name, void Function(String message)? handler) async {
     final BrowserCancelled<void>? dead = _dead<void>(null);
     if (dead != null) return dead;
-    if (!RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(name) || name == 'ipc') {
+    // Any identifier, `ipc` included (protocol 1.2 reserves none).
+    if (!RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(name)) {
       return BrowserCapabilityUnavailable<void>('setMessageHandler', 'Channel name "$name" is not a usable identifier');
     }
     final BrowserOutcome<void> outcome = await _call<void>(
@@ -591,13 +578,10 @@ class DesktopBrowserSession implements BrowserSession {
       );
 
   /// Observe tier: reports every request the page makes, with its request
-  /// headers (including `sec-ch-ua*` on WebView2); requests proceed
-  /// unchanged. Pass `null` to stop.
-  ///
-  /// Helper protocol 1.1 reports no frame and no body:
-  /// [BrowserRequest.mainFrame] is set for every `document` request (child
-  /// frame documents included), and [BrowserRequest.bodyOmitted] for every
-  /// method other than GET and HEAD.
+  /// headers (including `sec-ch-ua*` on WebView2) and, where the engine
+  /// exposes it, its body (up to 1 MiB; otherwise
+  /// [BrowserRequest.bodyOmitted]); requests proceed unchanged. Pass `null`
+  /// to stop.
   @override
   Future<BrowserOutcome<void>> setRequestObserver(BrowserRequestObserver? observer) async {
     final BrowserOutcome<void> outcome = await _intercept(
@@ -616,9 +600,9 @@ class DesktopBrowserSession implements BrowserSession {
   /// Replace tier (WebView2 only): holds every request until [replacer]
   /// answers. Elsewhere this is [BrowserCapabilityUnavailable].
   ///
-  /// Helper protocol 1.1 cannot fail a held request: an invalid replacement
-  /// or a throwing replacer lets the request proceed (blocked when offline)
-  /// instead of failing it.
+  /// An invalid replacement ([BrowserReplacement.invalidReason]) or a
+  /// throwing replacer fails the request (helper `respond` with `fail`): the
+  /// page sees a network error.
   @override
   Future<BrowserOutcome<void>> setRequestReplacer(BrowserRequestReplacer? replacer) async {
     final BrowserOutcome<void> outcome = await _intercept(
@@ -688,18 +672,19 @@ class DesktopBrowserSession implements BrowserSession {
           if (rid is int) unawaited(_helper.request('respond', <String, Object?>{'rid': rid, 'response': null}));
           return;
         }
-        final String method = (event['method'] as String? ?? 'GET').toUpperCase();
-        final BrowserRequestContext context = BrowserRequestContext.fromWire(event['context'] as String?);
+        final bodyBase64 = event['bodyBase64'] as String?;
         final request = BrowserRequest(
           url: url,
-          method: method,
+          method: event['method'] as String? ?? 'GET',
           headers: <String, String>{
             for (final MapEntry<String, Object?> h in (event['headers'] as Map<String, Object?>? ?? const {}).entries)
               h.key: h.value! as String,
           },
-          bodyOmitted: method != 'GET' && method != 'HEAD',
-          mainFrame: context == BrowserRequestContext.document,
-          context: context,
+          body: bodyBase64 == null ? null : base64Decode(bodyBase64),
+          bodyOmitted: event['bodyOmitted'] as bool? ?? false,
+          mainFrame: event['mainFrame'] as bool? ?? false,
+          redirect: event['redirect'] as bool? ?? false,
+          context: BrowserRequestContext.fromWire(event['context'] as String?),
         );
         if (rid is int) {
           unawaited(_answer(rid, request));
@@ -709,17 +694,22 @@ class DesktopBrowserSession implements BrowserSession {
     }
   }
 
+  /// Answers held request [rid]: the replacement, `null` to proceed, or a
+  /// failure for an invalid replacement or a throwing replacer.
   Future<void> _answer(int rid, BrowserRequest request) async {
+    final BrowserRequestReplacer? replacer = _replacer;
     BrowserReplacement? replacement;
+    String? fail;
     try {
-      replacement = await _replacer?.call(request);
+      replacement = await replacer?.call(request);
+      fail = replacement?.invalidReason;
     } on Object catch (e) {
-      _port.config.onLog?.call('[desktop_webview] request handler failed for ${request.url}: $e');
+      fail = 'request handler threw: $e';
     }
-    final String? invalid = replacement?.invalidReason;
-    if (invalid != null) {
-      _port.config.onLog?.call('[desktop_webview] refused replacement for ${request.url}: $invalid');
-      replacement = null;
+    if (fail != null) {
+      _port.config.onLog?.call('[desktop_webview] failing request ${request.url}: $fail');
+      await _helper.request('respond', <String, Object?>{'rid': rid, 'fail': fail});
+      return;
     }
     await _helper.request('respond', <String, Object?>{
       'rid': rid,

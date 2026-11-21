@@ -18,23 +18,30 @@ use webview2_com::{
   take_pwstr, AddScriptToExecuteOnDocumentCreatedCompletedHandler, ClearBrowsingDataCompletedHandler,
   FrameCreatedEventHandler, FrameWebMessageReceivedEventHandler,
   Microsoft::Web::WebView2::Win32::*, NavigationCompletedEventHandler, NavigationStartingEventHandler,
-  WebResourceRequestedEventHandler, WebResourceResponseReceivedEventHandler,
+  WebMessageReceivedEventHandler, WebResourceRequestedEventHandler, WebResourceResponseReceivedEventHandler,
 };
 use windows::{
   core::{Interface, BOOL, HSTRING, PWSTR},
+  Win32::System::Com::{IStream, STREAM_SEEK_SET},
   Win32::UI::Shell::SHCreateMemStream,
 };
 use wry::{WebContext, WebView, WebViewBuilder, WebViewBuilderExtWindows, WebViewExtWindows};
 
-use super::{Caps, ReplacementResponse};
-use crate::{policy, InterceptMode, Shared, UserEvent};
+use super::{Answer, Caps, ReplacementResponse};
+use crate::{policy, InterceptMode, RequestEvent, Shared, UserEvent, MAX_FORWARDED_BODY_BYTES};
 
 pub const ENGINE: &str = "webview2";
 
-/// Whether the IPC request URI identifies the posting frame: wry reports the
-/// top-level document's URL, and the helper forwards child-frame messages
-/// with the frame's own URL.
+/// Whether the message source URI identifies the posting frame: the
+/// WebView's `WebMessageReceived` reports the top-level document's URL, and
+/// the helper forwards child-frame messages with the frame's own URL.
 pub const IPC_URI_IS_POSTING_FRAME: bool = true;
+
+/// The engine's post function, captured at document start: WebView2's
+/// `window.chrome.webview.postMessage`, received by `WebMessageReceived`
+/// (and per-frame `WebMessageReceived` for child frames).
+pub const POST_EXPR: &str =
+  "(function(){var w=window.chrome&&window.chrome.webview;return w&&typeof w.postMessage==='function'?w.postMessage.bind(w):null})()";
 
 pub static CAPS: Caps = Caps {
   request_observe: "all",
@@ -43,10 +50,65 @@ pub static CAPS: Caps = Caps {
   navigation_failures: true,
   storage: "ephemeral-per-session (InPrivate profile per session)",
   offline_enforced: true,
+  browser: &[
+    ("pageStartScripts", None),
+    ("observeNavigations", None),
+    ("observeSubresources", None),
+    ("observeRequestHeaders", None),
+    ("observeClientHints", None),
+    ("observeRequestBodies", None),
+    ("replaceRequests", None),
+    ("scriptErrors", None),
+  ],
 };
 
 pub fn display_missing() -> Option<String> {
   None
+}
+
+/// Puts the helper in a kill-on-close job object, so the WebView2 processes
+/// it starts (which inherit the job) end with it, even when it is killed.
+/// The handle is never closed; the system closes it when the helper exits.
+/// Failure (for example a parent job that forbids nesting) only loses that
+/// guarantee.
+///
+/// Measured on WebView2 157: after a kill, the browser process can still
+/// stay in termination for 1-110 s (cause not identified), holding the data
+/// directory; the client's wipe retry budget (`wipe` `retryMs`) covers that.
+pub fn contain_child_processes() -> Result<(), String> {
+  use windows::Win32::{
+    Foundation::{SetHandleInformation, HANDLE_FLAGS, HANDLE_FLAG_INHERIT},
+    System::{
+      Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE},
+      JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+      },
+      Threading::GetCurrentProcess,
+    },
+  };
+  unsafe {
+    // The browser processes need no copy of the helper's stdio pipes: the
+    // client's reads reach end-of-file when the helper itself exits.
+    for std in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+      if let Ok(h) = GetStdHandle(std) {
+        if !h.is_invalid() {
+          let _ = SetHandleInformation(h, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0));
+        }
+      }
+    }
+    let job = CreateJobObjectW(None, windows::core::PCWSTR::null()).map_err(|e| e.to_string())?;
+    let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    SetInformationJobObject(
+      job,
+      JobObjectExtendedLimitInformation,
+      (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+      std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+    )
+    .map_err(|e| e.to_string())?;
+    AssignProcessToJobObject(job, GetCurrentProcess()).map_err(|e| e.to_string())
+  }
 }
 
 pub fn web_context(dir: Option<&Path>) -> Option<WebContext> {
@@ -189,6 +251,12 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
             if !redirect {
               shared.awaiting_start = false;
               shared.nav_id = Some(nav_id);
+              shared.main_frame_pending.clear();
+            }
+            if !rejected {
+              // NavigationStarting precedes the document's
+              // WebResourceRequested; that request is the main frame's.
+              shared.main_frame_pending.push(uri.clone());
             }
           }
           let _ = p.send_event(UserEvent::NavStarting { session: s.clone(), uri, rejected });
@@ -265,6 +333,21 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
         .map_err(e)?,
     }
 
+    // Page messages (the top-level document posts here).
+    let (p, s) = (proxy.clone(), sid.clone());
+    core
+      .add_WebMessageReceived(
+        &WebMessageReceivedEventHandler::create(Box::new(move |_, args| {
+          let Some(args) = args else { return Ok(()) };
+          let uri = pwstr(|u| args.Source(u));
+          let body = pwstr(|b| args.TryGetWebMessageAsString(b));
+          let _ = p.send_event(UserEvent::Ipc { session: s.clone(), uri, body });
+          Ok(())
+        })),
+        &mut token,
+      )
+      .map_err(e)?;
+
     // Child frames post to per-frame message events, not the WebView's.
     // Forward them with the frame's document URL; the origin rule then
     // keeps only same-origin frames (nested frames are not subscribed).
@@ -304,13 +387,21 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
           let mut ctx = COREWEBVIEW2_WEB_RESOURCE_CONTEXT::default();
           let _ = args.ResourceContext(&mut ctx);
 
-          let (substitute, mode, offline) = {
+          let (substitute, mode, offline, main_frame) = {
             let mut shared = sh.borrow_mut();
+            let main_frame = ctx == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT
+              && match shared.main_frame_pending.iter().position(|u| *u == url) {
+                Some(i) => {
+                  shared.main_frame_pending.remove(i);
+                  true
+                }
+                None => false,
+              };
             let substitute = match &shared.load_data {
               Some((base, _)) if ctx == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT && *base == url => shared.load_data.take().map(|(_, html)| html),
               _ => None,
             };
-            (substitute, shared.mode, shared.offline)
+            (substitute, shared.mode, shared.offline, main_frame)
           };
           if let Some(html) = substitute {
             let r = ReplacementResponse {
@@ -323,22 +414,37 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
             return Ok(());
           }
           let deny = offline && !policy::is_loopback(&url) && url != "about:blank";
+          let event = |rid: Option<u64>| {
+            let headers = request_headers(&req);
+            let (body, body_omitted) = request_body(&req);
+            RequestEvent {
+              session: s.clone(),
+              rid,
+              url: url.clone(),
+              method: method.clone(),
+              headers,
+              body,
+              body_omitted,
+              main_frame,
+              redirect: false,
+              context: context_name(ctx).into(),
+            }
+          };
           match mode {
             InterceptMode::Replace => {
               let rid = NEXT_RID.with(|n| {
                 *n.borrow_mut() += 1;
                 *n.borrow()
               });
+              let ev = event(Some(rid));
               let deferral = args.GetDeferral()?;
               DEFERRED.with(|d| {
                 d.borrow_mut().insert(rid, Deferred { args: args.clone(), deferral, env: env2.clone(), offline: deny, url: url.clone() })
               });
-              let headers = request_headers(&req);
-              let _ = p.send_event(UserEvent::Request { session: s.clone(), rid: Some(rid), url, method, headers, context: context_name(ctx).into() });
+              let _ = p.send_event(UserEvent::Request(ev));
             }
             InterceptMode::Observe => {
-              let headers = request_headers(&req);
-              let _ = p.send_event(UserEvent::Request { session: s.clone(), rid: None, url: url.clone(), method, headers, context: context_name(ctx).into() });
+              let _ = p.send_event(UserEvent::Request(event(None)));
               if deny {
                 args.SetResponse(&make_response(&env2, &blocked(&url))?)?;
               }
@@ -388,23 +494,87 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
   Ok(Native)
 }
 
-/// Answers a held request (replace tier). `None` lets it proceed, unless the
-/// helper runs offline, where unanswered requests are blocked.
-pub fn respond(rid: u64, response: Option<ReplacementResponse>) {
+/// Where a failed held request is sent instead of its own URL: port 1 is on
+/// Chromium's restricted-port list, so the network stack refuses it
+/// (`ERR_UNSAFE_PORT`) without connecting, and the page sees a network
+/// error. WebView2 has no call that aborts a request.
+const FAIL_URI: &str = "http://127.0.0.1:1/desktop-webview-failed-request";
+
+/// Answers a held request (replace tier). [Answer::Proceed] lets it proceed,
+/// unless the helper runs offline, where unanswered requests are blocked.
+pub fn respond(rid: u64, answer: Answer) {
   let Some(d) = DEFERRED.with(|m| m.borrow_mut().remove(&rid)) else { return };
-  let response = match response {
-    Some(r) => Some(r),
-    None if d.offline => Some(blocked(&d.url)),
-    None => None,
-  };
   unsafe {
-    if let Some(r) = response {
-      if let Ok(resp) = make_response(&d.env, &r) {
-        let _ = d.args.SetResponse(&resp);
+    match answer {
+      Answer::Replace(r) => {
+        if let Ok(resp) = make_response(&d.env, &r) {
+          let _ = d.args.SetResponse(&resp);
+        }
+      }
+      Answer::Proceed if d.offline => {
+        if let Ok(resp) = make_response(&d.env, &blocked(&d.url)) {
+          let _ = d.args.SetResponse(&resp);
+        }
+      }
+      Answer::Proceed => {}
+      Answer::Fail(reason) => {
+        eprintln!("[helper] failing held request {}: {reason}", d.url);
+        let rewritten = d.args.Request().and_then(|req| req.SetUri(&HSTRING::from(FAIL_URI)));
+        if let Err(e) = rewritten {
+          // Fail closed: never let the original request go out.
+          eprintln!("[helper] cannot rewrite failed request ({e}); answering 502");
+          let r = ReplacementResponse {
+            status: 502,
+            reason: "Request failed".into(),
+            headers: vec![("Content-Type".into(), "text/plain".into())],
+            body: format!("desktop_webview failed this request: {reason}").into_bytes(),
+          };
+          if let Ok(resp) = make_response(&d.env, &r) {
+            let _ = d.args.SetResponse(&resp);
+          }
+        }
       }
     }
     let _ = d.deferral.Complete();
   }
+}
+
+/// The request body (WebView2 `Request.Content`), at most
+/// [MAX_FORWARDED_BODY_BYTES], and whether a body was omitted. The stream is
+/// rewound after reading so the upload is unchanged. A body is omitted only
+/// when the stream cannot be read or exceeds the cap.
+///
+/// Measured on WebView2 157: `Content` carries the body of every page body
+/// type (string, Blob with and without a type, FormData with a file,
+/// URLSearchParams, Uint8Array, XHR), and is absent only for requests with
+/// no body, including a bodiless POST with a `Content-Type` header. So a
+/// missing stream means no body.
+fn request_body(req: &ICoreWebView2WebResourceRequest) -> (Option<Vec<u8>>, bool) {
+  let stream: Option<IStream> = unsafe { req.Content().ok() };
+  let Some(stream) = stream else { return (None, false) };
+  let mut body = Vec::new();
+  let mut chunk = vec![0u8; 64 * 1024];
+  let readable = loop {
+    let mut read = 0u32;
+    let hr = unsafe { stream.Read(chunk.as_mut_ptr().cast(), chunk.len() as u32, Some(&mut read)) };
+    if hr.is_err() {
+      break false;
+    }
+    if read == 0 {
+      break true;
+    }
+    body.extend_from_slice(&chunk[..read as usize]);
+    if body.len() > MAX_FORWARDED_BODY_BYTES {
+      break false;
+    }
+  };
+  unsafe {
+    let _ = stream.Seek(0, STREAM_SEEK_SET, None);
+  }
+  if !readable {
+    return (None, true);
+  }
+  ((!body.is_empty()).then_some(body), false)
 }
 
 pub fn load_data(webview: &WebView, shared: &Rc<RefCell<Shared>>, html: &str, base: &str) -> Result<(), String> {
@@ -459,3 +629,4 @@ pub fn clear_data(webview: &WebView) -> Result<(), String> {
     .map_err(|e| format!("browsing data: {e:?}"))
   }
 }
+

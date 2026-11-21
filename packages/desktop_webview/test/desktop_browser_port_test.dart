@@ -15,6 +15,15 @@ import 'package:checks/checks.dart';
 import 'package:desktop_webview/desktop_webview.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
+import 'package:source_runtime/source_runtime.dart'
+    show
+        CaptureExchange,
+        CaptureKey,
+        CaptureManifest,
+        CaptureSet,
+        CapturedResponse,
+        browserCaptureReplayReplacer,
+        captureMissStatus;
 import 'package:test/scaffolding.dart';
 
 import 'support/helper_fixture.dart';
@@ -25,6 +34,22 @@ SourceIdentity _source(String id) => SourceIdentity(
   sourceId: id,
   artifact: const ArtifactBinding(sha256: '00', kind: 'test', version: '1'),
 );
+
+/// Waits until [dir] can be renamed (no process holds it open), probing by
+/// renaming it away and back.
+Future<void> _waitUntilReleasable(Directory dir, Duration timeout) async {
+  final DateTime deadline = DateTime.now().add(timeout);
+  final probe = '${dir.path}.probe';
+  while (true) {
+    try {
+      Directory(dir.renameSync(probe).path).renameSync(dir.path);
+      return;
+    } on FileSystemException {
+      if (DateTime.now().isAfter(deadline)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+  }
+}
 
 Future<void> main() async {
   final File? helper = await builtHelper();
@@ -148,13 +173,38 @@ Future<void> main() async {
   });
 
   group('scripts and messages', () {
-    test('a throwing script completes with null (Android parity) and is logged', () async {
+    test('a throwing script or rejected promise is a script error; Android parity reads null', () async {
       final log = <String>[];
       final DesktopBrowserPort port = await newPort(log: log);
       final DesktopBrowserSession s = await open(port, 'a');
-      check((await s.evaluate('throw new Error("boom")')).valueOrNull).equals('null');
+      check(s.capabilities.supports(BrowserFeature.scriptErrors)).isTrue();
+      final BrowserOutcome<String> thrown = await s.evaluate('throw new Error("boom")');
+      check(thrown)
+          .isA<BrowserScriptError<String>>()
+          .has((BrowserScriptError<String> e) => e.message, 'message')
+          .contains('boom');
+      check(thrown.androidCompatible.valueOrNull).equals('null');
+      check(await s.evaluate('Promise.reject(new Error("later"))')).isA<BrowserScriptError<String>>();
       check(log.where((String l) => l.contains('boom'))).isNotEmpty();
       check((await s.evaluate('Promise.resolve({a: [1]})')).valueOrNull).equals('{"a":[1]}');
+      check((await s.evaluate('null')).valueOrNull).equals('null');
+    });
+
+    test('channels named like the engine globals leave the page bridge working', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final messages = <String>[];
+      for (final name in <String>['chrome', 'webkit', 'ipc']) {
+        check(await s.setMessageHandler(name, (String m) => messages.add('$name:$m'))).isA<BrowserCompleted<void>>();
+      }
+      check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
+      check((await s.evaluate('6 * 7')).valueOrNull).equals('42');
+      await s.evaluate('chrome.postMessage("c"); webkit.postMessage("w"); ipc.postMessage("i")');
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (messages.length < 3 && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      check(messages).unorderedEquals(<String>['chrome:c', 'webkit:w', 'ipc:i']);
     });
 
     test('a disabled channel stops delivering messages', () async {
@@ -231,6 +281,146 @@ Future<void> main() async {
       check((await s.evaluate('fetch("/replaced").then(function (r) { return r.text(); })')).valueOrNull)
           .equals('"swapped"');
       check((await s.evaluate('fetch("/page").then(function (r) { return r.status; })')).valueOrNull).equals('200');
+    });
+
+    /// Fetches [path] from the page with [method] and [body]; completes with
+    /// `<status> <text>`, or `fetch-failed` on a network error.
+    Future<String?> fetchFrom(DesktopBrowserSession s, String path, {String method = 'GET', String? body}) async =>
+        jsonDecode(
+          (await s.evaluate(
+            'fetch(${jsonEncode(path)}, {method: ${jsonEncode(method)}'
+            '${body == null ? '' : ', body: ${jsonEncode(body)}'}})'
+            '.then(function (r) { return r.text().then(function (t) { return r.status + " " + t; }); },'
+            ' function () { return "fetch-failed"; })',
+          )).valueOrNull!,
+        ) as String?;
+
+    test('request bodies reach the replacer, and capture replay matches on the body hash', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      check(s.capabilities.supports(BrowserFeature.observeRequestBodies)).isTrue();
+      final Uri verify = server.url('/body-replay/verify');
+      final manifest = CaptureManifest(
+        ecosystem: 'browser',
+        source: 'desktop-test',
+        recordedAt: DateTime.utc(2026, 11, 20),
+        exchanges: const <CaptureExchange>[],
+      );
+      final captures = CaptureSet(manifest, <CaptureKey, CapturedResponse>{
+        manifest.keyFor('POST', verify, utf8.encode('answer=1')): CapturedResponse(
+          status: 200,
+          headers: const <String, String>{'content-type': 'text/plain'},
+          body: utf8.encode('verified'),
+        ),
+        manifest.keyFor('GET', verify, null): CapturedResponse(
+          status: 200,
+          headers: const <String, String>{'content-type': 'text/plain'},
+          body: utf8.encode('plain get'),
+        ),
+        manifest.keyFor('PUT', verify, null): CapturedResponse(
+          status: 200,
+          headers: const <String, String>{'content-type': 'text/plain'},
+          body: utf8.encode('bodiless put'),
+        ),
+      });
+      final misses = <CaptureKey>[];
+      final seen = <BrowserRequest>[];
+      final BrowserRequestReplacer replay = browserCaptureReplayReplacer(
+        captures,
+        onMiss: (CaptureKey key, BrowserRequest _) => misses.add(key),
+      );
+      check(
+        await s.setRequestReplacer((BrowserRequest r) {
+          seen.add(r);
+          return replay(r);
+        }),
+      ).isA<BrowserCompleted<void>>();
+      check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=1')).equals('200 verified');
+      check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=2')).equals('$captureMissStatus ');
+      // A GET has no body (not an empty one), so it matches a bodiless capture.
+      check(await fetchFrom(s, verify.path)).equals('200 plain get');
+      // A bodiless request that still sends a Content-Type has no body (not
+      // an omitted one), so it matches a bodiless capture too.
+      check(
+        (await s.evaluate(
+          'fetch(${jsonEncode(verify.path)}, {method: "PUT", headers: {"Content-Type": "text/plain"}}) '
+          '.then(function (r) { return r.text(); })',
+        )).valueOrNull,
+      ).equals('"bodiless put"');
+      final BrowserRequest post = seen.firstWhere((BrowserRequest r) => r.method == 'POST');
+      check(post.body).isNotNull().deepEquals(utf8.encode('answer=1'));
+      check(post.bodyOmitted).isFalse();
+      check(misses).length.equals(1);
+      check(server.seen.where(((String, Map<String, String>) e) => e.$1.startsWith('/body-replay'))).isEmpty();
+    });
+
+    test('a body over 1 MiB is omitted whole and still uploaded unchanged', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final seen = <BrowserRequest>[];
+      check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
+      final String reply = (await fetchFrom(s, '/echo', method: 'POST', body: 'x' * (1024 * 1024 + 1)))!;
+      check(reply.length).equals('200 POST '.length + 1024 * 1024 + 1);
+      final BrowserRequest big = seen.firstWhere((BrowserRequest r) => r.url.path == '/echo');
+      check(big.body).isNull();
+      check(big.bodyOmitted).isTrue();
+      // A small body is forwarded, and the upload is unchanged by reading it.
+      check(await fetchFrom(s, '/echo', method: 'POST', body: 'small')).equals('200 POST small');
+      check(seen.last.body).isNotNull().deepEquals(utf8.encode('small'));
+    });
+
+    test('mainFrame marks the top-level document, not a same-origin child frame', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final seen = <BrowserRequest>[];
+      check(await s.setRequestObserver(seen.add)).isA<BrowserCompleted<void>>();
+      // `/same-framed` embeds `/page`, the URL the session just loaded.
+      check(await s.loadUrl(server.url('/same-framed'))).isA<BrowserCompleted<BrowserPage>>();
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (!seen.any((BrowserRequest r) => r.url.path == '/page') && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      final List<BrowserRequest> docs = seen
+          .where((BrowserRequest r) => r.context == BrowserRequestContext.document)
+          .toList();
+      check(docs.where((BrowserRequest r) => r.url.path == '/same-framed').single.mainFrame).isTrue();
+      check(docs.where((BrowserRequest r) => r.url.path == '/page').single.mainFrame).isFalse();
+      check(await fetchFrom(s, '/echo')).equals('200 GET ');
+      check(seen.lastWhere((BrowserRequest r) => r.url.path == '/echo').mainFrame).isFalse();
+    });
+
+    test('a refused or throwing replacement fails the request without sending it', () async {
+      final log = <String>[];
+      final DesktopBrowserPort port = await newPort(log: log);
+      final DesktopBrowserSession s = await open(port, 'a');
+      final seenUrls = <Uri>[];
+      check(
+        await s.setRequestReplacer((BrowserRequest r) {
+          seenUrls.add(r.url);
+          return switch (r.url.path) {
+            '/fail/redirect' => BrowserReplacement(
+              status: 302,
+              headers: const <String, String>{'Location': 'file:///C:/Windows/win.ini'},
+            ),
+            '/fail/status' => BrowserReplacement(status: 99),
+            '/fail/throw' || '/fail/document' => throw StateError('replacer bug'),
+            _ => null,
+          };
+        }),
+      ).isA<BrowserCompleted<void>>();
+      check(await fetchFrom(s, '/fail/redirect')).equals('fetch-failed');
+      check(await fetchFrom(s, '/fail/status')).equals('fetch-failed');
+      check(await fetchFrom(s, '/fail/throw')).equals('fetch-failed');
+      // A failed main-frame document settles the load instead of hanging.
+      check(await s.loadUrl(server.url('/fail/document'))).isA<BrowserNavigationFailed<BrowserPage>>();
+      check(server.seen.where(((String, Map<String, String>) e) => e.$1.startsWith('/fail'))).isEmpty();
+      // The rewritten request (port 1) is refused by the network stack and
+      // never comes back through the replacer.
+      check(seenUrls.where((Uri u) => u.port == 1)).isEmpty();
+      check(log.where((String l) => l.contains('replacer bug'))).isNotEmpty();
+      // Requests the replacer lets through still work.
+      check(await s.loadUrl(server.url('/page'))).isA<BrowserCompleted<BrowserPage>>();
+      check(await fetchFrom(s, '/echo')).equals('200 GET ');
     });
 
     test('offline mode sees and blocks a cross-origin iframe request', () async {
@@ -320,16 +510,83 @@ Future<void> main() async {
       final killed = Directory(p.join(root.path, 'h-${port.helperInfo!.pid}'));
       check(killed.existsSync()).isTrue();
       await port.debugKillHelper();
-      await open(port, 'a'); // starts a fresh helper
-      // The dead helper's browser processes may hold files for a moment.
-      final DateTime deadline = DateTime.now().add(const Duration(seconds: 20));
-      BrowserOutcome<void> wiped = await port.wipeAllSourceData();
-      while (killed.existsSync() && DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        wiped = await port.wipeAllSourceData();
-      }
+      // A killed helper's WebView2 browser process can stay in termination
+      // for 1-110 s (measured on WebView2 157), holding the directory; how long is up to the
+      // OS, so wait until the directory can be released (the condition the
+      // wipe needs) rather than racing it. The next test covers a wipe that
+      // meets a directory still in use.
+      await _waitUntilReleasable(killed, const Duration(seconds: 240));
+      await open(port, 'a'); // starts a fresh helper, whose start-up wipe runs
+      check(port.helperInfo!.wipeRemoved).equals(1);
+      check(port.helperInfo!.wipeFailed).equals(0);
       check(killed.existsSync()).isFalse();
-      check(wiped).isA<BrowserCompleted<void>>();
+      check(await port.wipeAllSourceData()).isA<BrowserCompleted<void>>();
+      final left = <String>[
+        for (final FileSystemEntity e in root.listSync()) p.basename(e.path),
+      ]..remove('h-${port.helperInfo!.pid}');
+      check(left).isEmpty();
+    }, timeout: const Timeout(Duration(minutes: 6)));
+
+    test('a directory still in use is left whole and reported; a later wipe removes it', () async {
+      final Directory root = await Directory.systemTemp.createTemp('dwv-wipe-');
+      addTearDown(() async {
+        try {
+          await root.delete(recursive: true);
+        } on FileSystemException {
+          // Browser process still releasing the directory.
+        }
+      });
+      final stale = Directory(p.join(root.path, 'h-999998'));
+      final held = File(p.join(stale.path, 'EBWebView', 'lockfile'));
+      await held.create(recursive: true);
+      await held.writeAsString('held');
+      // An open handle without delete sharing: the directory cannot be
+      // renamed, as when a browser process still holds it.
+      final RandomAccessFile handle = held.openSync(mode: FileMode.append);
+      final port = DesktopBrowserPort(
+        DesktopWebViewConfig(
+          helperExecutable: helper,
+          dataRoot: root,
+          startupTimeout: const Duration(seconds: 60),
+          shutdownGrace: const Duration(seconds: 10),
+          allowVisibleWindows: false,
+          offline: true,
+          wipeRetry: const Duration(milliseconds: 400),
+        ),
+      );
+      addTearDown(port.dispose);
+      final BrowserOutcome<void> blocked = await port.wipeAllSourceData();
+      check(port.helperInfo!.wipeFailed).equals(1);
+      check(blocked).isA<BrowserCapabilityUnavailable<void>>().has((o) => o.reason, 'reason').contains('h-999998');
+      check(held.readAsStringSync()).equals('held');
+      await port.dispose();
+
+      // Within a budget, one wipe keeps retrying until the directory is
+      // released (here 500 ms in).
+      final retrying = DesktopBrowserPort(
+        DesktopWebViewConfig(
+          helperExecutable: helper,
+          dataRoot: root,
+          startupTimeout: const Duration(seconds: 60),
+          shutdownGrace: const Duration(seconds: 10),
+          allowVisibleWindows: false,
+          offline: true,
+          wipeRetry: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(retrying.dispose);
+      // Start the helper first, so the wipe request is in flight when the
+      // directory is released.
+      check(
+        await retrying.openSession(BrowserSessionRequest(source: _source('a'), generation: 1)),
+      ).isA<BrowserCompleted<BrowserSession>>();
+      check(retrying.helperInfo!.wipeFailed).equals(1);
+      final Future<BrowserOutcome<void>> wiping = retrying.wipeAllSourceData();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      check(stale.existsSync()).isTrue();
+      handle.closeSync();
+      check(await wiping).isA<BrowserCompleted<void>>();
+      check(stale.existsSync()).isFalse();
     });
   });
 

@@ -311,6 +311,7 @@ name = "desktop_webview_helper"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "javascriptcore-rs",
  "objc2",
  "objc2-foundation",
  "objc2-web-kit",

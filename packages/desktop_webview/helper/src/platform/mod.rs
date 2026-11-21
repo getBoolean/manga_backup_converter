@@ -2,7 +2,7 @@
 //! document-start scripts, `loadData` with a base URL, runtime user agent,
 //! status codes, storage deletion) is implemented per engine.
 
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 #[cfg(target_os = "windows")]
 mod windows;
@@ -68,11 +68,25 @@ pub struct Caps {
   pub storage: &'static str,
   /// Whether `--offline` can block every non-loopback request.
   pub offline_enforced: bool,
+  /// Protocol 1.2 `BrowserFeature`s of every session: `(feature, None)` when
+  /// available, `(feature, Some(reason))` when not, the reason naming the
+  /// engine. Each listed state is what this engine's code path does; a
+  /// feature is listed available only once it has run on that engine.
+  pub browser: &'static [(&'static str, Option<&'static str>)],
 }
 
 impl Caps {
+  /// The protocol 1.2 `BrowserCapabilities` JSON of every session.
+  fn browser_json(&self) -> Value {
+    let available: Vec<&str> = self.browser.iter().filter(|(_, r)| r.is_none()).map(|(f, _)| *f).collect();
+    let unavailable: Map<String, Value> =
+      self.browser.iter().filter_map(|(f, r)| r.map(|r| (f.to_string(), Value::String(r.to_string())))).collect();
+    json!({"available": available, "unavailable": unavailable})
+  }
+
   pub fn to_json(&self) -> Value {
     json!({
+      "browser": self.browser_json(),
       "requestObserve": self.request_observe,
       "requestReplace": self.request_replace,
       "statusCodes": self.status_codes,
@@ -85,6 +99,18 @@ impl Caps {
       "syncScriptInterface": false,
     })
   }
+}
+
+/// How a held request (replace tier) is answered.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub enum Answer {
+  /// Let it proceed unchanged (blocked when offline).
+  Proceed,
+  /// Serve this response instead.
+  Replace(ReplacementResponse),
+  /// Fail it: the page sees a network error. Used for an invalid
+  /// replacement and a throwing handler.
+  Fail(String),
 }
 
 /// A response substituted for an intercepted request (replace tier).
@@ -104,16 +130,28 @@ impl ReplacementResponse {
       Some(b) => base64::engine::general_purpose::STANDARD.decode(b).map_err(|e| format!("bad bodyBase64: {e}"))?,
       None => Vec::new(),
     };
-    let headers = v
+    let headers: Vec<(String, String)> = v
       .get("headers")
       .and_then(Value::as_object)
       .map(|h| h.iter().filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string()))).collect())
       .unwrap_or_default();
-    Ok(Self {
-      status: u16::try_from(status).map_err(|_| "status out of range")?,
-      reason: v.get("reason").and_then(Value::as_str).unwrap_or("OK").to_string(),
-      headers,
-      body,
-    })
+    // Protocol 1.2 `BrowserReplacement`: 100-599 and not a redirect (a
+    // substituted `Location` could steer a load around the scheme policy);
+    // the reason is one non-empty line.
+    if !(100..=599).contains(&status) {
+      return Err(format!("status {status} is outside 100-599"));
+    }
+    if (300..=399).contains(&status) {
+      return Err(format!("redirect status {status} cannot be substituted"));
+    }
+    let reason = v.get("reason").and_then(Value::as_str).unwrap_or("OK").to_string();
+    let multiline = |s: &str| s.contains(['\r', '\n']);
+    if reason.is_empty() || multiline(&reason) {
+      return Err("reason phrase must be one non-empty line".into());
+    }
+    if headers.iter().any(|(k, v)| k.is_empty() || k.contains(':') || multiline(k) || multiline(v)) {
+      return Err("header names and values must be single-line".into());
+    }
+    Ok(Self { status: status as u16, reason, headers, body })
   }
 }

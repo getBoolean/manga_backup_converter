@@ -70,6 +70,7 @@ DesktopWebViewConfig testConfig(
   testHooks: testHooks,
   extraArguments: extraArguments,
   onLog: log?.add,
+  wipeRetry: const Duration(seconds: 10),
 );
 
 /// Local HTTP fixture server (loopback only; tests never contact a server).
