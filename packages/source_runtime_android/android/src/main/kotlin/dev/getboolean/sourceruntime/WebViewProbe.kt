@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.annotation.Keep
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
@@ -104,6 +105,7 @@ internal class WebViewHolder(private val context: Context) {
 }
 
 /** Result callback for [AppWebViewProbe]; implemented in Dart as a listener. */
+@Keep
 interface ProbeListener {
     fun onResult(ok: Boolean, payload: String)
 }
@@ -112,6 +114,7 @@ interface ProbeListener {
  * App-process WebView probe driven from Dart through JNIgen. The work runs on
  * a probe-owned thread; Dart gets the result through [ProbeListener].
  */
+@Keep
 class AppWebViewProbe(context: Context) {
     private val holder = WebViewHolder(context.applicationContext)
 

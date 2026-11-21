@@ -9,6 +9,7 @@ import android.os.IBinder
 import android.os.Parcel
 import android.os.Process
 import android.os.RemoteException
+import androidx.annotation.Keep
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong
  * restarting the service behind the caller's back; the caller rebinds
  * explicitly.
  */
+@Keep
 class SourceRuntimeClient(context: Context, private val listener: SourceRuntimeListener) {
     private val appContext: Context = context.applicationContext
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->

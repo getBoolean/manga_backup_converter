@@ -66,10 +66,6 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-        // jnigen 0.15 (pinned workspace-wide by jsoup_jni) reads Kotlin
-        // metadata only up to 2.1, so the facade emits 2.1 metadata.
-        languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
-        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
     }
 }
 
@@ -101,6 +97,8 @@ val sourceApiJar = tasks.register<Jar>("sourceApiJar") {
 }
 
 dependencies {
+    // @Keep on the facade types that only Dart (JNIgen) references.
+    implementation("androidx.annotation:annotation:1.10.0")
     sourceApiAar("com.github.mihonapp:extensions-lib:$sourceApiVersion@aar")
     implementation(files(sourceApiJar))
     // Runtime closure declared by extensions-lib 1.6.0's POM.

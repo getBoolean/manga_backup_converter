@@ -1,5 +1,7 @@
 package dev.getboolean.sourceruntime
 
+import androidx.annotation.Keep
+
 /**
  * Callbacks from [SourceRuntimeClient] to the Dart backend.
  *
@@ -9,6 +11,7 @@ package dev.getboolean.sourceruntime
  * for Dart (KTD18, KTD23). Callers invoke them from the client's own executor
  * thread, never from a Binder thread.
  */
+@Keep
 interface SourceRuntimeListener {
     /** A bind of [generation] completed; the service reported [pid]. */
     fun onBound(generation: Long, pid: Int, sdkInt: Int)

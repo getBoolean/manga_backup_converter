@@ -3,6 +3,7 @@ package dev.getboolean.sourceruntime
 import android.content.Context
 import android.system.Os
 import android.system.OsConstants
+import androidx.annotation.Keep
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -17,6 +18,7 @@ import java.security.MessageDigest
  * descriptor that was already open. A staged artifact is therefore never
  * writable by path, on any API level.
  */
+@Keep
 object ArtifactStaging {
     private val SAFE_NAME = Regex("^[A-Za-z0-9._-]{1,128}$")
     private val SHA256_HEX = Regex("^[0-9a-f]{64}$")

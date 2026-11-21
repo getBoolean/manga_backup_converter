@@ -3,6 +3,7 @@ package dev.getboolean.sourceruntime
 import android.os.Debug
 import android.os.Process
 import android.util.Log
+import androidx.annotation.Keep
 import org.json.JSONObject
 
 /**
@@ -13,6 +14,7 @@ import org.json.JSONObject
  * `Debug.dumpReferenceTables()` (hidden) runs, and an app may read its own log
  * lines. Java garbage is collected first so that only live references count.
  */
+@Keep
 object RuntimeDiagnostics {
     private const val TAG = "SourceRuntimeDiag"
     private val TOTAL = Regex("""^\s*Last \d+ entries \(of (\d+)\):""")
