@@ -1,11 +1,14 @@
 package mangabackup.tachi
 
+import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import mangabackup.tachi.host.HostTransport
 import mangabackup.tachi.host.SizingReport
 import mangabackup.tachi.host.replay.ReplayTransport
 import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerOptions
+import mangabackup.tachi.webkit.BrowserBridge
+import mangabackup.tachi.webkit.CloudflareSolver
 import java.io.File
 import java.io.FileDescriptor
 import java.io.FileOutputStream
@@ -22,7 +25,7 @@ private fun usage(message: String): Nothing {
     System.err.println("tachi-source-runner: $message")
     System.err.println(
         "usage: tachi-source-runner [--replay CAPTURE_DIR]... " +
-            "[--state-dir DIR] [--limit NAME=VALUE]... [--no-browser]",
+            "[--state-dir DIR] [--limit NAME=VALUE]... [--no-browser] [--interactive-challenges MS]",
     )
     exitProcess(64)
 }
@@ -41,6 +44,7 @@ fun main(args: Array<String>) {
     val limits = LinkedHashMap<String, Long>()
     var stateDir: File? = null
     var browser = true
+    var challengeMs: Long? = null
     var i = 0
     fun value(): String = args.getOrNull(++i) ?: usage("${args[i - 1]} needs a value")
     while (i < args.size) {
@@ -52,6 +56,10 @@ fun main(args: Array<String>) {
                 limits[k] = v.toLongOrNull() ?: usage("--limit $k needs an integer")
             }
             "--no-browser" -> browser = false
+            // Interactive runs: a Cloudflare challenge is shown in the supervisor's browser window for at
+            // most MS (the same flag as the Android service). Without it challenges are interaction-required.
+            "--interactive-challenges" -> challengeMs = value().toLongOrNull()?.takeIf { it > 0 }
+                ?: usage("--interactive-challenges needs a positive millisecond bound")
             else -> usage("unknown argument $a")
         }
         i++
@@ -70,7 +78,10 @@ fun main(args: Array<String>) {
     )
     if (replay.isNotEmpty()) System.err.println("[worker] network mode: replay from ${replay.joinToString()} (fails closed on any uncaptured request)")
     val code = try {
-        Worker(System.`in`, frames, options).run()
+        val worker = Worker(System.`in`, frames, options)
+        val bridge = worker.browser as? BrowserBridge
+        if (challengeMs != null && bridge != null) CloudflareInterceptor.challengeSolver = CloudflareSolver(bridge, challengeMs)
+        worker.run()
     } finally {
         (transport as? AutoCloseable)?.close()
         if (stateDir == null) root.deleteRecursively()

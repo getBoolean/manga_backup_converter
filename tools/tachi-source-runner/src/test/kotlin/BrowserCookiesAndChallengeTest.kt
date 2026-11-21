@@ -1,6 +1,8 @@
 package mangabackup.tachi
 
+import eu.kanade.tachiyomi.network.interceptor.CloudflareChallengeSolver
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import eu.kanade.tachiyomi.network.interceptor.CloudflareSolution
 import mangabackup.tachi.host.InteractionRequiredException
 import mangabackup.tachi.host.PackageCookieJar
 import okhttp3.Cookie
@@ -100,10 +102,10 @@ class BrowserCookiesAndChallengeTest {
         val browser = CopyOnWriteArrayList<Cookie>()
         jar.browserCookies = { url -> browser.filter { it.matches(url) } }
         val shown = CopyOnWriteArrayList<Pair<String, String?>>()
-        CloudflareInterceptor.challengeSolver = { url, ua ->
-            shown += url to ua
+        CloudflareInterceptor.challengeSolver = CloudflareChallengeSolver { challenge ->
+            shown += challenge.url to challenge.userAgent
             browser += Cookie.Builder().name("cf_clearance").value("solved").hostOnlyDomain("site.test").path("/").build()
-            true
+            CloudflareSolution()
         }
         val site = CloudflareSite(jar)
         client(jar, site).newCall(request()).execute().use { assertEquals(200, it.code) }
@@ -114,7 +116,7 @@ class BrowserCookiesAndChallengeTest {
     @Test
     fun `a challenge the user did not finish fails as interaction-required`() {
         val jar = PackageCookieJar()
-        CloudflareInterceptor.challengeSolver = { _, _ -> false }
+        CloudflareInterceptor.challengeSolver = CloudflareChallengeSolver { null }
         val site = CloudflareSite(jar)
         assertThrows<InteractionRequiredException> { client(jar, site).newCall(request()).execute() }
         assertEquals(1, site.seen.size)

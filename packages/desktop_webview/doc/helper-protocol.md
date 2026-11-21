@@ -34,7 +34,7 @@ The first frame is either:
 | op | Fields | Reply |
 |---|---|---|
 | `open` | `session`, `userAgent?`, `title?`, `intercept?` (`none`/`observe`/`replace`) | `{}` |
-| `load` | `session`, `url`, `headers?` | `finalUrl`, `status?` once the navigation completes |
+| `load` | `session`, `url`, `headers?` | `finalUrl`, `status?` once the navigation completes. An HTTP error page (a 403 or 503 challenge, a 404) is a completed load with its status, as on Android; WebView2 reports it as unsuccessful, and the helper maps it back |
 | `loadData` | `session`, `html`, `baseUrl` (http/https) | `finalUrl`, `status?` |
 | `stop` | `session` | `{}`; drops the pending load |
 | `eval` | `session`, `script` | `result`: the completion value as JSON text (a promise is awaited, `undefined` becomes `null`); `script-error` only if it throws, `no-script-bridge` or `navigated` otherwise |

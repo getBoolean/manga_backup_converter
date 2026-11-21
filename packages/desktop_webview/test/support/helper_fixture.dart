@@ -173,6 +173,11 @@ addEventListener('message', function (e) {
           r.headers.add(HttpHeaders.setCookieHeader, 'server=1; Path=/');
           r.headers.contentType = ContentType.html;
           r.write('<html><head><title>cookie</title></head></html>');
+        case final String path when path.startsWith('/status/'):
+          // An HTTP error page (a Cloudflare challenge is a 403 or 503 page).
+          r.statusCode = int.parse(path.substring('/status/'.length));
+          r.headers.contentType = ContentType.html;
+          r.write('<html><head><title>status</title></head><body>error page</body></html>');
         default:
           r.headers.contentType = ContentType.html;
           r.write('<html><head><title>contract</title></head><body>fixture</body></html>');

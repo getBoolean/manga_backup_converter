@@ -31,7 +31,7 @@ class NetworkHelper(context: Context) {
             .callTimeout(2.minutes)
             .addInterceptor(UncaughtExceptionInterceptor())
             .addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
-            .addInterceptor(CloudflareInterceptor())
+            .addInterceptor(CloudflareInterceptor(environment))
             .build()
     }
 

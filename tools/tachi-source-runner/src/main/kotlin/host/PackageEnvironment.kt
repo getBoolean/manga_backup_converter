@@ -48,6 +48,16 @@ interface OperationContext {
     fun addWarning(warning: String) {}
 
     val warnings: List<String> get() = emptyList()
+
+    /**
+     * A host-driven user interaction (a challenge the worker shows itself) begins: stop counting the
+     * operation's own platform deadline until [resumeDeadline]. Nests with the supervisor's
+     * `interaction.started` / `interaction.ended` pair; a no-op where the platform has no deadline.
+     */
+    fun pauseDeadline() {}
+
+    /** The interaction [pauseDeadline] began has ended. */
+    fun resumeDeadline() {}
 }
 
 /**

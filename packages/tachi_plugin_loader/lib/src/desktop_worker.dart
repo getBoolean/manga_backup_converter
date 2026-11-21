@@ -133,10 +133,16 @@ final class TachiWorkerLocation {
   /// reaches a server. [stateDirectory] holds the worker's per-run state.
   /// Limits are never passed: the worker derives them from its benchmarked
   /// sizing rule and reports them in the handshake.
+  ///
+  /// [interactiveChallenges] (interactive runs only) lets a Cloudflare
+  /// challenge be shown in the supervisor's browser window for at most that
+  /// long (`--interactive-challenges MS`, the flag the Android service also
+  /// takes); without it a challenge fails as interaction-required.
   WorkerSpec spec({
     String? stateDirectory,
     List<String> replay = const <String>[],
     bool browser = true,
+    Duration? interactiveChallenges,
     Map<String, String>? environment,
   }) => WorkerSpec(
     label: 'jvm',
@@ -148,6 +154,10 @@ final class TachiWorkerLocation {
       if (stateDirectory != null) ...<String>['--state-dir', stateDirectory],
       for (final String dir in replay) ...<String>['--replay', dir],
       if (!browser) '--no-browser',
+      if (interactiveChallenges != null) ...<String>[
+        '--interactive-challenges',
+        '${interactiveChallenges.inMilliseconds}',
+      ],
     ],
     environment: environment ?? scrubbedEnvironment(),
   );

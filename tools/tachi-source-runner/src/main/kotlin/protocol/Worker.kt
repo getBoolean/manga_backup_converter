@@ -116,6 +116,9 @@ class Worker(
 
         /** True between `interaction.started` and `interaction.ended` (protocol 1.3); guarded by [interactionLock]. */
         private var interacting = false
+
+        /** Pauses held: the supervisor's interaction (at most one) plus host-driven ones ([pauseDeadline]). */
+        private var pauses = 0
         private val interactionLock = Any()
 
         /**
@@ -125,14 +128,31 @@ class Worker(
         fun interactionStarted(timeoutMs: Long): Unit = synchronized(interactionLock) {
             if (interacting || finished) return
             interacting = true
-            guard?.pause(timeoutMs)
+            hold(timeoutMs)
         }
 
         /** `interaction.ended`: resume the platform deadline. Never resumed on a show's `rres` alone. */
         fun interactionEnded(): Unit = synchronized(interactionLock) {
             if (!interacting) return
             interacting = false
-            guard?.resume()
+            release()
+        }
+
+        override fun pauseDeadline(): Unit = synchronized(interactionLock) {
+            if (!finished) hold(options.sizing.limits.interactionTimeoutMs)
+        }
+
+        override fun resumeDeadline(): Unit = synchronized(interactionLock) {
+            release()
+        }
+
+        private fun hold(boundMs: Long) {
+            if (pauses++ == 0) guard?.pause(boundMs)
+        }
+
+        private fun release() {
+            if (pauses == 0) return
+            if (--pauses == 0) guard?.resume()
         }
 
         /** Set (under [writeLock]) once the reply is being written: no reverse request may follow it. */
