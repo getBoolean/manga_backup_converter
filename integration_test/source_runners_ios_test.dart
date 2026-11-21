@@ -20,11 +20,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:source_runtime_ios/source_runtime_ios.dart';
 
-const String _keiyoushiSigner = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
+const String _keiyoushiSigner =
+    '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
 
 /// One AE7 qualification source.
 final class _Qualification {
-  const _Qualification(this.dir, this.artifactStem, this.querySourceId, this.minChapters);
+  const _Qualification(
+    this.dir,
+    this.artifactStem,
+    this.querySourceId,
+    this.minChapters,
+  );
 
   final String dir;
   final String artifactStem;
@@ -33,9 +39,24 @@ final class _Qualification {
 }
 
 const List<_Qualification> _sources = <_Qualification>[
-  _Qualification('all.mangadex', 'tachiyomi-all.mangadex-v1.6.4', '2499283573021220255', 1),
-  _Qualification('en.weebcentral', 'tachiyomi-en.weebcentral-v1.6.27', '2131019126180322627', 100),
-  _Qualification('all.mangafire', 'tachiyomi-all.mangafire-v1.6.38', '6084907896154116083', 50),
+  _Qualification(
+    'all.mangadex',
+    'tachiyomi-all.mangadex-v1.6.4',
+    '2499283573021220255',
+    1,
+  ),
+  _Qualification(
+    'en.weebcentral',
+    'tachiyomi-en.weebcentral-v1.6.27',
+    '2131019126180322627',
+    100,
+  ),
+  _Qualification(
+    'all.mangafire',
+    'tachiyomi-all.mangafire-v1.6.38',
+    '6084907896154116083',
+    50,
+  ),
 ];
 
 const String _query = 'Onimai';
@@ -46,7 +67,8 @@ const String _query = 'Onimai';
 const bool _guardOnly = bool.fromEnvironment('U9_GUARD_ONLY');
 
 void main() {
-  final IntegrationTestWidgetsFlutterBinding binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final IntegrationTestWidgetsFlutterBinding binding =
+      IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final receipts = <Map<String, Object?>>[];
   final logs = <String>[];
   final platformMessages = <String>[];
@@ -58,10 +80,16 @@ void main() {
   late int baselineImages;
   late String testSigner;
   late IosTachiBackend qualification;
-  final evidenceClass = Platform.resolvedExecutable.contains('/CoreSimulator/') ? 'simulator' : 'device';
+  final evidenceClass = Platform.resolvedExecutable.contains('/CoreSimulator/')
+      ? 'simulator'
+      : 'device';
 
   void receipt(String name, Map<String, Object?> data) {
-    final r = <String, Object?>{'case': name, 'evidenceClass': evidenceClass, ...data};
+    final r = <String, Object?>{
+      'case': name,
+      'evidenceClass': evidenceClass,
+      ...data,
+    };
     receipts.add(r);
     // ignore: avoid_print
     print('U9_RECEIPT ${jsonEncode(r)}');
@@ -69,22 +97,30 @@ void main() {
 
   String data(String rel) => '${bundle.testData}/$rel';
 
-  Uint8List artifact(_Qualification q, String kind) => File(data('${q.dir}/${q.artifactStem}.$kind')).readAsBytesSync();
+  Uint8List artifact(_Qualification q, String kind) =>
+      File(data('${q.dir}/${q.artifactStem}.$kind')).readAsBytesSync();
 
   List<String> expectedSourceIds(_Qualification q) {
-    final entry = jsonDecode(File(data('${q.dir}/index-entry.json')).readAsStringSync()) as Map<String, Object?>;
+    final entry = jsonDecode(
+      File(data('${q.dir}/index-entry.json')).readAsStringSync(),
+    ) as Map<String, Object?>;
     return <String>[
-      for (final Object? s in entry['sources']! as List<Object?>) (s! as Map<String, Object?>)['id']! as String,
+      for (final Object? s in entry['sources']! as List<Object?>)
+        (s! as Map<String, Object?>)['id']! as String,
     ]..sort();
   }
 
   String packageIdOf(_Qualification q) {
-    final entry = jsonDecode(File(data('${q.dir}/index-entry.json')).readAsStringSync()) as Map<String, Object?>;
+    final entry = jsonDecode(
+      File(data('${q.dir}/index-entry.json')).readAsStringSync(),
+    ) as Map<String, Object?>;
     return entry['packageName']! as String;
   }
 
   String versionOf(_Qualification q) {
-    final entry = jsonDecode(File(data('${q.dir}/index-entry.json')).readAsStringSync()) as Map<String, Object?>;
+    final entry = jsonDecode(
+      File(data('${q.dir}/index-entry.json')).readAsStringSync(),
+    ) as Map<String, Object?>;
     return entry['versionName']! as String;
   }
 
@@ -106,7 +142,8 @@ void main() {
         shutdownGrace: const Duration(seconds: 10),
       ),
       nativeDeadline: native,
-      stateRoot: Directory('${work.path}/state-$label')..createSync(recursive: true),
+      stateRoot: Directory('${work.path}/state-$label')
+        ..createSync(recursive: true),
       cache: cache,
       replay: replay,
       replayHang: hang,
@@ -121,17 +158,30 @@ void main() {
 
   setUpAll(() async {
     bundle = BundledRuntime.prepare();
-    expect(bundle.classPath, isNotEmpty, reason: 'stage the payload with stage_runtime.sh <sdk> --test');
-    expect(bundle.testData, isNotNull, reason: 'stage the payload with stage_runtime.sh <sdk> --test');
+    expect(
+      bundle.classPath,
+      isNotEmpty,
+      reason: 'stage the payload with stage_runtime.sh <sdk> --test',
+    );
+    expect(
+      bundle.testData,
+      isNotNull,
+      reason: 'stage the payload with stage_runtime.sh <sdk> --test',
+    );
     work = Directory.systemTemp.createTempSync('u9-');
     cache = ArtifactCache(Directory('${work.path}/cache'));
-    testSigner = File(bundle.fixtures['test-signer.txt']!).readAsStringSync().trim();
+    testSigner = File(bundle.fixtures['test-signer.txt']!)
+        .readAsStringSync()
+        .trim();
     baselineImages = IosJvmRuntime.loadedImageCount;
     final sw = Stopwatch()..start();
     runtime = await IosJvmRuntime.start(
       javaHome: bundle.javaHome,
-      // ignore: avoid_redundant_argument_values
-      options: bundle.productionOptions(tempDirectory: work.path, denyIllegalNativeAccess: !_guardOnly),
+      options: bundle.productionOptions(
+        tempDirectory: work.path,
+        // ignore: avoid_redundant_argument_values
+        denyIllegalNativeAccess: !_guardOnly,
+      ),
     );
     baselineGlobalRefs = runtime.globalRefCount;
     receipt('vm-start', <String, Object?>{
@@ -145,10 +195,11 @@ void main() {
     });
     // Record every platform message the app sends while sources run; the
     // source runtime must not use any.
-    binding.defaultBinaryMessenger.allMessagesHandler = (String channel, MessageHandler? handler, ByteData? message) {
-      platformMessages.add(channel);
-      return binding.defaultBinaryMessenger.delegate.send(channel, message);
-    };
+    binding.defaultBinaryMessenger.allMessagesHandler =
+        (String channel, MessageHandler? handler, ByteData? message) {
+          platformMessages.add(channel);
+          return binding.defaultBinaryMessenger.delegate.send(channel, message);
+        };
     qualification = backend(
       native: const Duration(minutes: 9),
       dart: const Duration(minutes: 10),
@@ -169,13 +220,16 @@ void main() {
       'armedDeadlines': InVmWorkerProcess.armedDeadlines,
       'firedDeadlines': InVmWorkerProcess.firedDeadlines,
       'images': IosJvmRuntime.loadedImageCount,
-      'replayMisses': logs.where((String l) => l.contains('capture miss')).toList(),
+      'replayMisses': logs
+          .where((String l) => l.contains('capture miss'))
+          .toList(),
     });
     binding.reportData = <String, dynamic>{'receipts': receipts};
   });
 
   test('the worker runs in the single VM: interpreter only, iOS platform hooks, no Dart thread attached', () async {
-    final SourceOutcome<WorkerSupervisor> started = await qualification.worker();
+    final SourceOutcome<WorkerSupervisor> started = await qualification
+        .worker();
     expect(started.failureOrNull, isNull);
     final WorkerSupervisor supervisor = started.valueOrNull!;
     final HandshakeResponse hs = supervisor.handshake!;
@@ -198,80 +252,112 @@ void main() {
   final results = <String, String>{};
   for (final _Qualification q in _sources) {
     for (final kind in <String>['jar', 'apk']) {
-      test('AE7 ${q.dir} from the ${kind == 'jar' ? 'repository JAR' : 'APK converted on the device'}', () async {
-        final trust = ArtifactTrustAnchor(signerFingerprints: const <String>[_keiyoushiSigner]);
-        final sw = Stopwatch()..start();
-        final SourceOutcome<IosTachiPreparedArtifact> prepared = await qualification.prepare(
-          packageId: packageIdOf(q),
-          bytes: artifact(q, kind),
-          kind: kind,
-          version: versionOf(q),
-          trust: trust,
-        );
-        final int prepareMs = sw.elapsedMilliseconds;
-        expect(prepared.failureOrNull, isNull);
-        final IosTachiPreparedArtifact a = prepared.valueOrNull!;
-        sw.reset();
-        final SourceOutcome<SourcePackage> opened = await qualification.openPackage(a, SettingsSnapshot());
-        final int loadMs = sw.elapsedMilliseconds;
-        expect(opened.failureOrNull, isNull);
-        final SourcePackage package = opened.valueOrNull!;
-        try {
-          final ids = <String>[for (final SourceSession s in package.sessions) s.identity.sourceId]..sort();
-          expect(ids, expectedSourceIds(q), reason: 'exact int64 source identities');
-          for (final id in ids) {
-            expect(BigInt.parse(id).toString(), id);
-            expect(BigInt.parse(id).bitLength, lessThanOrEqualTo(63));
+      test(
+        'AE7 ${q.dir} from the ${kind == 'jar' ? 'repository JAR' : 'APK converted on the device'}',
+        () async {
+          final trust = ArtifactTrustAnchor(
+            signerFingerprints: const <String>[_keiyoushiSigner],
+          );
+          final sw = Stopwatch()..start();
+          final SourceOutcome<IosTachiPreparedArtifact> prepared =
+              await qualification.prepare(
+                packageId: packageIdOf(q),
+                bytes: artifact(q, kind),
+                kind: kind,
+                version: versionOf(q),
+                trust: trust,
+              );
+          final int prepareMs = sw.elapsedMilliseconds;
+          expect(prepared.failureOrNull, isNull);
+          final IosTachiPreparedArtifact a = prepared.valueOrNull!;
+          sw.reset();
+          final SourceOutcome<SourcePackage> opened = await qualification
+              .openPackage(a, SettingsSnapshot());
+          final int loadMs = sw.elapsedMilliseconds;
+          expect(opened.failureOrNull, isNull);
+          final SourcePackage package = opened.valueOrNull!;
+          try {
+            final ids = <String>[
+              for (final SourceSession s in package.sessions)
+                s.identity.sourceId,
+            ]..sort();
+            expect(
+              ids,
+              expectedSourceIds(q),
+              reason: 'exact int64 source identities',
+            );
+            for (final id in ids) {
+              expect(BigInt.parse(id).toString(), id);
+              expect(BigInt.parse(id).bitLength, lessThanOrEqualTo(63));
+            }
+            final SourceSession session = package.sessions.firstWhere(
+              (SourceSession s) => s.identity.sourceId == q.querySourceId,
+            );
+            sw.reset();
+            final SourceOutcome<SearchPage> searched = await session.search(
+              const SearchRequest(query: _query),
+            );
+            final int searchMs = sw.elapsedMilliseconds;
+            expect(searched.failureOrNull, isNull);
+            final SearchPage page = searched.valueOrNull!;
+            expect(page.hits, isNotEmpty);
+            final SearchHit hit = page.hits.firstWhere(
+              (SearchHit h) =>
+                  h.title.toLowerCase().contains(_query.toLowerCase()),
+              orElse: () => page.hits.first,
+            );
+            sw.reset();
+            final SourceOutcome<MangaSnapshot> fetched = await session
+                .fetchManga(hit.ref);
+            final int detailsMs = sw.elapsedMilliseconds;
+            expect(fetched.failureOrNull, isNull);
+            final MangaSnapshot snapshot = fetched.valueOrNull!;
+            expect(
+              snapshot.chapters.length,
+              greaterThanOrEqualTo(q.minChapters),
+            );
+            // Rehydrate from the durable reference alone (no live handle).
+            final SourceOutcome<MangaSnapshot> rehydrated = await session
+                .fetchManga(hit.ref.withHandle(null));
+            expect(
+              rehydrated.valueOrNull?.chapters.length,
+              snapshot.chapters.length,
+            );
+            final String canonical = jsonEncode(<Object?>[
+              <String>[for (final SearchHit h in page.hits) h.title],
+              snapshot.metadata.toJson(),
+              <Object?>[
+                for (final NativeChapter c in snapshot.chapters) c.toJson(),
+              ],
+            ]);
+            results['${q.dir}/$kind'] = canonical;
+            receipt('ae7-${q.dir}-$kind', <String, Object?>{
+              'sourceIds': ids,
+              'querySourceId': q.querySourceId,
+              'prepareMs': prepareMs,
+              'loadMs': loadMs,
+              'searchMs': searchMs,
+              'detailsMs': detailsMs,
+              'hits': page.hits.length,
+              'title': snapshot.metadata.title,
+              'chapters': snapshot.chapters.length,
+              'resultBytes': utf8.encode(canonical).length,
+              'preparedSha256': a.binding.sha256,
+              'inputSha256': a.input.sha256,
+            });
+          } finally {
+            await package.close();
           }
-          final SourceSession session = package.sessions.firstWhere(
-            (SourceSession s) => s.identity.sourceId == q.querySourceId,
-          );
-          sw.reset();
-          final SourceOutcome<SearchPage> searched = await session.search(const SearchRequest(query: _query));
-          final int searchMs = sw.elapsedMilliseconds;
-          expect(searched.failureOrNull, isNull);
-          final SearchPage page = searched.valueOrNull!;
-          expect(page.hits, isNotEmpty);
-          final SearchHit hit = page.hits.firstWhere(
-            (SearchHit h) => h.title.toLowerCase().contains(_query.toLowerCase()),
-            orElse: () => page.hits.first,
-          );
-          sw.reset();
-          final SourceOutcome<MangaSnapshot> fetched = await session.fetchManga(hit.ref);
-          final int detailsMs = sw.elapsedMilliseconds;
-          expect(fetched.failureOrNull, isNull);
-          final MangaSnapshot snapshot = fetched.valueOrNull!;
-          expect(snapshot.chapters.length, greaterThanOrEqualTo(q.minChapters));
-          // Rehydrate from the durable reference alone (no live handle).
-          final SourceOutcome<MangaSnapshot> rehydrated = await session.fetchManga(hit.ref.withHandle(null));
-          expect(rehydrated.valueOrNull?.chapters.length, snapshot.chapters.length);
-          final String canonical = jsonEncode(<Object?>[
-            <String>[for (final SearchHit h in page.hits) h.title],
-            snapshot.metadata.toJson(),
-            <Object?>[for (final NativeChapter c in snapshot.chapters) c.toJson()],
-          ]);
-          results['${q.dir}/$kind'] = canonical;
-          receipt('ae7-${q.dir}-$kind', <String, Object?>{
-            'sourceIds': ids,
-            'querySourceId': q.querySourceId,
-            'prepareMs': prepareMs,
-            'loadMs': loadMs,
-            'searchMs': searchMs,
-            'detailsMs': detailsMs,
-            'hits': page.hits.length,
-            'title': snapshot.metadata.title,
-            'chapters': snapshot.chapters.length,
-            'resultBytes': utf8.encode(canonical).length,
-            'preparedSha256': a.binding.sha256,
-            'inputSha256': a.input.sha256,
-          });
-        } finally {
-          await package.close();
-        }
-        if (kind == 'apk') {
-          expect(results['${q.dir}/apk'], results['${q.dir}/jar'], reason: 'JAR and converted APK disagree');
-        }
-      }, timeout: const Timeout(Duration(minutes: 20)));
+          if (kind == 'apk') {
+            expect(
+              results['${q.dir}/apk'],
+              results['${q.dir}/jar'],
+              reason: 'JAR and converted APK disagree',
+            );
+          }
+        },
+        timeout: const Timeout(Duration(minutes: 20)),
+      );
     }
   }
 
@@ -280,43 +366,73 @@ void main() {
   });
 
   group('KTD5 tamper refusal', () {
-    final trust = ArtifactTrustAnchor(signerFingerprints: const <String>[_keiyoushiSigner]);
-    const q = _Qualification('en.weebcentral', 'tachiyomi-en.weebcentral-v1.6.27', '', 0);
+    final trust = ArtifactTrustAnchor(
+      signerFingerprints: const <String>[_keiyoushiSigner],
+    );
+    const q = _Qualification(
+      'en.weebcentral',
+      'tachiyomi-en.weebcentral-v1.6.27',
+      '',
+      0,
+    );
 
     Future<SourceFailure?> prepareFailure(Uint8List bytes, String kind) async {
-      final SourceOutcome<IosTachiPreparedArtifact> r = await qualification.prepare(
-        packageId: packageIdOf(q),
-        bytes: bytes,
-        kind: kind,
-        version: versionOf(q),
-        trust: trust,
-      );
+      final SourceOutcome<IosTachiPreparedArtifact> r = await qualification
+          .prepare(
+            packageId: packageIdOf(q),
+            bytes: bytes,
+            kind: kind,
+            version: versionOf(q),
+            trust: trust,
+          );
       r.valueOrNull?.lease.release();
       return r.failureOrNull;
     }
 
-    test('a JAR with one modified class fails verification before loading', () async {
-      final Uint8List jar = artifact(q, 'jar');
-      final zip = _Zip.read(jar);
-      final String victim = zip.names.firstWhere((String n) => n.endsWith('.class'));
-      zip.replace(victim, (Uint8List b) => Uint8List.fromList(b)..[b.length ~/ 2] ^= 0x01);
-      final SourceFailure? f = await prepareFailure(zip.write(), 'jar');
-      expect(f, isA<ArtifactIncompatibleFailure>());
-      receipt('tamper-jar-modified', <String, Object?>{'entry': victim, 'failure': f.toString()});
-    });
+    test(
+      'a JAR with one modified class fails verification before loading',
+      () async {
+        final Uint8List jar = artifact(q, 'jar');
+        final zip = _Zip.read(jar);
+        final String victim = zip.names.firstWhere(
+          (String n) => n.endsWith('.class'),
+        );
+        zip.replace(
+          victim,
+          (Uint8List b) => Uint8List.fromList(b)..[b.length ~/ 2] ^= 0x01,
+        );
+        final SourceFailure? f = await prepareFailure(zip.write(), 'jar');
+        expect(f, isA<ArtifactIncompatibleFailure>());
+        receipt('tamper-jar-modified', <String, Object?>{
+          'entry': victim,
+          'failure': f.toString(),
+        });
+      },
+    );
 
-    test('a JAR with an appended unsigned class fails verification before loading', () async {
-      final zip = _Zip.read(artifact(q, 'jar'))
-        ..add('eu/kanade/tachiyomi/extension/en/weebcentral/Injected.class', _minimalClass());
-      final SourceFailure? f = await prepareFailure(zip.write(), 'jar');
-      expect(f, isA<ArtifactIncompatibleFailure>());
-      expect(f!.message, contains('not covered by the signature'));
-      receipt('tamper-jar-appended', <String, Object?>{'failure': f.toString()});
-    });
+    test(
+      'a JAR with an appended unsigned class fails verification before loading',
+      () async {
+        final zip = _Zip.read(artifact(q, 'jar'))
+          ..add(
+            'eu/kanade/tachiyomi/extension/en/weebcentral/Injected.class',
+            _minimalClass(),
+          );
+        final SourceFailure? f = await prepareFailure(zip.write(), 'jar');
+        expect(f, isA<ArtifactIncompatibleFailure>());
+        expect(f!.message, contains('not covered by the signature'));
+        receipt('tamper-jar-appended', <String, Object?>{
+          'failure': f.toString(),
+        });
+      },
+    );
 
     test('a tampered APK fails verification before conversion', () async {
       final zip = _Zip.read(artifact(q, 'apk'))
-        ..replace('classes.dex', (Uint8List b) => Uint8List.fromList(b)..[b.length - 9] ^= 0x01);
+        ..replace(
+          'classes.dex',
+          (Uint8List b) => Uint8List.fromList(b)..[b.length - 9] ^= 0x01,
+        );
       final SourceFailure? f = await prepareFailure(zip.write(), 'apk');
       expect(f, isA<ArtifactIncompatibleFailure>());
       expect(f!.message, contains('APK signature'));
@@ -330,31 +446,42 @@ void main() {
             bytes: artifact(q, 'apk'),
             kind: 'apk',
             version: versionOf(q),
-            trust: ArtifactTrustAnchor(signerFingerprints: <String>[testSigner]),
+            trust: ArtifactTrustAnchor(
+              signerFingerprints: <String>[testSigner],
+            ),
           )
           .then((SourceOutcome<IosTachiPreparedArtifact> r) => r.failureOrNull);
       expect(f, isA<ArtifactIncompatibleFailure>());
       receipt('untrusted-signer', <String, Object?>{'failure': f.toString()});
     });
 
-    test('a cached converted JAR is re-verified by digest before loading', () async {
-      final SourceOutcome<IosTachiPreparedArtifact> prepared = await qualification.prepare(
-        packageId: packageIdOf(q),
-        bytes: artifact(q, 'apk'),
-        kind: 'apk',
-        version: versionOf(q),
-        trust: trust,
-      );
-      final IosTachiPreparedArtifact a = prepared.valueOrNull!;
-      final String path = await a.lease.verifiedPath();
-      final file = File(path);
-      final Uint8List original = file.readAsBytesSync();
-      file.writeAsBytesSync(Uint8List.fromList(original)..[original.length ~/ 2] ^= 0x01);
-      final SourceOutcome<SourcePackage> opened = await qualification.openPackage(a, SettingsSnapshot());
-      expect(opened.failureOrNull, isA<ArtifactIncompatibleFailure>());
-      file.writeAsBytesSync(original);
-      receipt('tamper-cached', <String, Object?>{'failure': opened.failureOrNull.toString()});
-    });
+    test(
+      'a cached converted JAR is re-verified by digest before loading',
+      () async {
+        final SourceOutcome<IosTachiPreparedArtifact> prepared =
+            await qualification.prepare(
+              packageId: packageIdOf(q),
+              bytes: artifact(q, 'apk'),
+              kind: 'apk',
+              version: versionOf(q),
+              trust: trust,
+            );
+        final IosTachiPreparedArtifact a = prepared.valueOrNull!;
+        final String path = await a.lease.verifiedPath();
+        final file = File(path);
+        final Uint8List original = file.readAsBytesSync();
+        file.writeAsBytesSync(
+          Uint8List.fromList(original)..[original.length ~/ 2] ^= 0x01,
+        );
+        final SourceOutcome<SourcePackage> opened = await qualification
+            .openPackage(a, SettingsSnapshot());
+        expect(opened.failureOrNull, isA<ArtifactIncompatibleFailure>());
+        file.writeAsBytesSync(original);
+        receipt('tamper-cached', <String, Object?>{
+          'failure': opened.failureOrNull.toString(),
+        });
+      },
+    );
   });
 
   group('AE8 native deadlines', () {
@@ -365,14 +492,18 @@ void main() {
     late SourcePackage package;
 
     setUpAll(() async {
-      final trust = ArtifactTrustAnchor(signerFingerprints: <String>[testSigner]);
-      final SourceOutcome<IosTachiPreparedArtifact> prepared = await qualification.prepare(
-        packageId: 'fixture.busy',
-        bytes: File(bundle.fixtures['fixture-busy-signed.jar']!).readAsBytesSync(),
-        kind: 'jar',
-        version: '1',
-        trust: trust,
+      final trust = ArtifactTrustAnchor(
+        signerFingerprints: <String>[testSigner],
       );
+      final SourceOutcome<IosTachiPreparedArtifact> prepared =
+          await qualification.prepare(
+            packageId: 'fixture.busy',
+            bytes: File(bundle.fixtures['fixture-busy-signed.jar']!)
+                .readAsBytesSync(),
+            kind: 'jar',
+            version: '1',
+            trust: trust,
+          );
       expect(prepared.failureOrNull, isNull);
       busy = prepared.valueOrNull!;
       ae8 = backend(
@@ -382,7 +513,10 @@ void main() {
         hang: const <String>['hang.test'],
         label: 'ae8',
       );
-      final SourceOutcome<SourcePackage> opened = await ae8.openPackage(busy, SettingsSnapshot());
+      final SourceOutcome<SourcePackage> opened = await ae8.openPackage(
+        busy,
+        SettingsSnapshot(),
+      );
       expect(opened.failureOrNull, isNull);
       package = opened.valueOrNull!;
       session = package.sessions.single;
@@ -394,14 +528,20 @@ void main() {
     });
 
     Future<String> count() async =>
-        (await session.search(const SearchRequest(query: 'count'))).valueOrNull!.hits.single.title;
+        (await session.search(const SearchRequest(query: 'count')))
+            .valueOrNull!
+            .hits
+            .single
+            .title;
 
     for (final query in <String>['busy', 'catch', 'regex', 'hang']) {
       test('"$query" stops at its native deadline and stays stopped', () async {
         final int generation = ae8.supervisor!.generation;
         final int armedBefore = InVmWorkerProcess.armedDeadlines;
         final sw = Stopwatch()..start();
-        final SourceOutcome<SearchPage> r = await session.search(SearchRequest(query: query));
+        final SourceOutcome<SearchPage> r = await session.search(
+          SearchRequest(query: query),
+        );
         final int elapsed = sw.elapsedMilliseconds;
         expect(r.failureOrNull, isA<TimeoutFailure>(), reason: '$r');
         // Settled by the worker's native deadline: no Dart deadline, no restart.
@@ -423,46 +563,67 @@ void main() {
       });
     }
 
-    test('a delayed browser callback is bounded by the native deadline', () async {
-      final SourceOutcome<IosTachiPreparedArtifact> prepared = await qualification.prepare(
-        packageId: 'fixture.webview',
-        bytes: File(bundle.fixtures['fixture-webview-signed.jar']!).readAsBytesSync(),
-        kind: 'jar',
-        version: '1',
-        trust: ArtifactTrustAnchor(signerFingerprints: <String>[testSigner]),
-      );
-      final IosTachiPreparedArtifact webview = prepared.valueOrNull!;
-      final port = _TestBrowserPort(neverOpen: true);
-      final IosTachiBackend b = backend(native: native, dart: const Duration(seconds: 8), browser: port, label: 'wv1');
-      try {
-        final SourcePackage p = (await b.openPackage(webview, SettingsSnapshot())).valueOrNull!;
-        final sw = Stopwatch()..start();
-        final SourceOutcome<SearchPage> r = await p.sessions.single.search(const SearchRequest(query: 'solved'));
-        final int elapsed = sw.elapsedMilliseconds;
-        expect(r.failureOrNull, isA<TimeoutFailure>(), reason: '$r');
-        expect(elapsed, lessThan(4000));
-        expect(b.supervisor!.generation, 1);
-        await p.close();
-        receipt('ae8-browser', <String, Object?>{
-          'nativeDeadlineMs': native.inMilliseconds,
-          'elapsedMs': elapsed,
-          'opensRequested': port.opens,
-          'opensCancelled': port.cancelled,
-          'failure': r.failureOrNull.toString(),
-        });
-      } finally {
-        await b.close();
-      }
-    });
+    test(
+      'a delayed browser callback is bounded by the native deadline',
+      () async {
+        final SourceOutcome<IosTachiPreparedArtifact> prepared =
+            await qualification.prepare(
+              packageId: 'fixture.webview',
+              bytes: File(bundle.fixtures['fixture-webview-signed.jar']!)
+                  .readAsBytesSync(),
+              kind: 'jar',
+              version: '1',
+              trust: ArtifactTrustAnchor(
+                signerFingerprints: <String>[testSigner],
+              ),
+            );
+        final IosTachiPreparedArtifact webview = prepared.valueOrNull!;
+        final port = _TestBrowserPort(neverOpen: true);
+        final IosTachiBackend b = backend(
+          native: native,
+          dart: const Duration(seconds: 8),
+          browser: port,
+          label: 'wv1',
+        );
+        try {
+          final SourcePackage p = (await b.openPackage(
+            webview,
+            SettingsSnapshot(),
+          )).valueOrNull!;
+          final sw = Stopwatch()..start();
+          final SourceOutcome<SearchPage> r = await p.sessions.single.search(
+            const SearchRequest(query: 'solved'),
+          );
+          final int elapsed = sw.elapsedMilliseconds;
+          expect(r.failureOrNull, isA<TimeoutFailure>(), reason: '$r');
+          expect(elapsed, lessThan(4000));
+          expect(b.supervisor!.generation, 1);
+          await p.close();
+          receipt('ae8-browser', <String, Object?>{
+            'nativeDeadlineMs': native.inMilliseconds,
+            'elapsedMs': elapsed,
+            'opensRequested': port.opens,
+            'opensCancelled': port.cancelled,
+            'failure': r.failureOrNull.toString(),
+          });
+        } finally {
+          await b.close();
+        }
+      },
+    );
 
     test('a throwing script reaches the source as Android evaluateJavascript null (androidCompatible)', () async {
-      final SourceOutcome<IosTachiPreparedArtifact> prepared = await qualification.prepare(
-        packageId: 'fixture.webview',
-        bytes: File(bundle.fixtures['fixture-webview-signed.jar']!).readAsBytesSync(),
-        kind: 'jar',
-        version: '1',
-        trust: ArtifactTrustAnchor(signerFingerprints: <String>[testSigner]),
-      );
+      final SourceOutcome<IosTachiPreparedArtifact> prepared =
+          await qualification.prepare(
+            packageId: 'fixture.webview',
+            bytes: File(bundle.fixtures['fixture-webview-signed.jar']!)
+                .readAsBytesSync(),
+            kind: 'jar',
+            version: '1',
+            trust: ArtifactTrustAnchor(
+              signerFingerprints: <String>[testSigner],
+            ),
+          );
       final port = _TestBrowserPort();
       final IosTachiBackend b = backend(
         native: const Duration(seconds: 20),
@@ -471,13 +632,21 @@ void main() {
         label: 'wv2',
       );
       try {
-        final SourcePackage p = (await b.openPackage(prepared.valueOrNull!, SettingsSnapshot())).valueOrNull!;
-        final SourceOutcome<SearchPage> r = await p.sessions.single.search(const SearchRequest(query: 'evalthrow'));
+        final SourcePackage p = (await b.openPackage(
+          prepared.valueOrNull!,
+          SettingsSnapshot(),
+        )).valueOrNull!;
+        final SourceOutcome<SearchPage> r = await p.sessions.single.search(
+          const SearchRequest(query: 'evalthrow'),
+        );
         expect(r.failureOrNull, isNull);
         final String title = r.valueOrNull!.hits.single.title;
         expect(title, 'no-glue:eval=null');
         await p.close();
-        receipt('browser-script-error', <String, Object?>{'title': title, 'evaluations': port.evaluations});
+        receipt('browser-script-error', <String, Object?>{
+          'title': title,
+          'evaluations': port.evaluations,
+        });
       } finally {
         await b.close();
       }
@@ -485,16 +654,24 @@ void main() {
 
     test('R18: an extension cannot load native code', () async {
       final int images = IosJvmRuntime.loadedImageCount;
-      final SourceOutcome<SearchPage> r = await session.search(const SearchRequest(query: 'native'));
+      final SourceOutcome<SearchPage> r = await session.search(
+        const SearchRequest(query: 'native'),
+      );
       expect(r.failureOrNull, isNull);
       final String title = r.valueOrNull!.hits.single.title;
       // --illegal-native-access=deny refuses JNI and foreign library loads
       // from unnamed modules first (IllegalCallerException); the baked
       // java.base guard (UnsatisfiedLinkError) stands behind it.
       final attempts = <String, String>{
-        for (final String part in title.split(';')) part.split('=').first: part.split('=').last,
+        for (final String part in title.split(';'))
+          part.split('=').first: part.split('=').last,
       };
-      expect(attempts.keys, <String>['loadLibrary', 'load', 'reflective', 'foreign']);
+      expect(attempts.keys, <String>[
+        'loadLibrary',
+        'load',
+        'reflective',
+        'foreign',
+      ]);
       if (_guardOnly) {
         // Diagnostic run without --illegal-native-access=deny: the baked guard
         // alone refuses every JNI load; foreign lookups are only refused by deny.
@@ -503,7 +680,10 @@ void main() {
         expect(attempts['reflective'], 'UnsatisfiedLinkError');
       } else {
         for (final String outcome in attempts.values) {
-          expect(outcome, anyOf('IllegalCallerException', 'UnsatisfiedLinkError'));
+          expect(
+            outcome,
+            anyOf('IllegalCallerException', 'UnsatisfiedLinkError'),
+          );
         }
       }
       expect(IosJvmRuntime.loadedImageCount, images);
@@ -516,8 +696,15 @@ void main() {
   });
 
   test('session and package closure never destroy the VM; references return to baseline', () async {
-    final trust = ArtifactTrustAnchor(signerFingerprints: const <String>[_keiyoushiSigner]);
-    const q = _Qualification('all.mangadex', 'tachiyomi-all.mangadex-v1.6.4', '2499283573021220255', 1);
+    final trust = ArtifactTrustAnchor(
+      signerFingerprints: const <String>[_keiyoushiSigner],
+    );
+    const q = _Qualification(
+      'all.mangadex',
+      'tachiyomi-all.mangadex-v1.6.4',
+      '2499283573021220255',
+      1,
+    );
     final IosTachiPreparedArtifact first = (await qualification.prepare(
       packageId: packageIdOf(q),
       bytes: artifact(q, 'jar'),
@@ -536,10 +723,22 @@ void main() {
         version: versionOf(q),
         trust: trust,
       )).valueOrNull!;
-      expect(await a.lease.verifiedPath(), path, reason: 'cached by KTD5 identity');
-      final SourcePackage p = (await qualification.openPackage(a, SettingsSnapshot())).valueOrNull!;
-      final SourceSession s = p.sessions.firstWhere((SourceSession s) => s.identity.sourceId == q.querySourceId);
-      expect((await s.search(const SearchRequest(query: _query))).failureOrNull, isNull);
+      expect(
+        await a.lease.verifiedPath(),
+        path,
+        reason: 'cached by KTD5 identity',
+      );
+      final SourcePackage p = (await qualification.openPackage(
+        a,
+        SettingsSnapshot(),
+      )).valueOrNull!;
+      final SourceSession s = p.sessions.firstWhere(
+        (SourceSession s) => s.identity.sourceId == q.querySourceId,
+      );
+      expect(
+        (await s.search(const SearchRequest(query: _query))).failureOrNull,
+        isNull,
+      );
       await p.close();
       counts.add(<String, int>{
         'globalRefs': runtime.globalRefCount,
@@ -565,9 +764,17 @@ void main() {
       version: versionOf(q),
       trust: trust,
     )).valueOrNull!;
-    final SourcePackage p = (await again.openPackage(a, SettingsSnapshot())).valueOrNull!;
-    final SourceSession s = p.sessions.firstWhere((SourceSession s) => s.identity.sourceId == q.querySourceId);
-    expect((await s.search(const SearchRequest(query: _query))).failureOrNull, isNull);
+    final SourcePackage p = (await again.openPackage(
+      a,
+      SettingsSnapshot(),
+    )).valueOrNull!;
+    final SourceSession s = p.sessions.firstWhere(
+      (SourceSession s) => s.identity.sourceId == q.querySourceId,
+    );
+    expect(
+      (await s.search(const SearchRequest(query: _query))).failureOrNull,
+      isNull,
+    );
     await p.close();
     await again.close();
     expect(runtime.createdVmCount(), 1);
@@ -585,7 +792,10 @@ void main() {
 
   test('no platform channel carried any source operation', () {
     // Only the Flutter engine's own system channels may appear.
-    expect(platformMessages.where((String c) => !c.startsWith('flutter/')), isEmpty);
+    expect(
+      platformMessages.where((String c) => !c.startsWith('flutter/')),
+      isEmpty,
+    );
   });
 }
 
@@ -601,13 +811,17 @@ final class _TestBrowserPort implements BrowserPort {
   final List<String> evaluations = <String>[];
 
   @override
-  Future<BrowserOutcome<void>> wipeAllSourceData() async => const BrowserCompleted<void>(null);
+  Future<BrowserOutcome<void>> wipeAllSourceData() async =>
+      const BrowserCompleted<void>(null);
 
   @override
   Future<void> fence(int generation) async {}
 
   @override
-  Future<BrowserOutcome<BrowserSession>> openSession(BrowserSessionRequest request, {CancellationToken? cancel}) async {
+  Future<BrowserOutcome<BrowserSession>> openSession(
+    BrowserSessionRequest request, {
+    CancellationToken? cancel,
+  }) async {
     opens++;
     if (neverOpen) {
       await (cancel ?? CancellationToken.none).whenCancelled;
@@ -619,7 +833,9 @@ final class _TestBrowserPort implements BrowserPort {
 }
 
 final class _TestSession implements BrowserSession {
-  _TestSession(this._port, BrowserSessionRequest request) : source = request.source, generation = request.generation;
+  _TestSession(this._port, BrowserSessionRequest request)
+    : source = request.source,
+      generation = request.generation;
 
   final _TestBrowserPort _port;
 
@@ -634,7 +850,10 @@ final class _TestSession implements BrowserSession {
 
   @override
   BrowserCapabilities get capabilities => BrowserCapabilities(
-    available: const <BrowserFeature>{BrowserFeature.pageStartScripts, BrowserFeature.scriptErrors},
+    available: const <BrowserFeature>{
+      BrowserFeature.pageStartScripts,
+      BrowserFeature.scriptErrors,
+    },
     unavailable: const <BrowserFeature, String>{
       BrowserFeature.observeSubresources: 'test port',
       BrowserFeature.replaceRequests: 'test port',
@@ -646,14 +865,24 @@ final class _TestSession implements BrowserSession {
     Uri url, {
     Map<String, String> headers = const <String, String>{},
     CancellationToken? cancel,
-  }) async => BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: url, statusCode: 200));
+  }) async => BrowserCompleted<BrowserPage>(
+    BrowserPage(finalUrl: url, statusCode: 200),
+  );
 
   @override
-  Future<BrowserOutcome<BrowserPage>> loadData(String html, {required Uri baseUrl, CancellationToken? cancel}) async =>
-      BrowserCompleted<BrowserPage>(BrowserPage(finalUrl: baseUrl, statusCode: 200));
+  Future<BrowserOutcome<BrowserPage>> loadData(
+    String html, {
+    required Uri baseUrl,
+    CancellationToken? cancel,
+  }) async => BrowserCompleted<BrowserPage>(
+    BrowserPage(finalUrl: baseUrl, statusCode: 200),
+  );
 
   @override
-  Future<BrowserOutcome<String>> evaluate(String script, {CancellationToken? cancel}) async {
+  Future<BrowserOutcome<String>> evaluate(
+    String script, {
+    CancellationToken? cancel,
+  }) async {
     _port.evaluations.add(script);
     return script.contains('throw')
         ? const BrowserScriptError<String>('Error: boom')
@@ -661,38 +890,60 @@ final class _TestSession implements BrowserSession {
   }
 
   @override
-  Future<BrowserOutcome<void>> addPageStartScript(String script) async => const BrowserCompleted<void>(null);
-
-  @override
-  Future<BrowserOutcome<void>> setRequestObserver(BrowserRequestObserver? observer) async =>
-      const BrowserCapabilityUnavailable<void>('setRequestObserver', 'test port');
-
-  @override
-  Future<BrowserOutcome<void>> setRequestReplacer(BrowserRequestReplacer? replacer) async =>
-      const BrowserCapabilityUnavailable<void>('setRequestReplacer', 'test port');
-
-  @override
-  Future<BrowserOutcome<void>> setMessageHandler(String name, void Function(String message)? handler) async =>
+  Future<BrowserOutcome<void>> addPageStartScript(String script) async =>
       const BrowserCompleted<void>(null);
 
   @override
-  Future<BrowserOutcome<List<BrowserCookie>>> getCookies(Uri url, {CancellationToken? cancel}) async =>
-      const BrowserCompleted<List<BrowserCookie>>(<BrowserCookie>[]);
+  Future<BrowserOutcome<void>> setRequestObserver(
+    BrowserRequestObserver? observer,
+  ) async => const BrowserCapabilityUnavailable<void>(
+    'setRequestObserver',
+    'test port',
+  );
 
   @override
-  Future<BrowserOutcome<void>> setCookie(Uri url, BrowserCookie cookie, {CancellationToken? cancel}) async =>
-      const BrowserCompleted<void>(null);
+  Future<BrowserOutcome<void>> setRequestReplacer(
+    BrowserRequestReplacer? replacer,
+  ) async => const BrowserCapabilityUnavailable<void>(
+    'setRequestReplacer',
+    'test port',
+  );
 
   @override
-  Future<BrowserOutcome<void>> setUserAgent(String userAgent, {CancellationToken? cancel}) async =>
-      const BrowserCompleted<void>(null);
+  Future<BrowserOutcome<void>> setMessageHandler(
+    String name,
+    void Function(String message)? handler,
+  ) async => const BrowserCompleted<void>(null);
 
   @override
-  Future<BrowserOutcome<void>> showForInteraction({required Duration timeout, CancellationToken? cancel}) async =>
+  Future<BrowserOutcome<List<BrowserCookie>>> getCookies(
+    Uri url, {
+    CancellationToken? cancel,
+  }) async => const BrowserCompleted<List<BrowserCookie>>(<BrowserCookie>[]);
+
+  @override
+  Future<BrowserOutcome<void>> setCookie(
+    Uri url,
+    BrowserCookie cookie, {
+    CancellationToken? cancel,
+  }) async => const BrowserCompleted<void>(null);
+
+  @override
+  Future<BrowserOutcome<void>> setUserAgent(
+    String userAgent, {
+    CancellationToken? cancel,
+  }) async => const BrowserCompleted<void>(null);
+
+  @override
+  Future<BrowserOutcome<void>> showForInteraction({
+    required Duration timeout,
+    CancellationToken? cancel,
+  }) async =>
       const BrowserInteractionRequired<void>('test port has no display');
 
   @override
-  Future<BrowserOutcome<void>> close() async => const BrowserCompleted<void>(null);
+  Future<BrowserOutcome<void>> close() async =>
+      const BrowserCompleted<void>(null);
 }
 
 /// The smallest valid class file (`public class Injected`), for the
@@ -706,7 +957,14 @@ Uint8List _minimalClass() => Uint8List.fromList(<int>[
   0x07, 0x00, 0x04, // #3 Class #4
   0x01, 0x00, 0x10, ...'java/lang/Object'.codeUnits, // #4 Utf8
   0x00, 0x21, 0x00, 0x01, 0x00, 0x03, // flags, this, super
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // interfaces, fields, methods, attributes
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x00, // interfaces, fields, methods, attributes
 ]);
 
 /// Minimal ZIP rewriter for the tamper cases: reads every entry (stored or
@@ -742,14 +1000,17 @@ final class _Zip {
       final int start = local + 30 + localName + localExtra;
       final Uint8List raw = bytes.sublist(start, start + compressed);
       if (!name.endsWith('/')) {
-        entries[name] = method == 0 ? raw : Uint8List.fromList(ZLibDecoder(raw: true).convert(raw));
+        entries[name] = method == 0
+            ? raw
+            : Uint8List.fromList(ZLibDecoder(raw: true).convert(raw));
       }
       p += 46 + nameLen + extraLen + commentLen;
     }
     return _Zip._(entries);
   }
 
-  void replace(String name, Uint8List Function(Uint8List) change) => _entries[name] = change(_entries[name]!);
+  void replace(String name, Uint8List Function(Uint8List) change) =>
+      _entries[name] = change(_entries[name]!);
 
   void add(String name, Uint8List data) => _entries[name] = data;
 
