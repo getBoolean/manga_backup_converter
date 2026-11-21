@@ -8,4 +8,5 @@ export 'src/aidoku_backend.dart';
 export 'src/android_source_runtime.dart';
 export 'src/browser_port.dart';
 export 'src/paperback_backend.dart';
+export 'src/runtime_licenses.dart';
 export 'src/tachi_backend.dart';
