@@ -260,9 +260,9 @@ void main() {
       check(m.source.toString()).equals(_weebCentralId);
       check(m.chapters.length).isGreaterThan(100);
       check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
-      _writeReceipt('windows-tachi-two-repositories-one-worker', <String, Object?>{
+      _writeReceipt('${Platform.operatingSystem}-tachi-two-repositories-one-worker', <String, Object?>{
         ..._workerIdentity(workerSeen),
-        'java': _worker.location?.java == null ? null : p.basename(p.dirname(p.dirname(_worker.location!.java))),
+        'java': _worker.location?.java == null ? null : _jreName(_worker.location!.java),
         'artifacts': <Object?>[
           for (final TachiCapture c in tachiCaptures())
             if (c.source != 'all.mangafire')
@@ -353,7 +353,7 @@ void main() {
           .isA<SourceErrorFailure>()
           .has((SourceErrorFailure f) => f.message, 'message')
           .contains('VRF capture timed out');
-      _writeReceipt('windows-paperback-executeinwebview-helper', <String, Object?>{
+      _writeReceipt('${Platform.operatingSystem}-paperback-executeinwebview-helper', <String, Object?>{
         'webview': <String, Object?>{'engine': engine, 'engineVersion': engineVersion},
         'artifact': <String, Object?>{
           'kind': 'paperback-bundle-0.9',
@@ -415,4 +415,13 @@ bool _processAlive(int pid) {
     return (r.stdout as String).contains(' $pid ');
   }
   return Process.runSync('kill', <String>['-0', '$pid']).exitCode == 0;
+}
+
+/// The JRE directory name of a `java` executable: `<jre>/bin/java`, or the
+/// `.jdk` bundle on macOS (`<name>.jdk/Contents/Home/bin/java`).
+String _jreName(String java) {
+  final String home = p.dirname(p.dirname(java));
+  return p.basename(home) == 'Home' && p.basename(p.dirname(home)) == 'Contents'
+      ? p.basename(p.dirname(p.dirname(home)))
+      : p.basename(home);
 }

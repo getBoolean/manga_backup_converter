@@ -67,13 +67,32 @@ Future<void> main(List<String> args) async {
   final bundle = Directory(p.join(cli, 'build', 'cli', _cliTarget, 'bundle'));
   await _copyTree(bundle, out);
 
-  print('== Tachi worker (installDist)');
   final String runner = p.join(_root, 'tools', 'tachi-source-runner');
+  print('== pinned Corretto JDK');
+  final pins = jsonDecode(
+    File(p.join(runner, 'runtime', 'jre-pins.json')).readAsStringSync(),
+  ) as Map<String, Object?>;
+  final Map<String, Object?> archive = (pins['archives']! as List<Object?>)
+      .cast<Map<String, Object?>>()
+      .firstWhere(
+        (Map<String, Object?> a) => a['os'] == _os && a['arch'] == _arch,
+        orElse: () => throw StateError(
+          'No pinned JDK archive for $_os-$_arch in jre-pins.json',
+        ),
+      );
+  final File archiveFile = await _download(
+    Uri.parse(archive['url']! as String),
+    archive['sha256']! as String,
+    cache,
+  );
+  final String extractedJdk = await _extractJdk(archiveFile, cache);
+
+  print('== Tachi worker (installDist)');
   final String gradle = p.join(
     runner,
     Platform.isWindows ? 'gradlew.bat' : 'gradlew',
   );
-  final String jdk = _buildJdk();
+  final String jdk = _buildJdk(extractedJdk);
   await _run(
     gradle,
     <String>[if (offlineGradle) '--offline', 'installDist'],
@@ -102,23 +121,6 @@ Future<void> main(List<String> args) async {
   );
 
   print('== JRE (jlink from the pinned Corretto archive)');
-  final pins = jsonDecode(
-    File(p.join(runner, 'runtime', 'jre-pins.json')).readAsStringSync(),
-  ) as Map<String, Object?>;
-  final Map<String, Object?> archive = (pins['archives']! as List<Object?>)
-      .cast<Map<String, Object?>>()
-      .firstWhere(
-        (Map<String, Object?> a) => a['os'] == _os && a['arch'] == _arch,
-        orElse: () => throw StateError(
-          'No pinned JDK archive for $_os-$_arch in jre-pins.json',
-        ),
-      );
-  final File archiveFile = await _download(
-    Uri.parse(archive['url']! as String),
-    archive['sha256']! as String,
-    cache,
-  );
-  final String extractedJdk = await _extractJdk(archiveFile, cache);
   final String jreOut = p.join(out.path, 'runtime', 'jre');
   await _run(p.join(extractedJdk, 'bin', 'jlink$_exe'), <String>[
     '--module-path',
@@ -177,11 +179,31 @@ Future<void> main(List<String> args) async {
       missing.add(c.key);
     }
   }
+  final nativeLibs = <String>[
+    for (final FileSystemEntity e in Directory(
+      p.join(out.path, 'lib'),
+    ).listSync())
+      if (e is File) p.basename(e.path),
+  ];
+  for (final MapEntry<String, String?> l in _nativeLicences(
+    nativeLibs,
+  ).entries) {
+    if (l.value == null) {
+      missing.add(l.key);
+    } else {
+      File(l.value!).copySync(p.join(licenses.path, l.key));
+    }
+  }
   File(p.join(licenses.path, 'desktop_webview_helper-crates.txt'))
       .writeAsStringSync(await _crateLicenses());
   File(p.join(licenses.path, 'NOTICE.md'))
-      .writeAsStringSync(_notice(javaVersion, pins));
-  if (missing.isNotEmpty) print('   missing licence sources: $missing');
+      .writeAsStringSync(_notice(javaVersion, pins, nativeLibs));
+  if (missing.isNotEmpty) throw StateError('Missing licence sources: $missing');
+
+  if (Platform.isMacOS) {
+    print('== macOS code signatures (local runs; no distribution signing)');
+    print('   ${await _macosSignatures(out)}');
+  }
 
   print('== runtime manifest');
   final manifest = <String, Object?>{
@@ -208,13 +230,15 @@ Future<void> main(List<String> args) async {
   print('Package written to ${out.path}');
 }
 
-/// A JDK for Gradle: TACHI_JAVA_HOME, the documented Corretto install, then
-/// JAVA_HOME (the floor applies; Gradle's toolchain also checks it).
-String _buildJdk() {
+/// A JDK for Gradle: TACHI_JAVA_HOME, the documented Windows Corretto
+/// install, then the pinned Corretto JDK the package's JRE is jlinked from
+/// ([pinned]; it is at the security floor by construction). JAVA_HOME is not
+/// used: it may be any version.
+String _buildJdk(String pinned) {
   for (final home in <String?>[
     Platform.environment['TACHI_JAVA_HOME'],
     if (Platform.isWindows) r'C:\Program Files\Amazon Corretto\jdk21.0.13_1',
-    Platform.environment['JAVA_HOME'],
+    pinned,
   ]) {
     if (home != null && File(p.join(home, 'bin', 'java$_exe')).existsSync()) {
       return home;
@@ -325,6 +349,40 @@ Future<void> _copyTree(Directory from, Directory to) async {
   }
 }
 
+/// Apple silicon refuses to run unsigned code: every Mach-O file must carry a
+/// valid signature. Vendor and linker (ad-hoc) signatures are kept; a file
+/// whose signature does not verify is signed ad hoc (`codesign -s -`). Any
+/// quarantine attribute is removed. No Developer ID signing or notarization.
+Future<String> _macosSignatures(Directory out) async {
+  var machO = 0;
+  final resigned = <String>[];
+  for (final File f in out.listSync(recursive: true).whereType<File>()) {
+    final ProcessResult kind = await Process.run('file', <String>[
+      '-b',
+      f.path,
+    ]);
+    if (!(kind.stdout as String).startsWith('Mach-O')) continue;
+    machO++;
+    final ProcessResult verify = await Process.run('codesign', <String>[
+      '-v',
+      f.path,
+    ]);
+    if (verify.exitCode == 0) continue;
+    final ProcessResult sign = await Process.run('codesign', <String>[
+      '-s',
+      '-',
+      '-f',
+      f.path,
+    ]);
+    if (sign.exitCode != 0) {
+      throw StateError('codesign -s - ${f.path}: ${sign.stderr}');
+    }
+    resigned.add(p.relative(f.path, from: out.path));
+  }
+  await Process.run('xattr', <String>['-dr', 'com.apple.quarantine', out.path]);
+  return '$machO Mach-O files verified; signed ad hoc: ${resigned.isEmpty ? 'none' : resigned.join(', ')}';
+}
+
 /// SHA-256 of every file under [dir], keyed by its `/`-separated relative path.
 Future<Map<String, String>> _hashTree(Directory dir) async {
   final files = <String, String>{};
@@ -337,6 +395,66 @@ Future<Map<String, String>> _hashTree(Directory dir) async {
     files[rel] = _sha256(f);
   }
   return files;
+}
+
+/// Licence texts for native libraries that `dart build cli` bundled from
+/// outside the repository's vendored sources, keyed by their name under
+/// `licenses/` (value `null`: not found). SwiftSoup (iOS/macOS jsoup
+/// backend) and its Swift packages come from the swiftsoup build hook's SPM
+/// checkouts for this host; `objective_c` from its pub package.
+Map<String, String?> _nativeLicences(List<String> libs) {
+  final result = <String, String?>{};
+  if (libs.any((String l) => l.contains('objective_c'))) {
+    final config = jsonDecode(
+      File(p.join(_root, '.dart_tool', 'package_config.json'))
+          .readAsStringSync(),
+    ) as Map<String, Object?>;
+    final Map<String, Object?>? pkg = (config['packages']! as List<Object?>)
+        .cast<Map<String, Object?>>()
+        .where((Map<String, Object?> e) => e['name'] == 'objective_c')
+        .firstOrNull;
+    final String? license = pkg == null
+        ? null
+        : p.join(Uri.parse(pkg['rootUri']! as String).toFilePath(), 'LICENSE');
+    result['objective_c-LICENSE'] =
+        license != null && File(license).existsSync() ? license : null;
+  }
+  if (libs.any((String l) => l.contains('SwiftSoup'))) {
+    final triple = _arch == 'arm64' ? 'arm64' : 'x86_64';
+    final build = Directory(
+      p.join(
+        _root,
+        '.dart_tool',
+        'hooks_runner',
+        'shared',
+        'swiftsoup',
+        'build',
+      ),
+    );
+    final Directory? checkouts = build.existsSync()
+        ? build
+              .listSync()
+              .whereType<Directory>()
+              .where(
+                (Directory d) =>
+                    p.basename(d.path).startsWith('swiftsoup-macosx-$triple'),
+              )
+              .map((Directory d) => Directory(p.join(d.path, 'checkouts')))
+              .where((Directory d) => d.existsSync())
+              .firstOrNull
+        : null;
+    for (final MapEntry<String, String> f in <String, String>{
+      'swiftsoup-LICENSE': 'SwiftSoup/LICENSE',
+      'swift-atomics-LICENSE.txt': 'swift-atomics/LICENSE.txt',
+      'lrucache-LICENSE.md': 'LRUCache/LICENSE.md',
+    }.entries) {
+      final String? path = checkouts == null
+          ? null
+          : p.join(checkouts.path, f.value);
+      result[f.key] = path != null && File(path).existsSync() ? path : null;
+    }
+  }
+  return result;
 }
 
 /// The helper's crates and their declared licences (`cargo metadata`).
@@ -369,8 +487,13 @@ Future<String> _crateLicenses() async {
   return '${lines.join('\n')}\n';
 }
 
-String _notice(String javaVersion, Map<String, Object?> pins) =>
-    '''
+String _notice(
+  String javaVersion,
+  Map<String, Object?> pins,
+  List<String> libs,
+) {
+  bool has(String part) => libs.any((String l) => l.contains(part));
+  return '''
 # Third-party components in this package
 
 | Component | Where | Licence |
@@ -380,8 +503,7 @@ String _notice(String javaVersion, Map<String, Object?> pins) =>
 | desktop_webview_helper (wry, tao and their crates) | `runtime/desktop_webview/` | MIT (helper); crates in `desktop_webview_helper-crates.txt` |
 | QuickJS-ng | `lib/` (native asset) | MIT, `quickjs-ng-LICENSE` |
 | wasm3 | `lib/` (native asset) | MIT, `wasm3-LICENSE` |
-| Rust scraper bridge (scraper 0.25, html5ever) | `lib/scraper_bridge` (native asset) | MIT/Apache-2.0 crates; texts not bundled (gap) |
-| SQLite | `lib/sqlite3` (native asset, `sqlite3` package) | public domain |
+${has('scraper') ? '| Rust scraper bridge (scraper 0.25, html5ever) | `lib/scraper_bridge` (native asset) | MIT/Apache-2.0 crates; texts not bundled (gap) |\n' : ''}${has('SwiftSoup') ? '| SwiftSoup and its Swift packages (swift-atomics, LRUCache) | `lib/libSwiftSoupWrapper.dylib` (native asset) | MIT, Apache-2.0, MIT: `swiftsoup-LICENSE`, `swift-atomics-LICENSE.txt`, `lrucache-LICENSE.md` |\n' : ''}${has('objective_c') ? '| Dart `objective_c` runtime support | `lib/objective_c.dylib` (native asset) | BSD-3-Clause, `objective_c-LICENSE` |\n' : ''}| SQLite | `lib/sqlite3` (native asset, `sqlite3` package) | public domain |
 | Paperback host library (Cheerio and its dependencies) | inside the CLI executable | `paperback-host-lib-LICENSES.txt` |
 
 No extension, repository or source artifact is bundled: repositories, extensions and
@@ -390,6 +512,7 @@ settings are always supplied by the user.
 Platform WebView prerequisites are not bundled: WebView2 Runtime on Windows (preinstalled on
 Windows 11), WebKitGTK 4.1 on Linux, WKWebView on macOS (part of the OS).
 ''';
+}
 
 /// Fails if anything from the repository's test fixtures was copied.
 void _checkNoFixtures(Directory out) {

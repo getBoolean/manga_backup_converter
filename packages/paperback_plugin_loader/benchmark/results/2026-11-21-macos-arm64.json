@@ -1,0 +1,170 @@
+{
+  "benchmark": "quickjs-limits-v1",
+  "engine": "0.18.0",
+  "os": "macos",
+  "osVersion": "Version 27.0 (Build 26A428)",
+  "dartVersion": "3.14.0",
+  "device": {
+    "physicalMemoryBytes": 17179869184,
+    "threadStackBytes": 8354143,
+    "processors": 8,
+    "calibrationMicros": 28152
+  },
+  "workloads": {
+    "bundle-eval": {
+      "description": "Evaluate a ~1 MiB synthetic bundle and call into it",
+      "medianMicros": 31311,
+      "p95Micros": 39132,
+      "peakAllocatedBytes": 5577774,
+      "minimalHeapLimitBytes": 5583477,
+      "minimalStackLimitBytes": 16334
+    },
+    "html-parse": {
+      "description": "Parse a ~600 KiB results page into a tree and extract 1000 cards",
+      "medianMicros": 18192,
+      "p95Micros": 19391,
+      "peakAllocatedBytes": 4382822,
+      "minimalHeapLimitBytes": 4397861,
+      "minimalStackLimitBytes": 16334
+    },
+    "json-response": {
+      "description": "Fetch a ~2 MiB JSON response through the promise bridge and map it",
+      "medianMicros": 16302,
+      "p95Micros": 50964,
+      "peakAllocatedBytes": 13628450,
+      "minimalHeapLimitBytes": 13677602,
+      "minimalStackLimitBytes": 12263
+    },
+    "deep-tree": {
+      "description": "Recursive descent over a 64-level nested structure (deep DOM nesting)",
+      "medianMicros": 54,
+      "p95Micros": 69,
+      "peakAllocatedBytes": 192504,
+      "minimalHeapLimitBytes": 197626,
+      "minimalStackLimitBytes": 69259
+    },
+    "await-loop": {
+      "description": "2000 sequential awaits on host calls",
+      "medianMicros": 96836,
+      "p95Micros": 134433,
+      "peakAllocatedBytes": 180344,
+      "minimalHeapLimitBytes": 188506,
+      "minimalStackLimitBytes": 12263
+    }
+  },
+  "jsFrameStackBytes": 1008,
+  "maxRecursionDepthAtStackCeiling": 4143,
+  "stackCeilingBytes": 4177127,
+  "interruptOvershootMicros": {
+    "median": 204,
+    "max": 440
+  },
+  "profile": {
+    "source": "synthetic workloads, macos 64-bit JSValue build",
+    "peakHeapBytes": 13677602,
+    "peakStackBytes": 69259,
+    "slowestOperationMicros": 134433,
+    "referenceCalibrationMicros": 28152
+  },
+  "sizing": {
+    "concurrent-1": {
+      "rule": "quickjs-sizing-v2",
+      "limits": {
+        "memoryLimitBytes": 27355204,
+        "maxStackBytes": 138518,
+        "operationDeadlineMicros": 537732,
+        "jobSliceMicros": 10754
+      },
+      "device": {
+        "physicalMemoryBytes": 17179869184,
+        "threadStackBytes": 8354143,
+        "processors": 8,
+        "calibrationMicros": 28152
+      },
+      "profile": {
+        "source": "synthetic workloads, macos 64-bit JSValue build",
+        "peakHeapBytes": 13677602,
+        "peakStackBytes": 69259,
+        "slowestOperationMicros": 134433,
+        "referenceCalibrationMicros": 28152
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 1,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    },
+    "concurrent-4": {
+      "rule": "quickjs-sizing-v2",
+      "limits": {
+        "memoryLimitBytes": 27355204,
+        "maxStackBytes": 138518,
+        "operationDeadlineMicros": 537732,
+        "jobSliceMicros": 10754
+      },
+      "device": {
+        "physicalMemoryBytes": 17179869184,
+        "threadStackBytes": 8354143,
+        "processors": 8,
+        "calibrationMicros": 28152
+      },
+      "profile": {
+        "source": "synthetic workloads, macos 64-bit JSValue build",
+        "peakHeapBytes": 13677602,
+        "peakStackBytes": 69259,
+        "slowestOperationMicros": 134433,
+        "referenceCalibrationMicros": 28152
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 4,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    },
+    "concurrent-8": {
+      "rule": "quickjs-sizing-v2",
+      "limits": {
+        "memoryLimitBytes": 27355204,
+        "maxStackBytes": 138518,
+        "operationDeadlineMicros": 537732,
+        "jobSliceMicros": 10754
+      },
+      "device": {
+        "physicalMemoryBytes": 17179869184,
+        "threadStackBytes": 8354143,
+        "processors": 8,
+        "calibrationMicros": 28152
+      },
+      "profile": {
+        "source": "synthetic workloads, macos 64-bit JSValue build",
+        "peakHeapBytes": 13677602,
+        "peakStackBytes": 69259,
+        "slowestOperationMicros": 134433,
+        "referenceCalibrationMicros": 28152
+      },
+      "policy": {
+        "heapHeadroom": 2.0,
+        "stackHeadroom": 2.0,
+        "deadlineHeadroom": 4.0,
+        "maxMemoryShare": 0.25,
+        "maxThreadStackShare": 0.5,
+        "slicesPerDeadline": 50
+      },
+      "concurrentRuntimes": 8,
+      "hostWaitAllowanceMicros": 0,
+      "warnings": []
+    }
+  }
+}

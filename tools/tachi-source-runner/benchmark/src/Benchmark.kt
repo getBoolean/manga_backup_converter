@@ -483,7 +483,7 @@ fun main(args: Array<String>) {
     val peak = tp.maxOf { it.second }
     val knee = tp.filter { it.second >= 0.9 * peak }.minOf { it.first }
     val rule = SizingRule(
-        source = "docs/validation/source-runners/desktop/benchmark-${System.getProperty("os.name").lowercase().replace(' ', '-')}.json (${started})",
+        source = "docs/validation/source-runners/desktop/benchmark-${osTag()}.json (${started})",
         coresFactor = round(1.0 / bench.cpuUtilisation.coerceAtLeast(0.01)),
         baseHeapMiB = ceil(baseHeap),
         perPackageHeapMiB = ceil(maxOf(perPackage, 1.0) * 2),
@@ -501,7 +501,7 @@ fun main(args: Array<String>) {
     val derived = rule.derive(inputs)
     val machine = buildJsonObject {
         put("os", "${System.getProperty("os.name")} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}")
-        put("cpu", System.getenv("PROCESSOR_IDENTIFIER") ?: "unknown")
+        put("cpu", cpuName())
         put("logicalCores", cores)
         put("benchmarkJvmMaxHeapMiB", inputs.maxHeapMiB)
         put("workerJvmMaxHeapMiB", 1024)
@@ -509,6 +509,8 @@ fun main(args: Array<String>) {
     }
     val results = buildJsonObject {
         put("recordedAt", started.toString())
+        put("hostCommit", git(repo, "rev-parse", "HEAD"))
+        put("hostDirty", git(repo, "status", "--porcelain", "--untracked-files=no")?.isNotEmpty())
         put("quick", quick)
         put("machine", machine)
         put("network", "replay of committed captures (fixtures/source_captures/tachi); no network")
@@ -540,12 +542,41 @@ fun main(args: Array<String>) {
         return
     }
     val outDir = File(repo, "docs/validation/source-runners/desktop").apply { mkdirs() }
-    val tag = System.getProperty("os.name").lowercase().replace(' ', '-')
+    val tag = osTag()
     val pretty = kotlinx.serialization.json.Json { prettyPrint = true }
     File(outDir, "benchmark-$tag.json").writeText(pretty.encodeToString(JsonObject.serializer(), results) + "\n")
     File(repo, "tools/tachi-source-runner/src/main/resources/tachi-worker-sizing.json").writeText(pretty.encodeToString(JsonObject.serializer(), rule.toJson()) + "\n")
     System.err.println(pretty.encodeToString(JsonObject.serializer(), results))
 }
+
+/** Results file tag: `windows-11`, `macos-<major>` (os.name says "Mac OS X"), `linux`. */
+fun osTag(): String {
+    val name = System.getProperty("os.name")
+    if (name.startsWith("Mac")) return "macos-${System.getProperty("os.version").substringBefore('.')}"
+    return name.lowercase().replace(' ', '-')
+}
+
+/** CPU model for the machine identity (Evidence Identity). */
+fun cpuName(): String {
+    System.getenv("PROCESSOR_IDENTIFIER")?.let { return it }
+    val os = System.getProperty("os.name")
+    val probe = when {
+        os.startsWith("Mac") -> listOf("sysctl", "-n", "machdep.cpu.brand_string")
+        os.startsWith("Linux") -> listOf("sh", "-c", "grep -m1 'model name' /proc/cpuinfo | cut -d: -f2")
+        else -> return "unknown"
+    }
+    return runCatching {
+        val p = ProcessBuilder(probe).redirectErrorStream(true).start()
+        p.inputStream.bufferedReader().readText().trim().also { p.waitFor() }
+    }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "unknown"
+}
+
+/** `git <args>` output in [repo], or null when git is unavailable. */
+fun git(repo: File, vararg args: String): String? = runCatching {
+    val p = ProcessBuilder(listOf("git", "-C", repo.absolutePath) + args).redirectErrorStream(true).start()
+    val out = p.inputStream.bufferedReader().readText().trim()
+    if (p.waitFor() == 0) out else null
+}.getOrNull()
 
 /**
  * Policy multipliers applied to measured values. Replay removes network latency, so

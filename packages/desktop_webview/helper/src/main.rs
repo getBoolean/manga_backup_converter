@@ -84,6 +84,10 @@ pub enum UserEvent {
   Ipc { session: String, uri: String, body: String },
   EvalDispatched { session: String, seq: u64, ok: bool },
   NavStarting { session: String, uri: String, rejected: bool },
+  /// A new main-frame document committed (engines with
+  /// `platform::DRAIN_EVALS_ON_COMMIT`): the old document's evaluations end.
+  #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+  Committed { session: String },
   NavFinished { session: String, url: String, ok: bool, status: Option<i64>, error: Option<String> },
   RedirectRejected { session: String, location: String },
   Request(RequestEvent),
@@ -298,6 +302,13 @@ fn wipe_pass(root: &Path, own: Option<&Path>) -> Wiped {
     if own.and_then(Path::file_name).is_some_and(|o| o == e.file_name()) || !name.starts_with("h-") {
       continue;
     }
+    // POSIX lets a directory in use be renamed and removed, so a directory
+    // whose helper (`h-<pid>`) is still running is left alone and reported.
+    #[cfg(unix)]
+    if helper_alive(&name) {
+      w.failures.push(format!("{name}: its helper process is still running"));
+      continue;
+    }
     // Rename first: a live helper's browser process holds files open, so
     // its directory cannot be renamed (Windows) and is left untouched
     // instead of being partly deleted. Only renamed directories are removed.
@@ -317,6 +328,21 @@ fn wipe_pass(root: &Path, own: Option<&Path>) -> Wiped {
     }
   }
   w
+}
+
+/// Whether the process named by a data directory `h-<pid>[.wipe]` is alive
+/// (a live process with that ID, possibly one that reused it after the
+/// helper died: then the directory is only kept until the next wipe).
+#[cfg(unix)]
+fn helper_alive(name: &str) -> bool {
+  extern "C" {
+    fn kill(pid: i32, sig: i32) -> i32;
+  }
+  let pid = name.strip_prefix("h-").and_then(|r| r.split('.').next()).and_then(|p| p.parse::<i32>().ok());
+  let Some(pid) = pid.filter(|p| *p > 0 && *p as u32 != std::process::id()) else { return false };
+  // Signal 0 checks existence; EPERM means it exists under another user.
+  let r = unsafe { kill(pid, 0) };
+  r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(1)
 }
 
 fn nonce() -> String {
@@ -590,6 +616,9 @@ impl App {
         if !policy::is_js_identifier(name) {
           return out.err(id, "capability-unavailable", format!("channel name {name:?} is not a JavaScript identifier"), Some(("operation", json!("setMessageHandler"))));
         }
+        if let Some((_, reason)) = platform::RESERVED_CHANNELS.iter().find(|(n, _)| *n == name) {
+          return out.err(id, "capability-unavailable", format!("channel name {name:?} is reserved: {reason}"), Some(("operation", json!("setMessageHandler"))));
+        }
         let enabled = cmd.get("enabled").and_then(Value::as_bool).unwrap_or(true);
         let js = {
           let sh = s.shared.borrow();
@@ -630,7 +659,7 @@ impl App {
         if !policy::is_allowed_base(url) {
           return out.err(id, "capability-unavailable", format!("cookies need an http(s) URL, got {url}"), Some(("operation", json!("getCookies"))));
         }
-        match s.webview.cookies_for_url(url) {
+        match platform::cookies_for_url(&s.webview, url) {
           Ok(list) => out.ok(id, json!({"cookies": list.iter().map(cookie_json).collect::<Vec<_>>()})),
           Err(e) => out.err(id, "capability-unavailable", format!("cannot read cookies: {e}"), Some(("operation", json!("getCookies")))),
         }
@@ -732,8 +761,10 @@ impl App {
       UserEvent::NavStarting { session, uri, rejected } => {
         let Some(s) = self.sessions.get_mut(&session) else { return };
         // A new document discards pending evaluations of the old one.
-        for (_, req) in s.pending_evals.drain() {
-          self.out.err(req, "navigated", "the page navigated away before the script completed", None);
+        if !platform::DRAIN_EVALS_ON_COMMIT {
+          for (_, req) in s.pending_evals.drain() {
+            self.out.err(req, "navigated", "the page navigated away before the script completed", None);
+          }
         }
         if rejected {
           if let Some(p) = s.pending_load.as_mut() {
@@ -741,6 +772,12 @@ impl App {
           }
         } else {
           s.shared.borrow_mut().load_chain.push(uri);
+        }
+      }
+      UserEvent::Committed { session } => {
+        let Some(s) = self.sessions.get_mut(&session) else { return };
+        for (_, req) in s.pending_evals.drain() {
+          self.out.err(req, "navigated", "the page navigated away before the script completed", None);
         }
       }
       UserEvent::RedirectRejected { session, location } => {
@@ -883,9 +920,17 @@ fn build_cookie(url: &str, c: &Value) -> Result<wry::cookie::Cookie<'static>, St
   let host = policy::host_of(url).ok_or_else(|| format!("cannot derive a cookie domain from {url}"))?;
   let mut b = wry::cookie::Cookie::build((name, value))
     .domain(str_field(c, "domain").map(str::to_string).unwrap_or(host))
-    .path(str_field(c, "path").map(str::to_string).unwrap_or_else(|| "/".into()))
-    .secure(c.get("secure").and_then(Value::as_bool).unwrap_or(false))
-    .http_only(c.get("httpOnly").and_then(Value::as_bool).unwrap_or(false));
+    .path(str_field(c, "path").map(str::to_string).unwrap_or_else(|| "/".into()));
+  // Set only when true: wry's WKWebView cookie conversion writes the
+  // `Secure`/`HttpOnly` property whenever it is present, and Foundation
+  // treats a present `HttpOnly` as set even with the value "FALSE" (measured:
+  // the cookie then never reached `document.cookie`).
+  if c.get("secure").and_then(Value::as_bool).unwrap_or(false) {
+    b = b.secure(true);
+  }
+  if c.get("httpOnly").and_then(Value::as_bool).unwrap_or(false) {
+    b = b.http_only(true);
+  }
   if let Some(secs) = c.get("expiresUnix").and_then(Value::as_i64) {
     let t = wry::cookie::time::OffsetDateTime::from_unix_timestamp(secs).map_err(|e| e.to_string())?;
     b = b.expires(t);
@@ -934,6 +979,14 @@ fn main() {
       fatal(&out, "init-failed", &format!("cannot create data directory: {e}"));
     }
     data_dir = Some(dir);
+  }
+  // WKWebView: compile the offline content rules before any session exists
+  // (fail closed).
+  #[cfg(target_os = "macos")]
+  if opts.offline {
+    if let Err(e) = platform::prepare_offline(data_dir.as_deref()) {
+      fatal(&out, "offline-unsupported", &e);
+    }
   }
 
   let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -996,6 +1049,8 @@ fn main() {
             std::thread::sleep(std::time::Duration::from_millis(100));
           }
         }
+        #[cfg(target_os = "macos")]
+        platform::cleanup();
         let (tx, _) = mpsc::channel();
         app.out = Out(tx);
         if let Some(w) = writer.take() {
