@@ -116,6 +116,9 @@ class ReplayTransport private constructor(val captures: List<CaptureFormat.Captu
                 val (exchange, bytes) = hit
                 val builder = MockResponse.Builder().code(exchange.status).body(Buffer().write(bytes))
                 for ((k, v) in exchange.headers) builder.setHeader(k, v)
+                // One header per cookie: OkHttp reads each Set-Cookie line as a single cookie (Dart's
+                // comma-joined form is a package:http artefact).
+                for (c in exchange.setCookies) builder.addHeader("Set-Cookie", c.toHeader())
                 return builder.build()
             }
             val key = CaptureFormat.key(method, url, body, emptySet())

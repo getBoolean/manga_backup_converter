@@ -37,6 +37,11 @@ class Factory : eu.kanade.tachiyomi.source.SourceFactory {
  * and, for `replace` / `redirect`, answers the main frame), `evalerr` (a throwing
  * evaluateJavascript instead of a channel message). `evalthrow` (U9 iOS) also
  * evaluates a throwing script, from its own WebViewClient, with the `bridge` channel installed.
+ *
+ * Protocol 1.3 queries ([interaction]): `show` (show for interaction; a message on `bridge` completes it),
+ * `showexplicit` (the extension's own handler calls `endInteraction`), `showtwice` (two WebViews show at
+ * once), `showignore` (ignores a failed show and waits), `evalpromise` (a promise-returning script, then a plain one), `evalreject`, `evalhang` (a
+ * promise that never settles).
  */
 class WebViewSource : HttpSource() {
     override val name = "WebView"
@@ -48,6 +53,7 @@ class WebViewSource : HttpSource() {
     override suspend fun getLatestUpdates(page: Int) = MangasPage(emptyList(), false)
 
     override suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
+        if (query.startsWith("show") || query.startsWith("evalp") || query in setOf("evalreject", "evalhang")) return interaction(query)
         val probe = try {
             WebView.getWebViewClassLoader().loadClass("org.chromium.support_lib_glue.SupportLibReflectionUtil")
             "glue"
@@ -140,6 +146,58 @@ class WebViewSource : HttpSource() {
         error?.let { throw IOException("WebView failed: $it") }
         val suffix = if (query in setOf("observe", "replace")) "|seen=${seen.joinToString(";")}" else removeOutcome
         return MangasPage(listOf(SManga.create().apply { url = "/w"; title = "$probe:$result$suffix" }), false)
+    }
+
+    private fun interaction(query: String): MangasPage {
+        val views = if (query == "showtwice") 2 else 1
+        val latch = CountDownLatch(views)
+        val results = java.util.concurrent.CopyOnWriteArrayList<String>()
+        var error: String? = null
+        val created = java.util.concurrent.CopyOnWriteArrayList<WebView>()
+        val main = Handler(Looper.getMainLooper())
+        fun done(value: String) {
+            results += value
+            latch.countDown()
+        }
+        repeat(views) {
+            main.post {
+                val view = WebView(Injekt.get<Application>())
+                created += view
+                view.settings.javaScriptEnabled = true
+                view.addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun postMessage(message: String) {
+                        if (query == "showexplicit" && message == "solved") view.hostBackend().endInteraction()
+                    }
+                }, "bridge")
+                view.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        when (query) {
+                            "evalpromise" -> view.evaluateJavascript("new Promise(r => setTimeout(() => r({ ok: 1 }), 100))") { first ->
+                                view.evaluateJavascript("1 + 1") { second -> done("eval=$first;$second") }
+                            }
+                            "evalreject" -> view.evaluateJavascript("Promise.reject(new Error('boom'))") { done("eval=$it") }
+                            "evalhang" -> view.evaluateJavascript("new Promise(() => {})") { done("eval=$it") }
+                            else -> view.hostBackend().showForInteraction(if (query == "showexplicit") emptySet() else setOf("bridge")) {
+                                done("outcome=$it")
+                            }
+                        }
+                    }
+
+                    override fun onReceivedError(view: WebView, request: WebResourceRequest, error2: WebResourceError) {
+                        // `showignore` keeps waiting after a failed show, so only the worker's deadline ends it.
+                        if (query == "showignore") return
+                        error = error2.description.toString()
+                        while (latch.count > 0) latch.countDown()
+                    }
+                }
+                view.loadDataWithBaseURL("https://webview.test/", "<html><body>challenge</body></html>", "text/html", "UTF-8", null)
+            }
+        }
+        if (!latch.await(30, TimeUnit.SECONDS)) throw IOException("WebView timed out")
+        main.post { created.forEach { it.destroy() } }
+        error?.let { throw IOException("WebView failed: $it") }
+        return MangasPage(listOf(SManga.create().apply { url = "/w"; title = results.sorted().joinToString(",") }), false)
     }
 
     override suspend fun getMangaUpdate(manga: SManga, chapters: List<SChapter>, fetchDetails: Boolean, fetchChapters: Boolean) =

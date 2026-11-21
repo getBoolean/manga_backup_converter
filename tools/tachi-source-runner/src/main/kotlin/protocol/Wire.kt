@@ -23,9 +23,10 @@ object Wire {
 
     /**
      * Highest minor version of [VERSION] this worker speaks (1.1: string sets, source scopes,
-     * trustedSigners; 1.2: browser capabilities, page-start scripts, request interception).
+     * trustedSigners; 1.2: browser capabilities, page-start scripts, request interception; 1.3: show
+     * outcomes, `host.browser.endInteraction`, `interaction.started` / `interaction.ended`, awaited evaluate).
      */
-    const val MINOR_VERSION = 2
+    const val MINOR_VERSION = 3
     const val MAX_FRAME_BYTES = 16 * 1024 * 1024
     const val MAX_SAFE_INTEGER = 9007199254740991L
 
