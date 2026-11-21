@@ -459,31 +459,35 @@ void main() {
       }
     }, timeout: const Timeout(Duration(minutes: 10)));
 
-    test('MangaDex: 0.9 and 0.8 (community 3.0.6) complete the JSON chapter feed', () async {
-      final InAppSiteRun run = await runSiteInIsolate(
-        'mangadex',
-        limits: _limits(),
-        supervisorLimits: _supervisorLimits,
-      );
-      _record('mangadex', <Object?>[
-        for (final BundleRun r in run.runs) r.toJson(),
-      ]);
-      expect(run.misses, isEmpty);
-      final BundleRun inkdex = run.runs.firstWhere(
-        (BundleRun r) => r.family == PaperbackApiFamily.v09,
-      );
-      final MangaSnapshot s =
-          (inkdex.details! as SourceSuccess<MangaSnapshot>).value;
-      expect(s.metadata.title, "ONIMAI: I'm Now Your Sister!");
-      expect(s.chapters, hasLength(223));
-      final BundleRun community = run.runs.firstWhere(
-        (BundleRun r) => r.family == PaperbackApiFamily.v08,
-      );
-      final MangaSnapshot c =
-          (community.details! as SourceSuccess<MangaSnapshot>).value;
-      expect(c.metadata.authors, <String>['Nekotoufu']);
-      expect(c.chapters, hasLength(223));
-    }, timeout: const Timeout(Duration(minutes: 10)));
+    test(
+      'MangaDex: 0.9 and 0.8 (community 3.0.6) complete the JSON chapter feed',
+      () async {
+        final InAppSiteRun run = await runSiteInIsolate(
+          'mangadex',
+          limits: _limits(),
+          supervisorLimits: _supervisorLimits,
+        );
+        _record('mangadex', <Object?>[
+          for (final BundleRun r in run.runs) r.toJson(),
+        ]);
+        expect(run.misses, isEmpty);
+        final BundleRun inkdex = run.runs.firstWhere(
+          (BundleRun r) => r.family == PaperbackApiFamily.v09,
+        );
+        final MangaSnapshot s =
+            (inkdex.details! as SourceSuccess<MangaSnapshot>).value;
+        expect(s.metadata.title, "ONIMAI: I'm Now Your Sister!");
+        expect(s.chapters, hasLength(223));
+        final BundleRun community = run.runs.firstWhere(
+          (BundleRun r) => r.family == PaperbackApiFamily.v08,
+        );
+        final MangaSnapshot c =
+            (community.details! as SourceSuccess<MangaSnapshot>).value;
+        expect(c.metadata.authors, <String>['Nekotoufu']);
+        expect(c.chapters, hasLength(223));
+      },
+      timeout: const Timeout(Duration(minutes: 10)),
+    );
 
     test('AE11: MangaFire 0.9 executeInWebView runs on WKWebView (offline replay; outcome recorded)', () async {
       final port = WKWebViewBrowserPort(
