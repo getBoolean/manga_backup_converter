@@ -758,20 +758,21 @@ void registerU12Cases() {
         final Map<String, Object?> after = await port.debugState();
         // Each closed session's profile is deleted, or parked verified empty
         // for reuse while Chromium still holds it.
-        final List<Object?> free = after['freeProfiles']! as List<Object?>;
-        expect(
-          (after['profiles']! as List<Object?>).where(
-            (Object? p) =>
-                '$p'.startsWith('srt-') &&
+        final free = after['freeProfiles']! as List<Object?>;
+        final leftover = <Object?>[
+          for (final Object? p in after['profiles']! as List<Object?>)
+            if ('$p'.startsWith('srt-') &&
                 !'$p'.startsWith('srt-probe-') &&
-                !free.contains(p),
-          ),
-          isEmpty,
-        );
+                !free.contains(p))
+              p,
+        ];
         _receipt('isolation-close', <String, Object?>{
+          'sessionProfiles': <String?>[a.profile, b.profile],
           'profilesAfterClose': after['profiles'],
           'freeProfiles': free,
+          'leftover': leftover,
         });
+        expect(leftover, isEmpty);
       } finally {
         await port.dispose();
       }

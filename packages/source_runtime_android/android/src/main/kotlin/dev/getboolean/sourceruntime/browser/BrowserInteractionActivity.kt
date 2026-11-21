@@ -31,6 +31,8 @@ class BrowserInteractionActivity : Activity() {
         private set
 
     private var userClosed = false
+    private var host: AppBrowserHost? = null
+    private var root: LinearLayout? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +44,7 @@ class BrowserInteractionActivity : Activity() {
             return
         }
         sessionId = pending.sessionId
+        host = pending.host
         (view.parent as? ViewGroup)?.removeView(view)
         session.contextWrapper.baseContext = this
         val close = Button(this).apply {
@@ -54,7 +57,9 @@ class BrowserInteractionActivity : Activity() {
             addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         setContentView(root)
+        this.root = root
         current = this
+        pending.activity = this
         pending.host.event(pending.sessionId, "interaction", JSONObject().put("state", if (pending.shownOnce) "reattached" else "shown"))
         pending.shownOnce = true
     }
@@ -67,6 +72,8 @@ class BrowserInteractionActivity : Activity() {
 
     private fun closeByUser() {
         userClosed = true
+        // The show ends now; onDestroy may run seconds later.
+        active?.takeIf { it.sessionId == sessionId }?.let { end(it, "closed") }
         finish()
     }
 
@@ -74,18 +81,19 @@ class BrowserInteractionActivity : Activity() {
         val pending = active
         val id = sessionId
         if (current === this) current = null
-        if (pending != null && id != null && pending.sessionId == id) {
-            val session = pending.host.session(id)
-            session?.webView?.let { (it.parent as? ViewGroup)?.removeView(it) }
-            session?.contextWrapper?.baseContext = applicationContext
-            when {
-                // A new instance re-attaches the WebView; the show goes on.
-                isChangingConfigurations && !userClosed && !pending.hidden -> Unit
-                pending.hidden -> end(pending, "hidden")
-                else -> end(pending, "closed")
-            }
-        }
+        // A new instance re-attaches the WebView on a configuration change;
+        // any other end of this Activity ends the interaction as the user's.
+        if (pending != null && id != null && pending.activity === this && !isChangingConfigurations) end(pending, "closed")
+        detach()
         super.onDestroy()
+    }
+
+    /** Releases the session's WebView from this Activity (it outlives it). */
+    private fun detach() {
+        root?.removeAllViews()
+        root = null
+        val session = sessionId?.let { host?.session(it) } ?: return
+        if (session.contextWrapper.baseContext === this) session.contextWrapper.baseContext = applicationContext
     }
 
     companion object {
@@ -99,6 +107,9 @@ class BrowserInteractionActivity : Activity() {
         private class Active(val host: AppBrowserHost, val sessionId: String, val callId: Long) {
             var hidden = false
             var shownOnce = false
+
+            /** The Activity instance hosting this show (a new one after recreation). */
+            var activity: BrowserInteractionActivity? = null
         }
 
         internal fun show(host: AppBrowserHost, session: BrowserSessionView, callId: Long) {
@@ -122,8 +133,10 @@ class BrowserInteractionActivity : Activity() {
             val pending = active ?: return
             if (pending.sessionId != sessionId) return
             pending.hidden = true
+            // The show ends now; the Activity's onDestroy may run seconds later.
+            end(pending, "hidden")
             val activity = current
-            if (activity != null && activity.sessionId == sessionId) activity.finish() else end(pending, "hidden")
+            if (activity != null && activity.sessionId == sessionId) activity.finish()
         }
 
         /** Test hook: recreates the shown Activity as a configuration change would. */

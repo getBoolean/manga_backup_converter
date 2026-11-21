@@ -511,6 +511,9 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
   final Map<String, _Op<String>> _promises = <String, _Op<String>>{};
   _Op<BrowserPage>? _nav;
   _Op<void>? _interaction;
+
+  /// Base URL of the current loadData document, or `null` after a loadUrl.
+  Uri? _dataDocument;
   BrowserRequestObserver? _observer;
   int _nextEval = 1;
 
@@ -602,6 +605,7 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
     CancellationToken? cancel,
   ) {
     _nav?.cancel('Superseded by a new load');
+    _dataDocument = op == 'loadData' ? requested : null;
     // The document is replaced: promise results of the old one never come.
     for (final _Op<String> p in _promises.values) {
       p.cancel('The document was replaced by a new load');
@@ -671,6 +675,10 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
     if (refused != null) return refused;
     final _Op<String> op = _track<String>('evaluate', cancel);
     final evalId = '${_bridge}e${_nextEval++}';
+    // Registered before sending: a promise that settles at once posts its
+    // result on the bridge before evaluateJavascript replies.
+    _promises[evalId] = op;
+    unawaited(op.future.whenComplete(() => _promises.remove(evalId)));
     unawaited(
       _send('evaluate', <String, Object?>{'script': _wrap(script, evalId)}).then((_Reply? r) async {
         if (r == null || op.isSettled) return;
@@ -689,8 +697,7 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
         } else if (decoded['ok'] is String) {
           op.settle(BrowserCompleted<String>(decoded['ok']! as String));
         } else if (decoded['p'] != null) {
-          _promises[evalId] = op;
-          unawaited(op.future.whenComplete(() => _promises.remove(evalId)));
+          // Pending: the bridge settles it (or already did).
         } else if (decoded['csp'] != null) {
           _port._log('page CSP forbids eval; evaluating unwrapped (no promise awaiting, throws read as null)');
           final _Reply? raw = await _send('evaluate', <String, Object?>{'script': script});
@@ -737,10 +744,19 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
         if (channel is! String || text is! String) return;
         final void Function(String)? handler = _channels[channel];
         if (handler == null) return;
-        final Uri? document = Uri.tryParse(event['document'] as String? ?? '');
+        // WebView reports a loadData document as its `data:` URL; its origin
+        // is the base URL the session loaded it with.
+        final String raw = event['document'] as String? ?? '';
+        final Uri? document = raw.isEmpty || raw.startsWith('data:') ? _dataDocument : Uri.tryParse(raw);
         final Uri? origin = Uri.tryParse(event['origin'] as String? ?? '');
-        if (document == null || origin == null) return;
-        if (!BrowserMessageChannel.accepts(documentUrl: document, frameOrigin: origin)) return;
+        if (document == null || origin == null) {
+          _port._log('dropped a "$channel" message: unreadable document or frame origin');
+          return;
+        }
+        if (!BrowserMessageChannel.accepts(documentUrl: document, frameOrigin: origin)) {
+          _port._log('dropped a "$channel" message: frame origin $origin, document $document');
+          return;
+        }
         try {
           handler(text);
         } on Object catch (e) {
@@ -752,12 +768,16 @@ final class AndroidWebViewBrowserSession implements BrowserSession {
   String _channelScript(Iterable<String> names) =>
       '''
 (function () {
-  var b = window[${jsonEncode(_bridge)}];
-  if (!b) return;
+  var B = ${jsonEncode(_bridge)};
   ${jsonEncode(names.toList())}.forEach(function (n) {
     try {
       window[n] = Object.freeze({
-        postMessage: function (m) { if (typeof m === 'string') b.postMessage(JSON.stringify({k: 'm', c: n, m: m})); }
+        postMessage: function (m) {
+          // Looked up per call: in loadData documents the engine installs the
+          // bridge after document-start scripts run.
+          var b = window[B];
+          if (b && typeof m === 'string') b.postMessage(JSON.stringify({k: 'm', c: n, m: m}));
+        }
       });
     } catch (e) {}
   });

@@ -499,6 +499,9 @@ internal class BrowserSessionView(
         val view = webView ?: return
         webView = null
         observe = false
+        // No live WebView holds the profile now; whatever it holds is left for
+        // close() or, after a process death or abandon, the start-up wipe.
+        profile?.let { ProfilePool.inUse -= it }
         (view.parent as? ViewGroup)?.removeView(view)
         view.stopLoading()
         view.destroy()
@@ -530,10 +533,29 @@ internal class BrowserSessionView(
     }
 }
 
-/** Counts started Activities of this process (process-wide foreground state). */
+/**
+ * Counts started Activities of this process (process-wide foreground state).
+ *
+ * Listeners hear "background" (0) only after no Activity has been started
+ * for [BACKGROUND_DELAY_MS], as `ProcessLifecycleOwner` does: an Activity
+ * recreated for a configuration change, or one replacing another, stops
+ * before its successor starts, and that gap is not the app leaving the
+ * foreground.
+ */
 internal object ActivityTracker : android.app.Application.ActivityLifecycleCallbacks {
     @Volatile var started = 0
         private set
+
+    private const val BACKGROUND_DELAY_MS = 700L
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var reported = -1
+    private val reportBackground = Runnable { if (started == 0) report() }
+
+    private fun report() {
+        if ((reported == 0) == (started == 0) && reported != -1) return
+        reported = started
+        listeners.keys.forEach { it(started) }
+    }
 
     @Volatile var top: android.app.Activity? = null
         private set
@@ -548,6 +570,7 @@ internal object ActivityTracker : android.app.Application.ActivityLifecycleCallb
         (context.applicationContext as android.app.Application).registerActivityLifecycleCallbacks(this)
         // Activities started before the first host existed.
         started = currentlyStarted(context)
+        reported = started
     }
 
     fun remove(onChange: (Int) -> Unit) {
@@ -565,12 +588,16 @@ internal object ActivityTracker : android.app.Application.ActivityLifecycleCallb
 
     override fun onActivityStarted(activity: android.app.Activity) {
         started++
-        listeners.keys.forEach { it(started) }
+        main.removeCallbacks(reportBackground)
+        report()
     }
 
     override fun onActivityStopped(activity: android.app.Activity) {
         started = (started - 1).coerceAtLeast(0)
-        listeners.keys.forEach { it(started) }
+        if (started == 0) {
+            main.removeCallbacks(reportBackground)
+            main.postDelayed(reportBackground, BACKGROUND_DELAY_MS)
+        }
     }
 
     override fun onActivityResumed(activity: android.app.Activity) {
