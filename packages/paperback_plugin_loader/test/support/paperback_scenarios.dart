@@ -12,8 +12,8 @@ const String qualificationQuery = 'Onimai';
 /// Sites whose catalogue does not answer [qualificationQuery] search the
 /// same title by another of its names.
 const Map<String, String> siteQueries = <String, String>{
-  // Mangahub lists the title as "Onii-chan wa Oshimai!"; its search matches
-  // words of the title, so the "Onimai" short form finds nothing.
+  // Mangahub lists the title as "Onii-Chan wa Oshimai". "Onimai" was not
+  // tried (one capture session); "Oshimai" was chosen as a word of that title.
   'mangahub': 'Oshimai',
 };
 

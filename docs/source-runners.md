@@ -243,8 +243,8 @@ Every query carries an access token twice, as the `mhub_access` cookie and the `
 rejects a request where they differ. The source mints a token until the site sets one, then uses the site's. Its
 interceptor echoes `getDefaultUserAgent()`, throws `Error("CLOUDFLARE BYPASS ERROR: …")` on a challenge page
 (`cf-mitigated: challenge`, or 403/503 with challenge markers), and reads `set-cookie` from `response.headers`.
-The capture session (2026-11-21, query `Oshimai`: Mangahub lists the title as "Onii-Chan wa Oshimai", and its
-search does not match the "Onimai" short form) made 3 requests at least 1.5 s apart and was not challenged.
+The capture session (2026-11-21, query `Oshimai`, a word of Mangahub's title "Onii-Chan wa Oshimai"; `Onimai` was
+not tried) made 3 requests at least 1.5 s apart and was not challenged.
 The 11 hits include `onii-chan-wa-oshimai` and `onii-chan-is-done-for`; the scenario takes the first hit, which is
 another title (`oshimai`, "Oshimai", Kawasaki Tadataka, 21 chapters). Replay keys ignore request headers and
 captures drop `Set-Cookie`, so in replay the source runs on its own minted token.
@@ -263,8 +263,17 @@ with the real bundle over the committed capture) show:
 - the clearance stays for the runtime: later operations need no browser;
 - an unsolved challenge, no display, or a retry challenged again ends as `interaction-required` with one browser
   session and at most one retry; without the intent the browser is never used;
+- the same holds on the desktop path (provider, supervisor, worker reverse requests): a challenged search ends the
+  scenario as `interaction-required`, and with a solving port the scenario completes, `show` being served under
+  the supervisor's interaction timeout;
 - with a `Set-Cookie: mhub_access=…` added to the first replayed answer, every request carries exactly one
-  `mhub_access` cookie equal to its `x-mhub-access` header, and the site's token replaces the minted one.
+  `mhub_access` cookie equal to its `x-mhub-access` header, and the site's token replaces the minted one; after a
+  bypass whose browser also holds an `mhub_access`, the request's own token still wins.
+
+Not yet proven: a real challenge solved in a real browser (U8), whether the site accepts the browser's user agent
+when the engine's client hints disagree, and when `host.browser.show` completes (window close or only the bound).
+The worker's engine deadline keeps running during `show` (only the supervisor's deadline pauses), so a slow user
+can exceed it.
 
 ### Trust and admission (KTD6)
 

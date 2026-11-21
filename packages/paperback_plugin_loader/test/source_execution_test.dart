@@ -24,7 +24,11 @@ import 'support/scripted_browser_port.dart';
 
 /// Runs [site]'s scenario against its committed capture. [port] serves
 /// browser reverse requests when given.
-Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPort? port}) async {
+Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(
+  String site, {
+  BrowserPort? port,
+  http.Client Function(MultiReplayHttpClient replay)? wrap,
+}) async {
   final client = MultiReplayHttpClient.load(<Directory>[Directory('${paperbackFixtures().path}/$site')]);
   final repos = <PinnedRepository>[for (final PinnedBundle b in captureSites[site]!) PinnedRepository.load(b.repoDir)];
   final BrowserReverseBridge? bridge = port == null
@@ -62,7 +66,7 @@ Future<(List<BundleRun>, MultiReplayHttpClient)> _replay(String site, {BrowserPo
       shutdownGrace: Duration(seconds: 5),
     ),
     launcher: inProcessPaperbackLauncher(
-      client: client,
+      client: wrap == null ? client : wrap(client),
       limits: testLimits(deadline: const Duration(minutes: 15)),
     ),
     onReverseRequest: bridge?.handle,
@@ -261,6 +265,12 @@ void main() {
         onShow: (ScriptedPage page) {
           page.state['solved'] = true;
           page.cookies['cf_clearance'] = const BrowserCookie(name: 'cf_clearance', value: 'ok', domain: '.mangahub.io');
+          // The browser's page visit got a token of its own.
+          page.cookies['mhub_access'] = const BrowserCookie(
+            name: 'mhub_access',
+            value: 'browser',
+            domain: 'mangahub.io',
+          );
           return const BrowserCompleted<void>(null);
         },
       );
@@ -303,11 +313,63 @@ void main() {
         for (final http.BaseRequest r in client.seen.skip(1)) {
           check(r.headers['user-agent']).equals(browserUa);
           check(_cookies(r, 'cf_clearance')).deepEquals(<String>['ok']);
+          // One token, the request's own (matching its header), not the browser's.
           check(r.headers['x-mhub-access']).equals(_cookies(r, 'mhub_access').single);
+          check(_cookies(r, 'mhub_access').single).not((Subject<String> it) => it.equals('browser'));
         }
       } finally {
         h.dispose();
         await channel.close();
+      }
+    });
+
+    test('worker path: a challenged search is interaction-required and the scenario stops there', () async {
+      _Gate? gate;
+      final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay(
+        'mangahub',
+        wrap: (MultiReplayHttpClient replay) => gate = _Gate(replay, challengeUntilCleared: true),
+      );
+      check(client.misses).isEmpty();
+      final BundleRun run = runs.single;
+      check(run.page1)
+          .isA<SourceFailed<SearchPage>>()
+          .has((SourceFailed<SearchPage> f) => f.failure, 'failure')
+          .isA<InteractionRequiredFailure>();
+      check(run.details).isNull();
+      check(gate!.seen).length.equals(1);
+    });
+
+    test('worker path: the bypass runs over worker reverse requests and the scenario completes', () async {
+      const browserUa = 'ScriptedBrowser/1.0';
+      final port = ScriptedBrowserPort(
+        probe: (ScriptedPage page) => <String, Object?>{
+          'challenged': page.state['solved'] != true,
+          'userAgent': page.userAgent ?? browserUa,
+        },
+        onShow: (ScriptedPage page) {
+          page.state['solved'] = true;
+          page.cookies['cf_clearance'] = const BrowserCookie(name: 'cf_clearance', value: 'ok', domain: '.mangahub.io');
+          return const BrowserCompleted<void>(null);
+        },
+      );
+      _Gate? gate;
+      final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay(
+        'mangahub',
+        port: port,
+        wrap: (MultiReplayHttpClient replay) =>
+            gate = _Gate(replay, challengeUntilCleared: true, browserUserAgent: browserUa),
+      );
+      check(client.misses).isEmpty();
+      final BundleRun run = runs.single;
+      check(_page(run).hits).length.equals(11);
+      _checkChapters(_snapshot(run), count: 21);
+      // `show` was served under the supervisor's interaction timeout.
+      check(port.pages.single.shown).equals(1);
+      check(port.closed).length.equals(1);
+      check(gate!.challenged).equals(1);
+      for (final http.BaseRequest r in gate!.seen.skip(1)) {
+        check(r.headers['user-agent']).equals(browserUa);
+        check(_cookies(r, 'cf_clearance')).deepEquals(<String>['ok']);
       }
     });
   });

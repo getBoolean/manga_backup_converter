@@ -228,8 +228,9 @@ final class PaperbackBrowser {
         state = await _pageState(session, cancel);
       }
       if (state.challenged) {
-        // The user solves it in a visible window; `show` returns when the
-        // window closes or the interaction times out.
+        // The user solves it in a visible window. The page is probed again
+        // once `show` completes; the contract does not yet say whether it
+        // completes when the window closes or only when the bound expires.
         await _send(HostBrowserShow(session: session), cancel);
         state = await _pageState(session, cancel);
         if (state.challenged) {
