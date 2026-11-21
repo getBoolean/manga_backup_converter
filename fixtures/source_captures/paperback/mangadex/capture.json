@@ -4,7 +4,7 @@
   "source": "mangadex",
   "recordedAt": "2026-11-21T01:20:25.403990Z",
   "recordedBy": "tool/capture_source_fixtures.dart",
-  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart; exchanges of neihc1002-0.8/Mangadex re-recorded in a second session at 2026-11-21T06:06:12.171658Z (3 exchanges, replacing 5), sanitized",
+  "notes": "Recorded by paperback_source_worker --record; sanitized by tool/sanitize_captures.dart; exchanges of neihc1002-0.8/Mangadex re-recorded in a second session at 2026-11-21T06:06:12.171658Z (3 exchanges, replacing 5), sanitized; exchanges of community-0.8/MangaDex re-recorded in a second session at 2026-11-21T07:57:28.971789Z (4 exchanges, replacing 1), sanitized; pruned to the exchanges the current bundles request (2 removed)",
   "volatileQueryParameters": [],
   "exchanges": [
     {
@@ -110,7 +110,7 @@
     {
       "request": {
         "method": "GET",
-        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=vi&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&offset=0&title=Onimai",
+        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=100&title=Onimai",
         "bodySha256": null
       },
       "response": {
@@ -118,12 +118,32 @@
         "headers": {
           "content-type": "application/json"
         },
-        "body": "bodies/cb5554d22714fe885d66b32cdfd6641ab4047ea129d1e21171320e51f0ea12d6.bin"
+        "body": "bodies/7ec9b40a83a0b4ac4b8425fcb19eb0aa68ab36116fb5b3e902c727c07943e145.bin"
       },
       "artifact": {
-        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=vi&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&offset=0&title=Onimai",
-        "sha256": "cb5554d22714fe885d66b32cdfd6641ab4047ea129d1e21171320e51f0ea12d6",
-        "size": 81,
+        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=100&title=Onimai",
+        "sha256": "7ec9b40a83a0b4ac4b8425fcb19eb0aa68ab36116fb5b3e902c727c07943e145",
+        "size": 8819,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=100&offset=100&title=Onimai",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/020613fe027befb454b91f5396286361e02b6f5468d064764ae82f67415d5e90.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=100&offset=100&title=Onimai",
+        "sha256": "020613fe027befb454b91f5396286361e02b6f5468d064764ae82f67415d5e90",
+        "size": 84,
         "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
       }
     },
@@ -150,7 +170,7 @@
     {
       "request": {
         "method": "GET",
-        "url": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?limit=500&offset=0&order%5Bchapter%5D=asc&order%5Bvolume%5D=asc&translatedLanguage%5B%5D=vi",
+        "url": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?contentRating%5B%5D=safe&includeFutureUpdates=0&includes%5B%5D=scanlation_group&limit=500&order%5Bchapter%5D=desc&order%5BpublishAt%5D=desc&order%5Bvolume%5D=desc&translatedLanguage%5B%5D=en",
         "bodySha256": null
       },
       "response": {
@@ -158,12 +178,12 @@
         "headers": {
           "content-type": "application/json"
         },
-        "body": "bodies/5a2bb0ab9e5c21af21d291b21ca02dec407e6313ab9e857f8a88a5f0696cf1f3.bin"
+        "body": "bodies/d4d6c7104186615a2e8d62741a660391585cf359bf99cf925c38661ce23a366d.bin"
       },
       "artifact": {
-        "sourceUrl": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?limit=500&offset=0&order%5Bchapter%5D=asc&order%5Bvolume%5D=asc&translatedLanguage%5B%5D=vi",
-        "sha256": "5a2bb0ab9e5c21af21d291b21ca02dec407e6313ab9e857f8a88a5f0696cf1f3",
-        "size": 95716,
+        "sourceUrl": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?contentRating%5B%5D=safe&includeFutureUpdates=0&includes%5B%5D=scanlation_group&limit=500&order%5Bchapter%5D=desc&order%5BpublishAt%5D=desc&order%5Bvolume%5D=desc&translatedLanguage%5B%5D=en",
+        "sha256": "d4d6c7104186615a2e8d62741a660391585cf359bf99cf925c38661ce23a366d",
+        "size": 197594,
         "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
       }
     }

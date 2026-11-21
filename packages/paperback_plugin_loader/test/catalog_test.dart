@@ -15,11 +15,12 @@ import 'support/paperback_scenarios.dart';
 
 const List<String> _surveyed = <String>[
   'inkdex-0.9',
-  'neihc1002-0.8',
   'gabrielcwt-0.8',
   'numby-0.8',
   'netsky-0.8',
   'paperback-default-0.8',
+  'kittycatgit-0.8',
+  'community-0.8',
 ];
 
 void main() {
@@ -29,21 +30,22 @@ void main() {
     };
     check(families).deepEquals(<String, PaperbackApiFamily>{
       'inkdex-0.9': PaperbackApiFamily.v09,
-      'neihc1002-0.8': PaperbackApiFamily.v08,
       'gabrielcwt-0.8': PaperbackApiFamily.v08,
       'numby-0.8': PaperbackApiFamily.v08,
       'netsky-0.8': PaperbackApiFamily.v08,
       'paperback-default-0.8': PaperbackApiFamily.v08,
+      'kittycatgit-0.8': PaperbackApiFamily.v08,
+      'community-0.8': PaperbackApiFamily.v08,
     });
     final PaperbackCatalog inkdex = PinnedRepository.load('inkdex-0.9').catalog;
     check(inkdex.types).equals('1.0.0-alpha.94');
     check(inkdex.name).equals('Inkdex Extensions (0.9)');
     check(PinnedRepository.load('numby-0.8').catalog.types).equals('0.8.7');
-    check(PinnedRepository.load('neihc1002-0.8').catalog.types).equals('0.8.0-alpha.47');
+    check(PinnedRepository.load('gabrielcwt-0.8').catalog.types).equals('0.8.0-alpha.47');
   });
 
   test('installation entry points: 0.8 <id>/source.js, 0.9 <id>/index.js, matching the pinned artifacts', () {
-    for (final d in <String>['inkdex-0.9', 'neihc1002-0.8', 'gabrielcwt-0.8', 'numby-0.8']) {
+    for (final d in <String>['inkdex-0.9', 'gabrielcwt-0.8', 'numby-0.8', 'kittycatgit-0.8', 'community-0.8']) {
       final repo = PinnedRepository.load(d);
       for (final MapEntry<String, Map<String, Object?>> pin in repo.pins.entries) {
         final PaperbackCatalogEntry entry = repo.entry(pin.key);

@@ -1,0 +1,45 @@
+{
+  "site": "mangahub",
+  "query": "Oshimai",
+  "recordedAt": "2026-11-21T07:56:15.888281Z",
+  "runs": [
+    {
+      "bundle": "kittycatgit-0.8/Mangahub",
+      "apiFamily": "paperback-0.8",
+      "sha256": "557bb6eca3576b4f90bab83fb14212c2022b90cb97d740562a9107aece671390",
+      "search": {
+        "hits": 11,
+        "first": {
+          "mangaId": "oshimai",
+          "title": "Oshimai"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "oshimai",
+        "title": "Oshimai",
+        "authors": [
+          "Kawasaki Tadataka"
+        ],
+        "status": "completed",
+        "chapters": 21,
+        "firstChapter": {
+          "chapterId": "21",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 21,
+            "langCode": "en"
+          },
+          "title": "Chapter 21",
+          "chapterNumber": 21.0,
+          "volumeNumber": null,
+          "scanlators": [],
+          "language": "en",
+          "dateUploaded": "2026-03-15T20:08:21.000Z",
+          "url": null
+        }
+      }
+    }
+  ]
+}
