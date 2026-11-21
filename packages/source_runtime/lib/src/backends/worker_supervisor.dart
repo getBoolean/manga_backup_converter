@@ -1377,6 +1377,7 @@ class ConversionRuntimeScope {
     this.launcher,
     this.browserPort,
     this.resolveBrowserSource,
+    this.browserReplacementTimeout,
     this.onLog,
     Redactor? redactor,
     this.onGenerationFenced,
@@ -1396,6 +1397,11 @@ class ConversionRuntimeScope {
   /// Resolves the identity a worker package may open a browser session for;
   /// `null` (or a `null` result) refuses the request.
   final SourceIdentity? Function(WorkerKind kind, String? packageId, String sourceId)? resolveBrowserSource;
+
+  /// How long a request held for a worker's `host.browser.respond` waits
+  /// before it proceeds unchanged ([BrowserReverseBridge.replacementTimeout]).
+  /// Without it the replace tier is refused; no default is invented (KTD25).
+  final Duration? browserReplacementTimeout;
   final void Function(String line)? onLog;
   final Redactor redactor;
   final FutureOr<void> Function(WorkerKind kind, int generation)? onGenerationFenced;
@@ -1448,6 +1454,7 @@ class ConversionRuntimeScope {
             },
             resolveSource: (String? packageId, String sourceId) =>
                 resolveBrowserSource?.call(kind, packageId, sourceId),
+            replacementTimeout: browserReplacementTimeout,
             onLog: (String line) => onLog?.call(redactor.redact('[${spec.label}] $line')),
           );
     final supervisor = WorkerSupervisor(

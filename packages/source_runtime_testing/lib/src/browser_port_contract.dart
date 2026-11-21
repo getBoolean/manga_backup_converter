@@ -611,6 +611,21 @@ void runBrowserPortContractSuite(String name, BrowserPortHarness Function() crea
         check(await fetchEcho(s)).deepEquals(<String>['fetch-failed']);
       });
 
+      test('interception never widens the scheme policy', () async {
+        final BrowserSession s = await open(sourceA);
+        final seen = <Uri>[];
+        // A pass-through interceptor at the highest tier the engine has.
+        if (await s.setRequestReplacer((BrowserRequest r) {
+          seen.add(r.url);
+          return null;
+        }) is! BrowserCompleted<void>) {
+          if (await s.setRequestObserver((BrowserRequest r) => seen.add(r.url)) is! BrowserCompleted<void>) return;
+        }
+        check(await s.loadUrl(harness.redirectToFileUrl)).isA<BrowserCapabilityUnavailable<BrowserPage>>();
+        check(await s.loadUrl(Uri.parse('file:///etc/passwd'))).isA<BrowserCapabilityUnavailable<BrowserPage>>();
+        check(seen.where((Uri u) => !BrowserUrlPolicy.isAllowedBaseUrl(u))).isEmpty();
+      });
+
       test('setting a replacer removes the observer', () async {
         final BrowserSession s = await open(sourceA);
         final observed = <BrowserRequest>[];

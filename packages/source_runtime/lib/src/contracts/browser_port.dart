@@ -178,14 +178,16 @@ abstract final class BrowserMessageChannel {
   /// Whether [name] can be a channel: a plain JavaScript identifier, so
   /// `window.<name>` needs no quoting.
   ///
-  /// No identifier is reserved. In particular `ipc`, `chrome` and `webkit`
-  /// are valid even though engines or helper toolkits use globals with
-  /// those names for their own messaging (wry's `window.ipc`, WebView2's
-  /// `window.chrome.webview`, WKWebView's `window.webkit.messageHandlers`):
-  /// an implementation captures private references to its own bridge in a
-  /// document-start script that runs before any channel or page script, so
-  /// a channel that shadows the global does not break it. A Tachi
+  /// The contract reserves no identifier, so `ipc` is valid: a Tachi
   /// extension's `addJavascriptInterface(obj, name)` may use any name.
+  /// An implementation must therefore not occupy a `window.<identifier>`
+  /// global with its own transport. In particular wry's IPC handler defines
+  /// `window.ipc` as a non-writable, non-configurable property (verified in
+  /// wry 0.57.3 for WebView2, WKWebView and WebKitGTK), so a wry-based
+  /// helper must not enable it. It registers its own engine message handler
+  /// instead (WebView2 `WebMessageReceived`, a WebKit script message handler
+  /// under a private name), as wry only injects `window.ipc` when its IPC
+  /// handler is set.
   static bool isValidName(String name) => _identifier.hasMatch(name);
 
   /// Failure for an invalid channel [name], or `null` if valid.

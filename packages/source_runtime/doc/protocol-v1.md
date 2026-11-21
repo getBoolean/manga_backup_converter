@@ -209,7 +209,7 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 `host.browser.setMessageHandler` with `name` and `enabled: true` installs a page-side channel that every `BrowserPort` implementation provides identically (`BrowserMessageChannel` in `lib/src/contracts/browser_port.dart`):
 
 - **Page API:** every frame sees a global object `window.<name>` with one method, `postMessage(message)`, where `message` is a string. This is the shape of an Android `JavascriptInterface` object with `void postMessage(String)`, so the Tachi shim's `addJavascriptInterface` fallback and the desktop helper's injected script use it unchanged. `postMessage` returns `undefined`; synchronous return values are not emulated.
-- **Channel names:** `name` must be a plain JavaScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). Anything else is refused as `capability-unavailable`. No identifier is reserved (1.2): `ipc`, `chrome` and `webkit` are valid even though engines and toolkits use those globals for their own messaging (wry's `window.ipc`, WebView2's `window.chrome.webview`, WKWebView's `window.webkit.messageHandlers`). An implementation captures private references to its own bridge in a document-start script that runs before any channel or page script, so a channel that shadows the global does not break it. A Tachi extension's `addJavascriptInterface(obj, name)` may use any name.
+- **Channel names:** `name` must be a plain JavaScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). Anything else is refused as `capability-unavailable`. No identifier is reserved (1.2), so `ipc` is valid: a Tachi extension's `addJavascriptInterface(obj, name)` may use any name. An implementation must not occupy a `window.<identifier>` global with its own transport. wry's IPC handler defines `window.ipc` with `Object.defineProperty(window, 'ipc', {value: Object.freeze(…)})`, a non-writable, non-configurable property (verified in wry 0.57.3 for WebView2, WKWebView and WebKitGTK), after which no channel named `ipc` can be installed. wry injects it only when its IPC handler is set, so a wry-based helper leaves that handler off and registers its own engine message handler: WebView2 `WebMessageReceived` through `window.chrome.webview.postMessage`, or a WebKit script message handler under a private name.
 - **Availability:** the object exists in the current page as soon as the handler is enabled, and is injected at document start into every later page, until the handler is disabled. Channel objects are installed before any page-start script runs, whatever the registration order.
 - **Origin rule:** a message is delivered only when the frame that posted it has the same origin (scheme, host, port) as the session's current top-level document, and that document came from http(s): a `load` after redirects, or `loadData` with its http(s) base URL. Messages from cross-origin frames, and from `about:blank` or other opaque-origin documents, are dropped silently.
 - **Payload:** a non-string argument is dropped. Messages from one frame arrive in posting order.
@@ -219,16 +219,18 @@ The worker sends an `rreq` frame while serving the request named in `of`. The fr
 
 The `host.browser.open` reply carries the session's `BrowserCapabilities` (`BrowserSession.capabilities` in Dart). They are fixed for the session, and tell the worker which tier and features it has before it relies on them:
 
-| Feature | Meaning | Expected per engine (U2 and U16 measurements are authoritative) |
+Expected values come from KTD20 where it states them; every other cell is unmeasured. The U2 and U16 measurements are authoritative, and each implementation reports what it measures rather than copying this table.
+
+| Feature | Meaning | Expected per engine |
 |---|---|---|
-| `pageStartScripts` | `addPageStartScript` works. | All desktop engines, WKWebView, Android (`addDocumentStartJavaScript` where the WebView supports it). |
-| `observeNavigations` | Top-level document requests reach the observer. | WebView2, WKWebView, WebKitGTK, Android. |
-| `observeSubresources` | Subresource and child-frame requests reach the observer. | WebView2 and Android only. WKWebView and WebKitGTK cannot observe http(s) subresource requests (degraded observe tier). |
-| `observeRequestHeaders` | Observed requests carry their headers. | Where the engine exposes them. |
-| `observeClientHints` | Observed headers include `sec-ch-ua*`. | Chromium engines (WebView2, Android). WebKit engines never send client hints. |
-| `observeRequestBodies` | Observed requests carry their body. | WebView2 (`Request.Content`). Usually not WebKit. |
-| `replaceRequests` | Replace tier. | WebView2 among desktop engines; Android. Never WKWebView or WebKitGTK. |
-| `scriptErrors` | `evaluate` reports a throwing script. | WebView2 through the helper's wrapper, WKWebView, WebKitGTK. Not Android's `evaluateJavascript`. |
+| `pageStartScripts` | `addPageStartScript` works. | WebView2, WKWebView, WebKitGTK: U2's helper already injects document-start scripts. Android: unmeasured. |
+| `observeNavigations` | Top-level document requests reach the observer. | WebView2: yes (KTD20). WKWebView, WebKitGTK: main-frame navigations the shim can see (KTD20). Android: unmeasured. |
+| `observeSubresources` | Subresource and child-frame requests reach the observer. | WebView2: yes (KTD20). WKWebView, WebKitGTK: no; they cannot observe http(s) subresource requests (KTD20, degraded observe tier). Android: unmeasured. |
+| `observeRequestHeaders` | Observed requests carry their headers. | Unmeasured. |
+| `observeClientHints` | Observed headers include `sec-ch-ua*`. | WebView2: yes. WebKit engines: no; they never send client hints (KTD20). Android: unmeasured. |
+| `observeRequestBodies` | Observed requests carry their body. | Unmeasured. U2's helper does not forward bodies yet. |
+| `replaceRequests` | Replace tier. | WebView2: yes. WKWebView, WebKitGTK: no (KTD20). Android: unmeasured. |
+| `scriptErrors` | `evaluate` reports a throwing script. | WebView2, WKWebView, WebKitGTK: U2's eval wrapper already detects throws. Android: unmeasured. |
 
 `interceptionTier` (Dart) summarises them: `replace` with `replaceRequests`, `observe` with either observe feature, `none` otherwise. Every missing feature carries a reason that names it. The contract suite accepts either "works" or "unavailable with a reason" for each feature; it never accepts an empty answer.
 
@@ -257,6 +259,7 @@ A script that throws is reported as `{"result": "null", "scriptError": "<thrown 
   - **Late answers:** a `respond` for a request that is no longer held (answered, timed out, or its session closed or fenced) is answered `cancelled`.
   - **Closing:** held requests of a closed or fenced session proceed unchanged and get no event.
   - **Invalid replacements:** a replacement with a redirect status or a status outside 100–599 is malformed (`protocol-violation`). At the port, an invalid replacement, or a replacer that throws, fails the request: the page sees a network error. A replacement can never substitute a redirect, so it cannot steer a load around the scheme policy.
+  - **Concurrency:** a held main-frame request means the worker's own `host.browser.load` does not get its `rres` until the worker answers, and likewise an `evaluate` that triggers a fetch. A worker must therefore handle `host.browser.request` events and send `respond` while its own reverse request is pending (the Tachi shim: on its frame reader thread, not the thread blocked on the `rres`). Otherwise every held request waits out the full replacement timeout.
   - **No operation in flight:** `respond` is an `rreq`, so the orphan rule applies. A worker answers only while one of the package's operations is in flight. With none in flight it does not answer, and the request proceeds after the timeout.
 - **Event fields:** `method` (uppercase), `url`, `headers` (as the engine sends them; may include `Cookie` and `Authorization`, so never log them), `mainFrame` (Android's `isForMainFrame`), `redirect`, `context` (`document`, `script`, `fetch`, `xhr`, `image`, `stylesheet`, `other`; unknown values read as `other`), and the body.
 - **Request bodies:** `bodyBase64` carries the body when the engine exposes it (`observeRequestBodies`). `bodyOmitted: true` means the request had a body that the event does not carry: the engine could not read it, or it was larger than 1 MiB (`hostBrowserMaxForwardedBodyBytes`), so one upload can never push a frame past the 16 MiB limit. A body is omitted whole, never truncated.

@@ -1016,6 +1016,63 @@ void main() {
       check(port.openSessions).equals(0);
     });
 
+    test('replace tier end to end: a 1.2 worker answers a held request while its evaluate is in flight', () async {
+      final Uri page = Uri.parse('https://site.test/page');
+      var networkCalls = 0;
+      final port = FakeBrowserPort(
+        pages: (Uri url) => url == page ? const FakeWebPage(html: '<title>page</title>') : null,
+        requests: (BrowserRequest r) {
+          networkCalls++;
+          return const FakeWebPage(html: 'from network');
+        },
+      );
+      ConversionRuntimeScope scopeWith(Duration? replacementTimeout) => ConversionRuntimeScope(
+        workers: <WorkerKind, WorkerSpec>{
+          WorkerKind.jvm: fakeWorkerSpec(workerExe, arguments: <String>['--minor=2', '--respond-requests']),
+        },
+        limits: testLimits(),
+        launcher: launcher.call,
+        browserPort: port,
+        resolveBrowserSource: (WorkerKind kind, String? pkg, String id) => identityFor(pkg, id),
+        browserReplacementTimeout: replacementTimeout,
+      );
+
+      // Without a configured bound the scope refuses the replace tier.
+      final ConversionRuntimeScope unbounded = scopeWith(null);
+      final WorkerSupervisor plain = (await unbounded.worker(WorkerKind.jvm)).valueOrNull!;
+      final String s0 = await open(plain, 'pkg');
+      final Map<String, Object?> refused = await reverse(
+        plain,
+        'pkg',
+        'host.browser.setRequestInterception',
+        <String, Object?>{'session': s0, 'mode': 'replace'},
+      );
+      check((refused['reverseError']! as Map<String, Object?>)['code']).equals(CapabilityUnavailableFailure.wireCode);
+      await unbounded.close();
+
+      final ConversionRuntimeScope scope = scopeWith(const Duration(seconds: 10));
+      addTearDown(scope.close);
+      final WorkerSupervisor jvm = (await scope.worker(WorkerKind.jvm)).valueOrNull!;
+      check(jvm.protocolMinor).equals(2);
+      final String session = await open(jvm, 'pkg');
+      for (final (String op, Map<String, Object?> payload) in <(String, Map<String, Object?>)>[
+        ('host.browser.load', <String, Object?>{'session': session, 'url': '$page'}),
+        ('host.browser.setMessageHandler', <String, Object?>{'session': session, 'name': 'out', 'enabled': true}),
+        ('host.browser.setRequestInterception', <String, Object?>{'session': session, 'mode': 'replace'}),
+      ]) {
+        check((await reverse(jvm, 'pkg', op, payload))['reverseError']).isNull();
+      }
+      final Map<String, Object?> evaluated = await reverse(jvm, 'pkg', 'host.browser.evaluate', <String, Object?>{
+        'session': session,
+        'script': BrowserContractScripts.fetchAndPost('out', Uri.parse('https://site.test/api'), method: 'POST'),
+      });
+      check(evaluated['reverseError']).isNull();
+      // The worker's replacement was served: the request never reached the
+      // network (a timed-out hold would have proceeded to it).
+      check(networkCalls).equals(0);
+      check(scope.bridges[WorkerKind.jvm]!.heldRequests).equals(0);
+    });
+
     test('the conversion scope fences each worker separately and closes every session when it closes', () async {
       final port = FakeBrowserPort();
       final scope = ConversionRuntimeScope(
