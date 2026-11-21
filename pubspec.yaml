@@ -283,6 +283,14 @@ melos:
       packageFilters:
         scope: jsoup_jni
 
+    jnigen:android:
+      exec: dart run tool/jnigen.dart
+      description: >-
+        Generate JNI bindings for the source_runtime_android Kotlin facade.
+        Build the Android app first (flutter build apk --debug).
+      packageFilters:
+        scope: source_runtime_android
+
     jni_setup:
       exec: dart run tool/generate_jni_bindings.dart --jni-setup
       description: Build dartjni.dll via jni:setup with auto-discovered system JDK.

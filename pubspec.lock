@@ -776,18 +776,34 @@ packages:
     dependency: transitive
     description:
       name: jni
-      sha256: "8706a77e94c76fe9ec9315e18949cc9479cc03af97085ca9c1077b61323ea12d"
+      sha256: "19764f78f6b9e0d40f6395b04649d1046eb57f5ccf05afce50cc63e5a82777b0"
       url: "https://pub.dev"
     source: hosted
-    version: "0.15.2"
+    version: "1.2.1"
+  jni_flutter:
+    dependency: transitive
+    description:
+      name: jni_flutter
+      sha256: "586594ad345b403bda8a794b0b8a9e34298238b86c2a7d7f15160b092fe9ef3d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
+  jni_util:
+    dependency: transitive
+    description:
+      name: jni_util
+      sha256: "1ba86da04a5f2bf18fde2edb235587e70c5b0fc5bd4ba955f46b00942c3fc35f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   jnigen:
     dependency: transitive
     description:
       name: jnigen
-      sha256: dcb5927c2b15ddd3bfcd1b13a13c063828ac4e495f9f87dd11e7968f68114ac7
+      sha256: c9fce4b87efac8c7af9b34cf5f63c8f408bdab3e5e521b651e81716587be1d19
       url: "https://pub.dev"
     source: hosted
-    version: "0.15.0"
+    version: "1.1.0"
   json_annotation:
     dependency: transitive
     description:

@@ -13,7 +13,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  jni: ^0.15.2
+  jni: ^1.2.1
+  jni_flutter: ^1.1.0
   source_runtime:
     path: ../source_runtime
 
@@ -21,7 +22,7 @@ dev_dependencies:
   app_lints:
     path: ../app_lints
   checks: ^0.3.0
-  jnigen: ^0.15.0
+  jnigen: ^1.1.0
   test: ^1.24.0
 
 flutter:
