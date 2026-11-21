@@ -19,6 +19,9 @@
 //   --limits=JSON          report this handshake `limits` object
 //   --sizing=JSON          report this handshake `sizing` object
 //   --prepare-lie          artifact.prepare reports a digest that is not the output's
+//   --respond-requests     answer each held host.browser.request event (1.2) with a
+//                          host.browser.respond rreq whose response body is
+//                          "from worker", sent under the reverse call in flight
 //
 // artifact.prepare copies inputPath to outputPath, echoes the input binding
 // (a copy keeps its digest) and records trustedSigners; it never needs the
@@ -47,6 +50,9 @@ int _active = 0;
 int _maxActive = 0;
 int _handleCounter = 0;
 int _reverseCounter = 0;
+
+/// IDs of requests currently waiting on a reverse reply.
+final List<String> _inFlightReverse = <String>[];
 late List<String> _args;
 
 void _write(Map<String, Object?> frame) {
@@ -99,6 +105,7 @@ Future<void> _dispatch(Map<String, Object?> frame) async {
       _reverse.remove(id)?.complete(frame);
       return;
     case 'event':
+      _onEvent(frame);
       return;
     case 'req':
       break;
@@ -348,6 +355,7 @@ Future<void> _run(String id, String? pkg, String op, Map<String, Object?> payloa
       final rid = 'r${++_reverseCounter}';
       final done = Completer<Map<String, Object?>>();
       _reverse[rid] = done;
+      _inFlightReverse.add(id);
       _write(<String, Object?>{
         'v': 1,
         't': 'rreq',
@@ -358,6 +366,7 @@ Future<void> _run(String id, String? pkg, String op, Map<String, Object?> payloa
         'payload': reverse['payload'] ?? <String, Object?>{},
       });
       final Map<String, Object?> reply = await done.future;
+      _inFlightReverse.remove(id);
       _write(_res(id, ok: <String, Object?>{'reverse': reply['ok'], 'reverseError': reply['err']}));
       return;
     }
@@ -427,4 +436,28 @@ Map<String, Object?> _detailsReply(String id, String? pkg, Map<String, Object?> 
       'servedByPid': pid,
     },
   );
+}
+
+/// Answers a held `host.browser.request` while a reverse call is in flight
+/// (the orphan rule needs an originating request).
+void _onEvent(Map<String, Object?> frame) {
+  if (!args.contains('--respond-requests') || frame['op'] != 'host.browser.request') return;
+  final payload = frame['payload']! as Map<String, Object?>;
+  final Object? requestId = payload['requestId'];
+  if (requestId == null || _inFlightReverse.isEmpty) return;
+  final rid = 'r${++_reverseCounter}';
+  _reverse[rid] = Completer<Map<String, Object?>>();
+  _write(<String, Object?>{
+    'v': 1,
+    't': 'rreq',
+    'id': rid,
+    'gen': _gen,
+    'op': 'host.browser.respond',
+    'of': _inFlightReverse.last,
+    'payload': <String, Object?>{
+      'session': payload['session'],
+      'requestId': requestId,
+      'response': <String, Object?>{'status': 200, 'bodyBase64': base64Encode(utf8.encode('from worker'))},
+    },
+  });
 }

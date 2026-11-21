@@ -160,6 +160,7 @@ final class ReverseRequest {
     required this.generation,
     required this.cancel,
     this.interactionTimeout,
+    this.protocolMinor = 0,
   });
 
   final String op;
@@ -176,6 +177,11 @@ final class ReverseRequest {
   /// The supervisor's bound on a visible interaction, from its effective
   /// limits; a handler uses it for `host.browser.show`.
   final Duration? interactionTimeout;
+
+  /// The minor protocol version the worker negotiated. A handler refuses
+  /// operations introduced in a later minor (for example the 1.2
+  /// `host.browser.*` additions from a 1.1 worker). Defaults to 1.0.
+  final int protocolMinor;
 
   /// Whether the request is a visible interaction, whose time is excluded
   /// from the operation deadline.
@@ -1054,6 +1060,7 @@ class WorkerSupervisor {
       generation: generation,
       cancel: cancel.token,
       interactionTimeout: _limits?.interactionTimeout,
+      protocolMinor: protocolMinor,
     );
     if (request.isInteraction) {
       origin
@@ -1370,6 +1377,7 @@ class ConversionRuntimeScope {
     this.launcher,
     this.browserPort,
     this.resolveBrowserSource,
+    this.browserReplacementTimeout,
     this.onLog,
     Redactor? redactor,
     this.onGenerationFenced,
@@ -1389,6 +1397,11 @@ class ConversionRuntimeScope {
   /// Resolves the identity a worker package may open a browser session for;
   /// `null` (or a `null` result) refuses the request.
   final SourceIdentity? Function(WorkerKind kind, String? packageId, String sourceId)? resolveBrowserSource;
+
+  /// How long a request held for a worker's `host.browser.respond` waits
+  /// before it proceeds unchanged ([BrowserReverseBridge.replacementTimeout]).
+  /// Without it the replace tier is refused; no default is invented (KTD25).
+  final Duration? browserReplacementTimeout;
   final void Function(String line)? onLog;
   final Redactor redactor;
   final FutureOr<void> Function(WorkerKind kind, int generation)? onGenerationFenced;
@@ -1441,6 +1454,7 @@ class ConversionRuntimeScope {
             },
             resolveSource: (String? packageId, String sourceId) =>
                 resolveBrowserSource?.call(kind, packageId, sourceId),
+            replacementTimeout: browserReplacementTimeout,
             onLog: (String line) => onLog?.call(redactor.redact('[${spec.label}] $line')),
           );
     final supervisor = WorkerSupervisor(

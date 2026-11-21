@@ -18,8 +18,14 @@ typedef WorkerEventSink = void Function(String op, Map<String, Object?> payload,
 ///
 /// Request and reply shapes are the [HostBrowserRequest] subclasses (see
 /// `doc/protocol-v1.md`). Page messages reach the worker as
-/// [HostBrowserMessage] events. Sessions are scoped to the package that
+/// [HostBrowserMessage] events and observed or held requests as
+/// [HostBrowserRequestEvent]s. Sessions are scoped to the package that
 /// opened them and to the worker generation that opened them.
+///
+/// Versions: an operation newer than the minor the worker negotiated
+/// ([ReverseRequest.protocolMinor]) is answered `protocol-violation`. A
+/// pre-1.2 worker gets no capabilities in the open reply, and a script
+/// error as the plain `null` result.
 ///
 /// Lifetime (KTD4, KTD20):
 /// - [fence] closes every session opened in a generation below the given
@@ -28,6 +34,8 @@ typedef WorkerEventSink = void Function(String op, Map<String, Object?> payload,
 ///   session behind. Wire it to [WorkerSupervisor.onGenerationFenced].
 /// - [close] closes every session and refuses later opens; the conversion
 ///   scope calls it when it closes.
+/// - Held requests (replace tier) of a closed or fenced session proceed
+///   unchanged; no event is sent for them.
 ///
 /// One bridge serves one worker: generation numbers are per worker.
 class BrowserReverseBridge {
@@ -35,6 +43,7 @@ class BrowserReverseBridge {
     required this.port,
     required this.resolveSource,
     this.interactionTimeout,
+    this.replacementTimeout,
     this.emitEvent,
     this.onLog,
   });
@@ -45,21 +54,32 @@ class BrowserReverseBridge {
   /// Bound on `host.browser.show` when the request does not carry the
   /// supervisor's own bound ([ReverseRequest.interactionTimeout] wins).
   final Duration? interactionTimeout;
+
+  /// How long a held request (replace tier) waits for the worker's
+  /// `host.browser.respond` before it proceeds unchanged. Without it the
+  /// replace tier is refused as `capability-unavailable`; no default is
+  /// invented (KTD25).
+  final Duration? replacementTimeout;
   WorkerEventSink? emitEvent;
 
   /// Receives a line for every session this bridge closed on its own (on a
   /// fence, on [close], or after a late open) whose close did not complete,
-  /// for example because storage deletion could not be confirmed (KTD20).
-  /// Pass a redacting sink.
+  /// for example because storage deletion could not be confirmed (KTD20),
+  /// and for every held request whose answer timed out. Request headers are
+  /// never logged. Pass a redacting sink.
   final void Function(String line)? onLog;
 
-  final Map<String, ({BrowserSession session, String? packageId})> _sessions =
-      <String, ({BrowserSession session, String? packageId})>{};
+  final Map<String, _Entry> _sessions = <String, _Entry>{};
+  final Map<String, _Held> _held = <String, _Held>{};
   int _validFrom = 0;
+  int _requestCounter = 0;
   bool _closed = false;
 
   /// IDs of the sessions currently open through this bridge.
   Iterable<String> get openSessionIds => _sessions.keys;
+
+  /// Number of requests held for a worker answer (replace tier).
+  int get heldRequests => _held.length;
 
   bool _isFenced(int generation) => _closed || generation < _validFrom;
 
@@ -69,6 +89,13 @@ class BrowserReverseBridge {
     if (operation == null) {
       return SourceFailed<Map<String, Object?>>(
         CapabilityUnavailableFailure(request.op, 'Unknown browser operation'),
+      );
+    }
+    if (operation.sinceMinor > request.protocolMinor) {
+      return SourceFailed<Map<String, Object?>>(
+        ProtocolViolationFailure(
+          '${request.op} needs protocol 1.${operation.sinceMinor}; the worker negotiated 1.${request.protocolMinor}',
+        ),
       );
     }
     final HostBrowserRequest<ProtocolPayload> typed;
@@ -105,16 +132,20 @@ class BrowserReverseBridge {
         await _closeOwned(session, 'late open');
         return SourceFailed<ProtocolPayload>(CancelledFailure('Generation ${request.generation} is fenced'));
       }
-      _sessions[session.id] = (session: session, packageId: request.packageId);
+      _sessions[session.id] = _Entry(session, request.packageId);
     }
-    return _map(opened, (BrowserSession s) => HostBrowserOpened(session: s.id));
+    return _map(
+      opened,
+      (BrowserSession s) =>
+          HostBrowserOpened(session: s.id, capabilities: request.protocolMinor >= 2 ? s.capabilities : null),
+    );
   }
 
   Future<SourceOutcome<ProtocolPayload>> _onSession(
     HostBrowserSessionRequest<ProtocolPayload> typed,
     ReverseRequest request,
   ) async {
-    final ({BrowserSession session, String? packageId})? entry = _sessions[typed.session];
+    final _Entry? entry = _sessions[typed.session];
     if (entry == null || entry.packageId != request.packageId || entry.session.generation != request.generation) {
       return SourceFailed<ProtocolPayload>(CancelledFailure('Unknown or foreign browser session ${typed.session}'));
     }
@@ -128,9 +159,9 @@ class BrowserReverseBridge {
         await s.loadData(html, baseUrl: baseUrl, cancel: request.cancel),
         _page,
       ),
-      HostBrowserEvaluate(:final String script) => _map(
+      HostBrowserEvaluate(:final String script) => _evaluated(
         await s.evaluate(script, cancel: request.cancel),
-        (String r) => HostBrowserEvaluated(result: r),
+        request,
       ),
       HostBrowserSetMessageHandler(:final String name, :final bool enabled) => _map(
         await s.setMessageHandler(name, enabled ? _messageSink(s.id, name, request.generation) : null),
@@ -155,7 +186,69 @@ class BrowserReverseBridge {
         final Duration timeout => _map(await s.showForInteraction(timeout: timeout, cancel: request.cancel), _empty),
       },
       HostBrowserClose() => _map(await _closeSession(s.id, s), _empty),
+      HostBrowserAddPageStartScript(:final String script) => _map(await s.addPageStartScript(script), _empty),
+      HostBrowserSetRequestInterception(:final HostBrowserInterception mode) => await _setInterception(
+        entry,
+        mode,
+        request,
+      ),
+      HostBrowserRespond(:final String requestId, :final BrowserReplacement? response) => _respond(
+        s.id,
+        requestId,
+        response,
+      ),
     };
+  }
+
+  SourceOutcome<ProtocolPayload> _evaluated(BrowserOutcome<String> outcome, ReverseRequest request) =>
+      switch (outcome) {
+        // A pre-1.2 worker gets Android's evaluateJavascript semantics.
+        BrowserScriptError<String>(:final String message) => SourceSuccess<ProtocolPayload>(
+          request.protocolMinor >= 2
+              ? HostBrowserEvaluated.scriptError(message)
+              : const HostBrowserEvaluated(result: 'null'),
+        ),
+        _ => _map(outcome, (String r) => HostBrowserEvaluated(result: r)),
+      };
+
+  Future<SourceOutcome<ProtocolPayload>> _setInterception(
+    _Entry entry,
+    HostBrowserInterception mode,
+    ReverseRequest request,
+  ) async {
+    final BrowserSession s = entry.session;
+    final BrowserOutcome<void> outcome;
+    switch (mode) {
+      case HostBrowserInterception.none:
+        outcome = entry.interception == HostBrowserInterception.replace
+            ? await s.setRequestReplacer(null)
+            : await s.setRequestObserver(null);
+      case HostBrowserInterception.observe:
+        outcome = await s.setRequestObserver(_observerSink(s.id, request.generation));
+      case HostBrowserInterception.replace:
+        final Duration? timeout = replacementTimeout;
+        if (timeout == null) {
+          return SourceFailed<ProtocolPayload>(
+            CapabilityUnavailableFailure(request.op, 'No replacement timeout is configured'),
+          );
+        }
+        outcome = await s.setRequestReplacer(_replacerSink(s.id, request.generation, timeout));
+    }
+    if (outcome is BrowserCompleted<void>) {
+      entry.interception = mode;
+      // Requests still held under a previous replacer proceed unchanged.
+      if (mode != HostBrowserInterception.replace) _releaseHeld(s.id);
+    }
+    return _map(outcome, _empty);
+  }
+
+  SourceOutcome<ProtocolPayload> _respond(String session, String requestId, BrowserReplacement? response) {
+    final _Held? held = _held[requestId];
+    if (held == null || held.session != session) {
+      return SourceFailed<ProtocolPayload>(CancelledFailure('Request $requestId is no longer held'));
+    }
+    held.answer(response);
+    return const SourceSuccess<ProtocolPayload>(EmptyPayload());
   }
 
   void Function(String message)? _messageSink(String session, String name, int generation) {
@@ -171,9 +264,59 @@ class BrowserReverseBridge {
     };
   }
 
+  BrowserRequestObserver? _observerSink(String session, int generation) {
+    final WorkerEventSink? sink = emitEvent;
+    if (sink == null) return null;
+    return (BrowserRequest request) {
+      if (_isFenced(generation) || !_sessions.containsKey(session)) return;
+      sink(
+        HostBrowserRequestEvent.op,
+        HostBrowserRequestEvent.forward(session: session, request: request).toJson(),
+        generation: generation,
+      );
+    };
+  }
+
+  BrowserRequestReplacer? _replacerSink(String session, int generation, Duration timeout) {
+    final WorkerEventSink? sink = emitEvent;
+    if (sink == null) return null;
+    return (BrowserRequest request) {
+      if (_isFenced(generation) || !_sessions.containsKey(session)) return null;
+      final id = 'q${++_requestCounter}';
+      final held = _Held(session);
+      _held[id] = held;
+      held.timer = Timer(timeout, () {
+        if (held.answer(null)) {
+          onLog?.call(
+            '[browser] no answer for held request ${request.method} ${_logUrl(request.url)} in session $session '
+            'within $timeout; it proceeds unchanged',
+          );
+        }
+      });
+      sink(
+        HostBrowserRequestEvent.op,
+        HostBrowserRequestEvent.forward(session: session, request: request, requestId: id).toJson(),
+        generation: generation,
+      );
+      return held.completer.future.whenComplete(() => _held.remove(id));
+    };
+  }
+
+  /// [url] without query, fragment or user info: request URLs may carry
+  /// tokens, and log lines must not.
+  static String _logUrl(Uri url) => '${url.scheme}://${url.host}${url.hasPort ? ':${url.port}' : ''}${url.path}';
+
+  /// Lets every request held for [session] proceed unchanged.
+  void _releaseHeld(String session) {
+    for (final _Held h in _held.values.where((_Held h) => h.session == session).toList()) {
+      h.answer(null);
+    }
+  }
+
   /// Closes a session nobody else will close, reporting an incomplete close.
   Future<void> _closeOwned(BrowserSession session, String why) async {
     _sessions.remove(session.id);
+    _releaseHeld(session.id);
     final BrowserOutcome<void> outcome = await session.close();
     if (outcome is BrowserCompleted<void>) return;
     onLog?.call('[browser] closing session ${session.id} of ${session.source} ($why) did not complete: $outcome');
@@ -181,6 +324,7 @@ class BrowserReverseBridge {
 
   Future<BrowserOutcome<void>> _closeSession(String id, BrowserSession session) {
     _sessions.remove(id);
+    _releaseHeld(id);
     return session.close();
   }
 
@@ -189,7 +333,7 @@ class BrowserReverseBridge {
   Future<void> fence(int validFrom) async {
     if (validFrom > _validFrom) _validFrom = validFrom;
     final stale = <BrowserSession>[
-      for (final e in _sessions.values)
+      for (final _Entry e in _sessions.values)
         if (e.session.generation < _validFrom) e.session,
     ];
     await Future.wait(<Future<void>>[
@@ -205,7 +349,7 @@ class BrowserReverseBridge {
 
   /// Closes every session opened through this bridge.
   Future<void> closeAll() async {
-    final sessions = <BrowserSession>[for (final e in _sessions.values) e.session];
+    final sessions = <BrowserSession>[for (final _Entry e in _sessions.values) e.session];
     _sessions.clear();
     await Future.wait(<Future<void>>[for (final BrowserSession s in sessions) _closeOwned(s, 'bridge closed')]);
   }
@@ -229,5 +373,34 @@ class BrowserReverseBridge {
     BrowserNavigationFailed<T>(:final Uri url, :final String reason) => SourceFailed<ProtocolPayload>(
       SourceErrorFailure('Navigation to $url failed: $reason'),
     ),
+    BrowserScriptError<T>(:final String message) => SourceFailed<ProtocolPayload>(
+      SourceErrorFailure('Script error: $message'),
+    ),
   };
+}
+
+/// One open session and the package that owns it.
+final class _Entry {
+  _Entry(this.session, this.packageId);
+
+  final BrowserSession session;
+  final String? packageId;
+  HostBrowserInterception interception = HostBrowserInterception.none;
+}
+
+/// A request held for the worker's `host.browser.respond`.
+final class _Held {
+  _Held(this.session);
+
+  final String session;
+  final Completer<BrowserReplacement?> completer = Completer<BrowserReplacement?>();
+  Timer? timer;
+
+  /// Settles once; returns whether this call settled it.
+  bool answer(BrowserReplacement? response) {
+    if (completer.isCompleted) return false;
+    timer?.cancel();
+    completer.complete(response);
+    return true;
+  }
 }
