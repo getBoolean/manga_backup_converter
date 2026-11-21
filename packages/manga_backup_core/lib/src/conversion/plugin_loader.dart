@@ -36,10 +36,12 @@ abstract class PluginLoader {
   /// Downloads raw plugin bytes for [entry]. Returns null if not downloadable.
   Future<Uint8List?> downloadPluginBytes(ExtensionEntry entry) async => null;
 
-  /// Loads a plugin from raw [bytes] for [entry], adopting it into [owner]
-  /// as soon as it opens. Returns null if not supported; a failed load is a
-  /// typed failure.
-  Future<SourceOutcome<PluginSource>?> loadPluginFromBytes(
+  /// Loads the package [entry] names from raw [bytes] and returns every
+  /// source it hosts (KTD5 loader contract): a Tachi factory package yields
+  /// one source per enumerated source ID, an Aidoku package a singleton list.
+  /// Each source is adopted into [owner] as soon as it opens. Returns null if
+  /// not supported; a failed load is a typed failure, never stub sources.
+  Future<SourceOutcome<List<PluginSource>>?> loadPluginFromBytes(
     ExtensionEntry entry,
     Uint8List bytes, {
     ConversionOwner? owner,

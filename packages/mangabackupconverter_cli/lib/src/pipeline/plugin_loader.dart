@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
+import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
 import 'package:source_runtime/source_contracts.dart';
 
 /// Artifact bytes held in memory, verified against the digest computed when
@@ -99,11 +100,11 @@ class AidokuPluginLoader extends PluginLoader {
         onProgress?.call(i + 1, extensions.length, 'Warning: failed to download ${entry.name}');
         continue;
       }
-      final SourceOutcome<PluginSource> loaded = await loadPluginFromBytes(entry, bytes, owner: owner);
+      final SourceOutcome<List<PluginSource>> loaded = await loadPluginFromBytes(entry, bytes, owner: owner);
       switch (loaded) {
-        case SourceSuccess<PluginSource>(:final PluginSource value):
-          plugins.add(value);
-        case SourceFailed<PluginSource>(:final SourceFailure failure):
+        case SourceSuccess<List<PluginSource>>(:final List<PluginSource> value):
+          plugins.addAll(value);
+        case SourceFailed<List<PluginSource>>(:final SourceFailure failure):
           onFailure?.call(PluginLoadFailure(extensionId: entry.id, failure: failure));
           onProgress?.call(i + 1, extensions.length, 'Warning: failed to load ${entry.name}: ${failure.message}');
       }
@@ -135,9 +136,9 @@ class AidokuPluginLoader extends PluginLoader {
   }
 
   /// Opens [bytes] as a source session and adopts it into [owner] as soon as
-  /// it exists.
+  /// it exists. An Aidoku package hosts one source: the list is a singleton.
   @override
-  Future<SourceOutcome<PluginSource>> loadPluginFromBytes(
+  Future<SourceOutcome<List<PluginSource>>> loadPluginFromBytes(
     ExtensionEntry entry,
     Uint8List bytes, {
     ConversionOwner? owner,
@@ -151,17 +152,17 @@ class AidokuPluginLoader extends PluginLoader {
     );
     switch (opened) {
       case SourceFailed<SourcePackage>(:final SourceFailure failure):
-        return SourceFailed<PluginSource>(failure);
+        return SourceFailed<List<PluginSource>>(failure);
       case SourceSuccess<SourcePackage>(value: final SourcePackage package):
         await owner?.adopt(package.close);
         final SourceSession? session = package.sessions.firstOrNull;
         if (session == null) {
           await package.close();
-          return const SourceFailed<PluginSource>(ArtifactIncompatibleFailure('Package exposes no source'));
+          return const SourceFailed<List<PluginSource>>(ArtifactIncompatibleFailure('Package exposes no source'));
         }
         final plugin = SessionPluginSource(session, onDispose: package.close);
         await owner?.adopt(plugin.dispose);
-        return SourceSuccess<PluginSource>(plugin);
+        return SourceSuccess<List<PluginSource>>(<PluginSource>[plugin]);
     }
   }
 }
@@ -196,20 +197,57 @@ class PaperbackPluginLoader extends StubPluginLoader {
   const PaperbackPluginLoader() : super('paperback');
 }
 
-class TachiPluginLoader extends StubPluginLoader {
-  const TachiPluginLoader() : super('tachi');
-}
-
 class MangayomiPluginLoader extends StubPluginLoader {
   const MangayomiPluginLoader() : super('mangayomi');
 }
 
 /// The plugin loader the composition root registers for a target [format]
-/// (KTD15: formats describe files, not how sources execute).
-PluginLoader pluginLoaderFor(BackupFormat format, {void Function(SettingsSnapshot settings)? onSettings}) =>
-    switch (format) {
-      Aidoku() => AidokuPluginLoader(onSettings: onSettings),
-      Paperback() => const PaperbackPluginLoader(),
-      Tachiyomi() || Tachimanga() => const TachiPluginLoader(),
-      Mangayomi() => const MangayomiPluginLoader(),
-    };
+/// (KTD15: formats describe files, not how sources execute). Tachi targets
+/// use [tachi], the conversion's desktop Tachi runtime; without one (a host
+/// with no JVM worker) every Tachi package fails with a typed capability
+/// failure rather than loading stub sources.
+PluginLoader pluginLoaderFor(
+  BackupFormat format, {
+  void Function(SettingsSnapshot settings)? onSettings,
+  DesktopTachiRuntime? tachi,
+}) => switch (format) {
+  Aidoku() => AidokuPluginLoader(onSettings: onSettings),
+  Paperback() => const PaperbackPluginLoader(),
+  Tachiyomi() || Tachimanga() =>
+    tachi == null ? const UnavailableTachiPluginLoader() : TachiPluginLoader(runtime: tachi, onSettings: onSettings),
+  Mangayomi() => const MangayomiPluginLoader(),
+};
+
+/// Tachi on a host without a desktop Tachi runtime: lists nothing and fails
+/// every package with [CapabilityUnavailableFailure].
+class UnavailableTachiPluginLoader extends PluginLoader {
+  const UnavailableTachiPluginLoader();
+
+  @override
+  Future<List<ExtensionEntry>> fetchExtensionLists(
+    List<String> repoUrls, {
+    void Function(String)? onWarning,
+    RepositoryTrustGate? trust,
+  }) async {
+    if (repoUrls.isNotEmpty) onWarning?.call('Tachi sources cannot run on this host: no Tachi runtime is configured');
+    return <ExtensionEntry>[];
+  }
+
+  @override
+  Future<List<PluginSource>> loadPlugins(
+    List<ExtensionEntry> extensions, {
+    void Function(int current, int total, String message)? onProgress,
+    ConversionOwner? owner,
+    void Function(PluginLoadFailure failure)? onFailure,
+  }) async {
+    for (final e in extensions) {
+      onFailure?.call(
+        PluginLoadFailure(
+          extensionId: e.id,
+          failure: const CapabilityUnavailableFailure('worker.jvm', 'No Tachi runtime is configured on this host'),
+        ),
+      );
+    }
+    return <PluginSource>[];
+  }
+}

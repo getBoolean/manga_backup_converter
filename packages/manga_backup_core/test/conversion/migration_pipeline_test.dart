@@ -439,13 +439,17 @@ void main() {
       },
     );
 
-    test('a port without a trust callback rejects first-seen repositories', () async {
+    test('a port without a trust callback rejects first-seen repositories, and the error names the decision', () async {
       await check(
         _run(
           _pipeline(loader: FakePluginLoader(signedRepository: 'AA')),
           FakeBackup(<SourceMangaData>[sourceManga('A')]),
         ),
-      ).throws<MigrationException>();
+      ).throws<MigrationException>(
+        (Subject<MigrationException> it) => it
+            .has((MigrationException e) => '$e', 'message')
+            .contains('First-seen signing fingerprint for ${_repos.single} (test): reject'),
+      );
     });
   });
 

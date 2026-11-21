@@ -10,6 +10,8 @@ import 'dart:typed_data';
 import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvider;
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
+import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
@@ -42,7 +44,7 @@ class _FixtureLoader extends PluginLoader {
     void Function(int current, int total, String message)? onProgress,
     ConversionOwner? owner,
     void Function(PluginLoadFailure failure)? onFailure,
-  }) async => <PluginSource>[(await inner.loadPluginFromBytes(_entry, bytes, owner: owner)).valueOrNull!];
+  }) async => (await inner.loadPluginFromBytes(_entry, bytes, owner: owner)).valueOrNull!;
 }
 
 const _entry = AidokuExtensionEntry(
@@ -85,7 +87,7 @@ void main() {
         _entry,
         aix.readAsBytesSync(),
         owner: owner,
-      )).valueOrNull!;
+      )).valueOrNull!.single;
       check(source.identity.ecosystem).equals('aidoku');
       check(source.identity.artifact.kind).equals('aix');
 
@@ -107,7 +109,7 @@ void main() {
         _entry,
         aix.readAsBytesSync(),
         owner: owner,
-      )).valueOrNull!;
+      )).valueOrNull!.single;
       final DetailsOutcome outcome = await source.fetchDetails(
         NativeMangaRef(
           source: source.identity,
@@ -117,6 +119,22 @@ void main() {
       );
       check(outcome).isA<DetailsFailed>();
       replay.misses.clear();
+      await owner.close();
+    });
+
+    test('cached byte-loading still returns the singleton source of an Aidoku package', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('aidoku_cache_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final cache = PluginCache(cacheDir: temp)..put(_entry, aix.readAsBytesSync());
+      final owner = ConversionOwner();
+      final failures = <PluginLoadFailure>[];
+      final List<PluginSource> sources = await CachingPluginLoader(
+        loader,
+        cache: cache,
+      ).loadPlugins(const <ExtensionEntry>[_entry], owner: owner, onFailure: failures.add);
+      check(failures).isEmpty();
+      check(sources).length.equals(1);
+      check(sources.single.identity.ecosystem).equals('aidoku');
       await owner.close();
     });
 

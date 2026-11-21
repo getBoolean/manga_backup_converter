@@ -32,6 +32,12 @@ class PluginCache {
     file.writeAsBytesSync(bytes);
   }
 
+  /// Deletes the cached bytes for [entry], if any.
+  void remove(ExtensionEntry entry) {
+    final File file = cacheFileFor(entry);
+    if (file.existsSync()) file.deleteSync();
+  }
+
   void _cleanOldVersions(String id, String currentCacheKey) {
     if (!cacheDir.existsSync()) return;
     final prefix = '$id-';
