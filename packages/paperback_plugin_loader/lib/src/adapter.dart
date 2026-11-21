@@ -43,6 +43,7 @@ final class PaperbackApiAdapter implements PaperbackPackageAdapter {
       bytes,
       request.artifact,
       request.settings,
+      apiFamily: request.apiFamily,
       cancel: cancel,
     );
     final bool usesBrowser = _mentions(bytes, 'executeInWebView');

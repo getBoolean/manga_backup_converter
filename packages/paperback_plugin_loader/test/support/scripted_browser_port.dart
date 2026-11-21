@@ -9,7 +9,10 @@ import 'package:source_runtime/source_runtime.dart';
 /// keeps per-session cookies so tests can check they come back.
 ///
 /// With [evaluateUnavailable] set, `evaluate` fails as a platform that
-/// cannot express it would.
+/// cannot express it would. By default `evaluate` behaves like a pre-1.3
+/// engine (it replies before the injected promise settles, and the result
+/// arrives on the message channel); [awaitsPromises] makes it a 1.3 engine
+/// that replies with the settled value and posts nothing.
 final class ScriptedBrowserPort implements BrowserPort {
   ScriptedBrowserPort({
     this.respond = _noResult,
@@ -18,7 +21,20 @@ final class ScriptedBrowserPort implements BrowserPort {
     this.probe,
     this.onShow,
     this.userAgent = 'ScriptedBrowser/1.0',
+    this.awaitsPromises = false,
+    this.scriptError,
+    this.showDelay = Duration.zero,
   });
+
+  /// Whether `evaluate` awaits the injected promise (protocol 1.3).
+  final bool awaitsPromises;
+
+  /// When it returns a message, the injected script throws with it
+  /// (`BrowserScriptError`, protocol 1.2).
+  final String? Function(ScriptedPage page)? scriptError;
+
+  /// How long the user takes in the shown window before [onShow] acts.
+  final Duration showDelay;
 
   static Object? _noResult(ScriptedPage page) => null;
 
@@ -130,7 +146,10 @@ final class _Session implements BrowserSession {
     }
     final void Function(String)? post = _handlers['__pbResult'];
     if (post != null) {
+      final String? thrown = _port.scriptError?.call(_page);
+      if (thrown != null) return BrowserScriptError<String>(thrown);
       final Object? result = _port.respond(_page);
+      if (_port.awaitsPromises) return BrowserCompleted<String>(jsonEncode(<String, Object?>{'ok': result}));
       Future<void>.delayed(const Duration(milliseconds: 5), () => post(jsonEncode(<String, Object?>{'ok': result})));
       return const BrowserCompleted<String>('true');
     }
@@ -181,6 +200,7 @@ final class _Session implements BrowserSession {
   @override
   Future<BrowserOutcome<void>> showForInteraction({required Duration timeout, CancellationToken? cancel}) async {
     _page.shown++;
+    if (_port.showDelay > Duration.zero) await Future<void>.delayed(_port.showDelay);
     final BrowserOutcome<void> Function(ScriptedPage page)? onShow = _port.onShow;
     return onShow == null ? const BrowserInteractionRequired<void>('no display in tests') : onShow(_page);
   }

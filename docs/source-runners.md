@@ -255,7 +255,8 @@ nothing was installed.
 ## Paperback host (`packages/paperback_plugin_loader`, U6)
 
 The Paperback Dart worker hosts original Paperback bundles, one QuickJS runtime per bundle (KTD2), through two
-explicit host adapters (KTD6): `paperback-0.8` and `paperback-0.9`. It speaks protocol 1.1 on stdio. The CLI runs
+explicit host adapters (KTD6): `paperback-0.8` and `paperback-0.9`. It speaks protocol 1.3 on stdio, answering an
+older supervisor with its lower minor; the in-app worker isolate (iOS, Android) runs the same worker. The CLI runs
 it as a hidden subcommand of its own executable (`__paperback-worker`); `bin/paperback_source_worker.dart` is the
 standalone entry point.
 
@@ -312,7 +313,12 @@ hits start with another title (`oshimai`), so the Mangahub bundle names its hit 
 the scenario fetches `onii-chan-wa-oshimai` by ID, not the first hit: "Onii-Chan wa Oshimai", Nekotoufu, ongoing,
 176 chapters (chapters 1–117 and 59 fractional entries, a few titled `<deleted>`), the first being chapter
 `117`. Both capture sessions (2026-11-21, 3 requests each, at least 1.5 s apart) were not challenged. Replay keys
-ignore request headers and captures drop `Set-Cookie`, so in replay the source runs on its own minted token.
+ignore request headers and the committed capture holds no `Set-Cookie`, so in replay the source runs on its own
+minted token. The Mangahub scenario now allow-lists `mhub_access` with `redact`
+(`captureSetCookies` in `test/support/paperback_scenarios.dart`, passed to the worker as
+`--record-cookie=mhub_access:redact`), so the next recording keeps that the site set it, with the value
+`redacted`. The committed capture was not edited: it predates the allow-list, and which answer set the cookie was
+never recorded, so the replay test still adds it to the first answer by hand.
 
 Tests (`cloudflare08_test.dart` with handwritten bundles, and the Mangahub group in `source_execution_test.dart`
 with the real bundle over the committed capture) show:
@@ -335,10 +341,17 @@ with the real bundle over the committed capture) show:
   `mhub_access` cookie equal to its `x-mhub-access` header, and the site's token replaces the minted one; after a
   bypass whose browser also holds an `mhub_access`, the request's own token still wins.
 
-Not yet proven: a real challenge solved in a real browser (U8), whether the site accepts the browser's user agent
-when the engine's client hints disagree, and when `host.browser.show` completes (window close or only the bound).
-The worker's engine deadline keeps running during `show` (only the supervisor's deadline pauses), so a slow user
-can exceed it.
+`show` completes when the user closes the window (protocol 1.3); its bound fails as `interaction-required`. The
+engine deadline is paused while `show` is pending: the worker pauses its QuickJS budget between the
+supervisor's `interaction.started` and `interaction.ended` events (an older supervisor sends none, so the host
+then pauses around its own `show`), and an in-process `InProcessBrowserChannel` pauses around its own
+`showBrowserInteraction`. The operation keeps the budget it had left when the window opened. Tests: a user slower
+than the deadline (worker events in `runtime/worker_test.dart` and in the worker isolate, in-process `show` in
+`cloudflare08_test.dart`, the runtime in `runtime/deadline_pause_test.dart`), each with a control that times out
+without the pause, and the remaining budget still running out after resume.
+
+Not yet proven: a real challenge solved in a real browser (U8), and whether the site accepts the browser's user
+agent when the engine's client hints disagree.
 
 ### Trust and admission (KTD6)
 
@@ -354,9 +367,18 @@ JavaScript:
 2. Cache hits re-hash and re-ask trust. This covers `cached` and the CLI's `CachingPluginLoader`, which re-enters
    `loadPluginFromBytes`. Changed cached bytes present a changed fingerprint (asked again, refusable) or are
    dropped.
-3. The supervisor re-hashes the leased file before `package.load`.
-4. The worker re-reads and re-hashes the staged file, checks the artifact kind (`paperback-bundle-0.8` or
-   `-0.9`) and the bundle shape, and only then installs host globals.
+3. The supervisor re-hashes the leased file before `package.load`, which carries the trusted family as
+   `apiFamily` (protocol 1.3).
+4. The worker re-reads and re-hashes the staged file, takes the family from `apiFamily` (from the artifact kind,
+   `paperback-bundle-0.8` or `-0.9`, for an older supervisor; a kind naming another family is refused), checks the
+   bundle shape, and only then installs host globals.
+
+A failed trust decision is a `TrustFailure` (`artifact-incompatible` with `trust`, protocol 1.3): `changed` for
+bytes that differ from the admitted digest (the worker's re-hash), `refused` when the trust decision answers no,
+and `first-seen` for an artifact the provider never admitted in this run. The decision callback answers only yes
+or no, so a refusal cannot yet say whether the bundle was new or changed; that needs the core `RepositoryTrustGate`
+to report it. Family and shape mismatches stay plain `artifact-incompatible`. Failures are rebuilt with
+`SourceFailure.fromJson`, so the reason survives the worker, the supervisor and the bundle glue.
 
 ### Host adapters
 
@@ -373,9 +395,9 @@ reference runtime, `@paperback/runtime-polyfills` 0.8.7 and 1.0.0-alpha.94 (MIT)
 | Rate limits | `requestsPerSecond` spacing on JS timers | the bundles' own `BasicRateLimiter` over `Application.sleep` |
 | Timers | `setTimeout`, `setInterval`, `clear*`, `queueMicrotask`. State lives in JS and the host call is a re-armable wake-up, so a sleep parked at the end of one operation settles in the next | same |
 | State | `createSourceStateManager` (`store`, `retrieve`, `keychain`) | `get/setState`, `get/setSecureState`, `resetAllState` |
-| Settings | protocol 1.1 settings seed state per source: string sets as arrays, source scopes override package values. Secrets seed only the keychain/secure state, in memory (KTD9) | same |
+| Settings | protocol 1.1 settings seed state per source (`SettingsPayload.valuesFor` / `secretsFor`): string sets as arrays, source scopes override package values. Secrets seed only the keychain/secure state, in memory (KTD9) | same |
 | Parser | pinned Cheerio 1.0.0-rc.12 injected (the toolchain's `^1.0.0-rc.12`), `entities` 4.5.0 | the bundles' own Cheerio; `decodeHTMLEntities` is `entities.decodeHTMLStrict` |
-| Browser | Cloudflare only: a challenge (bundle error `CLOUDFLARE BYPASS ERROR…`, or a 403/503 challenge page or `cf-mitigated: challenge` seen by the operation) is `interaction-required`. With `SourceIntents.CLOUDFLARE_BYPASS_REQUIRED` and a browser channel, `getCloudflareBypassRequestAsync()` runs in a source-scoped session (host cookies seeded, cookies and `navigator.userAgent` read back, storage deleted), the clearance is kept for the runtime, and the operation is retried once | `executeInWebView`: open a source-scoped session, seed the context's cookies, `loadData(html, baseUrl)`, run `inject` as an async function, return its result and the session's cookies, close (storage deleted). The result travels back on the 1.1 message channel, because `BrowserPort.evaluate` does not promise to await a promise |
+| Browser | Cloudflare only: a challenge (bundle error `CLOUDFLARE BYPASS ERROR…`, or a 403/503 challenge page or `cf-mitigated: challenge` seen by the operation) is `interaction-required`. With `SourceIntents.CLOUDFLARE_BYPASS_REQUIRED` and a browser channel, `getCloudflareBypassRequestAsync()` runs in a source-scoped session (host cookies seeded, cookies and `navigator.userAgent` read back, storage deleted), the clearance is kept for the runtime, and the operation is retried once | `executeInWebView`: open a source-scoped session, seed the context's cookies, `loadData(html, baseUrl)`, run `inject` as an async function, return its result and the session's cookies, close (storage deleted). A 1.3 `evaluate` awaits the injected promise and replies with the result; an older engine replies early, so the result is also posted on the 1.1 message channel, and the first to arrive wins. A throwing script (`scriptError`) rejects the call at once with its message |
 | Other members | `create*` factories return their argument; `createDUI*` rows carry `type` | any other `Application` member exists but throws a named `capability-unavailable` |
 | Not provided | Node `fs` and process, QuickJS `std`/`os` | same; WebCrypto (`crypto_digest` and friends) is a named capability failure |
 

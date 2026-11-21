@@ -20,9 +20,9 @@ enum PaperbackApiFamily {
   /// Handshake / capability name, for example `paperback-0.8`.
   final String wire;
 
-  /// [ArtifactBinding.kind] of a bundle admitted for this family. The family
-  /// travels in the artifact kind because `package.load` has no family field
-  /// (reported as a needed protocol addition).
+  /// [ArtifactBinding.kind] of a bundle admitted for this family. A
+  /// protocol 1.3 `package.load` names the family in `apiFamily`; the kind
+  /// still carries it for older supervisors and for the artifact cache.
   final String artifactKind;
 
   /// The bundle file the app installs from `<repository>/<sourceId>/`.
@@ -84,27 +84,55 @@ final class BundleAdmissionException implements Exception {
 }
 
 /// Checks [bytes] against the trust decision recorded in [binding] before
-/// evaluation (KTD6): the digest must match, the artifact kind must name a
-/// supported family, and the bundle's own shape must declare that family.
+/// evaluation (KTD6): the digest must match, the API family must be a
+/// supported one, and the bundle's own shape must declare that family.
 /// Runs on every load, including cache hits and restarts.
-PaperbackApiFamily admitBundle(Uint8List bytes, ArtifactBinding binding) {
+///
+/// The family is [apiFamily] (protocol 1.3 `package.load` `apiFamily`, the
+/// family the trust decision bound) when given; an older supervisor sends
+/// none, and the family is then read from [ArtifactBinding.kind]. A kind
+/// that names a different family than [apiFamily] is refused.
+///
+/// Bytes whose digest differs from the admitted one fail as a
+/// [TrustFailure] with reason `changed`: they are not the artifact the
+/// trust decision approved.
+PaperbackApiFamily admitBundle(Uint8List bytes, ArtifactBinding binding, {String? apiFamily}) {
   final String digest = bundleDigest(bytes);
   if (digest != binding.sha256) {
     throw BundleAdmissionException(
-      ArtifactIncompatibleFailure(
+      TrustFailure(
+        TrustFailureReason.changed,
         'Bundle bytes changed: SHA-256 $digest does not match the admitted ${binding.sha256}',
       ),
     );
   }
-  final PaperbackApiFamily? family = PaperbackApiFamily.fromArtifactKind(binding.kind);
-  if (family == null) {
-    throw BundleAdmissionException(UnsupportedApiFailure('Unsupported Paperback artifact kind "${binding.kind}"'));
-  }
+  final PaperbackApiFamily family = _familyOf(binding, apiFamily);
   final PaperbackApiFamily? declared = declaredFamilyOf(bytes);
   if (declared != family) {
     throw BundleAdmissionException(
       ArtifactIncompatibleFailure(
         'Bundle admitted as ${family.wire} but its structure declares ${declared?.wire ?? 'no known Paperback API'}',
+      ),
+    );
+  }
+  return family;
+}
+
+PaperbackApiFamily _familyOf(ArtifactBinding binding, String? apiFamily) {
+  final PaperbackApiFamily? byKind = PaperbackApiFamily.fromArtifactKind(binding.kind);
+  if (apiFamily == null) {
+    return byKind ??
+        (throw BundleAdmissionException(
+          UnsupportedApiFailure('Unsupported Paperback artifact kind "${binding.kind}"'),
+        ));
+  }
+  final PaperbackApiFamily family =
+      PaperbackApiFamily.fromWire(apiFamily) ??
+      (throw BundleAdmissionException(UnsupportedApiFailure('Unsupported Paperback API family "$apiFamily"')));
+  if (byKind != null && byKind != family) {
+    throw BundleAdmissionException(
+      ArtifactIncompatibleFailure(
+        'Bundle admitted as ${family.wire} but its artifact kind "${binding.kind}" names ${byKind.wire}',
       ),
     );
   }

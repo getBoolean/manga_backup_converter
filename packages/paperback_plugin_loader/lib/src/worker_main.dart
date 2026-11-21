@@ -33,6 +33,7 @@ import 'package:source_runtime/source_runtime.dart';
 ///     --record=<capture dir> --record-source=<name>
 ///         --record-min-interval-ms=N --record-licence=<text>
 ///         [--record-volatile=<query parameter>]...
+///         [--record-cookie=<name>:<keep|redact>]...
 ///                                      manual capture run: forward to the
 ///                                      network and write the capture on
 ///                                      shutdown (never used by tests)
@@ -88,6 +89,7 @@ Future<void> runPaperbackWorker(List<String> args) async {
         minInterval: r.minInterval,
         licence: r.licence,
         volatileQueryParameters: r.volatileQueryParameters,
+        setCookieAllowList: r.setCookieAllowList,
       );
       return (
         recorder,
@@ -128,6 +130,7 @@ WorkerArguments parseWorkerArguments(List<String> args) {
     'record-min-interval-ms',
     'record-licence',
     'record-volatile',
+    'record-cookie',
   };
   for (final arg in args) {
     final Match? m = RegExp(r'^--([a-z-]+)=(.*)$', dotAll: true).firstMatch(arg);
@@ -178,6 +181,9 @@ WorkerArguments parseWorkerArguments(List<String> args) {
       minInterval: Duration(milliseconds: interval),
       licence: single('record-licence'),
       volatileQueryParameters: <String>{...?strings['record-volatile']},
+      setCookieAllowList: <String, CapturedCookieValue>{
+        for (final String spec in strings['record-cookie'] ?? const <String>[]) ..._cookieSpec(spec),
+      },
     );
   } else if (replay != null) {
     network = ReplayNetwork(<Directory>[for (final String d in replay) Directory(d)]);
@@ -188,4 +194,13 @@ WorkerArguments parseWorkerArguments(List<String> args) {
     network = const LiveNetwork();
   }
   return (limits: limits, deadlineHeadroom: Duration(milliseconds: required('deadline-headroom-ms')), network: network);
+}
+
+/// Parses `--record-cookie=<name>:<keep|redact>`.
+Map<String, CapturedCookieValue> _cookieSpec(String spec) {
+  final int colon = spec.lastIndexOf(':');
+  if (colon <= 0) throw FormatException('--record-cookie must be <name>:<keep|redact>, got "$spec"');
+  return <String, CapturedCookieValue>{
+    spec.substring(0, colon): CapturedCookieValue.fromWire(spec.substring(colon + 1)),
+  };
 }

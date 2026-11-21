@@ -117,7 +117,11 @@ Future<SourceFailure> _failureOf(Future<Object?> operation) async {
   throw StateError('The operation succeeded');
 }
 
-Future<(HostUnderTest, InProcessBrowserChannel?)> _load(String source, {ScriptedBrowserPort? port}) async {
+Future<(HostUnderTest, InProcessBrowserChannel?)> _load(
+  String source, {
+  ScriptedBrowserPort? port,
+  Duration deadline = const Duration(seconds: 60),
+}) async {
   final InProcessBrowserChannel? channel = port == null
       ? null
       : InProcessBrowserChannel(port: port, source: _identity, interactionTimeout: const Duration(seconds: 5));
@@ -126,6 +130,7 @@ Future<(HostUnderTest, InProcessBrowserChannel?)> _load(String source, {Scripted
     PaperbackApiFamily.v08,
     handler: _site,
     browser: channel,
+    deadline: deadline,
   );
   return (h, channel);
 }
@@ -199,6 +204,38 @@ void main() {
       // The clearance lasts: the next operation needs no browser.
       await h.search('q');
       check(port.pages).length.equals(1);
+    } finally {
+      h.dispose();
+      await channel?.close();
+    }
+  });
+
+  test('a user slower than the engine deadline does not trip it (deadline paused around show)', () async {
+    const deadline = Duration(seconds: 2);
+    final port = ScriptedBrowserPort(probe: _probe, onShow: _userSolves, showDelay: const Duration(seconds: 3));
+    final (HostUnderTest h, InProcessBrowserChannel? channel) = await _load(_source(), port: port, deadline: deadline);
+    try {
+      final PaperbackSearchPage page = await h.search('q');
+      check(jsonDecode(page.items.single['mangaId']! as String) as Map<String, Object?>)
+          .has((Map<String, Object?> m) => m['ua'], 'ua')
+          .equals(_browserUa);
+      check(port.pages.single.shown).equals(1);
+    } finally {
+      h.dispose();
+      await channel?.close();
+    }
+  });
+
+  test('outside the shown window the engine deadline still applies (control)', () async {
+    const deadline = Duration(seconds: 2);
+    // The same slow step, but in the source itself rather than at `show`.
+    final (HostUnderTest h, InProcessBrowserChannel? channel) = await _load(
+      _source(search: 'await new Promise((r) => setTimeout(r, 3000)); return App.createPagedResults({ results: [] });'),
+      port: ScriptedBrowserPort(probe: _probe, onShow: _userSolves),
+      deadline: deadline,
+    );
+    try {
+      check(await _failureOf(h.search('q'))).isA<TimeoutFailure>();
     } finally {
       h.dispose();
       await channel?.close();

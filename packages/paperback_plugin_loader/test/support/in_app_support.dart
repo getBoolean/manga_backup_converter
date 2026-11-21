@@ -95,6 +95,15 @@ final class IsolateWorkerHarness {
   void cancel(String id) =>
       process.stdin.add(encodeFrame(ProtocolFrame(type: FrameType.cancel, id: id, generation: 1)));
 
+  int _nextEvent = 0;
+
+  /// Sends a supervisor `event` frame (for example `interaction.started`).
+  void event(String op, Map<String, Object?> payload) => process.stdin.add(
+    encodeFrame(
+      ProtocolFrame(type: FrameType.event, id: 'e1-${++_nextEvent}', generation: 1, op: op, payload: payload),
+    ),
+  );
+
   Future<ProtocolFrame> reply(String id) =>
       _frames.stream.firstWhere((ProtocolFrame f) => f.type == FrameType.response && f.id == id);
 

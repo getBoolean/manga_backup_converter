@@ -68,6 +68,7 @@ final class RecordNetwork extends PaperbackNetworkMode {
     required this.minInterval,
     required this.licence,
     this.volatileQueryParameters = const <String>{},
+    this.setCookieAllowList = const <String, CapturedCookieValue>{},
   });
 
   final Directory dir;
@@ -77,4 +78,9 @@ final class RecordNetwork extends PaperbackNetworkMode {
   final Duration minInterval;
   final String licence;
   final Set<String> volatileQueryParameters;
+
+  /// Cookies whose `Set-Cookie` the capture keeps (protocol 1.3), and
+  /// whether each value is kept or redacted. Empty unless the site's
+  /// scenario names one.
+  final Map<String, CapturedCookieValue> setCookieAllowList;
 }

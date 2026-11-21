@@ -31,19 +31,88 @@ void main() {
           .equals(PaperbackApiFamily.v08);
     });
 
-    test('refuses changed bytes', () {
+    test('refuses changed bytes as a changed trust decision', () {
       final changed = Uint8List.fromList(mangadex09)..[100] ^= 1;
       check(() => admitBundle(changed, bindingFor(mangadex09, PaperbackApiFamily.v09)))
           .throws<BundleAdmissionException>()
           .has((BundleAdmissionException e) => e.failure, 'failure')
-          .isA<ArtifactIncompatibleFailure>();
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.changed);
     });
 
-    test('refuses a bundle bound to the other API family', () {
+    test('refuses a bundle bound to the other API family (a compatibility, not a trust, failure)', () {
       check(() => admitBundle(weebcentral08, bindingFor(weebcentral08, PaperbackApiFamily.v09)))
           .throws<BundleAdmissionException>()
           .has((BundleAdmissionException e) => e.failure, 'failure')
-          .isA<ArtifactIncompatibleFailure>();
+          .isA<ArtifactIncompatibleFailure>()
+          .not((Subject<ArtifactIncompatibleFailure> it) => it.isA<TrustFailure>());
+    });
+
+    group('apiFamily (protocol 1.3)', () {
+      ArtifactBinding generic(Uint8List bytes) =>
+          ArtifactBinding(sha256: bundleDigest(bytes), kind: 'paperback-bundle', version: '1');
+
+      test('names the family when the artifact kind does not', () {
+        check(admitBundle(mangadex09, generic(mangadex09), apiFamily: 'paperback-0.9')).equals(PaperbackApiFamily.v09);
+        check(
+          admitBundle(weebcentral08, generic(weebcentral08), apiFamily: 'paperback-0.8'),
+        ).equals(PaperbackApiFamily.v08);
+      });
+
+      test('agrees with a kind that names the same family', () {
+        check(
+          admitBundle(mangadex09, bindingFor(mangadex09, PaperbackApiFamily.v09), apiFamily: 'paperback-0.9'),
+        ).equals(PaperbackApiFamily.v09);
+      });
+
+      test('an unknown family is unsupported-api', () {
+        check(() => admitBundle(mangadex09, generic(mangadex09), apiFamily: 'paperback-0.7'))
+            .throws<BundleAdmissionException>()
+            .has((BundleAdmissionException e) => e.failure, 'failure')
+            .isA<UnsupportedApiFailure>();
+      });
+
+      test('a family that contradicts the artifact kind is refused', () {
+        check(
+              () => admitBundle(mangadex09, bindingFor(mangadex09, PaperbackApiFamily.v09), apiFamily: 'paperback-0.8'),
+            )
+            .throws<BundleAdmissionException>()
+            .has((BundleAdmissionException e) => e.failure, 'failure')
+            .isA<ArtifactIncompatibleFailure>();
+      });
+
+      test('the family still decides the shape check', () {
+        check(() => admitBundle(weebcentral08, generic(weebcentral08), apiFamily: 'paperback-0.9'))
+            .throws<BundleAdmissionException>()
+            .has((BundleAdmissionException e) => e.failure, 'failure')
+            .isA<ArtifactIncompatibleFailure>();
+      });
+
+      test('the adapter hosts the package as the family package.load names', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('pb_family_');
+        final runtime = SourceJsRuntime(limits: testLimits());
+        try {
+          final file = File('${temp.path}/bundle.bin')..writeAsBytesSync(mangadex09);
+          final PackageLoadResponse loaded =
+              await PaperbackApiAdapter(
+                http: PaperbackHttp(MockClient((_) async => http.Response('', 404))),
+              ).load(
+                runtime,
+                PackageLoadRequest(
+                  artifact: generic(mangadex09),
+                  path: file.path,
+                  settings: emptySettings(),
+                  apiFamily: 'paperback-0.9',
+                ),
+                CancellationToken.none,
+              );
+          check(loaded.sources.single.capabilities.apiFamilies).deepEquals(<String>{'paperback-0.9'});
+        } finally {
+          runtime.dispose();
+          temp.deleteSync(recursive: true);
+        }
+      });
     });
 
     test('refuses an unsupported artifact kind as unsupported-api', () {
@@ -79,7 +148,7 @@ void main() {
       } on PaperbackRuntimeException catch (e) {
         error = e.failure;
       }
-      check(error).isA<ArtifactIncompatibleFailure>();
+      check(error).isA<TrustFailure>().has((TrustFailure f) => f.reason, 'reason').equals(TrustFailureReason.changed);
       check(requests).isEmpty();
       // Nothing was installed or evaluated: not even the host primitives.
       final JsValue probe = runtime.context.eval('typeof __pbHost + "/" + typeof Application + "/" + typeof App');
@@ -131,13 +200,15 @@ void main() {
       check((a as SourceSuccess<ArtifactLease>).value.binding.kind).equals('paperback-bundle-0.9');
     });
 
-    test('an untrusted bundle is refused before it is staged', () async {
+    test('an untrusted bundle is refused before it is staged, as a refused trust decision', () async {
       answer = false;
       final SourceOutcome<ArtifactLease> a = await provider.admit(inkdex.entry('MangaDex'), mangadex09);
       check(a)
           .isA<SourceFailed<ArtifactLease>>()
           .has((SourceFailed<ArtifactLease> f) => f.failure, 'failure')
-          .isA<ArtifactIncompatibleFailure>();
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.refused);
       check(Directory('${cacheDir.path}/objects').existsSync()).isFalse();
     });
 
@@ -208,6 +279,9 @@ void main() {
         final Uint8List bytes = File(lease.path).readAsBytesSync()..[10] ^= 1;
         File(lease.path).writeAsBytesSync(bytes);
         final SourceOutcome<SourcePackage> opened = await p.openPackage(lease, SettingsSnapshot());
+        // The supervisor's staged-artifact re-hash refuses it first; the
+        // worker's own re-hash (a `changed` trust failure) is covered in
+        // runtime/worker_test.dart.
         check(opened)
             .isA<SourceFailed<SourcePackage>>()
             .has((SourceFailed<SourcePackage> f) => f.failure, 'failure')
@@ -219,7 +293,7 @@ void main() {
       }
     });
 
-    test('an artifact not admitted by the provider is refused', () async {
+    test('an artifact not admitted by the provider is refused as first-seen', () async {
       final SourceOutcome<SourcePackage> opened = await provider.openPackage(
         _ForeignArtifact(mangadex09),
         SettingsSnapshot(),
@@ -227,7 +301,9 @@ void main() {
       check(opened)
           .isA<SourceFailed<SourcePackage>>()
           .has((SourceFailed<SourcePackage> f) => f.failure, 'failure')
-          .isA<ArtifactIncompatibleFailure>();
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.firstSeen);
     });
   });
 }

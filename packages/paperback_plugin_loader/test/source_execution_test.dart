@@ -2,7 +2,7 @@
 // both API families run search and details-with-chapters through their own
 // asynchronous host requests, across the network bridge, replaying the
 // committed captures (no server is contacted). The path is the desktop one:
-// provider -> supervisor -> protocol 1.1 -> worker -> adapter -> QuickJS;
+// provider -> supervisor -> protocol 1.3 -> worker -> adapter -> QuickJS;
 // only the process boundary is replaced by in-memory pipes (the built
 // executable runs the same scenario in e2e/paperback_worker_e2e_test.dart).
 @TestOn('vm')
@@ -216,8 +216,13 @@ void main() {
     });
 
     test('the access token: header and cookie agree, and the site-issued token replaces the minted one', () async {
-      // Captures do not keep Set-Cookie, so the site's `mhub_access` cookie is
-      // added to the first replayed answer here.
+      // The committed capture predates `setCookieAllowList` and holds no
+      // `Set-Cookie`, and which answer set `mhub_access` was not recorded, so
+      // the cookie is added to the first replayed answer here. The scenario
+      // now allow-lists it (redacted) for the next recording.
+      check(captureSetCookies['mangahub']).isNotNull().deepEquals(<String, CapturedCookieValue>{
+        'mhub_access': CapturedCookieValue.redact,
+      });
       const issued = 'issuedtoken0123456789abcdef01234';
       final client = _Gate(replay(), issueToken: issued);
       final HostUnderTest h = await HostUnderTest.load(repo.bundle('Mangahub'), PaperbackApiFamily.v08, client: client);

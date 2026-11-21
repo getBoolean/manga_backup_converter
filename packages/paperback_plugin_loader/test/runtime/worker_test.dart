@@ -12,6 +12,7 @@ import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 
 import '../e2e/settings_echo_worker.dart' show SettingsEchoAdapter;
+import '../support/paperback_scenarios.dart' show PinnedRepository;
 import 'test_support.dart';
 
 /// A stand-in adapter (U6 supplies the real 0.8/0.9 adapters): it evaluates
@@ -58,12 +59,18 @@ final class ScriptAdapter implements PaperbackPackageAdapter {
 
 /// Drives a worker in-process over injected streams.
 final class WorkerHarness {
-  WorkerHarness({PaperbackPackageAdapter? adapter, PaperbackRuntimeLimits? limits}) {
+  WorkerHarness({
+    PaperbackPackageAdapter? adapter,
+    PaperbackPackageAdapter Function(PaperbackBrowserChannel browser)? adapterFactory,
+    PaperbackRuntimeLimits? limits,
+  }) {
     worker = PaperbackSourceWorker(
       input: _input.stream,
       output: _output,
       limits: limits ?? testLimits(),
       adapter: adapter,
+      adapterFactory: adapterFactory,
+      browserEnabled: adapterFactory != null,
       pid: 4242,
       log: logs.add,
     );
@@ -90,6 +97,24 @@ final class WorkerHarness {
   }
 
   void cancel(String id) => _input.add(encodeFrame(ProtocolFrame(type: FrameType.cancel, id: id, generation: 1)));
+
+  int _nextEvent = 0;
+
+  /// The next reverse request the worker sends.
+  Future<ProtocolFrame> reverseRequest() =>
+      _frames.stream.firstWhere((ProtocolFrame f) => f.type == FrameType.reverseRequest);
+
+  /// Answers reverse request [id] with [error].
+  void reverseError(String id, Map<String, Object?> error) => _input.add(
+    encodeFrame(ProtocolFrame(type: FrameType.reverseResponse, id: id, generation: 1, error: error)),
+  );
+
+  /// Sends a supervisor `event` frame.
+  void event(String op, Map<String, Object?> payload) => _input.add(
+    encodeFrame(
+      ProtocolFrame(type: FrameType.event, id: 'e1-${++_nextEvent}', generation: 1, op: op, payload: payload),
+    ),
+  );
 
   Future<ProtocolFrame> reply(String id) =>
       _frames.stream.firstWhere((ProtocolFrame f) => f.type == FrameType.response && f.id == id);
@@ -137,7 +162,7 @@ void main() {
     return file.path;
   }
 
-  test('handshake reports protocol 1.1, no API families yet, and the limits in effect', () async {
+  test('handshake reports the offered minor, no API families yet, and the limits in effect', () async {
     final harness = WorkerHarness();
     final ProtocolFrame reply = await harness.request(
       'handshake',
@@ -164,8 +189,9 @@ void main() {
     await harness.close();
   });
 
-  test('handshake answers the lower of the offered minor and 1', () async {
-    for (final (int offer, int expected) in const <(int, int)>[(0, 0), (1, 1), (5, 1)]) {
+  test('handshake answers the lower of the offered minor and 3', () async {
+    check(paperbackProtocolMinor).equals(3);
+    for (final (int offer, int expected) in const <(int, int)>[(0, 0), (1, 1), (2, 2), (3, 3), (5, 3)]) {
       final harness = WorkerHarness();
       final ProtocolFrame reply = await harness.request(
         'handshake',
@@ -232,6 +258,115 @@ void main() {
     final ProtocolFrame ok = await harness.request('search', pkg: 'pkg.test', payload: searchPayload('fine'));
     check(WorkerSearchResponse.fromJson(ok.ok!).warnings).deepEquals(<String>['fine']);
     await harness.close();
+  });
+
+  group('interaction events (protocol 1.3) pause the engine deadline', () {
+    const deadline = Duration(milliseconds: 400);
+    const slowUser = Duration(milliseconds: 1200);
+
+    Future<(WorkerHarness, ControlledHttp)> started() async {
+      final http = ControlledHttp();
+      final harness = WorkerHarness(
+        adapter: ScriptAdapter(http),
+        limits: testLimits(operationDeadline: deadline),
+      );
+      await harness.request(
+        'package.load',
+        pkg: 'pkg.test',
+        payload: loadPayload(
+          script(
+            'function search(q) { return __paperbackHost.request({ url: "https://example.test/" + q }).then(function (r) { return r.text; }); }',
+          ),
+        ),
+      );
+      return (harness, http);
+    }
+
+    test('a slow user interaction does not trip the deadline', () async {
+      final (WorkerHarness harness, ControlledHttp http) = await started();
+      final String id = harness.send('search', pkg: 'pkg.test', payload: searchPayload('q'));
+      final Future<ProtocolFrame> reply = harness.reply(id);
+      harness.event(WorkerInteractionStarted.op, WorkerInteractionStarted(of: id, timeout: slowUser * 2).toJson());
+      await Future<void>.delayed(slowUser);
+      harness.event(WorkerInteractionEnded.op, WorkerInteractionEnded(of: id, paused: slowUser).toJson());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      http.completeAll('solved');
+      check(WorkerSearchResponse.fromJson((await reply).ok!).warnings).deepEquals(<String>['solved']);
+      await harness.close();
+    });
+
+    test('without the events the same wait times out (control)', () async {
+      final (WorkerHarness harness, ControlledHttp http) = await started();
+      final String id = harness.send('search', pkg: 'pkg.test', payload: searchPayload('q'));
+      final Future<ProtocolFrame> reply = harness.reply(id);
+      await Future<void>.delayed(slowUser);
+      http.completeAll('solved');
+      check((await reply).error!['code']).equals('timeout');
+      await harness.close();
+    });
+
+    test('the remaining budget still applies after interaction.ended', () async {
+      final (WorkerHarness harness, ControlledHttp _) = await started();
+      final String id = harness.send('search', pkg: 'pkg.test', payload: searchPayload('q'));
+      final Future<ProtocolFrame> reply = harness.reply(id);
+      harness.event(WorkerInteractionStarted.op, WorkerInteractionStarted(of: id, timeout: slowUser * 2).toJson());
+      await Future<void>.delayed(slowUser);
+      final watch = Stopwatch()..start();
+      harness.event(WorkerInteractionEnded.op, WorkerInteractionEnded(of: id, paused: slowUser).toJson());
+      check((await reply).error!['code']).equals('timeout');
+      // Resumed with what was left (under 400 ms), not a fresh deadline.
+      check(watch.elapsed).isLessThan(deadline + const Duration(milliseconds: 300));
+      await harness.close();
+    });
+
+    test('events for another operation, or malformed ones, change nothing', () async {
+      final (WorkerHarness harness, ControlledHttp _) = await started();
+      final String id = harness.send('search', pkg: 'pkg.test', payload: searchPayload('q'));
+      final Future<ProtocolFrame> reply = harness.reply(id);
+      harness.event(
+        WorkerInteractionStarted.op,
+        const WorkerInteractionStarted(of: '1-99', timeout: slowUser).toJson(),
+      );
+      harness.event(WorkerInteractionStarted.op, const <String, Object?>{'of': 7});
+      check((await reply).error!['code']).equals('timeout');
+      check(harness.logs).any((Subject<String> it) => it.contains('malformed interaction.started'));
+      await harness.close();
+    });
+  });
+
+  group('failures keep their wire fields (protocol 1.3 trust)', () {
+    test('bundle bytes that differ from the admitted digest reply artifact-incompatible with trust changed', () async {
+      final harness = WorkerHarness(adapter: PaperbackApiAdapter(http: PaperbackHttp(fakeHttp())));
+      final path = '${temp.path}/bundle.bin';
+      File(path).writeAsBytesSync(PinnedRepository.load('inkdex-0.9').bundle('MangaDex'));
+      final ProtocolFrame reply = await harness.request(
+        'package.load',
+        pkg: 'pkg.test',
+        payload: PackageLoadRequest(
+          artifact: ArtifactBinding(sha256: 'ab' * 32, kind: 'paperback-bundle-0.9', version: '1'),
+          path: path,
+          settings: SettingsPayload(values: const <String, Object>{}, secrets: const <String, String>{}, revision: 'r'),
+          apiFamily: 'paperback-0.9',
+        ).toJson(),
+      );
+      check(reply.error!).containsKey('trust');
+      check(SourceFailure.fromJson(reply.error!))
+          .isA<TrustFailure>()
+          .has((TrustFailure f) => f.reason, 'reason')
+          .equals(TrustFailureReason.changed);
+      await harness.close();
+    });
+
+    test('a reverse-request error is rebuilt with every field', () async {
+      final harness = WorkerHarness(adapterFactory: _ReverseEchoAdapter.new);
+      await harness.request('package.load', pkg: 'pkg.test', payload: loadPayload('unused'));
+      final Future<ProtocolFrame> search = harness.request('search', pkg: 'pkg.test', payload: searchPayload('q'));
+      final ProtocolFrame rreq = await harness.reverseRequest();
+      final Map<String, Object?> wire = const TrustFailure(TrustFailureReason.refused, 'nope').toWire();
+      harness.reverseError(rreq.id, wire);
+      check(WorkerSearchResponse.fromJson((await search).ok!).warnings.single).equals(jsonEncode(wire));
+      await harness.close();
+    });
   });
 
   test('a cancel frame during a host wait replies cancelled', () async {
@@ -407,4 +542,78 @@ void main() {
     ).throws<FormatException>();
     check(jsonEncode(limits.toJson())).contains('1048576');
   });
+
+  test('record mode takes a Set-Cookie allow-list (capture format setCookieAllowList)', () {
+    const base = <String>[
+      '--memory-limit-bytes=1',
+      '--max-stack-bytes=1',
+      '--operation-deadline-ms=1',
+      '--job-slice-ms=1',
+      '--deadline-headroom-ms=1',
+      '--record=x',
+      '--record-source=s',
+      '--record-min-interval-ms=1500',
+      '--record-licence=l',
+    ];
+    final PaperbackNetworkMode network = parseWorkerArguments(<String>[
+      ...base,
+      '--record-cookie=mhub_access:redact',
+      '--record-cookie=lang:keep',
+    ]).network;
+    check(network).isA<RecordNetwork>().has((RecordNetwork r) => r.setCookieAllowList, 'allow-list').deepEquals(
+      <String, CapturedCookieValue>{'mhub_access': CapturedCookieValue.redact, 'lang': CapturedCookieValue.keep},
+    );
+    check(
+      parseWorkerArguments(base).network,
+    ).isA<RecordNetwork>().has((RecordNetwork r) => r.setCookieAllowList, 'allow-list').isEmpty();
+    check(() => parseWorkerArguments(<String>[...base, '--record-cookie=mhub_access'])).throws<FormatException>();
+    check(() => parseWorkerArguments(<String>[...base, '--record-cookie=a:drop'])).throws<FormatException>();
+    // Only with --record.
+    check(
+      () => parseWorkerArguments(<String>[...base.take(5), '--record-cookie=a:keep']),
+    ).throws<FormatException>();
+  });
+}
+
+/// Sends one browser reverse request per search and reports the failure it
+/// got back, as wire JSON.
+final class _ReverseEchoAdapter implements PaperbackPackageAdapter {
+  _ReverseEchoAdapter(this.browser);
+
+  final PaperbackBrowserChannel browser;
+
+  @override
+  Set<String> get apiFamilies => const <String>{'test-echo'};
+
+  @override
+  Future<PackageLoadResponse> load(
+    SourceJsRuntime runtime,
+    PackageLoadRequest request,
+    CancellationToken cancel,
+  ) async => PackageLoadResponse(
+    sources: <LoadedSource>[
+      LoadedSource(
+        sourceId: 'echo',
+        name: 'Echo',
+        capabilities: SourceCapabilities(operations: const <SourceOperation>{SourceOperation.search}),
+      ),
+    ],
+  );
+
+  @override
+  Future<ProtocolPayload> handle(
+    SourceJsRuntime runtime,
+    WorkerRequest<ProtocolPayload> request,
+    CancellationToken cancel,
+  ) async {
+    final SourceOutcome<Map<String, Object?>> outcome = await browser.send(
+      const HostBrowserOpen(sourceId: 'echo'),
+      cancel,
+    );
+    final String text = switch (outcome) {
+      SourceSuccess<Map<String, Object?>>() => 'ok',
+      SourceFailed<Map<String, Object?>>(:final SourceFailure failure) => jsonEncode(failure.toWire()),
+    };
+    return WorkerSearchResponse(hits: const <WorkerSearchHit>[], warnings: <String>[text]);
+  }
 }
