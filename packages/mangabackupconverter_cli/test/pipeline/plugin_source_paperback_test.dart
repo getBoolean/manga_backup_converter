@@ -99,10 +99,6 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  test('the composition root registers the Paperback loader for Paperback targets', () {
-    check(pluginLoaderFor(const Paperback(), cacheRoot: temp.path)).isA<PaperbackPluginLoader>();
-  });
-
   test('lists both API families as Paperback entries; adult sources stay hidden by default', () async {
     final List<ExtensionEntry> entries = await loader().fetchExtensionLists(<String>[
       'https://inkdex.github.io/extensions/0.9/stable/',

@@ -14,6 +14,18 @@ import 'package:source_runtime/source_runtime.dart';
 /// QuickJS native asset for it).
 const String paperbackWorkerCommand = '__paperback-worker';
 
+/// Why this process cannot run the Paperback worker, or `null` when it can:
+/// the worker is this executable re-launched, and under `dart run` (or the
+/// Flutter test runner) the resolved executable has no such command.
+SourceFailure? paperbackWorkerUnavailable() {
+  final String exe = p.basenameWithoutExtension(Platform.resolvedExecutable).toLowerCase();
+  return exe == 'dart' || exe == 'flutter_tester'
+      ? const RuntimeUnavailableFailure(
+          'Paperback sources need the built CLI executable (dart build cli); they cannot run under dart run',
+        )
+      : null;
+}
+
 /// Paperback loader (U6): lists repository catalogs and opens each bundle
 /// through [PaperbackSourceProvider], reaching the pipeline through
 /// [SessionPluginSource] (KTD15).
@@ -30,6 +42,7 @@ class PaperbackPluginLoader extends PluginLoader {
     required Future<SourceOutcome<WorkerSupervisor>> Function(ConversionOwner? owner) worker,
     this.onSettings,
     this._trust,
+    this.settingsFor = noExtensionSettings,
   }) {
     _provider = PaperbackSourceProvider(
       client: client,
@@ -46,6 +59,7 @@ class PaperbackPluginLoader extends PluginLoader {
     required String cacheRoot,
     void Function(SettingsSnapshot settings)? onSettings,
     void Function(String line)? onLog,
+    ExtensionSettingsProvider settingsFor = noExtensionSettings,
   }) {
     final client = http.Client();
     WorkerSupervisor? supervisor;
@@ -53,19 +67,11 @@ class PaperbackPluginLoader extends PluginLoader {
       client: client,
       cache: ArtifactCache(Directory(p.join(cacheRoot, 'paperback_artifacts'))),
       onSettings: onSettings,
+      settingsFor: settingsFor,
       worker: (ConversionOwner? owner) async {
         if (supervisor == null) {
-          // The worker is this executable re-launched; under `dart run` the
-          // resolved executable is the Dart VM, which has no such command.
-          final String exe = p.basenameWithoutExtension(Platform.resolvedExecutable).toLowerCase();
-          if (exe == 'dart' || exe == 'flutter_tester') {
-            return const SourceFailed<WorkerSupervisor>(
-              RuntimeUnavailableFailure(
-                'Paperback sources need the built CLI executable (dart build cli); '
-                'they cannot run under dart run',
-              ),
-            );
-          }
+          final SourceFailure? unavailable = paperbackWorkerUnavailable();
+          if (unavailable != null) return SourceFailed<WorkerSupervisor>(unavailable);
           final PaperbackWorkerPlan plan = planPaperbackWorker();
           // KTD25: record the rule, its inputs and the derived limits, and any
           // cap that left a limit below the measured need.
@@ -106,6 +112,9 @@ class PaperbackPluginLoader extends PluginLoader {
 
   final http.Client client;
   final void Function(SettingsSnapshot settings)? onSettings;
+
+  /// The user's settings for each bundle.
+  final ExtensionSettingsProvider settingsFor;
   RepositoryTrustGate? _trust;
   late final PaperbackSourceProvider _provider;
   ConversionOwner? _owner;
@@ -207,7 +216,7 @@ class PaperbackPluginLoader extends PluginLoader {
     final SourceOutcome<ArtifactLease> admitted = await _provider.admit(_catalogEntry(entry), bytes);
     final ArtifactLease? lease = admitted.valueOrNull;
     if (lease == null) return SourceFailed<List<PluginSource>>(admitted.failureOrNull!);
-    final settings = SettingsSnapshot();
+    final SettingsSnapshot settings = settingsFor(entry);
     onSettings?.call(settings);
     final SourceOutcome<SourcePackage> opened = await _provider.openPackage(lease, settings);
     final SourcePackage? package = opened.valueOrNull;

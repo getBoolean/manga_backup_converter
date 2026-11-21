@@ -256,6 +256,15 @@ void main() {
       check(failures).isEmpty();
       check(plugins).length.equals(1 + 7);
       check(launcher.launches).equals(1);
+      // Each source carries its index language, so the pipeline can narrow a
+      // multi-language package to the backup's languages.
+      final List<String?> mangaFireLanguages = plugins
+          .where((PluginSource p) => p.identity.packageId == _mangaFire)
+          .map((PluginSource p) => p.language)
+          .toList();
+      check(mangaFireLanguages.every((String? l) => l != null && l.isNotEmpty)).isTrue();
+      check(mangaFireLanguages.toSet().length).equals(7);
+      check(plugins.firstWhere((PluginSource p) => p.identity.packageId == _weebCentral).language).equals('en');
 
       final PluginSource wc = plugins.firstWhere((PluginSource p) => p.identity.packageId == _weebCentral);
       check(wc.sourceId).equals('2131019126180322627');

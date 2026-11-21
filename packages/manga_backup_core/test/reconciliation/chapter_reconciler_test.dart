@@ -31,6 +31,11 @@ void main() {
       check(knownLanguage('unknown')).isNull();
     });
 
+    test('a value that is not a language code (a flag emoji) is unknown, not a conflicting language', () {
+      check(knownLanguage('🇬🇧')).isNull();
+      check(knownLanguage('English')).isNull();
+    });
+
     test('scanlator groups are split', () {
       check(scanlatorGroups('Alpha & Beta, Gamma')).deepEquals(<String>{'alpha', 'beta', 'gamma'});
       check(scanlatorGroups(null)).isEmpty();
@@ -38,6 +43,32 @@ void main() {
   });
 
   group('reconcileChapters', () {
+    test('a flag-emoji destination language does not reject an en source chapter', () {
+      final ChapterReconciliation r = reconcileChapters(
+        sourceChapters: <SourceChapter>[SourceChapter(title: 'Step 1', chapterNumber: 1, language: 'en', isRead: true)],
+        destinationChapters: <PluginChapter>[PluginChapter(chapterId: 'd1', chapterNumber: 1, language: '🇬🇧')],
+      );
+      check(_matchedIds(r)).deepEquals(<String, String>{'Step 1': 'd1'});
+    });
+
+    test('a destination without chapter numbers is matched only by a unique exact title', () {
+      final ChapterReconciliation r = reconcileChapters(
+        sourceChapters: <SourceChapter>[
+          SourceChapter(title: 'Step 1', chapterNumber: 1, isRead: true),
+          SourceChapter(title: 'Extra', chapterNumber: 2, isRead: true),
+          SourceChapter(title: 'Step 9', chapterNumber: 9, isRead: true),
+        ],
+        destinationChapters: <PluginChapter>[
+          PluginChapter(chapterId: 'd1', title: 'Step 1'),
+          PluginChapter(chapterId: 'e1', title: 'Extra'),
+          PluginChapter(chapterId: 'e2', title: 'Extra'),
+        ],
+      );
+      check(_matchedIds(r)).deepEquals(<String, String>{'Step 1': 'd1'});
+      check(r.unresolved.whereType<AmbiguousChapter>().single.source.title).equals('Extra');
+      check(r.unresolved.whereType<UnmatchedChapter>().single.source.title).equals('Step 9');
+    });
+
     test('unique number match transfers', () {
       final ChapterReconciliation r = reconcileChapters(
         sourceChapters: <SourceChapter>[SourceChapter(title: 's1', chapterNumber: 1, isRead: true)],

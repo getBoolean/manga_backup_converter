@@ -29,6 +29,8 @@ final class SourceSelectionRequest {
     required this.available,
     required this.hiddenByRating,
     this.previousSelection = const <ExtensionEntry>[],
+    this.languages,
+    this.explicitSources = const <String>{},
   });
 
   final List<ExtensionEntry> available;
@@ -40,6 +42,15 @@ final class SourceSelectionRequest {
 
   /// How many sources the rating policy hid.
   final int hiddenByRating;
+
+  /// The languages the sources inside the picked extensions are narrowed to
+  /// (`null`: not narrowed). Every extension of the user's repositories is
+  /// offered; narrowing never hides an extension from the user.
+  final Set<String>? languages;
+
+  /// Runtime source IDs the user named (`--sources`); hosts pick the
+  /// extensions that host them.
+  final Set<String> explicitSources;
 }
 
 /// Unresolved chapters of one manga, for the user to resolve (KTD7).

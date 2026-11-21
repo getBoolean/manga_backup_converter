@@ -214,8 +214,29 @@ extension TachiToTachimanga on TachiBackup {
 }
 
 /// The CLI's [DirectConverter]: Tachimanga↔Tachi without source plugins.
-ConvertableBackup legacyDirectConvert(ConvertableBackup source, BackupFormat target) => switch (source) {
-  TachimangaBackup() => source.toTachiBackup(),
-  TachiBackup() => source.toTachimangaBackup(),
-  _ => throw StateError('Unexpected source type for direct conversion: ${source.runtimeType}'),
-};
+///
+/// Source IDs, manga and chapter URLs, chapter state, categories and
+/// tracking are carried field by field. Tachi → Tachimanga collapses each
+/// manga's history to one row (Tachimanga's `UNIQUE(manga_id)`): per-chapter
+/// read flags are kept on the chapters, so only the extra history rows'
+/// timestamps are dropped, which [report] records as a format note.
+ConvertableBackup legacyDirectConvert(ConvertableBackup source, BackupFormat target, ConversionReport report) {
+  switch (source) {
+    case TachimangaBackup():
+      return source.toTachiBackup();
+    case TachiBackup():
+      final int collapsed = source.backupManga.fold(
+        0,
+        (int sum, TachiBackupManga m) => sum + (m.history.length > 1 ? m.history.length - 1 : 0),
+      );
+      if (collapsed > 0) {
+        report.notes.add(
+          'Tachimanga keeps one history row per manga: $collapsed older history row(s) were folded into the '
+          'latest one (read durations summed; chapter read flags are unchanged)',
+        );
+      }
+      return source.toTachimangaBackup();
+    default:
+      throw StateError('Unexpected source type for direct conversion: ${source.runtimeType}');
+  }
+}

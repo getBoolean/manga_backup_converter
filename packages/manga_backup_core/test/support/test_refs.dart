@@ -2,9 +2,14 @@ import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:source_runtime/source_contracts.dart';
 
 /// A test source identity for [sourceId].
-SourceIdentity testIdentity(String sourceId, {String ecosystem = 'test', String digest = 'digest'}) => SourceIdentity(
+SourceIdentity testIdentity(
+  String sourceId, {
+  String ecosystem = 'test',
+  String digest = 'digest',
+  String? packageId,
+}) => SourceIdentity(
   ecosystem: ecosystem,
-  packageId: sourceId,
+  packageId: packageId ?? sourceId,
   sourceId: sourceId,
   artifact: ArtifactBinding(sha256: digest, kind: 'test', version: '1'),
 );

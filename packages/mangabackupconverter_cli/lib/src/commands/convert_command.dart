@@ -1,17 +1,16 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:typed_data';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:characters/characters.dart';
-import 'package:collection/collection.dart';
-import 'package:crypto/crypto.dart';
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
-import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
+import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';
 import 'package:mangabackupconverter_cli/src/commands/extension_select_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
 import 'package:mangabackupconverter_cli/src/commands/format_select_screen.dart';
@@ -21,7 +20,7 @@ import 'package:mangabackupconverter_cli/src/commands/redacting_log.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
-import 'package:source_runtime/source_runtime.dart' show Redactor;
+import 'package:source_runtime/source_runtime.dart' show Redactor, SettingsSnapshot, SourceFailure;
 import 'package:tachi_plugin_loader/tachi_plugin_loader.dart' show TachiArtifactPolicy, TachiWorkerLocation;
 
 class ConvertCommand extends Command<void> {
@@ -34,9 +33,10 @@ class ConvertCommand extends Command<void> {
   final String description = 'Convert a manga backup to another format.';
 
   static final List<String> _aliases = BackupFormat.values.map((BackupFormat f) => f.alias).toList();
-  static final List<BackupFormat> _outputFormats = BackupFormat.values
-      .where((BackupFormat f) => f.backupBuilder is! UnimplementedBackupBuilder)
-      .toList();
+
+  /// Formats with a registered writer or direct converter; whether a pair
+  /// is enabled on this host is checked once the input format is known.
+  static final List<BackupFormat> _outputFormats = cliFormatRegistry().outputFormats;
 
   ConvertCommand() {
     argParser
@@ -61,14 +61,41 @@ class ConvertCommand extends Command<void> {
       ..addMultiOption(
         'repos',
         abbr: 'r',
-        help: 'Extension repo URLs for plugin-based migration.',
+        valueHelp: 'URL',
+        help:
+            'Extension repository URL for the destination ecosystem (repeatable). There is no built-in '
+            'repository: migration needs at least one (asked for interactively, required unattended).',
       )
       ..addMultiOption(
         'extensions',
         abbr: 'e',
+        valueHelp: 'EXTENSION_ID',
         help:
-            'Extension IDs to install (e.g. multi.mangadex). '
-            'Skips interactive extension selection.',
+            'Extension (package) ID from your repositories to use (repeatable). Skips interactive selection; '
+            'unattended migration needs --extensions or --sources. Their sources are narrowed to the '
+            "backup's languages (see --languages).",
+      )
+      ..addMultiOption(
+        'sources',
+        valueHelp: 'SOURCE_ID',
+        help:
+            'Runtime source ID to search (repeatable), for example one source of a multi-language package. '
+            'Exactly these sources are used, with no language narrowing; the extensions hosting them are '
+            'selected unless --extensions names them.',
+      )
+      ..addOption(
+        'settings',
+        valueHelp: 'settings.json',
+        help:
+            'Extension settings file: {"extensions": {"<extension id>": {"values": {...}, "secrets": {...}, '
+            '"sources": {"<source id>": {"values": {...}, "secrets": {...}}}}}}. Secrets stay in memory only.',
+      )
+      ..addMultiOption(
+        'setting',
+        valueHelp: 'EXTENSION_ID=KEY=VALUE',
+        help:
+            'One non-secret extension setting (repeatable; true/false and integers are typed), applied over '
+            '--settings. Put secrets in the settings file, not on the command line.',
       )
       ..addOption(
         'max-rating',
@@ -83,6 +110,13 @@ class ConvertCommand extends Command<void> {
         help:
             'Confirm you are of legal age to view adult content. Adult (NSFW) and unrated sources '
             'are hidden from source selection without it.',
+      )
+      ..addOption(
+        'languages',
+        valueHelp: 'en,ja|all',
+        help:
+            'Search only sources in these languages (plus multi-language sources). Defaults to the '
+            "languages found in the backup; 'all' searches every language.",
       )
       ..addFlag(
         'accept-partial',
@@ -213,13 +247,6 @@ class ConvertCommand extends Command<void> {
       outputFormat = BackupFormat.byName(outputFormatName);
     }
 
-    if (outputFormat.backupBuilder is UnimplementedBackupBuilder) {
-      throw UsageException(
-        '${outputFormat.alias} is not yet supported as a target format.',
-        usage,
-      );
-    }
-
     // --- Input format ---
     final String backupFileExtension = p.extension(backupFile.uri.toString());
 
@@ -280,6 +307,25 @@ class ConvertCommand extends Command<void> {
     if (ratingPolicy.requestsUnconfirmedAdult) {
       throw UsageException('--max-rating nsfw requires --confirm-adult (age confirmation).', usage);
     }
+    // `null` infers the languages from the backup. Plain if/try (no
+    // pattern switch into a deferred final): see the Dart 3.14 AOT note.
+    SourceLanguagePolicy? languagePolicy;
+    final String? languagesOption = results.option('languages');
+    if (languagesOption != null) {
+      try {
+        languagePolicy = SourceLanguagePolicy.parse(languagesOption);
+      } on FormatException catch (e) {
+        throw UsageException(e.message, usage);
+      }
+    }
+
+    // Extension picks and settings are the user's (no built-in defaults).
+    final List<String> extensionIds = results.multiOption('extensions');
+    final Set<String> sourceIds = results.multiOption('sources').toSet();
+    final UserExtensionSettings userSettings = _readUserSettings(
+      results.option('settings'),
+      results.multiOption('setting'),
+    );
 
     final ConversionStrategy strategy = determineStrategy(resolvedInputFormat, outputFormat);
     var forceMigration = false;
@@ -307,6 +353,44 @@ class ConvertCommand extends Command<void> {
       }
     }
 
+    // --- Composition root (KTD15): formats, desktop runtimes, enablement ---
+    final FormatRegistry formats = cliFormatRegistry();
+    // One session redactor for every log line and user-visible error (KTD9).
+    final redactor = Redactor();
+    RedactingLog? activeLog;
+    final tachi = DesktopTachiRuntime(
+      locate: () => TachiWorkerLocation.resolve(
+        manifestPath: results.option('tachi-runtime'),
+        handshakeDeadline: tachiHandshakeDeadline,
+        searchFrom: io.File(io.Platform.script.toFilePath()).parent,
+      ),
+      cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
+      fetch: httpTachiFetch,
+      policy: tachiPolicy,
+      onLog: (String line) => activeLog?.writeln(line),
+      redactor: redactor,
+    );
+    final RuntimeRegistry runtimes = cliRuntimeRegistry(
+      cache: PluginCache(),
+      tachi: tachi,
+      cacheRoot: userConfigDirectory(),
+      onSettings: (SettingsSnapshot settings) => activeLog?.addSecrets(settings),
+      onLog: (String line) => activeLog?.writeln(line),
+    );
+    final SourceFailure? unavailable = conversionUnavailable(
+      formats,
+      runtimes,
+      resolvedInputFormat,
+      outputFormat,
+      forceMigration: forceMigration,
+    );
+    if (unavailable != null) {
+      throw UsageException(
+        '${resolvedInputFormat.alias} → ${outputFormat.alias} is not available on this host: ${unavailable.message}',
+        usage,
+      );
+    }
+
     // --- Repo URL prompt ---
     final bool willMigrate = strategy is Migration || forceMigration;
     if (interactive && willMigrate && repoUrls.isEmpty) {
@@ -324,6 +408,17 @@ class ConvertCommand extends Command<void> {
       } while (repoInput.isEmpty && required);
       if (repoInput.isNotEmpty) {
         repoUrls = [repoInput];
+      }
+    }
+    if (!interactive && willMigrate) {
+      if (repoUrls.isEmpty) {
+        throw UsageException('--repos is required for unattended migration: there is no built-in repository.', usage);
+      }
+      if (extensionIds.isEmpty && sourceIds.isEmpty) {
+        throw UsageException(
+          'Unattended migration needs --extensions or --sources: extensions are never picked automatically.',
+          usage,
+        );
       }
     }
 
@@ -363,9 +458,8 @@ class ConvertCommand extends Command<void> {
 
     final String logPath = results.option('log-file') ?? (interactive ? '${p.withoutExtension(outputPath)}.log' : '');
     final io.IOSink? logSink = logPath.isNotEmpty ? io.File(logPath).openWrite() : null;
-    // One session redactor for every log line and user-visible error (KTD9).
-    final redactor = Redactor();
     final log = RedactingLog(logSink, redactor: redactor);
+    activeLog = log;
     final String journalPath = results.option('journal') ?? '${p.withoutExtension(outputPath)}.journal.json';
     final bool acceptPartial = results.flag('accept-partial');
 
@@ -396,26 +490,39 @@ class ConvertCommand extends Command<void> {
       spinner!.start(() => loadingRegion!.render(['${spinner.frame} $loadingMessage']));
     }
 
-    final List<String> extensionIds = results.multiOption('extensions');
-
     final selection = CallbackSelectionPort(
       onSelectExtensions: (List<ExtensionEntry> e) async => e,
       onSelectSources: (SourceSelectionRequest request) async {
         final List<ExtensionEntry> extensions = request.available;
         if (extensions.isEmpty) {
           throw MigrationException(
-            'No extensions available at the selected content rating'
+            'No extensions available in the given repositories at the selected content rating'
             '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}.',
           );
         }
 
         // A resumed conversion reuses its journaled sources unless
-        // --extensions names others.
-        if (extensionIds.isEmpty && request.previousSelection.isNotEmpty) {
+        // --extensions or --sources name others.
+        if (extensionIds.isEmpty && sourceIds.isEmpty && request.previousSelection.isNotEmpty) {
           return request.previousSelection;
         }
 
-        // --extensions flag: filter by ID, skip TUI/auto-select. Matching
+        // --sources alone: the extensions hosting the named sources.
+        if (extensionIds.isEmpty && sourceIds.isNotEmpty) {
+          final List<ExtensionEntry> hosting = extensions
+              .where((ExtensionEntry e) => sourceIds.any((String id) => entryHostsSource(e, id)))
+              .toList();
+          if (hosting.isEmpty) {
+            throw UsageException(
+              'No extension in the given repositories hosts the named sources (or they are hidden by the '
+              'content rating).',
+              usage,
+            );
+          }
+          return hosting;
+        }
+
+        // --extensions flag: filter by ID, skip the selection screen. Matching
         // runs after the rating policy, so a hidden source cannot be named.
         if (extensionIds.isNotEmpty) {
           final Set<String> idSet = extensionIds.toSet();
@@ -445,8 +552,8 @@ class ConvertCommand extends Command<void> {
           return result;
         }
 
-        // Non-interactive fallback: auto-select MangaDex or first.
-        return [extensions.firstWhereOrNull((ExtensionEntry e) => e.id == 'multi.mangadex') ?? extensions.first];
+        // Never auto-picked: unattended runs were required to name them.
+        throw UsageException('No extensions named: pass --extensions or --sources.', usage);
       },
       onConfirmMatches: interactive
           ? (pluginNames, manga, onSearch, onFetchDetails) => paused(
@@ -477,62 +584,19 @@ class ConvertCommand extends Command<void> {
       await runZoned(
         () async {
           updateLoading('Reading backup file...');
-          final converter = MangaBackupConverter();
           final Uint8List bytes = backupFile.readAsBytesSync();
-
           updateLoading('Importing ${resolvedInputFormat.alias} backup...');
-          final ConvertableBackup importedBackup = switch (resolvedInputFormat) {
-            Aidoku() => converter.importAidokuBackup(bytes),
-            Tachiyomi() => converter.importTachibkBackup(bytes, format: resolvedInputFormat),
-            Paperback() => converter.importPaperbackPas4Backup(
-              bytes,
-              name: p.basenameWithoutExtension(backupFile.uri.toString()),
-            ),
-            Tachimanga() => await converter.importTachimangaBackup(bytes),
-            Mangayomi() => converter.importMangayomiBackup(bytes),
-          };
 
-          if (verbose) {
-            print('[VERBOSE] All arguments: ${results.arguments}');
-            print('Imported Backup Extension: $backupFileExtension');
-            print('============ Imported Backup Data ============ ');
-            importedBackup.diagnostics.forEach(print);
-          }
-          if (verbose && !interactive) {
-            print('[VERBOSE] Non-interactive mode: auto-accepting best matches');
-          }
-
-          final pluginCache = PluginCache();
-          final tachi = DesktopTachiRuntime(
-            locate: () => TachiWorkerLocation.resolve(
-              manifestPath: results.option('tachi-runtime'),
-              handshakeDeadline: tachiHandshakeDeadline,
-              searchFrom: io.File(io.Platform.script.toFilePath()).parent,
-            ),
-            cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
-            fetch: httpTachiFetch,
-            policy: tachiPolicy,
-            onLog: log.writeln,
-            redactor: redactor,
-          );
           final journalStore = FileJournalStore(journalPath);
           if (results.flag('fresh')) await journalStore.clear();
-          final pipeline = MigrationPipeline(
-            repoUrls: repoUrls,
-            pluginLoader: CachingPluginLoader(
-              pluginLoaderFor(
-                outputFormat,
-                onSettings: log.addSecrets,
-                tachi: tachi,
-                cacheRoot: userConfigDirectory(),
-                onLog: log.writeln,
-              ),
-              cache: pluginCache,
-            ),
+          final job = ConversionJob(
+            formats: formats,
+            runtimes: runtimes,
             selection: selection,
-            directConverter: legacyDirectConvert,
             journalStore: journalStore,
             ratingPolicy: ratingPolicy,
+            languagePolicy: languagePolicy,
+            settingsFor: userSettings.provider,
             trustStore: PinnedTrustStore(
               FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
               tachiPins,
@@ -544,6 +608,14 @@ class ConvertCommand extends Command<void> {
               'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
             ),
             redact: redactor.redact,
+            onDecoded: (ConvertableBackup imported) {
+              if (!verbose) return;
+              print('[VERBOSE] All arguments: ${results.arguments}');
+              print('Imported Backup Extension: $backupFileExtension');
+              print('============ Imported Backup Data ============ ');
+              imported.diagnostics.forEach(print);
+              if (!interactive) print('[VERBOSE] Non-interactive mode: auto-accepting best matches');
+            },
             onProgress: (int current, int total, String message) {
               if (verbose) print('[$current/$total] $message');
               if (interactive) {
@@ -553,35 +625,35 @@ class ConvertCommand extends Command<void> {
             },
           );
 
-          final ConversionDraft draft = await pipeline.run(
-            sourceBackup: importedBackup,
-            sourceFormat: resolvedInputFormat,
-            targetFormat: outputFormat,
-            forceMigration: forceMigration,
-            inputIdentity: sha256.convert(bytes).toString(),
+          final outputFile = io.File(outputPath);
+          final bool replacing = outputFile.existsSync();
+          // The job validates the output and publishes it atomically (a
+          // temporary sibling renamed into place); on any failure the input
+          // and an existing destination file are left unchanged.
+          final ConversionResult result = await job.run(
+            ConversionRequest(
+              input: bytes,
+              inputName: p.basenameWithoutExtension(backupFile.uri.toString()),
+              sourceFormat: resolvedInputFormat,
+              targetFormat: outputFormat,
+              repoUrls: repoUrls,
+              sources: sourceIds,
+              forceMigration: forceMigration,
+            ),
+            FileConversionOutput(outputPath),
           );
-          _conversionReport = draft.report;
+          _conversionReport = result.report;
 
           if (verbose) {
             print('============ Converted Backup Data ============ ');
-            draft.backup.diagnostics.forEach(print);
+            result.draft.backup.diagnostics.forEach(print);
+            print('Converted Backup Size: ${result.draft.bytes.length}');
           }
-
-          final Uint8List fileData = await draft.backup.toData();
-          final outputFile = io.File(outputPath);
-          if (verbose) {
-            print('Converted Backup Size: ${fileData.length}');
-          }
-          if (outputFile.existsSync()) {
-            // Write outside zone — user-facing status message
-            Zone.root.print('Output file already exists, replacing it...');
-          }
-          await writeFileAtomically(outputPath, fileData);
-          await journalStore.clear();
-          // Write outside zone — user-facing status message
+          // Write outside zone — user-facing status messages
+          if (replacing) Zone.root.print('Output file already existed; it was replaced.');
           Zone.root.print(
             'Converted backup written to ${outputFile.path}'
-            '${draft.partialAccepted ? ' (partial conversion accepted)' : ''}',
+            '${result.partialAccepted ? ' (partial conversion accepted)' : ''}',
           );
         },
         zoneSpecification: ZoneSpecification(
@@ -594,6 +666,10 @@ class ConvertCommand extends Command<void> {
           },
         ),
       );
+    } on InvalidConversionOutput catch (e) {
+      _conversionReport = e.report;
+      io.stderr.writeln(redactor.redact('Migration failed: $e'));
+      io.exitCode = 1;
     } on PartialConversionDeclined catch (e) {
       _conversionReport = e.report;
       io.stderr.writeln(
@@ -616,6 +692,28 @@ class ConvertCommand extends Command<void> {
         print('Logs written to $logPath');
       }
     }
+  }
+}
+
+/// The user's extension settings: the `--settings` file, then each
+/// `--setting EXTENSION_ID=KEY=VALUE` over it. Malformed input is a usage
+/// error.
+UserExtensionSettings _readUserSettings(String? path, List<String> flags) {
+  try {
+    var settings = UserExtensionSettings();
+    if (path != null) {
+      final file = io.File(path);
+      if (!file.existsSync()) throw FormatException('Settings file not found: $path');
+      final Object? json = jsonDecode(file.readAsStringSync());
+      if (json is! Map<String, Object?>) throw const FormatException('A settings file must hold a JSON object');
+      settings = UserExtensionSettings.fromJson(json);
+    }
+    for (final flag in flags) {
+      settings = settings.withFlag(flag);
+    }
+    return settings;
+  } on FormatException catch (e) {
+    throw UsageException('Invalid extension settings: ${e.message}', '');
   }
 }
 

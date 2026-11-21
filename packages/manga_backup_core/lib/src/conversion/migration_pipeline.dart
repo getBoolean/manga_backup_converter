@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:manga_backup_core/src/common/convertable.dart';
 import 'package:manga_backup_core/src/conversion/backup_format.dart';
@@ -9,34 +10,69 @@ import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/conversion_strategy.dart';
 import 'package:manga_backup_core/src/conversion/details_outcome.dart';
 import 'package:manga_backup_core/src/conversion/extension_entry.dart';
+import 'package:manga_backup_core/src/conversion/format_registry.dart';
 import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/conversion/plugin_loader.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/repository_trust.dart';
 import 'package:manga_backup_core/src/conversion/search_events.dart';
 import 'package:manga_backup_core/src/conversion/selection_port.dart';
+import 'package:manga_backup_core/src/conversion/source_language_policy.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
 import 'package:manga_backup_core/src/conversion/source_rating_policy.dart';
 import 'package:manga_backup_core/src/conversion/stable_keys.dart';
+import 'package:manga_backup_core/src/conversion/target_backup_builder.dart';
 import 'package:manga_backup_core/src/exceptions/migration_exception.dart';
 import 'package:manga_backup_core/src/reconciliation/chapter_decisions.dart';
 import 'package:source_runtime/source_contracts.dart';
 
-/// Converts directly between formats that need no source plugins (for
-/// example the CLI's Tachimanga↔Tachi adapter, which is native-dependent and
-/// therefore lives outside the core).
-typedef DirectConverter = ConvertableBackup Function(ConvertableBackup source, BackupFormat target);
-
-/// A built, validated-by-construction destination document and its complete
-/// accounting. Publishing it (atomically) is the platform adapter's job.
+/// A built and structurally validated destination document, its exact
+/// serialized [bytes], and its complete accounting. Publishing [bytes]
+/// (atomically) is the job's output port.
 final class ConversionDraft {
-  const ConversionDraft({required this.backup, required this.report, this.partialAccepted = false});
+  const ConversionDraft({
+    required this.backup,
+    required this.bytes,
+    required this.report,
+    this.plans = const <MangaConversionPlan>[],
+    this.partialAccepted = false,
+  });
 
   final ConvertableBackup backup;
+
+  /// The validated serialization of [backup]; these exact bytes are
+  /// published (a second `toData()` may differ, for example by timestamp).
+  final Uint8List bytes;
   final ConversionReport report;
+
+  /// The reconciliation plans the backup was built from (empty for a direct
+  /// conversion).
+  final List<MangaConversionPlan> plans;
 
   /// The report is partial and the user (or `--accept-partial`) accepted it.
   final bool partialAccepted;
+}
+
+/// The built output failed pre-publish structural validation (KTD8);
+/// nothing may be published.
+class InvalidConversionOutput extends MigrationException {
+  InvalidConversionOutput(this.format, this.problems, this.report)
+    : super(
+        'The $format output failed structural validation; nothing was written: '
+        '${problems.take(5).join('; ')}${problems.length > 5 ? ' (+${problems.length - 5} more)' : ''}',
+      );
+
+  final BackupFormat format;
+  final List<String> problems;
+  final ConversionReport report;
+}
+
+/// The destination cannot be produced on this host: no writer, no direct
+/// converter, or its source runtime is unavailable (KTD15).
+class DestinationUnavailable extends MigrationException {
+  DestinationUnavailable(this.failure) : super(failure.message);
+
+  final SourceFailure failure;
 }
 
 /// A partial conversion was not accepted; nothing may be published.
@@ -53,21 +89,39 @@ class MigrationPipeline {
     required this.repoUrls,
     required this.selection,
     required this.onProgress,
-    required this.pluginLoader,
-    this.directConverter,
+    this.pluginLoader,
+    FormatRegistry? formats,
+    DirectConverter? directConverter,
+    this.languagePolicy,
+    this.explicitSources = const <String>{},
     this.onOwnerOpened,
     this.journalStore,
     this.onResume,
     this.ratingPolicy = const SourceRatingPolicy(),
     TrustStore? trustStore,
     this.redact = _identity,
-  }) : trustStore = trustStore ?? InMemoryTrustStore();
+  }) : trustStore = trustStore ?? InMemoryTrustStore(),
+       formats = formats ?? FormatRegistry.portable(),
+       directConverter = directConverter ?? formats?.directConverter;
 
   final List<String> repoUrls;
   final SelectionPort selection;
   final void Function(int current, int total, String message) onProgress;
-  final PluginLoader pluginLoader;
+
+  /// The destination runtime's loader; required for migration.
+  final PluginLoader? pluginLoader;
+
+  /// Writers (and codecs, used to re-check direct conversions).
+  final FormatRegistry formats;
   final DirectConverter? directConverter;
+
+  /// Narrows sources by language; `null` infers the languages from the
+  /// input backup ([SourceLanguagePolicy.inferredFrom]).
+  final SourceLanguagePolicy? languagePolicy;
+
+  /// Runtime source IDs the user named: exactly these are searched, with no
+  /// language narrowing; every one must load.
+  final Set<String> explicitSources;
 
   /// Called once the conversion owner exists and before any source list is
   /// fetched; composition roots adopt their runtime scope (worker processes)
@@ -99,19 +153,73 @@ class MigrationPipeline {
     /// required for the journal to resume a conversion.
     String? inputIdentity,
   }) async {
-    final ConversionStrategy strategy = determineStrategy(sourceFormat, targetFormat);
-    return switch (strategy) {
-      DirectConversion() when !forceMigration => _directConvert(sourceBackup, targetFormat),
-      _ => _runMigration(sourceBackup, sourceFormat, targetFormat, inputIdentity),
-    };
+    final bool direct = determineStrategy(sourceFormat, targetFormat) is DirectConversion && !forceMigration;
+    if (direct) return _directConvert(sourceBackup, targetFormat);
+    if (formats.writerFor(targetFormat) == null) {
+      throw DestinationUnavailable(
+        CapabilityUnavailableFailure(
+          'writer.${targetFormat.alias}',
+          'No backup writer is registered for $targetFormat',
+        ),
+      );
+    }
+    if (pluginLoader == null) {
+      throw DestinationUnavailable(
+        CapabilityUnavailableFailure(
+          'runtime.${targetFormat.alias}',
+          'No source runtime was supplied for $targetFormat',
+        ),
+      );
+    }
+    return _runMigration(sourceBackup, sourceFormat, targetFormat, inputIdentity);
   }
 
-  ConversionDraft _directConvert(ConvertableBackup sourceBackup, BackupFormat targetFormat) {
+  /// Converts without sources. Every manga, state-bearing chapter and
+  /// tracking record is accounted as transferred (the converter carries them
+  /// over field by field) and the converter adds what it changes or drops.
+  /// The output is decoded again before it may be published.
+  Future<ConversionDraft> _directConvert(ConvertableBackup sourceBackup, BackupFormat targetFormat) async {
     final DirectConverter? convert = directConverter;
     if (convert == null) {
-      throw StateError('No direct converter registered for ${sourceBackup.runtimeType} → $targetFormat');
+      throw DestinationUnavailable(
+        CapabilityUnavailableFailure(
+          'direct.${targetFormat.alias}',
+          'No direct converter is registered for $targetFormat',
+        ),
+      );
     }
-    return ConversionDraft(backup: convert(sourceBackup, targetFormat), report: ConversionReport());
+    final report = ConversionReport();
+    final List<SourceMangaData> manga = sourceBackup.sourceMangaDataEntries;
+    for (final m in manga) {
+      final String title = m.details.title;
+      report.add(RecordKind.manga, RecordDisposition.transferred, title, title);
+      for (final SourceChapter c in m.chapters.where((SourceChapter c) => c.hasReadingState)) {
+        report.add(RecordKind.chapterState, RecordDisposition.transferred, title, chapterLabel(c));
+      }
+      for (final SourceTrackingEntry t in m.tracking) {
+        report.add(RecordKind.tracking, RecordDisposition.transferred, title, trackingLabel(t));
+      }
+    }
+    for (final ExtractionLoss loss in sourceBackup.extractionLosses) {
+      report.add(RecordKind.manga, RecordDisposition.unresolved, loss.subject, loss.subject, reason: loss.reason);
+    }
+    final ConvertableBackup backup = convert(sourceBackup, targetFormat, report);
+    final Uint8List bytes = await backup.toData();
+    final BackupDecoder? decode = formats.codecFor(targetFormat);
+    final problems = <String>[];
+    if (decode == null) {
+      problems.add('no codec is registered to re-read $targetFormat');
+    } else {
+      try {
+        final int written = (await decode(bytes)).sourceMangaDataEntries.length;
+        if (written != manga.length) problems.add('$written of ${manga.length} manga were written');
+      } on Object catch (e) {
+        problems.add('the written backup does not decode: $e');
+      }
+    }
+    if (problems.isNotEmpty) throw InvalidConversionOutput(targetFormat, problems, report);
+    if (report.isPartial && !await selection.acceptPartialConversion(report)) throw PartialConversionDeclined(report);
+    return ConversionDraft(backup: backup, bytes: bytes, report: report, partialAccepted: report.isPartial);
   }
 
   Future<ConversionDraft> _runMigration(
@@ -147,7 +255,7 @@ class MigrationPipeline {
     final gate = RepositoryTrustGate(store: trustStore, decide: selection.decideRepositoryTrust);
 
     onProgress(0, 0, 'Fetching extension lists...');
-    final List<ExtensionEntry> availableExtensions = await pluginLoader.fetchExtensionLists(
+    final List<ExtensionEntry> availableExtensions = await pluginLoader!.fetchExtensionLists(
       repoUrls,
       onWarning: (String msg) => onProgress(0, 0, 'Warning: ${redact(msg)}'),
       trust: gate,
@@ -162,6 +270,16 @@ class MigrationPipeline {
     }
 
     final ({int hidden, List<ExtensionEntry> visible}) rated = ratingPolicy.apply(availableExtensions);
+    final List<SourceMangaData> mangaList = sourceBackup.sourceMangaDataEntries;
+    final SourceLanguagePolicy languages = explicitSources.isNotEmpty
+        ? const SourceLanguagePolicy.any()
+        : languagePolicy ?? SourceLanguagePolicy.inferredFrom(mangaList);
+    report.notes.add(
+      explicitSources.isNotEmpty
+          ? 'Exactly the named sources were searched (${(explicitSources.toList()..sort()).join(', ')}); '
+                'no language narrowing'
+          : languages.describe(),
+    );
     // Sources are always chosen afresh (a resumed run may pick other flags);
     // journaled confirmations rehydrate only against matching sessions.
     final List<ExtensionEntry> selected =
@@ -169,6 +287,8 @@ class MigrationPipeline {
               SourceSelectionRequest(
                 available: rated.visible,
                 hiddenByRating: rated.hidden,
+                languages: languages.languages,
+                explicitSources: explicitSources,
                 previousSelection: journal.previousSelection(rated.visible),
               ),
             ))
@@ -180,17 +300,26 @@ class MigrationPipeline {
 
     onProgress(0, selected.length, 'Loading plugins...');
     final loadFailures = <PluginLoadFailure>[];
-    final List<PluginSource> plugins = await pluginLoader.loadPlugins(
+    final List<PluginSource> loaded = await pluginLoader!.loadPlugins(
       selected,
       onProgress: onProgress,
       owner: owner,
       onFailure: loadFailures.add,
     );
-    for (final plugin in plugins) {
+    for (final plugin in loaded) {
       await owner.adopt(plugin.dispose);
     }
+    final List<PluginSource> plugins = _sourcesToSearch(loaded, languages, report);
     for (final f in loadFailures) {
       report.failures.add(SourceFailureRecord.fromFailure(FailureStage.load, f.extensionId, f.failure, redact: redact));
+    }
+    if (explicitSources.isNotEmpty) {
+      final Set<String> missing = explicitSources.difference(<String>{for (final p in plugins) p.sourceId});
+      if (missing.isNotEmpty) {
+        throw MigrationException(
+          'Named source(s) ${(missing.toList()..sort()).join(', ')} did not load from the selected extensions',
+        );
+      }
     }
     if (plugins.isEmpty) {
       throw MigrationException(
@@ -200,7 +329,6 @@ class MigrationPipeline {
     }
     await journal.recordSessions(plugins);
 
-    final List<SourceMangaData> mangaList = sourceBackup.sourceMangaDataEntries;
     final List<String> keys = stableMangaKeys(mangaList);
     for (final ExtractionLoss loss in sourceBackup.extractionLosses) {
       report.add(RecordKind.manga, RecordDisposition.unresolved, loss.subject, loss.subject, reason: loss.reason);
@@ -319,11 +447,13 @@ class MigrationPipeline {
       plans.add(plan);
     }
 
-    final ConvertableBackup backup = targetFormat.backupBuilder.build(
-      plans,
-      sourceFormatAlias: sourceFormat.alias,
-      report: report,
-    );
+    final TargetBackupBuilder writer = formats.writerFor(targetFormat)!;
+    final ConvertableBackup backup = writer.build(plans, sourceFormatAlias: sourceFormat.alias, report: report);
+    // KTD8: validate the exact bytes that will be published, before asking
+    // for acceptance; an invalid output is never offered or written.
+    final Uint8List bytes = await backup.toData();
+    final List<String> problems = writer.validate(bytes, plans);
+    if (problems.isNotEmpty) throw InvalidConversionOutput(targetFormat, problems, report);
 
     var partialAccepted = false;
     if (report.isPartial) {
@@ -336,7 +466,57 @@ class MigrationPipeline {
       }
       report.decisions.add('Partial conversion accepted');
     }
-    return ConversionDraft(backup: backup, report: report, partialAccepted: partialAccepted);
+    return ConversionDraft(
+      backup: backup,
+      bytes: bytes,
+      report: report,
+      plans: plans,
+      partialAccepted: partialAccepted,
+    );
+  }
+
+  /// The loaded sources to search. Named sources ([explicitSources]) are
+  /// used exactly. Otherwise each picked package is narrowed to its sources
+  /// in the searched languages plus multi-language ones (a Tachi MangaDex
+  /// package exposes one source per language); a package with no such
+  /// source keeps all of its sources, since the user picked it.
+  List<PluginSource> _sourcesToSearch(
+    List<PluginSource> loaded,
+    SourceLanguagePolicy languages,
+    ConversionReport report,
+  ) {
+    if (explicitSources.isNotEmpty) {
+      return loaded.where((PluginSource p) => explicitSources.contains(p.sourceId)).toList();
+    }
+    final byPackage = <String, List<PluginSource>>{};
+    for (final p in loaded) {
+      (byPackage['${p.identity.ecosystem}|${p.identity.packageId}'] ??= <PluginSource>[]).add(p);
+    }
+    final kept = <PluginSource>[];
+    final skipped = <PluginSource>[];
+    for (final List<PluginSource> package in byPackage.values) {
+      final List<PluginSource> matching = package
+          .where((PluginSource p) => languages.allowsLanguage(p.language))
+          .toList();
+      if (matching.isEmpty) {
+        kept.addAll(package);
+        report.notes.add(
+          '${package.first.identity.packageId} has no source in the searched languages; all of its '
+          '${package.length} source(s) were searched because it was picked',
+        );
+      } else {
+        kept.addAll(matching);
+        skipped.addAll(package.where((PluginSource p) => !matching.contains(p)));
+      }
+    }
+    if (skipped.isNotEmpty) {
+      report.notes.add(
+        '${skipped.length} source(s) of other languages in the picked extensions were not searched '
+        '(${skipped.map((PluginSource p) => p.sourceName).take(8).join(', ')}${skipped.length > 8 ? ', …' : ''})',
+      );
+    }
+    // Keep the loader's order.
+    return loaded.where(kept.contains).toList();
   }
 
   static String _describeDecision(MangaMatchConfirmation c, ChapterDecision d) {

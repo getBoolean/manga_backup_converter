@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart' show RemoteSourceList, SourceEntry, SourceListManager;
@@ -6,10 +5,7 @@ import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvi
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_stub.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
-import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
 
 export 'package:mangabackupconverter_cli/src/pipeline/plugin_source_paperback.dart' show PaperbackPluginLoader;
@@ -35,16 +31,23 @@ final class BytesArtifact implements VerifiedArtifact {
   }
 }
 
-/// Settings an Aidoku extension entry runs with: the repository's base URL
-/// default, when it has one.
-SettingsSnapshot aidokuSettingsFor(AidokuExtensionEntry entry) =>
-    SettingsSnapshot(values: <String, Object>{'url': ?entry.baseUrl});
+/// Settings an Aidoku extension entry runs with: the user's [user] settings
+/// over the repository's base URL default, when it lists one.
+SettingsSnapshot aidokuSettingsFor(AidokuExtensionEntry entry, [SettingsSnapshot? user]) =>
+    withDefaults(user ?? SettingsSnapshot(), <String, Object>{'url': ?entry.baseUrl});
 
 /// Aidoku loader: lists repositories and opens each `.aix` through the
 /// backend-neutral `AidokuSourceProvider`, reaching the pipeline through
 /// [SessionPluginSource] (KTD15).
 class AidokuPluginLoader extends PluginLoader {
-  const AidokuPluginLoader({this.providerFactory = AidokuSourceProvider.new, this.onSettings});
+  const AidokuPluginLoader({
+    this.providerFactory = AidokuSourceProvider.new,
+    this.onSettings,
+    this.settingsFor = noExtensionSettings,
+  });
+
+  /// The user's settings for each extension.
+  final ExtensionSettingsProvider settingsFor;
 
   /// Builds the source provider; tests inject one with a fake plugin loader.
   final AidokuSourceProvider Function() providerFactory;
@@ -149,7 +152,7 @@ class AidokuPluginLoader extends PluginLoader {
     ConversionOwner? owner,
   }) async {
     final aidokuEntry = entry as AidokuExtensionEntry;
-    final SettingsSnapshot settings = aidokuSettingsFor(aidokuEntry);
+    final SettingsSnapshot settings = aidokuSettingsFor(aidokuEntry, settingsFor(aidokuEntry));
     onSettings?.call(settings);
     final SourceOutcome<SourcePackage> opened = await providerFactory().openPackage(
       BytesArtifact(bytes, kind: AidokuSourceProvider.artifactKind, version: '${aidokuEntry.version}'),
@@ -201,32 +204,6 @@ class StubPluginLoader extends PluginLoader {
 class MangayomiPluginLoader extends StubPluginLoader {
   const MangayomiPluginLoader() : super('mangayomi');
 }
-
-/// The plugin loader the composition root registers for a target [format]
-/// (KTD15: formats describe files, not how sources execute). Tachi targets
-/// use [tachi], the conversion's desktop Tachi runtime; without one (a host
-/// with no JVM worker) every Tachi package fails with a typed capability
-/// failure rather than loading stub sources.
-///
-/// [cacheRoot] holds verified source artifacts (Paperback bundles);
-/// [onLog] receives redacted worker diagnostics.
-PluginLoader pluginLoaderFor(
-  BackupFormat format, {
-  void Function(SettingsSnapshot settings)? onSettings,
-  DesktopTachiRuntime? tachi,
-  String? cacheRoot,
-  void Function(String line)? onLog,
-}) => switch (format) {
-  Aidoku() => AidokuPluginLoader(onSettings: onSettings),
-  Paperback() => PaperbackPluginLoader.desktop(
-    cacheRoot: cacheRoot ?? p.join(Directory.systemTemp.path, 'manga_backup_converter'),
-    onSettings: onSettings,
-    onLog: onLog,
-  ),
-  Tachiyomi() || Tachimanga() =>
-    tachi == null ? const UnavailableTachiPluginLoader() : TachiPluginLoader(runtime: tachi, onSettings: onSettings),
-  Mangayomi() => const MangayomiPluginLoader(),
-};
 
 /// Tachi on a host without a desktop Tachi runtime: lists nothing and fails
 /// every package with [CapabilityUnavailableFailure].
