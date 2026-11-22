@@ -5,8 +5,8 @@ import java.io.File
 /**
  * What differs between the processes that host this worker (KTD11 "shared host
  * code"): handshake identity, operation deadlines and a prepared-JAR rewrite.
- * The desktop worker ([DesktopPlatform]) and the Android `:source_runtime`
- * service are their own processes and need nothing beyond their pid. The iOS
+ * The desktop worker and the Android `:source_runtime` service are their own
+ * processes and need nothing beyond their pid ([ProcessPlatform]). The iOS
  * embedding (`tools/tachi-source-runner/ios/host`) runs the same classes
  * inside the app's single VM and supplies native operation deadlines and its
  * artifact rewrite pass through this interface. How packages are prepared and
@@ -55,11 +55,30 @@ interface OperationGuard : AutoCloseable {
      */
     fun pause(boundMs: Long)
 
+    /**
+     * While paused, bounds the pause by [boundMs] from when it began instead of the bound [pause] was
+     * given: the supervisor's interaction timeout replaces the worker's own once it is known.
+     */
+    fun rebound(boundMs: Long)
+
     /** `interaction.ended` (protocol 1.3): count time again, from the budget that remained at [pause]. */
     fun resume()
 
     /** Ends the guard. After it returns the deadline can no longer fire on this thread. */
     override fun close()
+}
+
+/**
+ * A worker that is its own process (the desktop worker, the Android `:source_runtime` service): the
+ * supervisor owns its deadlines and can stop it, and prepared artifacts are loaded as verified. [pid]
+ * comes from the caller, because how a process reads its own id differs by platform.
+ */
+class ProcessPlatform(override val name: String, private val pid: Long) : WorkerPlatform {
+    override fun pid(): Long = pid
+
+    override val artifactRewrite: ArtifactRewrite? = null
+
+    override fun enterOperation(thread: Thread, onExpire: Runnable): OperationGuard = NoOperationGuard
 }
 
 /** The guard of a platform whose deadlines are the supervisor's alone (desktop, Android): nothing to stop. */
@@ -69,6 +88,8 @@ object NoOperationGuard : OperationGuard {
     override fun expireNow() {}
 
     override fun pause(boundMs: Long) {}
+
+    override fun rebound(boundMs: Long) {}
 
     override fun resume() {}
 
@@ -109,6 +130,7 @@ class PausableDeadline(
 ) : OperationGuard {
     private var usedNanos = 0L
     private var runningSince = nanoTime()
+    private var pausedSince = 0L
     private var paused = false
     private var closed = false
 
@@ -136,7 +158,16 @@ class PausableDeadline(
         if (timer.disarm()) return refire()
         usedNanos += now - runningSince
         paused = true
+        pausedSince = now
         timer.arm(remainingMs + maxOf(0L, boundMs))
+    }
+
+    @Synchronized
+    override fun rebound(boundMs: Long) {
+        if (closed || !paused || fired) return
+        val pausedMs = (nanoTime() - pausedSince) / 1_000_000
+        if (timer.disarm()) return refire()
+        timer.arm(maxOf(0L, remainingMs + maxOf(0L, boundMs) - pausedMs))
     }
 
     @Synchronized

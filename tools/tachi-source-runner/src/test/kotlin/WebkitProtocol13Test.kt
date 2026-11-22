@@ -9,7 +9,6 @@ import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Frame
 import mangabackup.tachi.protocol.WorkerError
 import mangabackup.tachi.protocol.WorkerPlatform
-import mangabackup.tachi.protocol.optStr
 import mangabackup.tachi.webkit.WebViewTranslation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -279,6 +278,12 @@ class WebkitProtocol13Test {
             h.client.event("interaction.ended", buildJsonObject { put("of", "1-999") })
             h.client.event("interaction.started", buildJsonObject { put("of", 7) })
             h.client.event("interaction.started", buildJsonObject { put("timeoutMs", 5) })
+            // Wrong-typed fields must not escape the frame reader.
+            h.client.event("interaction.started", buildJsonObject { put("of", "1-999"); put("timeoutMs", "5") })
+            h.client.event("interaction.started", buildJsonObject { put("of", "1-999"); put("timeoutMs", 1.5) })
+            h.client.event("interaction.started", buildJsonObject { put("of", "1-999"); put("timeoutMs", buildJsonObject { put("x", 1) }) })
+            h.client.event("interaction.ended", buildJsonObject { put("of", buildJsonObject { put("x", 1) }) })
+            h.client.event("host.browser.message", buildJsonObject { put("session", 1); put("name", "ipc"); put("message", "m") })
             assertEquals("outcome=closed", title(h, pkg, "show"))
         }
     }

@@ -65,3 +65,7 @@ object TestSupport {
     }
 }
 
+
+/** A string field of a reply, or null when absent (test reading; the worker decodes with typed payloads). */
+fun JsonObject.optStr(key: String): String? =
+    (this[key] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content

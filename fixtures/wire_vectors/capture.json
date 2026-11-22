@@ -1,0 +1,204 @@
+{
+  "comment": "Written by packages/source_runtime/test/wire_vectors_test.dart from capture_format.dart; the Kotlin replay transport (CaptureFormat.kt) must agree. See README.md.",
+  "canonicalUrls": [
+    {
+      "url": "https://example.test/path",
+      "volatile": [],
+      "canonical": "https://example.test/path"
+    },
+    {
+      "url": "https://Example.TEST/a/b?z=1&a=2&a=1",
+      "volatile": [],
+      "canonical": "https://example.test/a/b?a=1&a=2&z=1"
+    },
+    {
+      "url": "https://example.test/s?q=one+piece&x=a%20b",
+      "volatile": [],
+      "canonical": "https://example.test/s?q=one+piece&x=a+b"
+    },
+    {
+      "url": "https://example.test/s?q=caf%C3%A9&n=%E6%BC%AB%E7%94%BB",
+      "volatile": [],
+      "canonical": "https://example.test/s?n=%E6%BC%AB%E7%94%BB&q=caf%C3%A9"
+    },
+    {
+      "url": "https://example.test/s?empty=&flag&k=v",
+      "volatile": [],
+      "canonical": "https://example.test/s?empty=&flag=&k=v"
+    },
+    {
+      "url": "https://example.test/s?b=%2B%26%3D&a=*~()!%27",
+      "volatile": [],
+      "canonical": "https://example.test/s?a=%2A~%28%29%21%27&b=%2B%26%3D"
+    },
+    {
+      "url": "https://example.test:443/default-port?x=1",
+      "volatile": [],
+      "canonical": "https://example.test/default-port?x=1"
+    },
+    {
+      "url": "http://example.test:80/default-port",
+      "volatile": [],
+      "canonical": "http://example.test/default-port"
+    },
+    {
+      "url": "https://example.test:8443/port?x=1",
+      "volatile": [],
+      "canonical": "https://example.test:8443/port?x=1"
+    },
+    {
+      "url": "https://example.test/frag?x=1#section",
+      "volatile": [],
+      "canonical": "https://example.test/frag?x=1"
+    },
+    {
+      "url": "https://example.test/frag#only",
+      "volatile": [],
+      "canonical": "https://example.test/frag"
+    },
+    {
+      "url": "https://example.test/vol?t=1712345678&q=a",
+      "volatile": [
+        "t"
+      ],
+      "canonical": "https://example.test/vol?q=a&t=%2A"
+    },
+    {
+      "url": "https://example.test/r?k=2&k=1&k=10",
+      "volatile": [],
+      "canonical": "https://example.test/r?k=1&k=10&k=2"
+    },
+    {
+      "url": "https://example.test/caf%C3%A9/manga",
+      "volatile": [],
+      "canonical": "https://example.test/caf%C3%A9/manga"
+    }
+  ],
+  "setCookies": [
+    {
+      "header": "session=abc; Path=/; HttpOnly",
+      "cookies": [
+        {
+          "name": "session",
+          "value": "abc",
+          "path": "/",
+          "domain": null
+        }
+      ]
+    },
+    {
+      "header": "a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Path=/x, b=2; Domain=.example.test",
+      "cookies": [
+        {
+          "name": "a",
+          "value": "1",
+          "path": "/x",
+          "domain": null
+        },
+        {
+          "name": "b",
+          "value": "2",
+          "path": null,
+          "domain": ".example.test"
+        }
+      ]
+    },
+    {
+      "header": "token=x=y==; Max-Age=60",
+      "cookies": [
+        {
+          "name": "token",
+          "value": "x=y==",
+          "path": null,
+          "domain": null
+        }
+      ]
+    },
+    {
+      "header": "noequals; Path=/",
+      "cookies": []
+    },
+    {
+      "header": "=nameless",
+      "cookies": []
+    },
+    {
+      "header": " spaced = value ; path = /p ; DOMAIN = example.test",
+      "cookies": [
+        {
+          "name": "spaced",
+          "value": "value",
+          "path": "/p",
+          "domain": "example.test"
+        }
+      ]
+    },
+    {
+      "header": "c=; Secure",
+      "cookies": [
+        {
+          "name": "c",
+          "value": "",
+          "path": null,
+          "domain": null
+        }
+      ]
+    }
+  ],
+  "record": {
+    "manifest": {
+      "format": 1,
+      "ecosystem": "tachi",
+      "source": "all.mangadex",
+      "recordedAt": "2026-11-01T12:00:00.000Z",
+      "recordedBy": "tool/capture_source_fixtures.dart",
+      "notes": "golden vector",
+      "volatileQueryParameters": [
+        "t"
+      ],
+      "setCookieAllowList": {
+        "consent": "keep",
+        "mhub_access": "redact"
+      },
+      "exchanges": [
+        {
+          "request": {
+            "method": "GET",
+            "url": "https://api.example.test/manga?t=%2A&title=one+piece",
+            "bodySha256": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json",
+              "retry-after": "5"
+            },
+            "body": "bodies/8fe32e407a1038ee38753b70e5374b3a46d6ae9d5f16cd5b73c53abaca8f5ed0.bin",
+            "setCookies": [
+              {
+                "name": "mhub_access",
+                "value": "redacted",
+                "path": "/",
+                "redacted": true
+              },
+              {
+                "name": "consent",
+                "value": "yes",
+                "domain": ".example.test"
+              }
+            ]
+          },
+          "artifact": {
+            "sourceUrl": "https://api.example.test/manga",
+            "sha256": "8fe32e407a1038ee38753b70e5374b3a46d6ae9d5f16cd5b73c53abaca8f5ed0",
+            "size": 11,
+            "licence": "test"
+          }
+        }
+      ]
+    },
+    "bodies": {
+      "bodies/8fe32e407a1038ee38753b70e5374b3a46d6ae9d5f16cd5b73c53abaca8f5ed0.bin": "eyJkYXRhIjpbXX0="
+    }
+  }
+}

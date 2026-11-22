@@ -64,6 +64,10 @@ data class WorkerLimits(
  *                        (JVM launch to handshake reply as the supervisor launches it, worst sample
  *                        including cold starts; device-independent, so it can be written into the
  *                        runtime manifest before any worker runs — see [RuntimeManifest])
+ *  browserCloseWaitMs  = ceil(p99BrowserCloseMs × graceFactor)
+ *                        (closing a browser session, storage deletion confirmed, measured per desktop OS by
+ *                        packages/desktop_webview/tool/benchmark_browser_close.dart; how long the worker waits
+ *                        for an operation's session closes before replying)
  */
 data class SizingRule(
     val source: String,
@@ -80,6 +84,8 @@ data class SizingRule(
     /** Worst measured JVM launch → handshake reply; null in a rule benchmarked before it was measured. */
     val maxStartupToHandshakeMs: Double? = null,
     val handshakeFactor: Double? = null,
+    /** p99 of a browser session close with storage deletion; null in a rule benchmarked before it was measured. */
+    val p99BrowserCloseMs: Double? = null,
 ) {
     /**
      * The supervisor's bound on the handshake (KTD25). The supervisor needs it before the worker has
@@ -87,6 +93,10 @@ data class SizingRule(
      */
     val handshakeDeadlineMs: Long?
         get() = if (maxStartupToHandshakeMs == null || handshakeFactor == null) null else kotlin.math.ceil(maxStartupToHandshakeMs * handshakeFactor).toLong()
+
+    /** How long the worker waits for an operation's browser sessions to close (KTD9: deletion confirmed). */
+    val browserCloseWaitMs: Long?
+        get() = p99BrowserCloseMs?.let { kotlin.math.ceil(it * graceFactor).toLong() }
 
     data class Inputs(val cores: Int, val maxHeapMiB: Long)
 
@@ -117,6 +127,7 @@ data class SizingRule(
         put("maxPoolSize", maxPoolSize)
         maxStartupToHandshakeMs?.let { put("maxStartupToHandshakeMs", it) }
         handshakeFactor?.let { put("handshakeFactor", it) }
+        p99BrowserCloseMs?.let { put("p99BrowserCloseMs", it) }
     }
 
     companion object {
@@ -139,6 +150,7 @@ data class SizingRule(
                 maxPoolSize = o["maxPoolSize"]!!.jsonPrimitive.long.toInt(),
                 maxStartupToHandshakeMs = o["maxStartupToHandshakeMs"]?.jsonPrimitive?.double,
                 handshakeFactor = o["handshakeFactor"]?.jsonPrimitive?.double,
+                p99BrowserCloseMs = o["p99BrowserCloseMs"]?.jsonPrimitive?.double,
             )
         }
 
@@ -149,13 +161,16 @@ data class SizingRule(
 }
 
 /**
- * Adds the rule's `handshakeDeadlineMs` to a limits object. It is reported, never adopted from the
- * handshake: the protocol has the caller supply it (from the runtime manifest), so it is not one of
- * [WorkerLimits.KEYS] and `--limit` never needs it.
+ * Adds the bounds only the rule derives (`handshakeDeadlineMs`, `browserCloseWaitMs`) to a limits object.
+ * They are reported, never adopted from the handshake: the caller supplies the handshake deadline (from the
+ * runtime manifest) and the close wait is the worker's own, so neither is one of [WorkerLimits.KEYS].
  */
-fun JsonObject.withHandshake(rule: SizingRule?): JsonObject {
-    val ms = rule?.handshakeDeadlineMs ?: return this
-    return JsonObject(this + ("handshakeDeadlineMs" to kotlinx.serialization.json.JsonPrimitive(ms)))
+fun JsonObject.withRuleBounds(rule: SizingRule?): JsonObject {
+    val bounds = listOfNotNull(
+        rule?.handshakeDeadlineMs?.let { "handshakeDeadlineMs" to kotlinx.serialization.json.JsonPrimitive(it) },
+        rule?.browserCloseWaitMs?.let { "browserCloseWaitMs" to kotlinx.serialization.json.JsonPrimitive(it) },
+    )
+    return if (bounds.isEmpty()) this else JsonObject(this + bounds)
 }
 
 /** What the handshake reports about sizing (KTD25). */
@@ -173,7 +188,7 @@ data class SizingReport(
             put("cores", inputs.cores)
             put("maxHeapMiB", inputs.maxHeapMiB)
         })
-        put("derived", derived?.toJson()?.withHandshake(rule) ?: kotlinx.serialization.json.JsonNull)
+        put("derived", derived?.toJson()?.withRuleBounds(rule) ?: kotlinx.serialization.json.JsonNull)
         put("overridden", kotlinx.serialization.json.JsonArray(overridden.sorted().map { kotlinx.serialization.json.JsonPrimitive(it) }))
     }
 

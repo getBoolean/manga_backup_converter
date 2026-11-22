@@ -65,6 +65,10 @@ class ProtocolTest {
         assertEquals(1800, limits.shutdownGraceMs)
         assertEquals(1, rule.derive(SizingRule.Inputs(cores = 1, maxHeapMiB = 100)).poolSize)
         assertEquals(6, rule.derive(SizingRule.Inputs(cores = 32, maxHeapMiB = 4096)).poolSize, "never beyond the measured concurrency")
+        assertNull(rule.browserCloseWaitMs, "no close bound without a measurement")
+        val measured = rule.copy(p99BrowserCloseMs = 674.9)
+        assertEquals(1350, measured.browserCloseWaitMs, "ceil(p99 × graceFactor 2)")
+        assertEquals(674.9, SizingRule.parse(measured.toJson().toString()).p99BrowserCloseMs)
     }
 
     @Test

@@ -17,17 +17,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import mangabackup.tachi.protocol.ArtifactBinding
+import mangabackup.tachi.protocol.DetailsRequest
+import mangabackup.tachi.protocol.DisposeRequest
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.NativeMangaRef
+import mangabackup.tachi.protocol.SearchRequest
 import mangabackup.tachi.protocol.SourceIdentity
-import mangabackup.tachi.protocol.Worker
+import mangabackup.tachi.protocol.Wire
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.arr
-import mangabackup.tachi.protocol.obj
-import mangabackup.tachi.protocol.optArr
-import mangabackup.tachi.protocol.optStr
-import mangabackup.tachi.protocol.str
-import mangabackup.tachi.protocol.stringArray
 import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
@@ -58,13 +55,13 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
         return pkg.source(identity.sourceId) ?: throw WorkerError(ErrorCode.STALE_REFERENCE, "package does not host source ${identity.sourceId}")
     }
 
-    suspend fun search(p: JsonObject, @Suppress("UNUSED_PARAMETER") state: Worker.LoadedState): JsonObject {
-        val identity = SourceIdentity.from(p.obj("source"))
-        val revision = p.str("settingsRevision")
+    suspend fun search(request: SearchRequest): JsonObject {
+        val identity = request.source
+        val revision = request.settingsRevision
         val source = resolveSource(identity, revision) as? CatalogueSource
             ?: throw WorkerError(ErrorCode.UNSUPPORTED_API, "source ${identity.sourceId} is not a catalogue source")
-        val query = p.str("query")
-        val page = p.optStr("cursor")?.let { it.toIntOrNull() ?: throw WorkerError(ErrorCode.STALE_REFERENCE, "unknown cursor $it") } ?: 1
+        val query = request.query
+        val page = request.cursor?.let { it.toIntOrNull() ?: throw WorkerError(ErrorCode.STALE_REFERENCE, "unknown cursor $it") } ?: 1
         val result = source.getSearchManga(page, query, source.getFilterList())
         return buildJsonObject {
             put("hits", buildJsonArray {
@@ -72,27 +69,27 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
                     val handle = "h${handleIds.incrementAndGet()}"
                     handles[handle] = Handle(identity.sourceId, manga)
                     add(buildJsonObject {
-                        put("ref", NativeMangaRef(identity, manga.url, revision, mangaContext(manga)).toJson())
+                        put("ref", Wire.encode(NativeMangaRef(identity, manga.url, revision, mangaContext(manga))))
                         put("title", manga.safeTitle() ?: manga.url)
                         put("coverUrl", manga.thumbnail_url)
-                        put("authors", stringArray(splitNames(manga.author)))
+                        put("authors", strings(splitNames(manga.author)))
                         put("handle", handle)
                     })
                 }
             })
             put("nextCursor", if (result.hasNextPage) (page + 1).toString() else null)
-            put("warnings", stringArray(pkg.environment.currentOperation?.warnings.orEmpty()))
+            put("warnings", strings(pkg.environment.currentOperation?.warnings.orEmpty()))
         }
     }
 
-    suspend fun details(p: JsonObject, @Suppress("UNUSED_PARAMETER") state: Worker.LoadedState): JsonObject {
-        val identity = SourceIdentity.from(p.obj("source"))
-        val revision = p.str("settingsRevision")
+    suspend fun details(request: DetailsRequest): JsonObject {
+        val identity = request.source
+        val revision = request.settingsRevision
         val source = resolveSource(identity, revision)
-        val ref = NativeMangaRef.from(p.obj("ref"))
+        val ref = request.ref
         if (ref.settingsRevision != revision) throw WorkerError(ErrorCode.STALE_REFERENCE, "reference was confirmed under settings revision ${ref.settingsRevision}")
         if (ref.source != identity) throw WorkerError(ErrorCode.STALE_REFERENCE, "reference belongs to a different source identity")
-        val handleId = p.optStr("handle")
+        val handleId = request.handle
         val original = if (handleId != null) {
             val h = handles[handleId] ?: throw WorkerError(ErrorCode.STALE_REFERENCE, "handle $handleId was not issued by this worker")
             if (h.sourceId != identity.sourceId) throw WorkerError(ErrorCode.STALE_REFERENCE, "handle $handleId belongs to another source")
@@ -110,10 +107,10 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
             put("metadata", buildJsonObject {
                 put("title", title)
                 put("altTitles", JsonArray(emptyList()))
-                put("authors", stringArray(splitNames(manga.author ?: original.author)))
-                put("artists", stringArray(splitNames(manga.artist ?: original.artist)))
+                put("authors", strings(splitNames(manga.author ?: original.author)))
+                put("artists", strings(splitNames(manga.artist ?: original.artist)))
                 put("description", manga.description ?: original.description)
-                put("tags", stringArray(manga.getGenres() ?: original.getGenres() ?: emptyList()))
+                put("tags", strings(manga.getGenres() ?: original.getGenres() ?: emptyList()))
                 put("status", status(manga.status))
                 put("contentRating", "unknown")
                 put("url", http?.let { runCatching { it.getMangaUrl(manga.withUrl(original.url)) }.getOrNull() })
@@ -125,15 +122,14 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
         }
     }
 
-    fun dispose(p: JsonObject): JsonObject {
-        val identity = SourceIdentity.from(p.obj("source"))
-        val listed = p.optArr("handles")?.map { (it as JsonPrimitive).content }
+    fun dispose(request: DisposeRequest) {
+        val sourceId = request.source.sourceId
+        val listed = request.handles
         if (listed == null) {
-            handles.entries.removeIf { it.value.sourceId == identity.sourceId }
+            handles.entries.removeIf { it.value.sourceId == sourceId }
         } else {
-            for (h in listed) if (handles[h]?.sourceId == identity.sourceId) handles.remove(h)
+            for (h in listed) if (handles[h]?.sourceId == sourceId) handles.remove(h)
         }
-        return JsonObject(emptyMap())
     }
 
     private fun SManga.withUrl(url: String): SManga = also { runCatching { this.url }.getOrNull() ?: run { this.url = url } }
@@ -152,7 +148,7 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
         put("title", chapter.name)
         put("chapterNumber", chapter.chapter_number.takeIf { it >= 0f }?.let { decimal(it) } ?: JsonNull)
         put("volumeNumber", JsonNull)
-        put("scanlators", stringArray(splitNames(chapter.scanlator)))
+        put("scanlators", strings(splitNames(chapter.scanlator)))
         put("language", JsonNull)
         put("dateUploaded", chapter.date_upload.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it).toString() })
         put("url", http?.let { runCatching { it.getChapterUrl(chapter) }.getOrNull() })
@@ -160,6 +156,8 @@ class SourceOperations(private val pkg: ExtensionPackage, private val artifact: 
 
     companion object {
         /** Float → shortest decimal, so 1.1f crosses JSON as 1.1, not 1.100000023841858. */
+        fun strings(values: Iterable<String>): JsonArray = JsonArray(values.map(::JsonPrimitive))
+
         fun decimal(f: Float): JsonPrimitive = JsonPrimitive(BigDecimal(f.toString()))
 
         fun splitNames(value: String?): List<String> =

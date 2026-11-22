@@ -39,14 +39,7 @@ class WorkerHarness(
     /** Platform hooks; a test platform supplies operation deadlines (the desktop has none of its own). */
     platform: mangabackup.tachi.protocol.WorkerPlatform = mangabackup.tachi.protocol.DesktopPlatform,
 ) : AutoCloseable {
-    val options = WorkerOptions(
-        sizing = SizingReport.resolve(limits, rule = null)!!,
-        transport = transport,
-        networkMode = "test",
-        stateRoot = stateRoot,
-        browser = browser,
-        platform = platform,
-    )
+    val options = options(transport, limits, browser, stateRoot, platform)
     val client: WorkerClient
     private val thread: Thread
     val handshake: JsonObject
@@ -99,13 +92,13 @@ class WorkerHarness(
     ): Pair<ArtifactBinding, File> {
         val out = File(TestSupport.tempDir("staged"), "staged.jar")
         val ok = client.call("artifact.prepare", packageId, prepareRequest(input, kind, version, out, trustedSigners))
-        val binding = ArtifactBinding.from(ok["artifact"]!!.jsonObject)
+        val binding = mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.ArtifactBinding>(ok["artifact"]!!.jsonObject)
         check(Digests.sha256(out) == binding.sha256) { "reported digest does not match the staged output" }
         return binding to out
     }
 
     fun prepareRequest(input: File, kind: String, version: String, out: File, trustedSigners: List<String>?) = buildJsonObject {
-        put("artifact", ArtifactBinding(Digests.sha256(input), kind, version).toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(ArtifactBinding(Digests.sha256(input), kind, version)))
         put("inputPath", input.absolutePath)
         put("outputPath", out.absolutePath)
         if (trustedSigners != null) put("trustedSigners", JsonArray(trustedSigners.map { JsonPrimitive(it) }))
@@ -113,7 +106,7 @@ class WorkerHarness(
 
     fun load(packageId: String, staged: File, binding: ArtifactBinding = ArtifactBinding(Digests.sha256(staged), "jar", "1"), settings: JsonObject = settings()): Loaded {
         val ok = client.call("package.load", packageId, buildJsonObject {
-            put("artifact", binding.toJson())
+            put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
             put("path", staged.absolutePath)
             put("settings", settings)
         })
@@ -127,7 +120,7 @@ class WorkerHarness(
         put("ecosystem", "tachi")
         put("packageId", loaded.packageId)
         put("sourceId", sourceId)
-        put("artifact", loaded.artifact.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(loaded.artifact))
     }
 
     fun searchPayload(loaded: Loaded, query: String, sourceId: String? = null, cursor: String? = null) = buildJsonObject {
@@ -149,6 +142,24 @@ class WorkerHarness(
         })
 
     fun hits(result: JsonObject): List<JsonObject> = (result["hits"] as JsonArray).map { it.jsonObject }
+
+    companion object {
+        /** The options a harness worker runs with. */
+        fun options(
+            transport: HostTransport = HostTransport.LIVE,
+            limits: Map<String, Long> = TEST_LIMITS,
+            browser: Boolean = true,
+            stateRoot: File,
+            platform: mangabackup.tachi.protocol.WorkerPlatform = mangabackup.tachi.protocol.DesktopPlatform,
+        ) = WorkerOptions(
+            sizing = SizingReport.resolve(limits, rule = null)!!,
+            transport = transport,
+            networkMode = "test",
+            stateRoot = stateRoot,
+            browser = browser,
+            platform = platform,
+        )
+    }
 
     override fun close() {
         try {

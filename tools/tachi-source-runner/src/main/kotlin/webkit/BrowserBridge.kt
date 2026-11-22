@@ -1,10 +1,15 @@
 package mangabackup.tachi.webkit
 
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import mangabackup.tachi.host.CapabilityUnavailableException
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.protocol.ErrorCode
+import mangabackup.tachi.protocol.HostBrowserEndInteraction
+import mangabackup.tachi.protocol.HostBrowserMessage
+import mangabackup.tachi.protocol.HostBrowserOp
+import mangabackup.tachi.protocol.HostBrowserRequest
+import mangabackup.tachi.protocol.HostBrowserRespond
+import mangabackup.tachi.protocol.Wire
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerError
 import java.util.concurrent.CompletableFuture
@@ -22,8 +27,11 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
     private val sessionsByOperation = ConcurrentHashMap<String, MutableSet<WebViewTranslation>>()
     private val bySession = ConcurrentHashMap<String, WebViewTranslation>()
 
-    /** The minor protocol version agreed with the supervisor. */
+    /** The minor protocol version agreed with the supervisor (for messages; decide with [supports]). */
     val protocolMinor: Long get() = worker.protocolMinor
+
+    /** Whether the supervisor's protocol minor has [op]; [request] refuses an operation it lacks. */
+    fun supports(op: HostBrowserOp): Boolean = worker.supports(op)
 
     /** Allowed navigation targets (KTD20): http(s) and about:blank. */
     fun isNavigable(url: String): Boolean = url == "about:blank" || isWebUrl(url)
@@ -38,12 +46,13 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
         return (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty()
     }
 
-    fun request(environment: PackageEnvironment, op: String, payload: JsonObject): CompletableFuture<JsonObject> {
+    /** Sends [request] for the package's in-flight operation and returns its `ok` reply. */
+    fun request(environment: PackageEnvironment, request: HostBrowserRequest): CompletableFuture<JsonObject> {
         val operation = environment.currentOperation
             ?: return CompletableFuture.failedFuture(
-                CapabilityUnavailableException("$op outside an operation: no request can carry it", op),
+                CapabilityUnavailableException("${request.op.wire} outside an operation: no request can carry it", request.op.wire),
             )
-        return worker.reverseRequest(operation.requestId, op, payload)
+        return worker.reverseRequest(operation.requestId, request)
     }
 
     fun register(operationId: String, view: WebViewTranslation) {
@@ -60,11 +69,8 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
 
     /** A `host.browser.message` event. A malformed one (for example a non-string message) is dropped, never fatal. */
     override fun onMessage(payload: JsonObject) {
-        fun str(key: String) = (payload[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        val session = str("session") ?: return
-        val name = str("name") ?: return
-        val message = str("message") ?: return
-        bySession[session]?.deliverMessage(name, message)
+        val event = Wire.decodeOrNull<HostBrowserMessage>(payload) ?: return
+        bySession[event.session]?.deliverMessage(event.name, event.message)
     }
 
     /**
@@ -83,9 +89,9 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
      * reader, which must never block on it. Not sent when none of the package's operations is in
      * flight (the orphan rule); the held request then proceeds after the supervisor's timeout.
      */
-    fun respond(environment: PackageEnvironment, payload: JsonObject) {
-        val operation = environment.currentOperation ?: return
-        worker.reverseRequest(operation.requestId, "host.browser.respond", payload).exceptionally { null }
+    fun respond(environment: PackageEnvironment, respond: HostBrowserRespond) {
+        if (environment.currentOperation == null) return
+        request(environment, respond).exceptionally { null }
     }
 
     /**
@@ -94,18 +100,24 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
      * replies may be the thread sending this. Not sent when no operation of the package is in flight.
      */
     fun endInteraction(environment: PackageEnvironment, session: String) {
-        val operation = environment.currentOperation ?: return
-        worker.reverseRequest(operation.requestId, "host.browser.endInteraction", JsonObject(mapOf("session" to JsonPrimitive(session))))
-            .exceptionally { null }
+        if (environment.currentOperation == null) return
+        request(environment, HostBrowserEndInteraction(session)).exceptionally { null }
     }
 
-    /** Closes every session an operation opened; bounded so a stuck port cannot hold the reply. */
+    /**
+     * How long closing an operation's sessions may hold its reply, shared by all of its closes (they run
+     * concurrently): the worker's measured [Worker.browserCloseWaitMs].
+     */
+    val closeWaitMs: Long get() = worker.browserCloseWaitMs
+
+    /** Closes every session an operation opened, within [closeWaitMs] in all, so a stuck port cannot hold the reply. */
     override fun closeSessionsOf(operationId: String) {
         val views = sessionsByOperation.remove(operationId) ?: return
         val closes = views.mapNotNull { it.closeSession() }
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(closeWaitMs)
         for (c in closes) {
             try {
-                c.get(CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)
+                c.get(maxOf(0L, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)
             } catch (_: Exception) {
                 // The supervisor deletes the session's storage when it fences or closes it.
             }
@@ -121,8 +133,6 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
     }
 
     companion object {
-        const val CLOSE_WAIT_MS = 2_000L
-
         fun isCapabilityFailure(t: Throwable): Boolean {
             val e = generateSequence(t) { it.cause }.firstOrNull { it is WorkerError } as? WorkerError ?: return false
             return e.code == ErrorCode.CAPABILITY_UNAVAILABLE || e.code == ErrorCode.INTERACTION_REQUIRED

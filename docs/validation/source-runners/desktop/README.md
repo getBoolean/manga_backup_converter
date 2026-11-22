@@ -125,6 +125,7 @@ cancelGraceMs        = ceil(max(maxCancelSettleMs, maxShutdownMs) × graceFactor
 shutdownGraceMs      = ceil(maxShutdownMs × graceFactor)
 interactionTimeoutMs = interactionTimeoutMs
 handshakeDeadlineMs  = ceil(maxStartupToHandshakeMs × handshakeFactor)
+browserCloseWaitMs   = ceil(p99BrowserCloseMs × graceFactor)
 ```
 
 | Coefficient | Value | From |
@@ -140,9 +141,19 @@ handshakeDeadlineMs  = ceil(maxStartupToHandshakeMs × handshakeFactor)
 | interactionTimeoutMs | 300000 | user-facing bound, not a machine capability |
 | maxStartupToHandshakeMs | 3112.5 | worst launch → handshake sample (cold, `-Xshare:off`; loaded run) |
 | handshakeFactor | 10 | chosen headroom constant (`HANDSHAKE_FACTOR`), pending macOS and Linux runs |
+| p99BrowserCloseMs | 674.9 | p99 of 100 WebView2 session closes with storage deletion confirmed ([`browser-close-windows-2026-11-22.json`](browser-close-windows-2026-11-22.json), `packages/desktop_webview/tool/benchmark_browser_close.dart`; p50 181.5 ms, max 781.7 ms) |
 
 Derived on the benchmark machine (16 cores, 30 GiB benchmark heap): pool 3, operation deadline 201 s,
-cancel grace 165 ms, shutdown grace 165 ms, interaction timeout 300 s, handshake deadline 31.1 s.
+cancel grace 165 ms, shutdown grace 165 ms, interaction timeout 300 s, handshake deadline 31.1 s,
+browser close wait 2025 ms.
+
+The browser close wait is how long the worker waits for an operation's browser sessions to close, deletion
+confirmed (KTD9), before it replies; the closes run concurrently and share it. It is measured at
+`DesktopBrowserPort` (open a session, load a loopback page that writes a cookie, localStorage and IndexedDB, time
+`close()`), because the Tachi benchmark runs no browser. It is per desktop OS like the other evidence; the macOS and
+Linux runs are still to do (`dart run packages/desktop_webview/tool/benchmark_browser_close.dart` there). The Tachi
+benchmark carries the term and its citation over when it regenerates the rule. A worker whose rule has no
+measurement (explicit `--limit`s, iOS, Android) bounds the close by the operation deadline only.
 
 The handshake deadline does not depend on device inputs, so it is fixed when the worker is packaged:
 the `runtimeManifest` task writes it into `tachi-runtime.json` at the install root, where

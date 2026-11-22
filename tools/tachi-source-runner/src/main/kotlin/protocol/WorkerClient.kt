@@ -47,11 +47,12 @@ class WorkerClient(
                 transcript += "<< $line"
                 val frame = Frame.parse(line)
                 when (frame.t) {
-                    "res" -> pending.remove(frame.id)?.complete(frame)
-                    "rreq" -> {
+                    FrameType.RES -> pending.remove(frame.id)?.complete(frame)
+                    FrameType.RREQ -> {
                         reverseRequests += frame
                         reverseExecutor.execute { serveReverse(frame) }
                     }
+                    else -> {}
                 }
             }
         } catch (e: Exception) {
@@ -67,11 +68,11 @@ class WorkerClient(
 
     private fun serveReverse(frame: Frame) {
         val reply = try {
-            Frame(t = "rres", id = frame.id, gen = generation, ok = reverseHandler(frame))
+            Frame(t = FrameType.RRES, id = frame.id, gen = generation, ok = reverseHandler(frame))
         } catch (e: WorkerError) {
-            Frame(t = "rres", id = frame.id, gen = generation, err = e.toJson())
+            Frame(t = FrameType.RRES, id = frame.id, gen = generation, err = e.toJson())
         } catch (e: Exception) {
-            Frame(t = "rres", id = frame.id, gen = generation, err = WorkerError(ErrorCode.SOURCE_ERROR, e.toString()).toJson())
+            Frame(t = FrameType.RRES, id = frame.id, gen = generation, err = WorkerError(ErrorCode.SOURCE_ERROR, e.toString()).toJson())
         }
         write(reply)
     }
@@ -91,7 +92,7 @@ class WorkerClient(
     fun send(op: String, pkg: String? = null, payload: JsonObject = JsonObject(emptyMap()), id: String = nextId()): Pair<String, CompletableFuture<Frame>> {
         val future = CompletableFuture<Frame>()
         pending[id] = future
-        write(Frame(t = "req", id = id, gen = generation, op = op, pkg = pkg, payload = payload))
+        write(Frame(t = FrameType.REQ, id = id, gen = generation, op = op, pkg = pkg, payload = payload))
         return id to future
     }
 
@@ -102,9 +103,9 @@ class WorkerClient(
         return frame.ok ?: throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "res without ok")
     }
 
-    fun cancel(id: String) = write(Frame(t = "cancel", id = id, gen = generation))
+    fun cancel(id: String) = write(Frame(t = FrameType.CANCEL, id = id, gen = generation))
 
-    fun event(op: String, payload: JsonObject) = write(Frame(t = "event", id = "e${ids.incrementAndGet()}", gen = generation, op = op, payload = payload))
+    fun event(op: String, payload: JsonObject) = write(Frame(t = FrameType.EVENT, id = "e${ids.incrementAndGet()}", gen = generation, op = op, payload = payload))
 
     fun handshake(minor: Int = Wire.MINOR_VERSION): JsonObject = call("handshake", payload = buildJsonObject {
         put("protocolVersions", buildJsonArray { add(JsonPrimitive(1)) })

@@ -1,0 +1,370 @@
+{
+  "comment": "Written by packages/desktop_webview/test/helper_wire_test.dart from what DesktopBrowserPort sends and reads; decoded by packages/desktop_webview/helper/src/wire.rs. See README.md for the rules.",
+  "constants": {
+    "helperMaxFrameBytes": 16777216,
+    "helperProtocolVersion": 1
+  },
+  "commands": [
+    {
+      "name": "wipe",
+      "frame": {
+        "retryMs": 3000,
+        "id": 1,
+        "op": "wipe"
+      }
+    },
+    {
+      "name": "open",
+      "frame": {
+        "session": "s1",
+        "userAgent": "TestAgent/1.0",
+        "title": "Source browser: source-1",
+        "id": 2,
+        "op": "open"
+      }
+    },
+    {
+      "name": "load",
+      "frame": {
+        "url": "https://example.test/page",
+        "headers": {
+          "Referer": "https://example.test/"
+        },
+        "session": "s1",
+        "id": 3,
+        "op": "load"
+      }
+    },
+    {
+      "name": "loadData",
+      "frame": {
+        "html": "<p>x</p>",
+        "baseUrl": "https://example.test/base",
+        "session": "s1",
+        "id": 4,
+        "op": "loadData"
+      }
+    },
+    {
+      "name": "load",
+      "frame": {
+        "url": "https://example.test/slow",
+        "session": "s1",
+        "id": 5,
+        "op": "load"
+      }
+    },
+    {
+      "name": "stop",
+      "frame": {
+        "session": "s1",
+        "id": 6,
+        "op": "stop"
+      }
+    },
+    {
+      "name": "eval",
+      "frame": {
+        "session": "s1",
+        "script": "document.title",
+        "id": 7,
+        "op": "eval"
+      }
+    },
+    {
+      "name": "channel",
+      "frame": {
+        "name": "ipc",
+        "enabled": true,
+        "session": "s1",
+        "id": 8,
+        "op": "channel"
+      }
+    },
+    {
+      "name": "startScript",
+      "frame": {
+        "script": "window.x = 1;",
+        "session": "s1",
+        "id": 9,
+        "op": "startScript"
+      }
+    },
+    {
+      "name": "intercept observe",
+      "frame": {
+        "mode": "observe",
+        "session": "s1",
+        "id": 10,
+        "op": "intercept"
+      }
+    },
+    {
+      "name": "intercept replace",
+      "frame": {
+        "mode": "replace",
+        "session": "s1",
+        "id": 11,
+        "op": "intercept"
+      }
+    },
+    {
+      "name": "respond replace",
+      "frame": {
+        "rid": 7,
+        "response": {
+          "status": 200,
+          "reason": "OK",
+          "headers": {
+            "content-type": "text/plain"
+          },
+          "bodyBase64": "b2s="
+        },
+        "id": 12,
+        "op": "respond"
+      }
+    },
+    {
+      "name": "respond proceed",
+      "frame": {
+        "rid": 7,
+        "response": null,
+        "id": 13,
+        "op": "respond"
+      }
+    },
+    {
+      "name": "respond fail",
+      "frame": {
+        "rid": 7,
+        "fail": "request handler threw: Bad state: handler failed",
+        "id": 14,
+        "op": "respond"
+      }
+    },
+    {
+      "name": "cookies",
+      "frame": {
+        "url": "https://example.test/",
+        "session": "s1",
+        "id": 15,
+        "op": "cookies"
+      }
+    },
+    {
+      "name": "setCookie",
+      "frame": {
+        "url": "https://example.test/",
+        "cookie": {
+          "name": "cf_clearance",
+          "value": "v",
+          "domain": "example.test",
+          "path": "/",
+          "expiresUnix": 1893456000,
+          "secure": true,
+          "httpOnly": true
+        },
+        "session": "s1",
+        "id": 16,
+        "op": "setCookie"
+      }
+    },
+    {
+      "name": "userAgent",
+      "frame": {
+        "userAgent": "Other/2.0",
+        "session": "s1",
+        "id": 17,
+        "op": "userAgent"
+      }
+    },
+    {
+      "name": "show",
+      "frame": {
+        "session": "s1",
+        "id": 18,
+        "op": "show"
+      }
+    },
+    {
+      "name": "hide",
+      "frame": {
+        "session": "s1",
+        "id": 19,
+        "op": "hide"
+      }
+    },
+    {
+      "name": "channel disabled",
+      "frame": {
+        "name": "ipc",
+        "enabled": false,
+        "session": "s1",
+        "id": 20,
+        "op": "channel"
+      }
+    },
+    {
+      "name": "close",
+      "frame": {
+        "session": "s1",
+        "id": 21,
+        "op": "close"
+      }
+    },
+    {
+      "name": "shutdown",
+      "frame": {
+        "id": 22,
+        "op": "shutdown"
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ready",
+      "frame": {
+        "ev": "ready",
+        "protocol": 1,
+        "helperVersion": "0.1.0",
+        "engine": "webview2",
+        "engineVersion": "fake",
+        "pid": 4242,
+        "maxFrameBytes": 16777216,
+        "capabilities": {
+          "browser": {
+            "available": [
+              "pageStartScripts",
+              "observeNavigations",
+              "observeSubresources",
+              "observeRequestHeaders",
+              "observeClientHints",
+              "observeRequestBodies",
+              "replaceRequests",
+              "scriptErrors"
+            ],
+            "unavailable": {}
+          },
+          "requestObserve": "all",
+          "requestReplace": true,
+          "statusCodes": true,
+          "navigationFailures": true,
+          "storage": "fake",
+          "offlineEnforced": true,
+          "loadDataBaseUrl": true,
+          "startScripts": true,
+          "messageChannels": true,
+          "record": true,
+          "syncScriptInterface": false
+        },
+        "wipe": {
+          "removed": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "name": "fatal",
+      "frame": {
+        "ev": "fatal",
+        "code": "runtime-missing",
+        "message": "no WebView2 runtime"
+      }
+    },
+    {
+      "name": "message",
+      "frame": {
+        "ev": "message",
+        "session": "s1",
+        "name": "ipc",
+        "message": "{\"done\":true}"
+      }
+    },
+    {
+      "name": "request observed",
+      "frame": {
+        "ev": "request",
+        "session": "s1",
+        "rid": null,
+        "url": "https://example.test/api?q=1",
+        "method": "POST",
+        "headers": {
+          "content-type": "application/json",
+          "sec-ch-ua": "\"Chromium\""
+        },
+        "bodyBase64": "eyJhIjoxfQ==",
+        "bodyOmitted": false,
+        "mainFrame": false,
+        "redirect": false,
+        "context": "fetch"
+      }
+    },
+    {
+      "name": "request held",
+      "frame": {
+        "ev": "request",
+        "session": "s1",
+        "rid": 7,
+        "url": "https://example.test/",
+        "method": "GET",
+        "headers": {},
+        "bodyBase64": null,
+        "bodyOmitted": true,
+        "mainFrame": true,
+        "redirect": false,
+        "context": "document"
+      }
+    },
+    {
+      "name": "interactionEnded closed",
+      "frame": {
+        "ev": "interactionEnded",
+        "session": "s1",
+        "reason": "closed"
+      }
+    },
+    {
+      "name": "interactionEnded session-closed",
+      "frame": {
+        "ev": "interactionEnded",
+        "session": "s1",
+        "reason": "session-closed"
+      }
+    },
+    {
+      "name": "exchange",
+      "frame": {
+        "ev": "exchange",
+        "session": "s1",
+        "method": "GET",
+        "url": "https://example.test/page",
+        "requestBodyBase64": null,
+        "requestBodyOmitted": false,
+        "status": 200,
+        "headers": [
+          [
+            "Content-Type",
+            "text/html"
+          ],
+          [
+            "Set-Cookie",
+            "a=1"
+          ],
+          [
+            "Set-Cookie",
+            "b=2"
+          ]
+        ],
+        "bodyBase64": "PHA+aGk8L3A+",
+        "bodyOmitted": false
+      }
+    },
+    {
+      "name": "protocolError",
+      "frame": {
+        "ev": "protocolError",
+        "message": "frame exceeds 16777216 bytes"
+      }
+    }
+  ]
+}

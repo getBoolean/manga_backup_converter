@@ -8,7 +8,6 @@ import kotlinx.serialization.json.put
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Frame
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

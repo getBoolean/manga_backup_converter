@@ -108,6 +108,63 @@ class InteractionDeadlineTest {
     }
 
     @Test
+    fun `a pause takes the supervisor's bound, counted from when it began`() {
+        val timer = FakeTimer()
+        val d = deadline(timer)
+        advance(300)
+        d.pause(5_000) // a host-driven pause with the worker's own bound
+        advance(1_000)
+        d.rebound(2_000) // interaction.started carries the supervisor's
+        assertEquals(listOf(1_000L, 5_700L, 1_700L), timer.arms, "700 left + 2000 bound - 1000 already paused")
+        d.resume()
+        assertEquals(700L, timer.arms.last())
+        d.rebound(9_000)
+        assertEquals(4, timer.arms.size, "re-bounded while running")
+        d.close()
+        assertFalse(d.expired)
+    }
+
+    /** A guard that records the bounds it is given. */
+    private class BoundRecorder : OperationGuard {
+        val calls = mutableListOf<String>()
+        override val expired = false
+        override fun expireNow() {}
+        override fun pause(boundMs: Long) {
+            calls += "pause $boundMs"
+        }
+        override fun rebound(boundMs: Long) {
+            calls += "rebound $boundMs"
+        }
+        override fun resume() {
+            calls += "resume"
+        }
+        override fun close() {}
+    }
+
+    @Test
+    fun `an operation paused by the host takes the supervisor's interaction bound when the show starts`() {
+        val options = WorkerHarness.options(stateRoot = TestSupport.tempDir("bound"))
+        val worker = mangabackup.tachi.protocol.Worker(mangabackup.tachi.protocol.QueuePipe().input, java.io.ByteArrayOutputStream(), options)
+        fun task() = worker.OpTask(
+            mangabackup.tachi.protocol.Frame(t = mangabackup.tachi.protocol.FrameType.REQ, id = "1-1", gen = 1, op = "search", pkg = "p"),
+            mangabackup.tachi.protocol.WorkerOp.SEARCH,
+        )
+        val own = TEST_LIMITS.getValue("interactionTimeoutMs")
+        val first = task()
+        val guard = BoundRecorder().also { first.guard = it }
+        first.pauseDeadline() // CloudflareInterceptor pauses before its show is sent
+        first.interactionStarted(2_500L) // the supervisor's interaction.started
+        first.interactionEnded()
+        first.resumeDeadline()
+        assertEquals(listOf("pause $own", "rebound 2500", "resume"), guard.calls)
+        // Later host pauses use the supervisor's bound once it is known.
+        val second = task()
+        val next = BoundRecorder().also { second.guard = it }
+        second.pauseDeadline()
+        assertEquals(listOf("pause 2500"), next.calls)
+    }
+
+    @Test
     fun `cancel during an interaction still fires the deadline`() {
         val timer = FakeTimer()
         val d = deadline(timer)

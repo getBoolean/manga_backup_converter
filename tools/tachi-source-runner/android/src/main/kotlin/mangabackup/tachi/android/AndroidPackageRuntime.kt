@@ -2,7 +2,6 @@ package mangabackup.tachi.android
 
 import android.content.Context
 import android.os.Build
-import android.os.Process
 import mangabackup.tachi.extensions.ArtifactException
 import mangabackup.tachi.extensions.ArtifactVerifier
 import mangabackup.tachi.extensions.ExtensionFactories
@@ -13,15 +12,10 @@ import mangabackup.tachi.host.HostSettings
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
 import mangabackup.tachi.protocol.ArtifactBinding
-import mangabackup.tachi.protocol.ArtifactRewrite
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerBrowser
 import mangabackup.tachi.protocol.WorkerOptions
-import mangabackup.tachi.protocol.NoOperationGuard
-import mangabackup.tachi.protocol.OperationGuard
 import mangabackup.tachi.protocol.PackageRuntime
-import mangabackup.tachi.protocol.WorkerPlatform
-import mangabackup.tachi.shim.HostFailures
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -59,7 +53,6 @@ class AndroidPackageRuntime(private val context: Context) : PackageRuntime {
 
     override fun attach(worker: Worker): WorkerBrowser {
         PackageScope.stackResolver = AndroidPackageScope
-        HostFailures.install { failure -> PackageScope.current()?.currentOperation?.recordHostFailure(failure) }
         return webViews
     }
 
@@ -111,18 +104,4 @@ class AndroidPackageRuntime(private val context: Context) : PackageRuntime {
         const val PRODUCER = "tachi-android/apk-verify"
         const val CONVERTER_VERSION = "apk-verify.1"
     }
-}
-
-/**
- * The `:source_runtime` service process: its own process (the supervisor owns deadlines and can stop it),
- * with no platform deadline and no artifact rewrite (original DEX is loaded as verified).
- */
-object AndroidHostPlatform : WorkerPlatform {
-    override val name = "android"
-
-    override fun pid(): Long = Process.myPid().toLong()
-
-    override val artifactRewrite: ArtifactRewrite? = null
-
-    override fun enterOperation(thread: Thread, onExpire: Runnable): OperationGuard = NoOperationGuard
 }

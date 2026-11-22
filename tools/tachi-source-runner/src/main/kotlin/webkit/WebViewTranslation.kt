@@ -8,16 +8,30 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.webkit.ScriptHandler
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import mangabackup.tachi.host.CapabilityUnavailableException
 import mangabackup.tachi.host.HostOperationException
 import mangabackup.tachi.host.InteractionRequiredException
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.protocol.ErrorCode
+import mangabackup.tachi.protocol.HostBrowserAddPageStartScript
+import mangabackup.tachi.protocol.HostBrowserClose
+import mangabackup.tachi.protocol.HostBrowserEvaluate
+import mangabackup.tachi.protocol.HostBrowserEvaluated
+import mangabackup.tachi.protocol.HostBrowserLoad
+import mangabackup.tachi.protocol.HostBrowserLoadData
+import mangabackup.tachi.protocol.HostBrowserOp
+import mangabackup.tachi.protocol.HostBrowserOpen
+import mangabackup.tachi.protocol.HostBrowserOpened
+import mangabackup.tachi.protocol.HostBrowserPage
+import mangabackup.tachi.protocol.HostBrowserRequest
+import mangabackup.tachi.protocol.HostBrowserRespond
+import mangabackup.tachi.protocol.HostBrowserSetMessageHandler
+import mangabackup.tachi.protocol.HostBrowserSetRequestInterception
+import mangabackup.tachi.protocol.HostBrowserSetUserAgent
+import mangabackup.tachi.protocol.HostBrowserShow
+import mangabackup.tachi.protocol.HostBrowserShown
+import mangabackup.tachi.protocol.Wire
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import mangabackup.tachi.shim.WebViewBackend
 import java.lang.reflect.Method
 import java.util.concurrent.CompletableFuture
@@ -116,23 +130,24 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         }
     }
 
-    private fun call(op: String, payload: JsonObject): JsonObject =
+    private fun call(request: HostBrowserRequest): JsonObject =
         try {
-            bridge.request(environment, op, payload).get()
+            bridge.request(environment, request).get()
         } catch (e: java.util.concurrent.ExecutionException) {
             throw e.cause ?: e
         }
 
     private fun requireSession(): String {
         session?.let { return it }
-        val payload = buildJsonObject {
-            put("sourceId", sourceId ?: throw CapabilityUnavailableException("WebView outside a source operation", "host.browser.open"))
-            userAgent?.let { put("userAgent", it) }
-        }
-        val reply = call("host.browser.open", payload)
-        val opened = reply.optStr("session")
+        val open = HostBrowserOpen(
+            sourceId ?: throw CapabilityUnavailableException("WebView outside a source operation", HostBrowserOp.OPEN.wire),
+            userAgent,
+        )
+        val reply = call(open)
+        val opened = Wire.decode<HostBrowserOpened>(reply, "host.browser.open reply").session
             ?: throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "host.browser.open reply has no session")
-        if (bridge.protocolMinor >= 2) available = BrowserFeature.available(reply)
+        // Only read under the gates that use it (page-start scripts, interception), which a pre-1.2 supervisor never passes.
+        available = BrowserFeature.available(reply)
         session = opened
         bridge.bindSession(opened, this)
         // Channel objects first, then page-start scripts in registration order (protocol 1.2 order rule).
@@ -143,15 +158,13 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     }
 
     private fun sendPageStartScript(session: String, script: String, openReply: JsonObject? = null) {
-        if (bridge.protocolMinor < 2 || BrowserFeature.PAGE_START_SCRIPTS !in available) {
+        val supported = bridge.supports(HostBrowserOp.ADD_PAGE_START_SCRIPT)
+        if (!supported || BrowserFeature.PAGE_START_SCRIPTS !in available) {
             val reason = openReply?.let { BrowserFeature.reason(it, BrowserFeature.PAGE_START_SCRIPTS) }
-                ?: if (bridge.protocolMinor < 2) "the supervisor speaks protocol 1.${bridge.protocolMinor}" else "not reported by the browser implementation"
+                ?: if (!supported) "the supervisor speaks protocol 1.${bridge.protocolMinor}" else "not reported by the browser implementation"
             throw CapabilityUnavailableException("addDocumentStartJavaScript needs pageStartScripts, which this browser session lacks: $reason", "addPageStartScript")
         }
-        call("host.browser.addPageStartScript", buildJsonObject {
-            put("session", session)
-            put("script", script)
-        })
+        call(HostBrowserAddPageStartScript(session, script))
     }
 
     private fun overridesIntercept(): Boolean =
@@ -167,7 +180,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
      */
     private fun configureInterception(session: String, openReply: JsonObject) {
         if (!overridesIntercept()) return
-        if (bridge.protocolMinor >= 2) {
+        if (bridge.supports(HostBrowserOp.SET_REQUEST_INTERCEPTION)) {
             if (BrowserFeature.REPLACE_REQUESTS in available && setInterception(session, MODE_REPLACE)) {
                 interception = MODE_REPLACE
                 return
@@ -187,10 +200,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
 
     /** Sets the interception mode; false when the supervisor refuses it as capability-unavailable. */
     private fun setInterception(session: String, mode: String): Boolean = try {
-        call("host.browser.setRequestInterception", buildJsonObject {
-            put("session", session)
-            put("mode", mode)
-        })
+        call(HostBrowserSetRequestInterception(session, mode))
         true
     } catch (e: WorkerError) {
         if (e.code != ErrorCode.CAPABILITY_UNAVAILABLE) throw e
@@ -199,11 +209,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     }
 
     private fun setHandler(session: String, name: String, enabled: Boolean) {
-        call("host.browser.setMessageHandler", buildJsonObject {
-            put("session", session)
-            put("name", name)
-            put("enabled", enabled)
-        })
+        call(HostBrowserSetMessageHandler(session, name, enabled))
     }
 
     private fun recordAndThrow(e: HostOperationException): Nothing {
@@ -236,12 +242,8 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             }
             pushCookies(s, url)
             onMain { view.webViewClient.onPageStarted(view, url, null) }
-            val page = call("host.browser.load", buildJsonObject {
-                put("session", s)
-                put("url", url)
-                if (headers.isNotEmpty()) put("headers", JsonObject(headers.mapValues { JsonPrimitive(it.value) }))
-            })
-            val finalUrl = page.optStr("finalUrl") ?: url
+            val page = Wire.decode<HostBrowserPage>(call(HostBrowserLoad(s, url, headers)), "host.browser.load reply")
+            val finalUrl = page.finalUrl ?: url
             currentUrl = finalUrl
             pullCookies(s, finalUrl)
             onMain { view.webViewClient.onPageFinished(view, finalUrl) }
@@ -259,12 +261,8 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             val s = requireSession()
             pushCookies(s, base)
             onMain { view.webViewClient.onPageStarted(view, base, null) }
-            val page = call("host.browser.loadData", buildJsonObject {
-                put("session", s)
-                put("html", data)
-                put("baseUrl", base)
-            })
-            val finalUrl = page.optStr("finalUrl") ?: base
+            val page = Wire.decode<HostBrowserPage>(call(HostBrowserLoadData(s, data, base)), "host.browser.loadData reply")
+            val finalUrl = page.finalUrl ?: base
             currentUrl = finalUrl
             pullCookies(s, finalUrl)
             onMain { view.webViewClient.onPageFinished(view, finalUrl) }
@@ -277,10 +275,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         // 1.3: a promise's settled value is passed through as the host awaited it (see the class comment).
         enqueue {
             val s = requireSession()
-            val result = call("host.browser.evaluate", buildJsonObject {
-                put("session", s)
-                put("script", script)
-            }).optStr("result") ?: "null"
+            val result = Wire.decode<HostBrowserEvaluated>(call(HostBrowserEvaluate(s, script)), "host.browser.evaluate reply").result ?: "null"
             if (callback != null) onMain { callback.onReceiveValue(result) }
             null
         }
@@ -294,14 +289,14 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             interaction = pending
             // Not waited on here: calls the extension makes during the interaction (evaluate, cookies,
             // close) must not queue behind it until the bound.
-            bridge.request(environment, "host.browser.show", buildJsonObject { put("session", s) })
+            bridge.request(environment, HostBrowserShow(s))
                 .whenComplete { reply, failure ->
                     if (interaction === pending) interaction = null
                     if (failure != null) {
                         onFailure(interactionFailure(failure))
                     } else {
                         // A pre-1.3 supervisor sends no outcome: its show only ever ended by a close.
-                        val outcome = reply.optStr("outcome") ?: OUTCOME_CLOSED
+                        val outcome = Wire.decode<HostBrowserShown>(reply, "host.browser.show reply").outcome ?: OUTCOME_CLOSED
                         // The cookies the interaction set (a clearance) reach the package jar before the extension hears.
                         enqueue {
                             val url = currentUrl
@@ -322,7 +317,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
     /** Sends `host.browser.endInteraction` once per show, without waiting for its `rres`. */
     private fun sendEndInteraction(pending: Interaction) {
         if (!pending.ended.compareAndSet(false, true)) return
-        if (bridge.protocolMinor < 3) {
+        if (!bridge.supports(HostBrowserOp.END_INTERACTION)) {
             // The supervisor cannot be told; the show ends when the user closes the window or at its bound.
             environment.currentOperation?.addWarning(END_INTERACTION_WARNING)
             return
@@ -409,11 +404,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
             System.err.println("[webkit] shouldInterceptRequest failed: $t")
         } finally {
             if (requestId != null) {
-                bridge.respond(environment, buildJsonObject {
-                    put("session", event.session)
-                    put("requestId", requestId)
-                    put("response", replacement ?: kotlinx.serialization.json.JsonNull)
-                })
+                bridge.respond(environment, HostBrowserRespond(event.session, requestId, replacement))
             }
         }
     }
@@ -435,10 +426,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         this.userAgent = userAgent
         enqueue {
             session?.let { s ->
-                call("host.browser.setUserAgent", buildJsonObject {
-                    put("session", s)
-                    put("userAgent", userAgent)
-                })
+                call(HostBrowserSetUserAgent(s, userAgent))
             }
             null
         }
@@ -461,7 +449,7 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         session = null
         closed = true
         bridge.unbindSession(s)
-        return bridge.request(environment, "host.browser.close", buildJsonObject { put("session", s) })
+        return bridge.request(environment, HostBrowserClose(s))
             .exceptionally { JsonObject(emptyMap()) }
     }
 

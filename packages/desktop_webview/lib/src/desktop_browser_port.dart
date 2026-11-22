@@ -226,12 +226,12 @@ class DesktopBrowserPort implements BrowserPort {
         _sessions[id] = session;
         _opened.add(request.source);
         return BrowserCompleted<BrowserSession>(session);
-      case HelperError(:final String code, :final String message, :final String? operation):
+      case HelperError(:final String code, :final String message):
         return switch (code) {
           'interaction-required' => BrowserInteractionRequired<BrowserSession>(message),
           // The helper is shutting down (port disposal) or the open was dropped.
           'cancelled' || 'session-closed' => BrowserCancelled<BrowserSession>(message),
-          _ => BrowserCapabilityUnavailable<BrowserSession>(operation ?? 'openSession', message),
+          _ => BrowserCapabilityUnavailable<BrowserSession>('openSession', message),
         };
       case HelperGone(:final String reason):
         return BrowserCancelled<BrowserSession>(reason);
@@ -369,8 +369,11 @@ class DesktopBrowserSession implements BrowserSession {
   BrowserOutcome<T> _map<T>(HelperReply reply, BrowserOutcome<T> Function(Map<String, Object?>) onOk, String op) =>
       switch (reply) {
         HelperOk(:final Map<String, Object?> value) => onOk(value),
-        HelperError(code: 'capability-unavailable', :final String message, :final String? operation) =>
-          BrowserCapabilityUnavailable<T>(operation ?? op, message),
+        // The contract operation, never the helper's own name for it.
+        HelperError(code: 'capability-unavailable', :final String message) => BrowserCapabilityUnavailable<T>(
+          op,
+          message,
+        ),
         HelperError(code: 'navigation-failed', :final String message, :final String? url) => BrowserNavigationFailed<T>(
           Uri.tryParse(url ?? '') ?? Uri(),
           message,
@@ -673,11 +676,7 @@ class DesktopBrowserSession implements BrowserSession {
     // Under replay the helper already holds every request; the worker's
     // interceptor runs in front of the captures (see _answer).
     if (_port.config.replay != null) return const BrowserCompleted<void>(null);
-    return switch (await _call<void>('intercept', <String, Object?>{'mode': mode}, null, _done, operation: operation)) {
-      // Report the contract operation, not the helper's internal name.
-      BrowserCapabilityUnavailable<void>(:final String reason) => BrowserCapabilityUnavailable<void>(operation, reason),
-      final BrowserOutcome<void> other => other,
-    };
+    return _call<void>('intercept', <String, Object?>{'mode': mode}, null, _done, operation: operation);
   }
 
   // --- Desktop extensions beyond the BrowserPort contract -----------------

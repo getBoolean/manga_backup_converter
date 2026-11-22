@@ -286,19 +286,19 @@ fun main(args: Array<String>) {
 fun runFlow(client: WorkerClient, target: Target, artifact: File, kind: String, log: StringBuilder): String {
     val staged = Files.createTempFile("capture-staged-", ".jar").toFile()
     val prepared = client.call("artifact.prepare", target.packageId, buildJsonObject {
-        put("artifact", ArtifactBinding(Digests.sha256(artifact), kind, target.version).toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(ArtifactBinding(Digests.sha256(artifact), kind, target.version)))
         put("inputPath", artifact.absolutePath)
         put("outputPath", staged.absolutePath)
         put("trustedSigners", buildJsonArray { add(JsonPrimitive(KEIYOUSHI_SIGNER)) })
     })
-    val binding = ArtifactBinding.from(prepared["artifact"]!!.jsonObject)
+    val binding = mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.ArtifactBinding>(prepared["artifact"]!!.jsonObject)
     val settings = buildJsonObject {
         put("values", JsonObject(emptyMap()))
         put("secrets", JsonObject(emptyMap()))
         put("revision", "capture")
     }
     client.call("package.load", target.packageId, buildJsonObject {
-        put("artifact", binding.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
         put("path", staged.absolutePath)
         put("settings", settings)
     })
@@ -306,7 +306,7 @@ fun runFlow(client: WorkerClient, target: Target, artifact: File, kind: String, 
         put("ecosystem", "tachi")
         put("packageId", target.packageId)
         put("sourceId", target.sourceId)
-        put("artifact", binding.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
     }
     val search = client.call("search", target.packageId, buildJsonObject {
         put("source", identity)
