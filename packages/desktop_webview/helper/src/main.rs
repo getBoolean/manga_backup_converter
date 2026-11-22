@@ -683,7 +683,7 @@ impl App {
         let script = str_field(cmd, "script").unwrap_or("");
         match platform::add_start_script(&s.webview, script) {
           Ok(()) => out.ok(id, json!({})),
-          Err(e) => out.err(id, "capability-unavailable", format!("cannot add start script: {e}"), Some(("operation", json!("addStartScript")))),
+          Err(e) => out.err(id, "capability-unavailable", format!("cannot add start script: {e}"), Some(("operation", json!("addPageStartScript")))),
         }
       }
       "cookies" => {
