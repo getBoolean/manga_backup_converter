@@ -8,6 +8,12 @@
                           are expected and only recorded
     --expect FILE         compare the native library hashes with an earlier
                           record of the same APK (fails on any difference)
+    --build-dir DIR       the Flutter build directory (build/): every library
+                          in the APK must equal AGP's stripped output for the
+                          variant (build/app/intermediates/stripped_native_libs/
+                          <variant>); the unstripped build-hook outputs are
+                          recorded beside them
+    --variant NAME        release (default) or debug
 
 Records the package identity (package, version, resolved min/target/compile
 SDK), the APK signing identity (apksigner), every native library per ABI
@@ -129,6 +135,8 @@ def main(argv):
     opts = argv[3:]
     allow_test = "--allow-test-payload" in opts
     expect = opts[opts.index("--expect") + 1] if "--expect" in opts else None
+    build_dir = opts[opts.index("--build-dir") + 1] if "--build-dir" in opts else None
+    variant = opts[opts.index("--variant") + 1] if "--variant" in opts else "release"
     problems = []
 
     badging = run(build_tool("aapt2"), "dump", "badging", apk)
@@ -241,6 +249,28 @@ def main(argv):
             changed = sorted(set(earlier.items()) ^ set(now.items()))
             problems.append(f"native library hashes differ from {expect}: {changed}")
 
+    build_outputs = None
+    if build_dir:
+        def libs_under(root):
+            found = {}
+            for path in glob.glob(os.path.join(root, "**", "lib", "*", "*.so"), recursive=True):
+                parts = path.replace(os.sep, "/").split("/")
+                with open(path, "rb") as f:
+                    found["lib/" + parts[-2] + "/" + parts[-1]] = sha256(f.read())
+            return found
+        stripped = libs_under(os.path.join(build_dir, "app", "intermediates", "stripped_native_libs", variant))
+        hooks = libs_under(os.path.join(build_dir, "app", "intermediates", "flutter", variant, "native_assets"))
+        mismatched = [l["path"] for l in libraries if stripped.get(l["path"]) != l["sha256"]]
+        if not stripped:
+            problems.append(f"no stripped native libraries under {build_dir} for {variant}")
+        for path in mismatched:
+            problems.append(f"{path}: APK bytes differ from the build's stripped output")
+        build_outputs = {
+            "variant": variant,
+            "matchedStripped": len(libraries) - len(mismatched),
+            "hookOutputsUnstripped": [{"path": k, "sha256": v} for k, v in sorted(hooks.items())],
+        }
+
     with open(apk, "rb") as f:
         apk_sha = sha256(f.read())
     record = {
@@ -250,6 +280,7 @@ def main(argv):
         "identity": identity,
         "signing": signing,
         "nativeLibraries": libraries,
+        "buildOutputs": build_outputs,
         "notices": notice_report,
         "noticesBytes": len(notices_text),
         "hostNoticesBytes": len(host_notices),

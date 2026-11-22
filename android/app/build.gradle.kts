@@ -38,6 +38,14 @@ android {
     }
 }
 
+// Every resolved configuration of the app (including the plugin projects'
+// transitive artifacts it packages) is pinned in app/gradle.lockfile (U14
+// build records). Regenerate after a dependency change with
+//   cd android && ./gradlew :app:dependencies --write-locks
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
