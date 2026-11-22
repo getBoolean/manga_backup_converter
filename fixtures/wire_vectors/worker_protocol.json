@@ -752,6 +752,54 @@
       }
     },
     {
+      "name": "host.browser.request held",
+      "payloadType": "HostBrowserRequestEvent",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e4",
+        "gen": 1,
+        "op": "host.browser.request",
+        "payload": {
+          "session": "b1",
+          "requestId": "q1",
+          "method": "POST",
+          "url": "https://example.test/api",
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJhIjoxfQ==",
+          "bodyOmitted": false,
+          "mainFrame": true,
+          "redirect": false,
+          "context": "document"
+        }
+      }
+    },
+    {
+      "name": "host.browser.request observed",
+      "payloadType": "HostBrowserRequestEvent",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e5",
+        "gen": 1,
+        "op": "host.browser.request",
+        "payload": {
+          "session": "b1",
+          "requestId": null,
+          "method": "GET",
+          "url": "https://example.test/img.png",
+          "headers": {},
+          "bodyBase64": null,
+          "bodyOmitted": true,
+          "mainFrame": false,
+          "redirect": true,
+          "context": "other"
+        }
+      }
+    },
+    {
       "name": "interaction.started",
       "payloadType": "WorkerInteractionStarted",
       "frame": {

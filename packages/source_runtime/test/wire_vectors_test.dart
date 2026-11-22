@@ -275,6 +275,34 @@ List<Map<String, Object?>> _workerFrames() => <Map<String, Object?>>[
     op: HostBrowserMessage.op,
   ),
   _vector(
+    'host.browser.request held',
+    FrameType.event,
+    HostBrowserRequestEvent(
+      session: 'b1',
+      requestId: 'q1',
+      request: BrowserRequest(
+        url: Uri.parse('https://example.test/api'),
+        method: 'post',
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: utf8.encode('{"a":1}'),
+        mainFrame: true,
+        context: BrowserRequestContext.document,
+      ),
+    ),
+    id: 'e4',
+    op: HostBrowserRequestEvent.op,
+  ),
+  _vector(
+    'host.browser.request observed',
+    FrameType.event,
+    HostBrowserRequestEvent(
+      session: 'b1',
+      request: BrowserRequest(url: Uri.parse('https://example.test/img.png'), bodyOmitted: true, redirect: true),
+    ),
+    id: 'e5',
+    op: HostBrowserRequestEvent.op,
+  ),
+  _vector(
     'interaction.started',
     FrameType.event,
     const WorkerInteractionStarted(of: '1-7', timeout: Duration(minutes: 5)),

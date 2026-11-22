@@ -39,14 +39,7 @@ class WorkerHarness(
     /** Platform hooks; a test platform supplies operation deadlines (the desktop has none of its own). */
     platform: mangabackup.tachi.protocol.WorkerPlatform = mangabackup.tachi.protocol.DesktopPlatform,
 ) : AutoCloseable {
-    val options = WorkerOptions(
-        sizing = SizingReport.resolve(limits, rule = null)!!,
-        transport = transport,
-        networkMode = "test",
-        stateRoot = stateRoot,
-        browser = browser,
-        platform = platform,
-    )
+    val options = options(transport, limits, browser, stateRoot, platform)
     val client: WorkerClient
     private val thread: Thread
     val handshake: JsonObject
@@ -149,6 +142,24 @@ class WorkerHarness(
         })
 
     fun hits(result: JsonObject): List<JsonObject> = (result["hits"] as JsonArray).map { it.jsonObject }
+
+    companion object {
+        /** The options a harness worker runs with. */
+        fun options(
+            transport: HostTransport = HostTransport.LIVE,
+            limits: Map<String, Long> = TEST_LIMITS,
+            browser: Boolean = true,
+            stateRoot: File,
+            platform: mangabackup.tachi.protocol.WorkerPlatform = mangabackup.tachi.protocol.DesktopPlatform,
+        ) = WorkerOptions(
+            sizing = SizingReport.resolve(limits, rule = null)!!,
+            transport = transport,
+            networkMode = "test",
+            stateRoot = stateRoot,
+            browser = browser,
+            platform = platform,
+        )
+    }
 
     override fun close() {
         try {

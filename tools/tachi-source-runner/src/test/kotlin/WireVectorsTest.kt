@@ -50,6 +50,7 @@ import mangabackup.tachi.protocol.SearchRequest
 import mangabackup.tachi.protocol.SettingsPayload
 import mangabackup.tachi.protocol.SettingsUpdateRequest
 import mangabackup.tachi.protocol.Wire
+import mangabackup.tachi.protocol.WorkerEvent
 import mangabackup.tachi.protocol.WorkerOp
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -135,6 +136,19 @@ class WireVectorsTest {
             val type = (v["payloadType"] as? JsonPrimitive)?.content ?: continue
             seen += type
             val body = frame.payload ?: frame.ok ?: error("$name has no payload or ok")
+            if (type == "HostBrowserRequestEvent") {
+                // Read by the webkit translation's own lenient parser, not a protocol type.
+                val event = mangabackup.tachi.webkit.BrowserRequestEvent.parse(body) ?: error("$name did not parse")
+                fun str(k: String) = (body[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                assertEquals(str("session"), event.session, name)
+                assertEquals(str("requestId"), event.requestId, name)
+                assertEquals(str("method"), event.method, name)
+                assertEquals(str("url"), event.url, name)
+                assertEquals(body["headers"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content }, event.headers, name)
+                assertEquals(body["mainFrame"]!!.jsonPrimitive.boolean, event.mainFrame, name)
+                assertEquals(body["redirect"]!!.jsonPrimitive.boolean, event.redirect, name)
+                continue
+            }
             if (type in emptyPayloadTypes) {
                 assertEquals(JsonObject(emptyMap()), body, name)
                 continue
@@ -147,7 +161,13 @@ class WireVectorsTest {
                 Wire.decode<SettingsPayload>(settings).toHostSettings()
             }
         }
-        assertEquals(payloadTypes.keys + emptyPayloadTypes, seen, "every worker payload type has a vector")
+        assertEquals(payloadTypes.keys + emptyPayloadTypes + "HostBrowserRequestEvent", seen, "every worker payload type has a vector")
+        val eventOps = frames.mapNotNull { f -> f["frame"]!!.jsonObject.takeIf { it["t"]?.jsonPrimitive?.content == "event" }?.get("op")?.jsonPrimitive?.content }
+        assertEquals(
+            setOf(WorkerEvent.BROWSER_MESSAGE, WorkerEvent.BROWSER_REQUEST, WorkerEvent.INTERACTION_STARTED, WorkerEvent.INTERACTION_ENDED),
+            eventOps.toSet(),
+            "every event the worker reads has a vector",
+        )
         val rreqOps = frames.mapNotNull { f -> f["frame"]!!.jsonObject.takeIf { it["t"]?.jsonPrimitive?.content == "rreq" }?.get("op")?.jsonPrimitive?.content }
         assertEquals(HostBrowserOp.entries.map { it.wire }.toSet(), rreqOps.toSet(), "every reverse request has a vector")
     }
@@ -176,10 +196,12 @@ class WireVectorsTest {
     }
 
     /**
-     * Cases where CaptureFormat.canonicalUrl disagrees with Dart's CaptureKey.canonicalUrl today. Dart's
-     * `Uri.encodeQueryComponent` percent-encodes `* ! ' ( )`, which `encodeQueryComponent` here keeps
-     * raw, so a request whose query holds one of them misses its capture on replay. Reported, not fixed
-     * here (CaptureFormat.kt belongs to another change); remove an entry when the two agree.
+     * Cases where CaptureFormat.canonicalUrl writes a different string than Dart's CaptureKey.canonicalUrl.
+     * Dart's `Uri.encodeQueryComponent` percent-encodes `* ! ' ( )` (so a volatile value is `%2A`), which
+     * `encodeQueryComponent` here keeps raw. Replay is unaffected, because both loaders re-canonicalise a
+     * manifest's URLs with their own function, as they do live requests (the record test below loads Dart's
+     * `t=%2A` as `t=*`); only the text a Kotlin-recorded capture writes differs from a Dart-recorded one.
+     * Remove an entry when the two agree.
      */
     private val knownCanonicalDivergences = setOf(
         "https://example.test/s?b=%2B%26%3D&a=*~()!%27",
