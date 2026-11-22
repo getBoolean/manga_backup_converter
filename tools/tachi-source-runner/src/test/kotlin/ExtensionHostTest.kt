@@ -44,7 +44,7 @@ class ExtensionHostTest {
             val out = File(TestSupport.tempDir("refuse"), "out.jar")
             val e = assertThrows<WorkerError> {
                 h.client.call("artifact.prepare", q.packageId, buildJsonObject {
-                    put("artifact", ArtifactBinding("00".repeat(32), "jar", q.version).toJson())
+                    put("artifact", mangabackup.tachi.protocol.Wire.encode(ArtifactBinding("00".repeat(32), "jar", q.version)))
                     put("inputPath", TestSupport.jar(q).absolutePath)
                     put("outputPath", out.absolutePath)
                     put("trustedSigners", kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive(TestSupport.KEIYOUSHI_SIGNER))))
@@ -175,12 +175,12 @@ class ExtensionHostTest {
 
     @Test
     fun `settings payloads decode string sets and source scopes, and slash keys are plain keys`() {
-        val decoded = mangabackup.tachi.protocol.SettingsCodec.from(
+        val decoded = mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.SettingsPayload>(
             kotlinx.serialization.json.Json.parseToJsonElement(
                 """{"values":{"tags":["b","a","b"],"source_1/lang":"literal","lang":"en"},"secrets":{},
                   |"sources":{"1":{"values":{"tags":["z"]},"secrets":{"password":"p"}},"2":{}},"revision":"r"}""".trimMargin(),
             ).jsonObject,
-        )
+        ).toHostSettings()
         val one = InMemorySharedPreferences(decoded.seedFor("source_1"))
         val two = InMemorySharedPreferences(decoded.seedFor("source_2"))
         assertEquals(setOf("z"), one.getStringSet("tags", null))
@@ -192,9 +192,9 @@ class ExtensionHostTest {
         assertThrows<ClassCastException> { two.getString("tags", null) }
         for (bad in listOf("""[1]""", """["a",null]""", """[["a"]]""")) {
             assertThrows<mangabackup.tachi.protocol.ProtocolViolation>(bad) {
-                mangabackup.tachi.protocol.SettingsCodec.from(
+                mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.SettingsPayload>(
                     kotlinx.serialization.json.Json.parseToJsonElement("""{"values":{"k":$bad},"secrets":{},"revision":"r"}""").jsonObject,
-                )
+                ).toHostSettings()
             }
         }
     }

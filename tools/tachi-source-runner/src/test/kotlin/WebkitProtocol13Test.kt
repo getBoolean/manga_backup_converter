@@ -9,7 +9,6 @@ import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Frame
 import mangabackup.tachi.protocol.WorkerError
 import mangabackup.tachi.protocol.WorkerPlatform
-import mangabackup.tachi.protocol.optStr
 import mangabackup.tachi.webkit.WebViewTranslation
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

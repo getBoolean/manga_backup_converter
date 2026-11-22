@@ -13,7 +13,6 @@ import mangabackup.tachi.host.replay.ReplayTransport
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Frame
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import mockwebserver3.MockResponse
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

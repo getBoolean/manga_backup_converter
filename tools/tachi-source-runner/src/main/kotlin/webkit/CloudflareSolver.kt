@@ -6,15 +6,23 @@ import eu.kanade.tachiyomi.network.interceptor.CloudflareSolution
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import mangabackup.tachi.host.HostCancelledException
 import mangabackup.tachi.host.HostOperationException
 import mangabackup.tachi.host.InteractionRequiredException
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.protocol.ErrorCode
+import mangabackup.tachi.protocol.HostBrowserClose
+import mangabackup.tachi.protocol.HostBrowserEvaluate
+import mangabackup.tachi.protocol.HostBrowserEvaluated
+import mangabackup.tachi.protocol.HostBrowserLoad
+import mangabackup.tachi.protocol.HostBrowserOp
+import mangabackup.tachi.protocol.HostBrowserOpen
+import mangabackup.tachi.protocol.HostBrowserOpened
+import mangabackup.tachi.protocol.HostBrowserRequest
+import mangabackup.tachi.protocol.HostBrowserShow
+import mangabackup.tachi.protocol.HostBrowserShown
+import mangabackup.tachi.protocol.Wire
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
@@ -47,31 +55,25 @@ class CloudflareSolver(private val bridge: BrowserBridge, private val boundMs: L
             ?: throw InteractionRequiredException("Cloudflare challenge outside a source operation", SHOW)
         val sourceId = operation.sourceId
             ?: throw InteractionRequiredException("Cloudflare challenge outside a source operation", SHOW)
-        if (bridge.protocolMinor < 3) {
+        // Without endInteraction the show could only end when the user closes the window.
+        if (!bridge.supports(HostBrowserOp.END_INTERACTION)) {
             throw InteractionRequiredException(
                 "Cloudflare challenge at ${request.url.host}: the supervisor speaks protocol 1.${bridge.protocolMinor}, " +
                     "which cannot end a shown window on completion",
                 SHOW,
             )
         }
-        fun call(op: String, payload: JsonObject): JsonObject = await(bridge.request(environment, op, payload))
+        fun call(r: HostBrowserRequest): JsonObject = await(bridge.request(environment, r))
         val cookies = BrowserCookies(environment.cookieJar, ::call)
         val url = request.url.toString()
         val userAgent = request.header(USER_AGENT) ?: environment.defaultUserAgent
-        val session = call("host.browser.open", buildJsonObject {
-            put("sourceId", sourceId)
-            put("userAgent", userAgent)
-        }).optStr("session") ?: throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "host.browser.open reply has no session")
+        val session = Wire.decode<HostBrowserOpened>(call(HostBrowserOpen(sourceId, userAgent)), "host.browser.open reply").session
+            ?: throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "host.browser.open reply has no session")
         try {
             cookies.push(session, url)
             val before = clearance(cookies, session, url)
-            call("host.browser.load", buildJsonObject {
-                put("session", session)
-                put("url", url)
-                put("headers", buildJsonObject {
-                    for ((name, value) in request.headers) if (name.lowercase() !in UNFORWARDED_HEADERS) put(name, value)
-                })
-            })
+            val forwarded = request.headers.filter { (name, _) -> name.lowercase() !in UNFORWARDED_HEADERS }
+            call(HostBrowserLoad(session, url, forwarded.associate { it.first to it.second }))
             val outcome = show(environment, cookies, session, url, before) { operation.isCancelled }
             cookies.pull(session, url)
             val after = clearance(cookies, session, url)
@@ -81,16 +83,12 @@ class CloudflareSolver(private val bridge: BrowserBridge, private val boundMs: L
                     SHOW,
                 )
             }
-            val evaluated = call("host.browser.evaluate", buildJsonObject {
-                put("session", session)
-                put("script", "navigator.userAgent")
-            }).optStr("result")
+            val evaluated = Wire.decode<HostBrowserEvaluated>(call(HostBrowserEvaluate(session, "navigator.userAgent")), "host.browser.evaluate reply").result
             val browserUserAgent = evaluated?.let { runCatching { (Json.parseToJsonElement(it) as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }.getOrNull() }
             return CloudflareSolution(browserUserAgent ?: userAgent)
         } finally {
             try {
-                bridge.request(environment, "host.browser.close", buildJsonObject { put("session", session) })
-                    .get(BrowserBridge.CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)
+                bridge.request(environment, HostBrowserClose(session)).get(BrowserBridge.CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)
             } catch (_: Exception) {
                 // The supervisor deletes the session's storage when the operation's generation is fenced or closed.
             }
@@ -109,12 +107,12 @@ class CloudflareSolver(private val bridge: BrowserBridge, private val boundMs: L
         before: String?,
         cancelled: () -> Boolean,
     ): String {
-        val shown = bridge.request(environment, "host.browser.show", buildJsonObject { put("session", session) })
+        val shown = bridge.request(environment, HostBrowserShow(session))
         val giveUpAt = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(boundMs)
         var ended = false
         while (true) {
             try {
-                return await(shown, POLL_MS).optStr("outcome") ?: OUTCOME_CLOSED
+                return Wire.decode<HostBrowserShown>(await(shown, POLL_MS), "host.browser.show reply").outcome ?: OUTCOME_CLOSED
             } catch (_: TimeoutException) {
                 // Still showing.
             }
@@ -164,7 +162,7 @@ class CloudflareSolver(private val bridge: BrowserBridge, private val boundMs: L
     }
 
     private companion object {
-        const val SHOW = "host.browser.show"
+        val SHOW = HostBrowserOp.SHOW.wire
         const val USER_AGENT = "User-Agent"
         const val CLEARANCE_COOKIE = "cf_clearance"
         const val OUTCOME_CLOSED = "closed"

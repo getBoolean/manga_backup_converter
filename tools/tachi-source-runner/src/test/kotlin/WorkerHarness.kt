@@ -99,13 +99,13 @@ class WorkerHarness(
     ): Pair<ArtifactBinding, File> {
         val out = File(TestSupport.tempDir("staged"), "staged.jar")
         val ok = client.call("artifact.prepare", packageId, prepareRequest(input, kind, version, out, trustedSigners))
-        val binding = ArtifactBinding.from(ok["artifact"]!!.jsonObject)
+        val binding = mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.ArtifactBinding>(ok["artifact"]!!.jsonObject)
         check(Digests.sha256(out) == binding.sha256) { "reported digest does not match the staged output" }
         return binding to out
     }
 
     fun prepareRequest(input: File, kind: String, version: String, out: File, trustedSigners: List<String>?) = buildJsonObject {
-        put("artifact", ArtifactBinding(Digests.sha256(input), kind, version).toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(ArtifactBinding(Digests.sha256(input), kind, version)))
         put("inputPath", input.absolutePath)
         put("outputPath", out.absolutePath)
         if (trustedSigners != null) put("trustedSigners", JsonArray(trustedSigners.map { JsonPrimitive(it) }))
@@ -113,7 +113,7 @@ class WorkerHarness(
 
     fun load(packageId: String, staged: File, binding: ArtifactBinding = ArtifactBinding(Digests.sha256(staged), "jar", "1"), settings: JsonObject = settings()): Loaded {
         val ok = client.call("package.load", packageId, buildJsonObject {
-            put("artifact", binding.toJson())
+            put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
             put("path", staged.absolutePath)
             put("settings", settings)
         })
@@ -127,7 +127,7 @@ class WorkerHarness(
         put("ecosystem", "tachi")
         put("packageId", loaded.packageId)
         put("sourceId", sourceId)
-        put("artifact", loaded.artifact.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(loaded.artifact))
     }
 
     fun searchPayload(loaded: Loaded, query: String, sourceId: String? = null, cursor: String? = null) = buildJsonObject {

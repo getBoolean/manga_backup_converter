@@ -16,7 +16,6 @@ import mangabackup.tachi.protocol.ArtifactBinding
 import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.WorkerClient
 import mangabackup.tachi.protocol.WorkerOptions
-import mangabackup.tachi.protocol.optStr
 import java.io.File
 import java.lang.management.ManagementFactory
 import java.nio.file.Files
@@ -106,19 +105,19 @@ class Bench(private val repo: File, private val quick: Boolean) {
         put("ecosystem", "tachi")
         put("packageId", s.q.packageId)
         put("sourceId", s.q.sourceId)
-        put("artifact", s.binding.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(s.binding))
     }
 
     fun prepare(client: WorkerClient, q: Q): Staged {
         val jar = File(fixtures, "${q.dir}/${q.jar}")
         val out = Files.createTempFile("bench-staged-", ".jar").toFile()
         val ok = client.call("artifact.prepare", q.packageId, buildJsonObject {
-            put("artifact", ArtifactBinding(Digests.sha256(jar), "jar", q.version).toJson())
+            put("artifact", mangabackup.tachi.protocol.Wire.encode(ArtifactBinding(Digests.sha256(jar), "jar", q.version)))
             put("inputPath", jar.absolutePath)
             put("outputPath", out.absolutePath)
             put("trustedSigners", buildJsonArray { add(JsonPrimitive(KEIYOUSHI_SIGNER)) })
         })
-        return Staged(q, ArtifactBinding.from(ok["artifact"]!!.jsonObject), out)
+        return Staged(q, mangabackup.tachi.protocol.Wire.decode<mangabackup.tachi.protocol.ArtifactBinding>(ok["artifact"]!!.jsonObject), out)
     }
 
     /** Prepares the three qualification JARs once (in a short-lived worker) for runs that only load them. */
@@ -132,7 +131,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
     }
 
     fun load(client: WorkerClient, s: Staged) = client.call("package.load", s.q.packageId, buildJsonObject {
-        put("artifact", s.binding.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(s.binding))
         put("path", s.path.absolutePath)
         put("settings", settings)
     })
@@ -225,7 +224,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
                 val t = System.nanoTime()
                 client.cancel(id)
                 val reply = future.get(30, TimeUnit.SECONDS)
-                if (reply.err?.optStr("code") == "cancelled") samples += ms(t)
+                if (reply.err?.let { mangabackup.tachi.protocol.WorkerError.fromJson(it).code } == "cancelled") samples += ms(t)
             }
         }
         client.call("shutdown")
@@ -240,7 +239,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
         val jar = File(fixtureJars, "fixture-busy.jar")
         val binding = ArtifactBinding(Digests.sha256(jar), "jar", "1")
         val ok = client.call("package.load", "fixture.busy", buildJsonObject {
-            put("artifact", binding.toJson())
+            put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
             put("path", jar.absolutePath)
             put("settings", settings)
         })
@@ -252,7 +251,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
                     put("ecosystem", "tachi")
                     put("packageId", "fixture.busy")
                     put("sourceId", sourceId)
-                    put("artifact", binding.toJson())
+                    put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
                 })
                 put("settingsRevision", "bench")
                 put("query", "slow")
@@ -261,7 +260,7 @@ class Bench(private val repo: File, private val quick: Boolean) {
             val t = System.nanoTime()
             client.cancel(id)
             val reply = future.get(30, TimeUnit.SECONDS)
-            check(reply.err?.optStr("code") == "cancelled")
+            check(reply.err?.let { mangabackup.tachi.protocol.WorkerError.fromJson(it).code } == "cancelled")
             samples += ms(t)
         }
         client.call("shutdown")

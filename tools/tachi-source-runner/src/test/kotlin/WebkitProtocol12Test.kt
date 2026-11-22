@@ -11,7 +11,6 @@ import kotlinx.serialization.json.put
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.Frame
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import mangabackup.tachi.webkit.BrowserReplacement
 import mangabackup.tachi.webkit.OriginRules
 import org.junit.jupiter.api.Assertions.assertEquals

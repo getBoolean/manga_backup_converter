@@ -7,7 +7,6 @@ import mangabackup.tachi.protocol.ArtifactBinding
 import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.WorkerClient
 import mangabackup.tachi.protocol.WorkerError
-import mangabackup.tachi.protocol.optStr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -44,7 +43,7 @@ class WorkerLifecycleTest {
             listOf("fixture.busy" to busyJar, "fixture.multi" to multiJar).associate { (pkg, jar) ->
                 val binding = ArtifactBinding(Digests.sha256(jar), "jar", "1")
                 val ok = client.call("package.load", pkg, kotlinx.serialization.json.buildJsonObject {
-                    put("artifact", binding.toJson())
+                    put("artifact", mangabackup.tachi.protocol.Wire.encode(binding))
                     put("path", kotlinx.serialization.json.JsonPrimitive(jar.absolutePath))
                     put("settings", WorkerHarnessSettings.empty)
                 })
@@ -128,7 +127,7 @@ class PayloadHelper {
         put("ecosystem", kotlinx.serialization.json.JsonPrimitive("tachi"))
         put("packageId", kotlinx.serialization.json.JsonPrimitive(l.packageId))
         put("sourceId", kotlinx.serialization.json.JsonPrimitive(sourceId))
-        put("artifact", l.artifact.toJson())
+        put("artifact", mangabackup.tachi.protocol.Wire.encode(l.artifact))
     }
 
     fun search(l: WorkerHarness.Loaded, query: String) = kotlinx.serialization.json.buildJsonObject {

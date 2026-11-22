@@ -110,7 +110,7 @@ class DeterministicConversionTest {
         fun prepare(q: TestSupport.Qualification): String {
             val out = File(TestSupport.tempDir("det"), "staged.jar")
             val harnessRequest = kotlinx.serialization.json.buildJsonObject {
-                put("artifact", mangabackup.tachi.protocol.ArtifactBinding(Digests.sha256(TestSupport.apk(q)), "apk", q.version).toJson())
+                put("artifact", mangabackup.tachi.protocol.Wire.encode(mangabackup.tachi.protocol.ArtifactBinding(Digests.sha256(TestSupport.apk(q)), "apk", q.version)))
                 put("inputPath", kotlinx.serialization.json.JsonPrimitive(TestSupport.apk(q).absolutePath))
                 put("outputPath", kotlinx.serialization.json.JsonPrimitive(out.absolutePath))
                 put("trustedSigners", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(TestSupport.KEIYOUSHI_SIGNER))))

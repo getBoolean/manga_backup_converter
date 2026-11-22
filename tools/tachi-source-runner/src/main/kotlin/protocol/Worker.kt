@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import mangabackup.tachi.extensions.ArtifactException
 import mangabackup.tachi.extensions.Digests
@@ -67,10 +68,13 @@ class Worker(
     @Volatile
     private var maxFrameBytes = Wire.MAX_FRAME_BYTES
 
-    /** The minor version agreed in the handshake; 1.2 browser requests are sent only when it is at least 2. */
+    /** The minor version agreed in the handshake; a reverse request newer than it is never sent ([reverseRequest]). */
     @Volatile
     var protocolMinor = 0L
         private set
+
+    /** Whether the supervisor negotiated a protocol minor that has [op]. */
+    fun supports(op: HostBrowserOp): Boolean = op.availableAt(protocolMinor)
 
     @Volatile
     private var shuttingDown = false
@@ -96,9 +100,12 @@ class Worker(
 
     private class PendingReverse(val of: String, val future: CompletableFuture<JsonObject>)
 
-    inner class OpTask(val frame: Frame) : OperationContext {
+    inner class OpTask(val frame: Frame, val op: WorkerOp) : OperationContext {
         override val requestId: String get() = frame.id
-        override val sourceId: String? = runCatching { frame.payload?.optObj("source")?.optStr("sourceId") }.getOrNull()
+
+        /** Peeked leniently for host diagnostics; the operation itself decodes its payload strictly. */
+        override val sourceId: String? =
+            ((frame.payload?.get("source") as? JsonObject)?.get("sourceId") as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
         val packageId: String = frame.pkg!!
 
         @Volatile
@@ -226,28 +233,26 @@ class Worker(
     /** Returns false when the worker should exit. */
     private fun dispatch(frame: Frame): Boolean {
         when (frame.t) {
-            "req" -> when (frame.op) {
-                "handshake" -> handshake(frame)
-                "shutdown" -> {
-                    shuttingDown = true
-                    closeAll()
-                    reply(frame, ok = JsonObject(emptyMap()))
-                    output.flush()
-                    return false
-                }
-                null -> replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "request has no op"))
-                else -> {
-                    if (generation < 0) {
-                        replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "handshake required first"))
-                    } else if (frame.pkg == null) {
-                        replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "${frame.op} needs pkg"))
-                    } else {
-                        enqueue(OpTask(frame))
+            FrameType.REQ -> {
+                val op = WorkerOp.fromWire(frame.op)
+                when {
+                    frame.op == null -> replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "request has no op"))
+                    op == WorkerOp.HANDSHAKE -> handshake(frame)
+                    op == WorkerOp.SHUTDOWN -> {
+                        shuttingDown = true
+                        closeAll()
+                        reply(frame, ok = JsonObject(emptyMap()))
+                        output.flush()
+                        return false
                     }
+                    generation < 0 -> replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "handshake required first"))
+                    op == null -> replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "unknown operation ${frame.op}"))
+                    op.perPackage && frame.pkg == null -> replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "${op.wire} needs pkg"))
+                    else -> enqueue(OpTask(frame, op))
                 }
             }
-            "cancel" -> cancel(frame.id)
-            "rres" -> {
+            FrameType.CANCEL -> cancel(frame.id)
+            FrameType.RRES -> {
                 val pending = reverse.remove(frame.id) ?: return true
                 when {
                     frame.err != null -> pending.future.completeExceptionally(WorkerError.fromJson(frame.err))
@@ -257,13 +262,18 @@ class Worker(
             }
             // Events are handled here, on the frame reader, never on a thread that waits for an rres:
             // a held request may be what keeps the worker's own reverse request from being answered.
-            "event" -> when (frame.op) {
-                "host.browser.message" -> frame.payload?.let(browser::onMessage)
-                "host.browser.request" -> frame.payload?.let(browser::onRequest)
-                "interaction.started" -> frame.payload?.let { p -> interactionTask(p)?.interactionStarted(p.optLong("timeoutMs") ?: 0L) }
-                "interaction.ended" -> frame.payload?.let { p -> interactionTask(p)?.interactionEnded() }
+            FrameType.EVENT -> {
+                val p = frame.payload ?: return true
+                when (frame.op) {
+                    WorkerEvent.BROWSER_MESSAGE -> browser.onMessage(p)
+                    WorkerEvent.BROWSER_REQUEST -> browser.onRequest(p)
+                    WorkerEvent.INTERACTION_STARTED -> Wire.decodeOrNull<InteractionStarted>(p)?.let { e ->
+                        interactionTask(e.of)?.interactionStarted(e.timeoutMs ?: 0L)
+                    }
+                    WorkerEvent.INTERACTION_ENDED -> Wire.decodeOrNull<InteractionEnded>(p)?.let { e -> interactionTask(e.of)?.interactionEnded() }
+                }
             }
-            else -> fatal("unexpected frame type ${frame.t} from supervisor")
+            FrameType.RES, FrameType.RREQ -> fatal("unexpected frame type ${frame.t} from supervisor")
         }
         return true
     }
@@ -271,40 +281,25 @@ class Worker(
     /**
      * The in-flight operation an `interaction.*` event (protocol 1.3) names. Decoded leniently, like the
      * other events: a malformed event, one for an operation no longer in flight, or one from a peer
-     * that did not negotiate 1.3 is dropped.
+     * that did not negotiate 1.3 is dropped. (Inbound events are gated here, not by [reverseRequest].)
      */
-    private fun interactionTask(p: JsonObject): OpTask? {
-        if (protocolMinor < 3) return null
-        val of = (p["of"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
-        return tasks[of]
-    }
-
-    private fun JsonObject.optLong(key: String): Long? =
-        (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull()
+    private fun interactionTask(of: String): OpTask? = if (protocolMinor < 3) null else tasks[of]
 
     private fun handshake(frame: Frame) {
         val p = frame.payload ?: return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "handshake needs a payload"))
-        val versions = try {
-            p.arr("protocolVersions").map { (it as JsonPrimitive).content.toLong() }
-        } catch (e: Exception) {
-            return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "bad protocolVersions"))
+        val (request, offeredMinor) = try {
+            val request = Wire.decode<HandshakeRequest>(p, "handshake")
+            request to request.offeredMinor()
+        } catch (e: ProtocolViolation) {
+            return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, e.message ?: "bad handshake"))
         }
-        if (Wire.VERSION.toLong() !in versions) {
-            return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "supervisor offers $versions; worker speaks ${Wire.VERSION}"))
+        if (Wire.VERSION.toLong() !in request.protocolVersions) {
+            return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "supervisor offers ${request.protocolVersions}; worker speaks ${Wire.VERSION}"))
         }
-        // 1.1: answer with the lower of the offered minor and ours; absent (a 1.0 supervisor) is 0.
-        val offeredMinor = when (val m = p["protocolMinor"]) {
-            null, kotlinx.serialization.json.JsonNull -> 0L
-            else -> (m as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toLongOrNull()?.takeIf { it >= 0 }
-                ?: return replyError(frame, WorkerError(ErrorCode.PROTOCOL_VIOLATION, "protocolMinor must be a non-negative integer"))
-        }
+        // 1.1: answer with the lower of the offered minor and ours.
         generation = frame.gen
         protocolMinor = minOf(offeredMinor, Wire.MINOR_VERSION.toLong())
-        maxFrameBytes = try {
-            minOf(p.int("maxFrameBytes"), Wire.MAX_FRAME_BYTES.toLong()).toInt()
-        } catch (_: ProtocolViolation) {
-            Wire.MAX_FRAME_BYTES
-        }
+        maxFrameBytes = request.maxFrameBytesOrNull()?.let { minOf(it, Wire.MAX_FRAME_BYTES.toLong()).toInt() } ?: Wire.MAX_FRAME_BYTES
         reply(
             frame,
             ok = buildJsonObject {
@@ -415,32 +410,28 @@ class Worker(
 
     private suspend fun runOp(task: OpTask): JsonObject {
         val p = task.frame.payload ?: JsonObject(emptyMap())
-        return when (task.frame.op) {
-            "artifact.prepare" -> prepare(p)
-            "package.load" -> load(task.packageId, p)
-            "package.unload" -> {
+        val state = if (task.op.requiresLoaded) requireLoaded(task.packageId) else null
+        return when (task.op) {
+            WorkerOp.ARTIFACT_PREPARE -> Wire.encode(prepare(Wire.decode(p, task.op.wire)))
+            WorkerOp.PACKAGE_LOAD -> Wire.encode(load(task.packageId, Wire.decode(p, task.op.wire)))
+            WorkerOp.PACKAGE_UNLOAD -> {
                 packages.remove(task.packageId)?.let { closePackage(it.pkg) }
-                    ?: throw WorkerError(ErrorCode.RUNTIME_UNAVAILABLE, "package ${task.packageId} is not loaded")
                 JsonObject(emptyMap())
             }
-            "settings.update" -> {
-                val state = requireLoaded(task.packageId)
-                state.pkg.environment.replaceSettings(SettingsCodec.from(p.obj("settings")))
+            WorkerOp.SETTINGS_UPDATE -> {
+                state!!.pkg.environment.replaceSettings(Wire.decode<SettingsUpdateRequest>(p, task.op.wire).settings.toHostSettings())
                 JsonObject(emptyMap())
             }
-            "search" -> requireLoaded(task.packageId).ops.search(p, state = requireLoaded(task.packageId))
-            "details" -> requireLoaded(task.packageId).ops.details(p, state = requireLoaded(task.packageId))
-            "dispose" -> {
-                val state = requireLoaded(task.packageId)
-                val reply = state.ops.dispose(p)
+            WorkerOp.SEARCH -> state!!.ops.search(Wire.decode(p, task.op.wire))
+            WorkerOp.DETAILS -> state!!.ops.details(Wire.decode(p, task.op.wire))
+            WorkerOp.DISPOSE -> {
+                val request = Wire.decode<DisposeRequest>(p, task.op.wire)
+                state!!.ops.dispose(request)
                 // A dispose without handles closes the source's session (protocol › dispose).
-                val sourceId = runCatching { p.optObj("source")?.optStr("sourceId") }.getOrNull()
-                if (sourceId != null && p["handles"].let { it == null || it is kotlinx.serialization.json.JsonNull }) {
-                    browser.sourceSessionClosed(state.pkg.environment, sourceId)
-                }
-                reply
+                if (request.handles == null) browser.sourceSessionClosed(state.pkg.environment, request.source.sourceId)
+                JsonObject(emptyMap())
             }
-            else -> throw WorkerError(ErrorCode.PROTOCOL_VIOLATION, "unknown operation ${task.frame.op}")
+            WorkerOp.HANDSHAKE, WorkerOp.SHUTDOWN -> error("${task.op.wire} is answered on the frame reader")
         }
     }
 
@@ -449,13 +440,13 @@ class Worker(
 
     // --- operations --------------------------------------------------------------------------
 
-    private fun prepare(p: JsonObject): JsonObject {
-        val artifact = ArtifactBinding.from(p.obj("artifact"))
-        val input = File(p.str("inputPath"))
-        val output = File(p.str("outputPath"))
+    private fun prepare(request: ArtifactPrepareRequest): ArtifactPrepareResponse {
+        val artifact = request.artifact
+        val input = File(request.inputPath)
+        val output = File(request.outputPath)
         // KTD5: the request's trust anchor is the only source of trusted signers. An absent or empty list (a 1.0
         // supervisor, or no stored anchor) is refused by the verifier as artifact-incompatible; nothing else is trusted.
-        val trusted = p.optArr("trustedSigners")?.map { it.asStringStrict("trustedSigners[]").lowercase() }?.toSet() ?: emptySet()
+        val trusted = request.trustedSigners.orEmpty().map { it.lowercase() }.toSet()
         if (trusted.isEmpty()) throw ArtifactException("artifact.prepare carries no trustedSigners; refusing to verify ${artifact.kind} without a stored trust anchor")
         try {
             output.parentFile?.mkdirs()
@@ -477,11 +468,7 @@ class Worker(
                 }
                 val digest = Digests.sha256(output)
                 val versions = listOfNotNull(prepared.converterVersion, rewrite?.version, WorkerOptions.HOST_COMPATIBILITY)
-                return buildJsonObject {
-                    put("artifact", ArtifactBinding(digest, prepared.kind, artifact.version).toJson())
-                    put("producer", prepared.producer)
-                    put("converterVersion", versions.joinToString("+"))
-                }
+                return ArtifactPrepareResponse(ArtifactBinding(digest, prepared.kind, artifact.version), prepared.producer, versions.joinToString("+"))
             } finally {
                 staging.deleteRecursively()
             }
@@ -491,13 +478,13 @@ class Worker(
         }
     }
 
-    private fun load(packageId: String, p: JsonObject): JsonObject {
-        val artifact = ArtifactBinding.from(p.obj("artifact"))
+    private fun load(packageId: String, request: PackageLoadRequest): PackageLoadResponse {
+        val artifact = request.artifact
         if (artifact.kind != runtime.loadableKind) {
             throw ArtifactException("package.load needs a prepared ${runtime.loadableKind}, got kind '${artifact.kind}'")
         }
-        val path = File(p.str("path"))
-        val settings = SettingsCodec.from(p.obj("settings"))
+        val path = File(request.path)
+        val settings = Wire.decode<SettingsPayload>(request.settings, "package.load settings").toHostSettings()
         Digests.requireSha256(path, artifact.sha256, "Staged artifact")
         packages.remove(packageId)?.let { closePackage(it.pkg) }
         val stateDir = File(options.stateRoot, "pkg-${envIds.incrementAndGet()}")
@@ -524,20 +511,13 @@ class Worker(
         packages[packageId] = state
         val requiresBrowser = SourceOperations.referencesWebView(path)
         val family = ExtensionFactories.apiFamily(pkg.manifest.libVersion)
-        return buildJsonObject {
-            put("sources", buildJsonArray {
-                for (source in pkg.sources) {
-                    add(buildJsonObject {
-                        put("sourceId", source.id.toString())
-                        put("name", source.name)
-                        put("language", source.lang.ifEmpty { null })
-                        val ops = mutableListOf("search", "mangaDetails", "chapterList")
-                        if (source is eu.kanade.tachiyomi.source.ConfigurableSource) ops += "settings"
-                        put("capabilities", capabilitiesJson(ops, listOf(family), requiresBrowser))
-                    })
-                }
-            })
-        }
+        return PackageLoadResponse(
+            pkg.sources.map { source ->
+                val ops = mutableListOf("search", "mangaDetails", "chapterList")
+                if (source is eu.kanade.tachiyomi.source.ConfigurableSource) ops += "settings"
+                LoadedSource(source.id.toString(), source.name, source.lang.ifEmpty { null }, SourceCapabilities(ops, listOf(family), requiresBrowser))
+            },
+        )
     }
 
     // --- reverse requests (KTD20) --------------------------------------------------------------
@@ -545,10 +525,19 @@ class Worker(
     /**
      * Sends a `host.browser.*` reverse request on behalf of the in-flight
      * operation [of]. Fails with `cancelled` if that operation has finished, so
-     * no reverse request can ever follow its reply.
+     * no reverse request can ever follow its reply, and with
+     * `capability-unavailable` if the supervisor negotiated a protocol minor
+     * older than the operation ([HostBrowserOp.sinceMinor]).
      */
-    fun reverseRequest(of: String, op: String, payload: JsonObject): CompletableFuture<JsonObject> {
+    fun reverseRequest(of: String, request: HostBrowserRequest): CompletableFuture<JsonObject> {
+        val op = request.op
         val future = CompletableFuture<JsonObject>()
+        if (!supports(op)) {
+            future.completeExceptionally(
+                WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, "${op.wire} needs protocol 1.${op.sinceMinor}; the supervisor speaks 1.$protocolMinor", op.wire),
+            )
+            return future
+        }
         val id = "r${reverseIds.incrementAndGet()}"
         synchronized(writeLock) {
             val task = tasks[of]
@@ -557,7 +546,7 @@ class Worker(
                 return future
             }
             reverse[id] = PendingReverse(of, future)
-            writeFrame(Frame(t = "rreq", id = id, gen = generation, op = op, of = of, payload = payload))
+            writeFrame(Frame(t = FrameType.RREQ, id = id, gen = generation, op = op.wire, of = of, payload = request.toPayload()))
         }
         return future
     }
@@ -576,12 +565,12 @@ class Worker(
     // --- replies ---------------------------------------------------------------------------------
 
     private fun reply(request: Frame, ok: JsonObject) {
-        val frame = Frame(t = "res", id = request.id, gen = generation, ok = ok)
+        val frame = Frame(t = FrameType.RES, id = request.id, gen = generation, ok = ok)
         synchronized(writeLock) {
             val encoded = frame.encode()
             val size = encoded.toByteArray(StandardCharsets.UTF_8).size
             if (size > maxFrameBytes) {
-                writeRaw(Frame(t = "res", id = request.id, gen = generation, err = WorkerError(ErrorCode.SOURCE_ERROR, "reply of $size bytes exceeds the $maxFrameBytes-byte frame limit").toJson()).encode())
+                writeRaw(Frame(t = FrameType.RES, id = request.id, gen = generation, err = WorkerError(ErrorCode.SOURCE_ERROR, "reply of $size bytes exceeds the $maxFrameBytes-byte frame limit").toJson()).encode())
             } else {
                 writeRaw(encoded)
             }
@@ -590,7 +579,7 @@ class Worker(
 
     private fun replyError(request: Frame, error: WorkerError) {
         synchronized(writeLock) {
-            writeRaw(Frame(t = "res", id = request.id, gen = generation, err = error.toJson()).encode())
+            writeRaw(Frame(t = FrameType.RES, id = request.id, gen = generation, err = error.toJson()).encode())
         }
     }
 
