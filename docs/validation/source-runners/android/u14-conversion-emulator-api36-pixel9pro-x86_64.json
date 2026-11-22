@@ -888,5 +888,23 @@
       }
     }
   ],
-  "note": "runs[0] is the final full-file run (AE10 with operationDeadlineMs=15000); the later entries were recorded earlier on the branch (AE10 with 4000 ms)."
+  "note": "runs[0] is the final full-file run (AE10 with operationDeadlineMs=15000); the later entries were recorded earlier on the branch (AE10 with 4000 ms).",
+  "identity": {
+    "hostCommit": "a8c4057d (runs[0]); earlier runs at 35c331fa-e362a025",
+    "testedApk": {
+      "variant": "debug (flutter test, android-x64); built-app phases used a debug APK built with -t integration_test/... and SRT_PHASE",
+      "signer": "CN=Android Debug, O=Android, C=US (38f73b527d22675ccad2379bda776416b27429ab026f93984676aaacd88d1892)",
+      "sha256": "not recorded for the API 36 runs"
+    },
+    "tachiWorkerProtocol": "1.3",
+    "quickjsSubmodule": "dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df (v0.18.0-26)",
+    "wasm3Submodule": "79d412ea5fcf92f0efe658d52827a0e0a96ff442",
+    "flutter": "3.50.0 (framework ab2912035e), Dart 3.14",
+    "jni": "1.2.1",
+    "jnigen": "1.1.0",
+    "jni_flutter": "1.1.0",
+    "ffigen": "20.1.1",
+    "paperbackSizingRule": "quickjs-sizing-v2 (limits per run in the start receipt)",
+    "tachiSizing": "committed Android rule (tachi-worker-sizing.json), handshake deadline 13,860 ms"
+  }
 }
