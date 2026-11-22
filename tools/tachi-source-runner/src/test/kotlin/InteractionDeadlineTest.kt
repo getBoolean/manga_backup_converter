@@ -108,6 +108,23 @@ class InteractionDeadlineTest {
     }
 
     @Test
+    fun `a pause takes the supervisor's bound, counted from when it began`() {
+        val timer = FakeTimer()
+        val d = deadline(timer)
+        advance(300)
+        d.pause(5_000) // a host-driven pause with the worker's own bound
+        advance(1_000)
+        d.rebound(2_000) // interaction.started carries the supervisor's
+        assertEquals(listOf(1_000L, 5_700L, 1_700L), timer.arms, "700 left + 2000 bound - 1000 already paused")
+        d.resume()
+        assertEquals(700L, timer.arms.last())
+        d.rebound(9_000)
+        assertEquals(4, timer.arms.size, "re-bounded while running")
+        d.close()
+        assertFalse(d.expired)
+    }
+
+    @Test
     fun `cancel during an interaction still fires the deadline`() {
         val timer = FakeTimer()
         val d = deadline(timer)

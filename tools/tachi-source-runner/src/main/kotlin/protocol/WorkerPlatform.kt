@@ -55,6 +55,12 @@ interface OperationGuard : AutoCloseable {
      */
     fun pause(boundMs: Long)
 
+    /**
+     * While paused, bounds the pause by [boundMs] from when it began instead of the bound [pause] was
+     * given: the supervisor's interaction timeout replaces the worker's own once it is known.
+     */
+    fun rebound(boundMs: Long)
+
     /** `interaction.ended` (protocol 1.3): count time again, from the budget that remained at [pause]. */
     fun resume()
 
@@ -82,6 +88,8 @@ object NoOperationGuard : OperationGuard {
     override fun expireNow() {}
 
     override fun pause(boundMs: Long) {}
+
+    override fun rebound(boundMs: Long) {}
 
     override fun resume() {}
 
@@ -122,6 +130,7 @@ class PausableDeadline(
 ) : OperationGuard {
     private var usedNanos = 0L
     private var runningSince = nanoTime()
+    private var pausedSince = 0L
     private var paused = false
     private var closed = false
 
@@ -149,7 +158,16 @@ class PausableDeadline(
         if (timer.disarm()) return refire()
         usedNanos += now - runningSince
         paused = true
+        pausedSince = now
         timer.arm(remainingMs + maxOf(0L, boundMs))
+    }
+
+    @Synchronized
+    override fun rebound(boundMs: Long) {
+        if (closed || !paused || fired) return
+        val pausedMs = (nanoTime() - pausedSince) / 1_000_000
+        if (timer.disarm()) return refire()
+        timer.arm(maxOf(0L, remainingMs + maxOf(0L, boundMs) - pausedMs))
     }
 
     @Synchronized

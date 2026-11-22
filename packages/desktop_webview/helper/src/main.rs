@@ -333,6 +333,26 @@ fn wipe_stale(root: &Path, own: Option<&Path>, retry: Option<std::time::Duration
   }
 }
 
+/// Removes this helper's own data directory at exit, retrying with the
+/// [wipe_stale] backoff for up to [retry] (the client's `wipe.retryMs`); one
+/// attempt when the client configured none.
+fn remove_own_data_dir(dir: &Path, retry: Option<std::time::Duration>) {
+  let deadline = std::time::Instant::now() + retry.unwrap_or_default();
+  let mut backoff = std::time::Duration::from_millis(50);
+  loop {
+    if std::fs::remove_dir_all(dir).is_ok() || !dir.exists() {
+      return;
+    }
+    let now = std::time::Instant::now();
+    if now >= deadline {
+      eprintln!("[helper] own data directory left for the next start-up wipe: {}", dir.display());
+      return;
+    }
+    std::thread::sleep(backoff.min(deadline - now));
+    backoff = (backoff * 2).min(std::time::Duration::from_millis(500));
+  }
+}
+
 /// Startup wipe (KTD20): removes every helper data directory under [root]
 /// that a previous (crashed or killed) helper left behind. Directories that
 /// cannot be removed are still in use by a running helper's browser process.
@@ -409,6 +429,9 @@ struct App {
   sessions: HashMap<String, Session>,
   windows: HashMap<WindowId, String>,
   shutting_down: bool,
+  /// The client's wipe retry budget (`wipe.retryMs`, KTD25), reused when the
+  /// helper removes its own data directory at exit.
+  wipe_retry: Option<std::time::Duration>,
 }
 
 fn str_field<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
@@ -438,6 +461,7 @@ impl App {
       }
       Command::Wipe { retry_ms } => {
         let retry = retry_ms.map(std::time::Duration::from_millis);
+        self.wipe_retry = retry;
         let Some(root) = self.opts.data_root.clone() else {
           self.out.ok(id, json!({"removed": 0}));
           return true;
@@ -1078,6 +1102,7 @@ fn main() {
     sessions: HashMap::new(),
     windows: HashMap::new(),
     shutting_down: false,
+    wipe_retry: None,
   };
   let mut writer = Some(writer);
 
@@ -1104,13 +1129,11 @@ fn main() {
       Event::LoopDestroyed => {
         app.shutdown();
         if let Some(dir) = app.data_dir.take() {
-          // The browser process may hold files briefly after the last WebView closes.
-          for _ in 0..20 {
-            if std::fs::remove_dir_all(&dir).is_ok() || !dir.exists() {
-              break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-          }
+          // The browser process may hold files briefly after the last
+          // WebView closes: retry within the client's wipe budget (KTD25).
+          // The client's shutdown grace still bounds the exit, and the next
+          // start-up wipe removes whatever is left.
+          remove_own_data_dir(&dir, app.wipe_retry);
         }
         #[cfg(target_os = "macos")]
         platform::cleanup();

@@ -88,7 +88,7 @@ class CloudflareSolver(private val bridge: BrowserBridge, private val boundMs: L
             return CloudflareSolution(browserUserAgent ?: userAgent)
         } finally {
             try {
-                bridge.request(environment, HostBrowserClose(session)).get(BrowserBridge.CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)
+                bridge.request(environment, HostBrowserClose(session)).get(bridge.closeWaitMs, TimeUnit.MILLISECONDS)
             } catch (_: Exception) {
                 // The supervisor deletes the session's storage when the operation's generation is fenced or closed.
             }

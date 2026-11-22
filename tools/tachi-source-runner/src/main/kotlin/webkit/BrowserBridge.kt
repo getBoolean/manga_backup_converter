@@ -104,13 +104,20 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
         request(environment, HostBrowserEndInteraction(session)).exceptionally { null }
     }
 
-    /** Closes every session an operation opened; bounded so a stuck port cannot hold the reply. */
+    /**
+     * How long closing an operation's sessions may hold its reply: half the supervisor's cancel grace
+     * (KTD25), shared by all of the operation's closes, so a stuck port leaves the reply the other half.
+     */
+    val closeWaitMs: Long get() = worker.limits.cancelGraceMs / 2
+
+    /** Closes every session an operation opened, within [closeWaitMs] in all, so a stuck port cannot hold the reply. */
     override fun closeSessionsOf(operationId: String) {
         val views = sessionsByOperation.remove(operationId) ?: return
         val closes = views.mapNotNull { it.closeSession() }
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(closeWaitMs)
         for (c in closes) {
             try {
-                c.get(CLOSE_WAIT_MS, TimeUnit.MILLISECONDS)
+                c.get(maxOf(0L, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)
             } catch (_: Exception) {
                 // The supervisor deletes the session's storage when it fences or closes it.
             }
@@ -126,8 +133,6 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
     }
 
     companion object {
-        const val CLOSE_WAIT_MS = 2_000L
-
         fun isCapabilityFailure(t: Throwable): Boolean {
             val e = generateSequence(t) { it.cause }.firstOrNull { it is WorkerError } as? WorkerError ?: return false
             return e.code == ErrorCode.CAPABILITY_UNAVAILABLE || e.code == ErrorCode.INTERACTION_REQUIRED

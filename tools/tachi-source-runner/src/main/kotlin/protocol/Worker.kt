@@ -20,6 +20,7 @@ import mangabackup.tachi.host.HostOperationException
 import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
+import mangabackup.tachi.host.WorkerLimits
 import mangabackup.tachi.host.withHandshake
 import mangabackup.tachi.shim.HostFailures
 import java.io.BufferedReader
@@ -73,6 +74,18 @@ class Worker(
     @Volatile
     var protocolMinor = 0L
         private set
+
+    /** The KTD25 limits this worker runs under (the supervisor's, when it passed them). */
+    val limits: WorkerLimits get() = options.sizing.limits
+
+    /**
+     * The supervisor's interaction bound, from its latest `interaction.started` (protocol 1.3). Until one
+     * arrives, host-driven pauses use this worker's own [WorkerLimits.interactionTimeoutMs].
+     */
+    @Volatile
+    private var supervisorInteractionTimeoutMs: Long? = null
+
+    private fun interactionBoundMs(): Long = supervisorInteractionTimeoutMs ?: limits.interactionTimeoutMs
 
     /** Whether the supervisor negotiated a protocol minor that has [op]. */
     fun supports(op: HostBrowserOp): Boolean = op.availableAt(protocolMinor)
@@ -130,13 +143,16 @@ class Worker(
         private val interactionLock = Any()
 
         /**
-         * `interaction.started`: pause the platform deadline. The supervisor sends one pair per operation
-         * however many shows overlap, so a repeated start is ignored rather than counted.
+         * `interaction.started`: pause the platform deadline, bounded by the supervisor's [timeoutMs]. The
+         * supervisor sends one pair per operation however many shows overlap, so a repeated start is ignored
+         * rather than counted. A host-driven pause already holding the deadline (a Cloudflare challenge pauses
+         * before its show is sent) takes the supervisor's bound instead of keeping the worker's own.
          */
-        fun interactionStarted(timeoutMs: Long): Unit = synchronized(interactionLock) {
+        fun interactionStarted(timeoutMs: Long?): Unit = synchronized(interactionLock) {
             if (interacting || finished) return
             interacting = true
-            hold(timeoutMs)
+            if (timeoutMs != null) supervisorInteractionTimeoutMs = timeoutMs
+            if (pauses++ == 0) guard?.pause(interactionBoundMs()) else guard?.rebound(interactionBoundMs())
         }
 
         /** `interaction.ended`: resume the platform deadline. Never resumed on a show's `rres` alone. */
@@ -147,15 +163,11 @@ class Worker(
         }
 
         override fun pauseDeadline(): Unit = synchronized(interactionLock) {
-            if (!finished) hold(options.sizing.limits.interactionTimeoutMs)
+            if (!finished && pauses++ == 0) guard?.pause(interactionBoundMs())
         }
 
         override fun resumeDeadline(): Unit = synchronized(interactionLock) {
             release()
-        }
-
-        private fun hold(boundMs: Long) {
-            if (pauses++ == 0) guard?.pause(boundMs)
         }
 
         private fun release() {
@@ -271,7 +283,7 @@ class Worker(
                     WorkerEvent.BROWSER_MESSAGE -> browser.onMessage(p)
                     WorkerEvent.BROWSER_REQUEST -> browser.onRequest(p)
                     WorkerEvent.INTERACTION_STARTED -> Wire.decodeOrNull<InteractionStarted>(p)?.let { e ->
-                        interactionTask(e.of)?.interactionStarted(e.timeoutMs ?: 0L)
+                        interactionTask(e.of)?.interactionStarted(e.timeoutMs)
                     }
                     WorkerEvent.INTERACTION_ENDED -> Wire.decodeOrNull<InteractionEnded>(p)?.let { e -> interactionTask(e.of)?.interactionEnded() }
                 }
