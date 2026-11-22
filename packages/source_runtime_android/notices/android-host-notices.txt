@@ -2,9 +2,12 @@ Android host libraries shipped in this app
 
 These libraries run in the app's private :source_runtime process (the Tachi
 source host) and in the app process (WebView glue). Versions follow the app's
-locked release runtime classpath (android/app/gradle.lockfile); licences are
-the ones each artifact's POM declares, as listed in
-tools/tachi-source-runner/THIRD_PARTY.md.
+locked release runtime classpath (android/app/gradle.lockfile). Licences are
+the ones each artifact's POM declares. Three POMs declare none (Guava
+listenablefuture, JetBrains annotations, org.brotli:dec); for those the
+licence is the project's own (Apache-2.0, Apache-2.0, MIT), as listed in
+tools/tachi-source-runner/THIRD_PARTY.md. The Zstandard text below is
+facebook/zstd's LICENSE (v1.5.7, identical wording).
 
 == Licensed under the Apache License, Version 2.0 (text below) ==
 

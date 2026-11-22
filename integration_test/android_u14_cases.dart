@@ -31,6 +31,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter/src/features/conversion/data/app_file_stores.dart';
 import 'package:source_runtime/source_runtime.dart';
+import 'package:source_runtime_android/source_runtime_android.dart';
 
 import 'support/android_conversion_harness.dart';
 
@@ -392,6 +393,37 @@ void registerU14Cases() {
         await h.close();
       }
     }, timeout: const Timeout(Duration(minutes: 10)));
+  });
+
+  group('U14 replay mode fails closed', () {
+    test('U14 the Tachi worker refuses --offline-browser where WebView '
+        'network cannot be blocked', () async {
+      final String? unavailable = await webViewOfflineUnavailable();
+      if (unavailable == null) {
+        markTestSkipped('This WebView supports PROXY_OVERRIDE');
+        return;
+      }
+      final ConversionRuntimeScope scope = AndroidTachiBackend(
+        arguments: const <String>['--offline-browser'],
+      ).scope();
+      final watch = Stopwatch()..start();
+      try {
+        final SourceOutcome<WorkerSupervisor> started = await scope.worker(
+          WorkerKind.jvm,
+        );
+        final SourceFailure? failure = started.failureOrNull;
+        expect(failure, isNotNull, reason: 'the worker must not start');
+        expect(failure!.message, contains('cannot block WebView network'));
+        expect(watch.elapsed, lessThan(androidTachiHandshakeDeadline));
+        _receipt('replay-fails-closed', <String, Object?>{
+          'webViewOfflineUnavailable': unavailable,
+          'failure': '${failure.code}: ${failure.message}',
+          'elapsedMs': watch.elapsedMilliseconds,
+        });
+      } finally {
+        await scope.close();
+      }
+    }, timeout: const Timeout(Duration(minutes: 2)));
   });
 
   group('U14 real backgrounding during a job (manual, device tools)', () {
