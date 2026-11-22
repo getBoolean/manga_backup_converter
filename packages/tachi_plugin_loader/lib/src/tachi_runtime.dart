@@ -98,14 +98,12 @@ class TachiRuntime implements SourceProvider {
   TachiRuntime({
     required this.worker,
     required this.store,
-    this.catalog,
     this.policy = const TachiArtifactPolicy(),
     this.hostCompatibility = tachiHostCompatibility,
   });
 
   final TachiWorkerAccess worker;
   final TachiArtifactStore store;
-  final TachiCatalog? catalog;
   final TachiArtifactPolicy policy;
 
   /// Host compatibility recorded in every prepared artifact's cache identity
@@ -140,37 +138,6 @@ class TachiRuntime implements SourceProvider {
 
   @override
   String get ecosystem => tachiEcosystem;
-
-  /// Lists [repository]'s packages from its live index. Trust is decided by
-  /// the caller before any listing is used (the core trust gate).
-  @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) async {
-    final TachiCatalog? c = catalog;
-    if (c == null) {
-      return const SourceFailed<List<PackageListing>>(
-        CapabilityUnavailableFailure('discoverPackages', 'No Tachi catalog is configured'),
-      );
-    }
-    try {
-      final List<TachiPackageListing> listings = await c.fetchPackages(await c.fetchRepository(repository));
-      return SourceSuccess<List<PackageListing>>(<PackageListing>[
-        for (final TachiPackageListing l in listings)
-          if (policy.select(l) case SourceSuccess<TachiArtifactChoice>(:final TachiArtifactChoice value))
-            PackageListing(
-              packageId: l.packageId,
-              name: l.name,
-              version: l.versionName,
-              downloadUrl: value.url,
-              languages: l.languages,
-              contentRating: l.contentRating,
-            ),
-      ]);
-    } on TachiCatalogException catch (e) {
-      return SourceFailed<List<PackageListing>>(SourceErrorFailure(e.message));
-    } on Exception catch (e) {
-      return SourceFailed<List<PackageListing>>(SourceErrorFailure('Could not read $repository: $e'));
-    }
-  }
 
   /// Prepares [listing]'s [choice] artifact for loading.
   ///

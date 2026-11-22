@@ -103,21 +103,27 @@ abstract interface class SelectionPort {
 /// the conservative answer: leave trust unanswered (not trusted), resolve nothing, decline partial
 /// conversions unless [acceptPartial] is set.
 final class CallbackSelectionPort implements SelectionPort {
+  /// Exactly one of [onSelectExtensions] and [onSelectSources] picks the
+  /// extensions.
   CallbackSelectionPort({
-    required this.onSelectExtensions,
     required this.onConfirmMatches,
+    this.onSelectExtensions,
     this.onSelectSources,
     this.onRepositoryTrust,
     this.onResolveChapters,
     this.onAcceptPartial,
     this.acceptPartial = false,
-  });
+  }) : assert(
+         (onSelectExtensions == null) != (onSelectSources == null),
+         'Pass exactly one of onSelectExtensions and onSelectSources',
+       );
 
-  final Future<List<ExtensionEntry>> Function(List<ExtensionEntry> extensions) onSelectExtensions;
+  /// Picks from the listed extensions.
+  final Future<List<ExtensionEntry>> Function(List<ExtensionEntry> extensions)? onSelectExtensions;
   final OnConfirmMatches onConfirmMatches;
 
-  /// Preferred over [onSelectExtensions] when set; also receives how many
-  /// sources the rating policy hid.
+  /// Picks from the listed extensions, also told how many sources the rating
+  /// policy hid.
   final Future<List<ExtensionEntry>> Function(SourceSelectionRequest request)? onSelectSources;
   final Future<TrustDecision> Function(RepositoryTrustRequest request)? onRepositoryTrust;
   final Future<List<ChapterDecision>> Function(ChapterAmbiguityRequest request)? onResolveChapters;
@@ -129,7 +135,7 @@ final class CallbackSelectionPort implements SelectionPort {
 
   @override
   Future<List<ExtensionEntry>> selectSources(SourceSelectionRequest request) =>
-      onSelectSources?.call(request) ?? onSelectExtensions(request.available);
+      onSelectSources?.call(request) ?? onSelectExtensions!(request.available);
 
   @override
   Future<TrustDecision> decideRepositoryTrust(RepositoryTrustRequest request) async =>

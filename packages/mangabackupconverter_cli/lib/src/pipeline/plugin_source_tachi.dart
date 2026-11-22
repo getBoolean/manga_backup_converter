@@ -132,7 +132,6 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
         runtime = TachiRuntime(
           worker: () => scope.worker(WorkerKind.jvm),
           store: TachiArtifactStore(cache: ArtifactCache(cacheDirectory), fetch: fetch),
-          catalog: TachiCatalog(fetch),
           policy: policy,
         );
         return SourceSuccess<TachiRuntime>(runtime);

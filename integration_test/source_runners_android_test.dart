@@ -593,7 +593,6 @@ final class _TachiStack {
         cache: ArtifactCache(Directory('${root.path}/cache')),
         fetch: fetch.call,
       ),
-      catalog: catalog,
       policy: const TachiArtifactPolicy(all: TachiArtifactKind.apk),
     );
   }

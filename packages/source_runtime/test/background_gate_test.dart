@@ -82,10 +82,6 @@ final class _Provider implements SourceProvider {
   String get ecosystem => 'fake';
 
   @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) async =>
-      const SourceSuccess<List<PackageListing>>(<PackageListing>[]);
-
-  @override
   Future<SourceOutcome<SourcePackage>> openPackage(
     VerifiedArtifact artifact,
     SettingsSnapshot settings, {

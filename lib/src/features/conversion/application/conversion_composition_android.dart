@@ -235,7 +235,6 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
           ),
           fetch: config.tachiFetch,
         ),
-        catalog: TachiCatalog(config.tachiFetch),
         policy: config.tachiPolicy,
       ),
     );

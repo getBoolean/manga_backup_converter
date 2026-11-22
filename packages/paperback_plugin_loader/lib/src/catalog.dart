@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:paperback_plugin_loader/src/admission.dart';
-import 'package:source_runtime/source_contracts.dart';
 
 /// One source listed in a Paperback repository's `versioning.json`.
 final class PaperbackCatalogEntry {
@@ -37,21 +36,6 @@ final class PaperbackCatalogEntry {
   /// The package ID this bundle is hosted under: unique per repository and
   /// source, stable across versions.
   String get packageId => '$repository#$sourceId';
-
-  ContentRatingLevel get contentRatingLevel => switch (contentRating) {
-    0 => ContentRatingLevel.safe,
-    1 => ContentRatingLevel.suggestive,
-    _ => ContentRatingLevel.nsfw,
-  };
-
-  PackageListing toListing() => PackageListing(
-    packageId: packageId,
-    name: name,
-    version: version,
-    downloadUrl: bundleUrl,
-    languages: languages,
-    contentRating: contentRatingLevel,
-  );
 }
 
 /// A parsed repository catalog.

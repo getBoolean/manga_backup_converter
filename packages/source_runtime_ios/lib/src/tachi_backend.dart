@@ -194,14 +194,6 @@ final class IosTachiBackend implements SourceProvider {
     ].join('\n');
   }
 
-  /// Package listings come from the common Tachi catalog
-  /// (`tachi_plugin_loader`), not from the platform backend.
-  @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) async =>
-      const SourceFailed<List<PackageListing>>(
-        CapabilityUnavailableFailure('discoverPackages', 'The iOS runtime backend has no catalog; use TachiRuntime'),
-      );
-
   /// Admits downloaded [bytes] (a repository JAR or an APK) and prepares them
   /// in the VM: signature verification against [trust] (every JAR entry signed
   /// by the one trusted signer; APKs with pinned apksig), dex2jar for APKs,

@@ -202,18 +202,5 @@ void main() {
       check(seen!['pageSize']).isA<int>();
       check(aidokuDefaultsFor(settings)).deepEquals(seen!);
     });
-
-    test('discovers packages from a repository index without the network', () async {
-      final File index = _fixture('test/aidoku/fixtures/index.json');
-      final provider = AidokuSourceProvider(
-        httpClient: MockClient((_) async => http.Response.bytes(index.readAsBytesSync(), 200)),
-      );
-      final List<PackageListing> listings = (await provider.discoverPackages(
-        Uri.parse('https://repo.test/index.json'),
-      )).valueOrNull!;
-      check(listings).isNotEmpty();
-      final PackageListing mangadex = listings.firstWhere((PackageListing l) => l.packageId == 'multi.mangadex');
-      check(mangadex.downloadUrl.isAbsolute).isTrue();
-    });
   });
 }

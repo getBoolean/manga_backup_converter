@@ -192,7 +192,6 @@ final class IosSourceRuntimes extends LocalSourceRuntimes {
       TachiRuntime(
         worker: backend.worker,
         store: TachiArtifactStore(cache: cache, fetch: config.tachiFetch),
-        catalog: TachiCatalog(config.tachiFetch),
         policy: config.tachiPolicy,
         hostCompatibility: iosTachiHostCompatibility,
       ),

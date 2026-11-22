@@ -484,7 +484,6 @@ void main() {
           loader: FakePluginLoader(extensions: extensions, sources: <PluginSource>[FakePluginSource('dest')]),
           ratingPolicy: policy,
           selection: CallbackSelectionPort(
-            onSelectExtensions: (List<ExtensionEntry> e) async => e,
             onSelectSources: (SourceSelectionRequest request) async {
               seen = request;
               // A misbehaving UI returning every extension is still filtered.
@@ -579,7 +578,6 @@ void main() {
           loader: FakePluginLoader(sources: <PluginSource>[resumed]),
           journalStore: store,
           selection: CallbackSelectionPort(
-            onSelectExtensions: (List<ExtensionEntry> e) async => e,
             onSelectSources: (SourceSelectionRequest request) async {
               previous = request.previousSelection;
               return request.available;

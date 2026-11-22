@@ -232,26 +232,6 @@ final class MangaSnapshot {
   final List<NativeChapter> chapters;
 }
 
-/// A package published by a repository.
-@immutable
-final class PackageListing {
-  const PackageListing({
-    required this.packageId,
-    required this.name,
-    required this.version,
-    required this.downloadUrl,
-    this.languages = const <String>[],
-    this.contentRating = ContentRatingLevel.unknown,
-  });
-
-  final String packageId;
-  final String name;
-  final String version;
-  final Uri downloadUrl;
-  final List<String> languages;
-  final ContentRatingLevel contentRating;
-}
-
 /// Artifact bytes that passed integrity checks. [readVerified] re-checks the
 /// digest so the bytes checked are the bytes executed.
 abstract interface class VerifiedArtifact {
@@ -266,9 +246,6 @@ abstract interface class VerifiedArtifact {
 abstract interface class SourceProvider {
   /// Ecosystem name used in [SourceIdentity.ecosystem].
   String get ecosystem;
-
-  /// Lists packages published by [repository].
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel});
 
   /// Opens a verified package and enumerates its sources. A factory package
   /// may expose several source identities; Aidoku yields one.

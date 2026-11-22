@@ -37,7 +37,6 @@ void main() {
     TachiRuntime newRuntime() => TachiRuntime(
       worker: () => scope.worker(WorkerKind.jvm),
       store: TachiArtifactStore(cache: ArtifactCache(Directory('${temp.path}/cache')), fetch: fetch.call),
-      catalog: catalog,
     );
 
     setUp(() {

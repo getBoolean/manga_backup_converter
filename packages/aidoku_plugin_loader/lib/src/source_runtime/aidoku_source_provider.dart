@@ -5,9 +5,6 @@ import 'package:aidoku_plugin_loader/src/aidoku/aidoku_isolate_exited_exception.
 import 'package:aidoku_plugin_loader/src/aidoku/aidoku_plugin.dart';
 import 'package:aidoku_plugin_loader/src/models/chapter.dart';
 import 'package:aidoku_plugin_loader/src/models/manga.dart';
-import 'package:aidoku_plugin_loader/src/source_list/source_entry.dart';
-import 'package:aidoku_plugin_loader/src/source_list/source_list.dart';
-import 'package:aidoku_plugin_loader/src/source_list/source_list_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:source_runtime/source_contracts.dart';
 
@@ -58,34 +55,6 @@ class AidokuSourceProvider implements SourceProvider {
 
   @override
   String get ecosystem => 'aidoku';
-
-  @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) async {
-    try {
-      final RemoteSourceList list = await SourceListManager(
-        httpClient: httpClient,
-      ).fetchRemoteSourceList(repository.toString());
-      if (cancel?.isCancelled ?? false) return const SourceFailed<List<PackageListing>>(CancelledFailure('cancelled'));
-      return SourceSuccess<List<PackageListing>>(<PackageListing>[
-        for (final SourceEntry e in list.sources)
-          PackageListing(
-            packageId: e.id,
-            name: e.name,
-            version: '${e.version}',
-            downloadUrl: repository.resolve(e.downloadUrl),
-            languages: e.languages,
-            contentRating: switch (e.contentRating) {
-              0 => ContentRatingLevel.safe,
-              1 => ContentRatingLevel.suggestive,
-              2 => ContentRatingLevel.nsfw,
-              _ => ContentRatingLevel.unknown,
-            },
-          ),
-      ]);
-    } on Object catch (e) {
-      return SourceFailed<List<PackageListing>>(SourceErrorFailure('Could not list $repository: $e'));
-    }
-  }
 
   @override
   Future<SourceOutcome<SourcePackage>> openPackage(

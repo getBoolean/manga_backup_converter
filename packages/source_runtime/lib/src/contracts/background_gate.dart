@@ -102,10 +102,6 @@ final class _GatedProvider implements SourceProvider {
   String get ecosystem => _inner.ecosystem;
 
   @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) =>
-      _gate.run(cancel, (CancellationToken c) => _inner.discoverPackages(repository, cancel: c));
-
-  @override
   Future<SourceOutcome<SourcePackage>> openPackage(
     VerifiedArtifact artifact,
     SettingsSnapshot settings, {

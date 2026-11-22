@@ -88,14 +88,7 @@ final class PaperbackSourceProvider implements SourceProvider {
     }
   }
 
-  @override
-  Future<SourceOutcome<List<PackageListing>>> discoverPackages(Uri repository, {CancellationToken? cancel}) async =>
-      (await fetchCatalog(repository, cancel: cancel)).map(
-        (PaperbackCatalog c) => <PackageListing>[for (final PaperbackCatalogEntry e in c.entries) e.toListing()],
-      );
-
-  /// The catalog entry behind a [PackageListing.packageId] seen by
-  /// [discoverPackages] or [fetchCatalog].
+  /// The catalog entry behind a package ID seen by [fetchCatalog].
   PaperbackCatalogEntry? entryFor(String packageId) => _entries[packageId];
 
   /// Downloads [entry]'s bundle from its installation entry point.

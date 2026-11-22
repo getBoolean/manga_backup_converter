@@ -533,7 +533,6 @@ class ConvertCommand extends Command<void> {
     }
 
     final selection = CallbackSelectionPort(
-      onSelectExtensions: (List<ExtensionEntry> e) async => e,
       onSelectSources: (SourceSelectionRequest request) async {
         final List<ExtensionEntry> extensions = request.available;
         if (extensions.isEmpty) {
