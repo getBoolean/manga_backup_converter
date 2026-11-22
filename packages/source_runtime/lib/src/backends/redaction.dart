@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:source_runtime/src/backends/protocol.dart' show protocolMaxFrameBytes;
 
@@ -148,7 +149,7 @@ class RedactingLineSink {
 
   final Redactor _redactor;
   final void Function(String line) _sink;
-  final List<int> _pending = <int>[];
+  final BytesBuilder _pending = BytesBuilder();
 
   /// Largest line held before it is cut.
   final int maxLineBytes;
@@ -177,12 +178,11 @@ class RedactingLineSink {
     if (_dropping) return;
     final int room = maxLineBytes - _pending.length;
     if (end - start <= room) {
-      _pending.addAll(bytes.sublist(start, end));
+      _pending.add(bytes.sublist(start, end));
       return;
     }
-    _pending.addAll(bytes.sublist(start, start + room));
-    String head = utf8.decode(_pending, allowMalformed: true);
-    _pending.clear();
+    _pending.add(bytes.sublist(start, start + room));
+    String head = utf8.decode(_pending.takeBytes(), allowMalformed: true);
     _dropping = true;
     // A multi-byte character cut at the cap decodes as U+FFFD; drop it.
     if (head.endsWith('\uFFFD')) head = head.substring(0, head.length - 1);
@@ -202,8 +202,7 @@ class RedactingLineSink {
   }
 
   void _emit() {
-    String line = utf8.decode(_pending, allowMalformed: true);
-    _pending.clear();
+    String line = utf8.decode(_pending.takeBytes(), allowMalformed: true);
     if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
     _sink(_redactor.redact(line));
   }
