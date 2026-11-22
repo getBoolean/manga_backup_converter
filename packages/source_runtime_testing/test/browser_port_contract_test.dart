@@ -124,22 +124,15 @@ void main() {
         check(port.misses.single.bodySha256).equals(sha256Hex(utf8.encode('{"answer":7}')));
       });
 
-      test('browserCaptureReplayReplacer serves by body and refuses an omitted body', () async {
+      test('browserCaptureKey matches by body and refuses an omitted body', () {
         final CaptureSet set = captures();
-        final misses = <CaptureKey>[];
-        final BrowserRequestReplacer replay = browserCaptureReplayReplacer(
+        final CaptureKey? recorded = browserCaptureKey(
           set,
-          onMiss: (CaptureKey k, BrowserRequest _) => misses.add(k),
-        );
-        final BrowserReplacement? hit = await replay(
           BrowserRequest(url: verify, method: 'POST', body: Uint8List.fromList(recordedBody)),
         );
-        check(utf8.decode(hit!.body)).equals('verified');
-        final BrowserReplacement? omitted = await replay(
-          BrowserRequest(url: verify, method: 'POST', bodyOmitted: true),
-        );
-        check(omitted!.status).equals(captureMissStatus);
-        check(misses).length.equals(1);
+        check(set.contains(recorded!)).isTrue();
+        check(utf8.decode(set.lookup(recorded).body)).equals('verified');
+        check(browserCaptureKey(set, BrowserRequest(url: verify, method: 'POST', bodyOmitted: true))).isNull();
       });
     });
   });

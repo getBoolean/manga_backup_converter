@@ -252,4 +252,4 @@ Step 6 is **partial**:
     document commits; hidden pages' timers are no longer throttled), and the reported counts are from the reruns
     after them.
 - The evidence-publication check's failing fixtures (password, token, cookie, private title, credential URL, raw
-  diagnostics, settings key, seeded marker) live under `packages/source_runtime/test/fixtures/receipts/`, never here.
+  diagnostics, settings key, seeded marker) live under `packages/source_runtime_testing/test/fixtures/receipts/`, never here.

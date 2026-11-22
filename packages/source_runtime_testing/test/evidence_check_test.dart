@@ -3,13 +3,13 @@ import 'dart:io';
 
 import 'package:checks/checks.dart';
 import 'package:path/path.dart' as p;
-import 'package:source_runtime/source_runtime.dart';
+import 'package:source_runtime_testing/source_runtime_testing.dart';
 import 'package:test/scaffolding.dart';
 
 Directory _fixtures(String kind) {
   Directory dir = Directory.current.absolute;
   while (true) {
-    for (final base in <String>[dir.path, p.join(dir.path, 'packages', 'source_runtime')]) {
+    for (final base in <String>[dir.path, p.join(dir.path, 'packages', 'source_runtime_testing')]) {
       final candidate = Directory(p.join(base, 'test', 'fixtures', 'receipts', kind));
       if (candidate.existsSync()) return candidate;
     }

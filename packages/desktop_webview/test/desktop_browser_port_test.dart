@@ -16,14 +16,7 @@ import 'package:desktop_webview/desktop_webview.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_contracts.dart';
 import 'package:source_runtime/source_runtime.dart'
-    show
-        CaptureExchange,
-        CaptureKey,
-        CaptureManifest,
-        CaptureSet,
-        CapturedResponse,
-        browserCaptureReplayReplacer,
-        captureMissStatus;
+    show CaptureExchange, CaptureKey, CaptureManifest, CaptureSet, CapturedResponse;
 import 'package:test/scaffolding.dart';
 
 import 'support/helper_fixture.dart';
@@ -444,20 +437,17 @@ Future<void> main() async {
           body: utf8.encode('bodiless put'),
         ),
       });
-      final misses = <CaptureKey>[];
+      final replay = BrowserCaptureReplay(captures);
+      final List<CaptureKey> misses = replay.misses;
       final seen = <BrowserRequest>[];
-      final BrowserRequestReplacer replay = browserCaptureReplayReplacer(
-        captures,
-        onMiss: (CaptureKey key, BrowserRequest _) => misses.add(key),
-      );
       check(
         await s.setRequestReplacer((BrowserRequest r) {
           seen.add(r);
-          return replay(r);
+          return replay.serve(r) ?? BrowserReplacement(status: 599, reason: 'No committed capture');
         }),
       ).isA<BrowserCompleted<void>>();
       check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=1')).equals('200 verified');
-      check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=2')).equals('$captureMissStatus ');
+      check(await fetchFrom(s, verify.path, method: 'POST', body: 'answer=2')).equals('599 ');
       // A GET has no body (not an empty one), so it matches a bodiless capture.
       check(await fetchFrom(s, verify.path)).equals('200 plain get');
       // A bodiless request that still sends a Content-Type has no body (not

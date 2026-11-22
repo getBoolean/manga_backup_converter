@@ -10,7 +10,6 @@ export 'src/catalog.dart';
 export 'src/host/browser.dart';
 export 'src/host/capture_clients.dart';
 export 'src/host/network.dart';
-export 'src/in_process_worker.dart';
 export 'src/paperback_runtime.dart';
 export 'src/provider.dart';
 export 'src/runtime/http_host.dart';

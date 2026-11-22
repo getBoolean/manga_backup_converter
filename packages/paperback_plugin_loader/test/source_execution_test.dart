@@ -16,6 +16,7 @@ import 'package:checks/checks.dart';
 import 'package:desktop_webview/desktop_webview.dart';
 import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:paperback_plugin_loader/testing.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 

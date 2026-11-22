@@ -13,7 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:source_runtime/source_runtime.dart'
+import 'package:source_runtime_testing/source_runtime_testing.dart'
     show EvidenceCheck, EvidenceViolation;
 
 void main(List<String> args) {

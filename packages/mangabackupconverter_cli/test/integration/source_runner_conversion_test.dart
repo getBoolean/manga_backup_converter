@@ -21,6 +21,7 @@ import 'package:mangabackupconverter_cli/src/commands/desktop_runtime.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:paperback_plugin_loader/testing.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_runtime.dart';
 import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';

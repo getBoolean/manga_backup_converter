@@ -7,15 +7,10 @@ import 'package:paperback_plugin_loader/src/admission.dart';
 import 'package:paperback_plugin_loader/src/catalog.dart';
 import 'package:source_runtime/source_runtime.dart';
 
-/// Decides whether a bundle may run: asked once per first-seen or changed
-/// `(trustKey, fingerprint)` pair (KTD6). The composition root answers it
-/// with the core `RepositoryTrustGate` (`admit('paperback', trustKey,
-/// fingerprint)`); a qualification run answers it from pinned digests.
-typedef PaperbackTrustDecision = Future<bool> Function(Uri trustKey, String fingerprint);
-
-/// Like [PaperbackTrustDecision], but says why a bundle is not trusted:
-/// `null` admits it, a [TrustFailure] refuses it with its reason (the core
-/// `RepositoryTrustGate.check`).
+/// Decides whether a bundle may run, asked for its `(trustKey, fingerprint)`
+/// pair (KTD6): `null` admits it, a [TrustFailure] refuses it with its
+/// reason (first-seen, changed or refused). The composition root answers it
+/// with the core `RepositoryTrustGate.check('paperback', …)`.
 typedef PaperbackTrustCheck = Future<TrustFailure?> Function(Uri trustKey, String fingerprint);
 
 /// The cache profile of admitted Paperback bundles. The API family is part
@@ -40,17 +35,12 @@ final class PaperbackSourceProvider implements SourceProvider {
     required this.cache,
     required this.trust,
     required this.worker,
-    this.trustCheck,
   });
 
   /// Fetches catalogs and bundles (live in production; replay in tests).
   final http.Client client;
   final ArtifactCache cache;
-  final PaperbackTrustDecision trust;
-
-  /// When set, decides instead of [trust] and names the refusal's reason
-  /// (first-seen, changed or refused).
-  final PaperbackTrustCheck? trustCheck;
+  final PaperbackTrustCheck trust;
 
   /// The started Paperback worker supervisor, created on first use
   /// (`ConversionRuntimeScope.worker(WorkerKind.paperback)` on desktop).
@@ -131,46 +121,14 @@ final class PaperbackSourceProvider implements SourceProvider {
     }
   }
 
-  /// A cached admission of [entry] at [sha256], re-hashed and re-checked
-  /// against the trust decision; `null` when absent or tampered with.
-  Future<SourceOutcome<ArtifactLease>?> cached(PaperbackCatalogEntry entry, String sha256) async {
-    final binding = ArtifactBinding(sha256: sha256, kind: entry.family.artifactKind, version: entry.version);
-    try {
-      final ArtifactLease? lease = await cache.lookup(
-        binding: binding,
-        profile: paperbackArtifactProfile(entry.family),
-        verifier: (Uint8List b, ArtifactBinding a) => _verify(entry, b, a),
-      );
-      if (lease == null) return null;
-      _admitted[sha256] = entry;
-      return SourceSuccess<ArtifactLease>(lease);
-    } on BundleAdmissionException catch (e) {
-      return SourceFailed<ArtifactLease>(e.failure);
-    }
-  }
-
   Future<void> _verify(PaperbackCatalogEntry entry, Uint8List bytes, ArtifactBinding binding) async {
     final PaperbackApiFamily family = admitBundle(bytes, binding);
     final Uri key = bundleTrustKey(entry.repository, entry.sourceId);
     final String fingerprint = bundleTrustFingerprint(family, binding.sha256);
-    final PaperbackTrustCheck? check = trustCheck;
-    if (check != null) {
-      final TrustFailure? refused = await check(key, fingerprint);
-      if (refused != null) {
-        throw BundleAdmissionException(
-          TrustFailure(refused.reason, 'The bundle for ${entry.packageId} (${binding.sha256}): ${refused.message}'),
-        );
-      }
-      return;
-    }
-    final bool trusted = await trust(key, fingerprint);
-    if (!trusted) {
-      // A yes/no decision cannot say whether the bundle was new or changed.
+    final TrustFailure? refused = await trust(key, fingerprint);
+    if (refused != null) {
       throw BundleAdmissionException(
-        TrustFailure(
-          TrustFailureReason.refused,
-          'The bundle for ${entry.packageId} (${binding.sha256}) is not trusted',
-        ),
+        TrustFailure(refused.reason, 'The bundle for ${entry.packageId} (${binding.sha256}): ${refused.message}'),
       );
     }
   }

@@ -1,7 +1,8 @@
 name: source_runtime_testing
 description: >-
-  Test support for source runtimes: the fake BrowserPort and the reusable
-  BrowserPort contract suite. Consume only as a dev dependency.
+  Test support for source runtimes: the fake BrowserPort, the reusable
+  BrowserPort contract suite and the evidence-publication check. Consume
+  only as a dev dependency.
 version: 0.0.1
 publish_to: none
 
@@ -11,6 +12,7 @@ resolution: workspace
 
 dependencies:
   checks: ^0.3.0
+  meta: ^1.12.0
   source_runtime:
     path: ../source_runtime
   test: ^1.24.0
@@ -18,3 +20,4 @@ dependencies:
 dev_dependencies:
   app_lints:
     path: ../app_lints
+  path: ^1.9.0

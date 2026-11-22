@@ -10,7 +10,6 @@ library;
 export 'source_contracts.dart';
 export 'src/backends/artifact_cache.dart';
 export 'src/backends/browser_reverse_bridge.dart';
-export 'src/backends/evidence_check.dart';
 export 'src/backends/protocol.dart';
 export 'src/backends/redaction.dart';
 export 'src/backends/worker_process.dart';

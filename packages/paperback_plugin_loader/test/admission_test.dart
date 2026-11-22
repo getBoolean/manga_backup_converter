@@ -11,6 +11,7 @@ import 'package:checks/checks.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:paperback_plugin_loader/testing.dart';
 import 'package:quickjs/quickjs.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
@@ -175,10 +176,10 @@ void main() {
       provider = PaperbackSourceProvider(
         client: MockClient((_) async => http.Response('', 404)),
         cache: ArtifactCache(cacheDir),
-        trust: (Uri key, String fingerprint) async {
+        trust: yesNoTrust((Uri key, String fingerprint) async {
           asked.add((key, fingerprint));
           return answer;
-        },
+        }),
         worker: () async => const SourceFailed<WorkerSupervisor>(RuntimeUnavailableFailure('no worker in this test')),
       );
     });
@@ -222,32 +223,34 @@ void main() {
       check(asked).isEmpty();
     });
 
-    test('a cache hit re-hashes and re-asks trust; modified cached bytes are dropped', () async {
+    test('every admission of cached bytes re-asks trust; a modified staged copy is replaced', () async {
       final ArtifactLease lease =
           (await provider.admit(inkdex.entry('MangaDex'), mangadex09) as SourceSuccess<ArtifactLease>).value;
       final String path = lease.path;
       lease.release();
       asked.clear();
-      final SourceOutcome<ArtifactLease>? hit = await provider.cached(
-        inkdex.entry('MangaDex'),
-        inkdex.pinnedSha256('MangaDex'),
-      );
-      check(hit).isNotNull().isA<SourceSuccess<ArtifactLease>>();
+      final SourceOutcome<ArtifactLease> again = await provider.admit(inkdex.entry('MangaDex'), mangadex09);
+      check(again).isA<SourceSuccess<ArtifactLease>>();
       check(asked).length.equals(1);
-      (hit! as SourceSuccess<ArtifactLease>).value.release();
+      (again as SourceSuccess<ArtifactLease>).value.release();
 
-      // Trust withdrawn: the cached bytes are not served.
+      // Trust withdrawn: the cached bytes are not admitted again.
       answer = false;
-      check(await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex')))
-          .isNotNull()
-          .isA<SourceFailed<ArtifactLease>>();
+      check(
+            await provider.admit(inkdex.entry('MangaDex'), mangadex09),
+          )
+          .isA<SourceFailed<ArtifactLease>>()
+          .has((SourceFailed<ArtifactLease> f) => f.failure, 'failure')
+          .isA<TrustFailure>();
 
-      // Tampered on disk: the entry is dropped, never loaded.
+      // Tampered on disk: the staged copy is re-hashed and replaced.
       answer = true;
       final Uint8List bytes = File(path).readAsBytesSync()..[10] ^= 1;
       File(path).writeAsBytesSync(bytes);
-      check(await provider.cached(inkdex.entry('MangaDex'), inkdex.pinnedSha256('MangaDex'))).isNull();
-      check(File(path).existsSync()).isFalse();
+      final SourceOutcome<ArtifactLease> restaged = await provider.admit(inkdex.entry('MangaDex'), mangadex09);
+      check(restaged).isA<SourceSuccess<ArtifactLease>>();
+      check(File(path).readAsBytesSync()).deepEquals(mangadex09);
+      (restaged as SourceSuccess<ArtifactLease>).value.release();
     });
 
     test('bytes changed after admission fail at load, before the worker sees them', () async {
@@ -270,7 +273,7 @@ void main() {
       final p = PaperbackSourceProvider(
         client: client,
         cache: ArtifactCache(cacheDir),
-        trust: (_, _) async => true,
+        trust: (_, _) async => null,
         worker: () async => (await supervisor.start()).map((_) => supervisor),
       );
       try {

@@ -16,6 +16,7 @@ import 'package:http/testing.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:paperback_plugin_loader/testing.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
 

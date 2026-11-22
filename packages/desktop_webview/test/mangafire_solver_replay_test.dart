@@ -69,12 +69,9 @@ Future<void> main() async {
     final CaptureSet captures = loadCaptureSet(
       Directory(p.join(packageDir().path, 'test', 'fixtures', 'mangafire_solver')),
     );
-    final misses = <CaptureKey>[];
+    final replay = BrowserCaptureReplay(captures);
+    final List<CaptureKey> misses = replay.misses;
     final requests = <BrowserRequest>[];
-    final BrowserRequestReplacer replay = browserCaptureReplayReplacer(
-      captures,
-      onMiss: (CaptureKey key, BrowserRequest _) => misses.add(key),
-    );
 
     final BrowserOutcome<BrowserSession> opened = await port.openSession(
       const BrowserSessionRequest(
@@ -102,7 +99,7 @@ Future<void> main() async {
     check(
       await s.setRequestReplacer((BrowserRequest r) {
         requests.add(r);
-        return replay(r);
+        return replay.serve(r) ?? BrowserReplacement(status: 599, reason: 'No committed capture');
       }),
     ).isA<BrowserCompleted<void>>();
     check(

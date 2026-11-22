@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:paperback_plugin_loader/testing.dart';
 import 'package:source_runtime/source_runtime.dart';
 
 /// The fixed public query every Paperback qualification capture uses (the
@@ -146,13 +147,13 @@ final class PinnedRepository {
 
   /// A trust decision that accepts exactly the pinned digests (a trusted
   /// pinned artifact digest, KTD6).
-  static PaperbackTrustDecision pinnedTrust(Iterable<PinnedRepository> repos) {
+  static PaperbackTrustCheck pinnedTrust(Iterable<PinnedRepository> repos) {
     final allowed = <String>{
       for (final PinnedRepository r in repos)
         for (final MapEntry<String, Map<String, Object?>> p in r.pins.entries)
           '${bundleTrustKey(r.catalog.repository, p.key)}|${bundleTrustFingerprint(r.catalog.family, p.value['sha256']! as String)}',
     };
-    return (Uri key, String fingerprint) async => allowed.contains('$key|$fingerprint');
+    return yesNoTrust((Uri key, String fingerprint) async => allowed.contains('$key|$fingerprint'));
   }
 }
 
