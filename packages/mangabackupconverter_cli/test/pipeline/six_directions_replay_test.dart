@@ -229,7 +229,7 @@ void main() {
         calls.add('paperback');
         return PaperbackPluginLoader(
           client: _catalogClient(paperbackFixtures),
-          cache: ArtifactCache(Directory('${temp.path}/pb-cache')),
+          artifacts: ArtifactCache(Directory('${temp.path}/pb-cache')),
           worker: (ConversionOwner? owner) async => (await paperbackSupervisor.start()).map((_) => paperbackSupervisor),
         );
       },

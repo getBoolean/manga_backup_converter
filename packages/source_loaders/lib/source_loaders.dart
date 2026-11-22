@@ -6,4 +6,5 @@ library;
 export 'src/aidoku_loader.dart';
 export 'src/bytes_artifact.dart';
 export 'src/paperback_loader.dart';
+export 'src/provider_plugin_loader.dart';
 export 'src/tachi_loader.dart';

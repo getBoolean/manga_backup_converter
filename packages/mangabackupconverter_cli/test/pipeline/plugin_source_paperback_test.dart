@@ -65,7 +65,7 @@ void main() {
 
   PaperbackPluginLoader loader() => PaperbackPluginLoader(
     client: _catalogClient(fixtures),
-    cache: ArtifactCache(Directory('${temp.path}/cache')),
+    artifacts: ArtifactCache(Directory('${temp.path}/cache')),
     worker: (ConversionOwner? owner) async => (await supervisor.start()).map((_) => supervisor),
   );
 

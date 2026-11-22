@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:aidoku_plugin_loader/source_adapter.dart' show AidokuSourceProvider;
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
-import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
@@ -128,8 +127,8 @@ void main() {
       final cache = PluginCache(cacheDir: temp)..put(_entry, aix.readAsBytesSync());
       final owner = ConversionOwner();
       final failures = <PluginLoadFailure>[];
-      final List<PluginSource> sources = await CachingPluginLoader(
-        loader,
+      final List<PluginSource> sources = await AidokuPluginLoader(
+        providerFactory: loader.providerFactory,
         cache: cache,
       ).loadPlugins(const <ExtensionEntry>[_entry], owner: owner, onFailure: failures.add);
       check(failures).isEmpty();

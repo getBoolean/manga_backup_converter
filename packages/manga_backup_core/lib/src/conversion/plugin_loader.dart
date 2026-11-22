@@ -1,15 +1,12 @@
-import 'dart:typed_data';
-
 import 'package:manga_backup_core/src/conversion/conversion_owner.dart';
 import 'package:manga_backup_core/src/conversion/extension_entry.dart';
 import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/repository_trust.dart';
-import 'package:source_runtime/source_contracts.dart';
 
 /// Lists and loads the source plugins a migration searches. Concrete loaders
-/// (Aidoku, and later Paperback and Tachi) live in the composition root, not
-/// in the core (KTD15).
+/// (Aidoku, Paperback and Tachi, in `source_loaders`) are injected by the
+/// composition roots, never built by the core (KTD15).
 abstract class PluginLoader {
   const PluginLoader();
 
@@ -32,18 +29,4 @@ abstract class PluginLoader {
     ConversionOwner? owner,
     void Function(PluginLoadFailure failure)? onFailure,
   });
-
-  /// Downloads raw plugin bytes for [entry]. Returns null if not downloadable.
-  Future<Uint8List?> downloadPluginBytes(ExtensionEntry entry) async => null;
-
-  /// Loads the package [entry] names from raw [bytes] and returns every
-  /// source it hosts (KTD5 loader contract): a Tachi factory package yields
-  /// one source per enumerated source ID, an Aidoku package a singleton list.
-  /// Each source is adopted into [owner] as soon as it opens. Returns null if
-  /// not supported; a failed load is a typed failure, never stub sources.
-  Future<SourceOutcome<List<PluginSource>>?> loadPluginFromBytes(
-    ExtensionEntry entry,
-    Uint8List bytes, {
-    ConversionOwner? owner,
-  }) async => null;
 }

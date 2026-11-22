@@ -173,7 +173,7 @@ abstract base class LocalSourceRuntimes {
       probe: _paperbackProbe,
       createLoader: (RuntimeContext context) => PaperbackPluginLoader(
         client: config.client,
-        cache: ArtifactCache(
+        artifacts: ArtifactCache(
           Directory('${config.storageRoot.path}/paperback_artifacts'),
         ),
         worker: _paperbackWorker,

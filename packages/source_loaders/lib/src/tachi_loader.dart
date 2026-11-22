@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:manga_backup_core/manga_backup_core.dart';
+import 'package:source_loaders/src/provider_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
 import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';
 
@@ -37,21 +38,12 @@ final class _Admitted {
 /// repository was admitted can load; their trust anchor is the fingerprint
 /// the gate admitted, never one read beside the artifact. Capability and
 /// trust failures are typed load failures, never stub sources.
-class TachiPluginLoader extends PluginLoader {
-  TachiPluginLoader({required this.runtime, this.settingsFor = _noSettings, this.onSettings});
+class TachiPluginLoader extends ProviderPluginLoader<TachiExtensionEntry> {
+  TachiPluginLoader({required this.runtime, super.settingsFor, super.onSettings, super.cache});
 
   /// The conversion's Tachi runtime: the desktop JVM worker in the CLI, the
   /// embedded VM on iOS.
   final TachiLoaderRuntime runtime;
-
-  /// Settings a package runs with.
-  final SettingsSnapshot Function(TachiExtensionEntry entry) settingsFor;
-
-  /// Receives each settings snapshot, so the host registers its secrets with
-  /// the log redactor (KTD9).
-  final void Function(SettingsSnapshot settings)? onSettings;
-
-  static SettingsSnapshot _noSettings(TachiExtensionEntry entry) => SettingsSnapshot();
 
   final Map<String, _Admitted> _admitted = <String, _Admitted>{};
 
@@ -123,102 +115,49 @@ class TachiPluginLoader extends PluginLoader {
     return entries;
   }
 
+  /// Downloads the artifact chosen for [entry]; an entry this loader did not
+  /// admit fails as a typed trust failure without any download.
   @override
-  Future<List<PluginSource>> loadPlugins(
-    List<ExtensionEntry> extensions, {
-    void Function(int current, int total, String message)? onProgress,
-    ConversionOwner? owner,
-    void Function(PluginLoadFailure failure)? onFailure,
-  }) async {
-    final plugins = <PluginSource>[];
-    for (final (int i, ExtensionEntry entry) in extensions.indexed) {
-      void fail(SourceFailure failure) {
-        onFailure?.call(PluginLoadFailure(extensionId: entry.id, failure: failure));
-        onProgress?.call(i + 1, extensions.length, 'Warning: failed to load ${entry.name}: ${failure.message}');
-      }
-
-      onProgress?.call(i + 1, extensions.length, 'Loading package: ${entry.name}');
-      final _Admitted? admitted = _admittedFor(entry);
-      if (admitted == null) {
-        fail(_notAdmitted(entry));
-        continue;
-      }
-      final Uint8List bytes;
-      try {
-        bytes = await runtime.fetch(admitted.choice.url);
-      } on Exception catch (e) {
-        fail(SourceErrorFailure('Download of ${admitted.choice.url} failed: $e'));
-        continue;
-      }
-      switch (await loadPluginFromBytes(entry, bytes, owner: owner)) {
-        case SourceSuccess<List<PluginSource>>(:final List<PluginSource> value):
-          plugins.addAll(value);
-        case SourceFailed<List<PluginSource>>(:final SourceFailure failure):
-          fail(failure);
-      }
-    }
-    return plugins;
-  }
-
-  /// Downloads the artifact chosen for [entry]; `null` (no download) for an
-  /// entry this loader did not admit, which then fails as a typed trust
-  /// failure when loaded.
-  @override
-  Future<Uint8List?> downloadPluginBytes(ExtensionEntry entry) async {
+  Future<SourceOutcome<Uint8List>> download(TachiExtensionEntry entry) async {
     final _Admitted? admitted = _admittedFor(entry);
-    return admitted == null ? null : runtime.fetch(admitted.choice.url);
+    if (admitted == null) return SourceFailed<Uint8List>(_notAdmitted(entry));
+    try {
+      return SourceSuccess<Uint8List>(await runtime.fetch(admitted.choice.url));
+    } on Exception catch (e) {
+      return SourceFailed<Uint8List>(SourceErrorFailure('Download of ${admitted.choice.url} failed: $e'));
+    }
   }
 
   /// Prepares [bytes] in the shared worker (signature verified against the
   /// admitted repository fingerprint, APKs converted) and loads the package,
-  /// returning a source per enumerated source ID. Each source and the package
-  /// are adopted into [owner] as soon as they open.
+  /// returning a source per enumerated source ID.
   @override
-  Future<SourceOutcome<List<PluginSource>>> loadPluginFromBytes(
-    ExtensionEntry entry,
-    Uint8List bytes, {
+  Future<SourceOutcome<List<PluginSource>>> open(
+    TachiExtensionEntry entry,
+    Uint8List bytes,
+    SettingsSnapshot settings,
     ConversionOwner? owner,
-  }) async {
+  ) async {
     final _Admitted? admitted = _admittedFor(entry);
     if (admitted == null) return SourceFailed<List<PluginSource>>(_notAdmitted(entry));
-    final TachiRuntime tachi;
-    switch (runtime.runtime()) {
-      case SourceFailed<TachiRuntime>(:final SourceFailure failure):
-        return SourceFailed<List<PluginSource>>(failure);
-      case SourceSuccess<TachiRuntime>(:final TachiRuntime value):
-        tachi = value;
-    }
-    final SourceOutcome<TachiPreparedArtifact> prepared = await tachi.prepare(
-      admitted.listing,
-      admitted.choice,
-      trust: admitted.trust,
-      bytes: bytes,
+    return runtime.runtime().andThen(
+      (TachiRuntime tachi) => tachi
+          .prepare(admitted.listing, admitted.choice, trust: admitted.trust, bytes: bytes)
+          .andThen((TachiPreparedArtifact artifact) => tachi.openPackage(artifact, settings))
+          .andThen(
+            (SourcePackage package) => ProviderPluginLoader.adoptPackage(
+              package,
+              owner,
+              close: package.close,
+              // Each source keeps its index language, so the pipeline can
+              // narrow a multi-language package to the backup's languages.
+              plugins: (List<SourceSession> sessions) => <PluginSource>[
+                for (final SourceSession s in sessions)
+                  SessionPluginSource(s, language: s is TachiSourceSession ? s.language : null),
+              ],
+            ),
+          ),
     );
-    final TachiPreparedArtifact artifact;
-    switch (prepared) {
-      case SourceFailed<TachiPreparedArtifact>(:final SourceFailure failure):
-        return SourceFailed<List<PluginSource>>(failure);
-      case SourceSuccess<TachiPreparedArtifact>(:final TachiPreparedArtifact value):
-        artifact = value;
-    }
-    final SettingsSnapshot settings = settingsFor(entry as TachiExtensionEntry);
-    onSettings?.call(settings);
-    switch (await tachi.openPackage(artifact, settings)) {
-      case SourceFailed<SourcePackage>(:final SourceFailure failure):
-        return SourceFailed<List<PluginSource>>(failure);
-      case SourceSuccess<SourcePackage>(value: final SourcePackage package):
-        await owner?.adopt(package.close);
-        // Each source keeps its index language, so the pipeline can narrow a
-        // multi-language package to the backup's languages.
-        final plugins = <PluginSource>[
-          for (final SourceSession s in package.sessions)
-            SessionPluginSource(s, language: s is TachiSourceSession ? s.language : null),
-        ];
-        for (final plugin in plugins) {
-          await owner?.adopt(plugin.dispose);
-        }
-        return SourceSuccess<List<PluginSource>>(plugins);
-    }
   }
 
   _Admitted? _admittedFor(ExtensionEntry entry) => entry is TachiExtensionEntry ? _admitted[_keyOf(entry)] : null;

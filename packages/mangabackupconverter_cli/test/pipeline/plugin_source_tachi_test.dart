@@ -10,7 +10,6 @@ import 'dart:typed_data';
 
 import 'package:checks/checks.dart';
 import 'package:manga_backup_core/manga_backup_core.dart';
-import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/pipeline/plugin_source_tachi.dart';
 import 'package:source_runtime/source_runtime.dart';
@@ -212,7 +211,7 @@ void main() {
       addTearDown(owner.close);
       await tachi.attach(owner);
       final cache = PluginCache(cacheDir: Directory('${temp.path}/plugins'));
-      final loader = CachingPluginLoader(TachiPluginLoader(runtime: tachi), cache: cache);
+      final loader = TachiPluginLoader(runtime: tachi, cache: cache);
       final List<ExtensionEntry> entries = await loader.fetchExtensionLists(
         <String>[keiyoushiRepository.toString()],
         trust: gate(InMemoryTrustStore(<String, String>{'tachi|$keiyoushiRepository': keiyoushiFingerprint})),
@@ -242,8 +241,8 @@ void main() {
       final owner = ConversionOwner();
       addTearDown(owner.close);
       await tachi.attach(owner);
-      final loader = CachingPluginLoader(
-        TachiPluginLoader(runtime: tachi),
+      final loader = TachiPluginLoader(
+        runtime: tachi,
         cache: PluginCache(cacheDir: Directory('${temp.path}/plugins')),
       );
 

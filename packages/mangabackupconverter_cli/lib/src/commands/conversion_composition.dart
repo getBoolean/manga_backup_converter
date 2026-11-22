@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:manga_backup_core/manga_backup_core.dart';
-import 'package:mangabackupconverter_cli/src/commands/caching_plugin_loader.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
 import 'package:mangabackupconverter_cli/src/commands/plugin_cache.dart';
 import 'package:mangabackupconverter_cli/src/formats/mangayomi/mangayomi_backup.dart';
@@ -34,8 +33,8 @@ SourceFailure? probeTachiWorker(DesktopTachiRuntime tachi) => tachi.locate().fai
 
 /// The desktop source runtimes the CLI registers: Aidoku (in-process WASM),
 /// Paperback (the CLI re-launched as its QuickJS worker) and Tachi (the
-/// conversion's single JVM worker, Mihon destination). Each loader is wrapped
-/// in the verified plugin byte cache.
+/// conversion's single JVM worker, Mihon destination). Each loader reads and
+/// fills the verified plugin byte cache.
 ///
 /// [browserPort] (the desktop WebView helper) serves the Paperback worker's
 /// browser requests; the Tachi worker's are served by the same port through
@@ -59,28 +58,24 @@ RuntimeRegistry cliRuntimeRegistry({
   DestinationRuntime(
     ecosystem: 'aidoku',
     serves: (BackupFormat f) => f is Aidoku,
-    createLoader: (RuntimeContext context) => CachingPluginLoader(
-      AidokuPluginLoader(onSettings: onSettings, settingsFor: context.settingsFor),
-      cache: cache,
-    ),
+    createLoader: (RuntimeContext context) =>
+        AidokuPluginLoader(onSettings: onSettings, settingsFor: context.settingsFor, cache: cache),
   ),
   DestinationRuntime(
     ecosystem: 'paperback',
     serves: (BackupFormat f) => f is Paperback,
-    createLoader: (RuntimeContext context) => CachingPluginLoader(
-      desktopPaperbackLoader(
-        cacheRoot: cacheRoot,
-        onSettings: onSettings,
-        onLog: onLog,
-        settingsFor: context.settingsFor,
-        browserPort: browserPort,
-        browserReplacementTimeout: browserReplacementTimeout,
-        interactionTimeout: interactionTimeout,
-        client: paperbackClient,
-        launcher: paperbackLauncher,
-        redactor: redactor,
-      ),
+    createLoader: (RuntimeContext context) => desktopPaperbackLoader(
+      cacheRoot: cacheRoot,
       cache: cache,
+      onSettings: onSettings,
+      onLog: onLog,
+      settingsFor: context.settingsFor,
+      browserPort: browserPort,
+      browserReplacementTimeout: browserReplacementTimeout,
+      interactionTimeout: interactionTimeout,
+      client: paperbackClient,
+      launcher: paperbackLauncher,
+      redactor: redactor,
     ),
     probe: paperbackProbe ?? (paperbackLauncher == null ? paperbackWorkerUnavailable : () => null),
   ),
@@ -88,10 +83,8 @@ RuntimeRegistry cliRuntimeRegistry({
     ecosystem: tachiTrustEcosystem,
     // Tachimanga uses Tachi source identities too (it has no writer yet).
     serves: (BackupFormat f) => f is Tachiyomi || f is Tachimanga,
-    createLoader: (RuntimeContext context) => CachingPluginLoader(
-      TachiPluginLoader(runtime: tachi, onSettings: onSettings, settingsFor: context.settingsFor),
-      cache: cache,
-    ),
+    createLoader: (RuntimeContext context) =>
+        TachiPluginLoader(runtime: tachi, onSettings: onSettings, settingsFor: context.settingsFor, cache: cache),
     probe: tachiProbe ?? () => probeTachiWorker(tachi),
   ),
 ]);

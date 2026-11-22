@@ -19,6 +19,7 @@ dependencies:
   http: ^1.2.0
   manga_backup_core:
     path: ../manga_backup_core
+  meta: ^1.12.0
   paperback_plugin_loader:
     path: ../paperback_plugin_loader
   source_runtime:

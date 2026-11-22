@@ -43,6 +43,7 @@ SourceFailure? paperbackWorkerUnavailable() {
 /// [launcher] the built-executable check is skipped.
 PaperbackPluginLoader desktopPaperbackLoader({
   required String cacheRoot,
+  PluginByteCache? cache,
   void Function(SettingsSnapshot settings)? onSettings,
   void Function(String line)? onLog,
   ExtensionSettingsProvider settingsFor = noExtensionSettings,
@@ -59,7 +60,8 @@ PaperbackPluginLoader desktopPaperbackLoader({
   late final PaperbackPluginLoader loader;
   return loader = PaperbackPluginLoader(
     client: httpClient,
-    cache: ArtifactCache(Directory(p.join(cacheRoot, 'paperback_artifacts'))),
+    artifacts: ArtifactCache(Directory(p.join(cacheRoot, 'paperback_artifacts'))),
+    cache: cache,
     onSettings: onSettings,
     settingsFor: settingsFor,
     worker: (ConversionOwner? owner) async {
