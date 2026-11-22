@@ -28,7 +28,11 @@ pub const ENGINE: &str = "webkitgtk";
 
 /// Whether the message source URI identifies the posting frame. WebKitGTK's
 /// script message signal does not identify the frame, so the posting frame's
-/// `location.origin` from the injected script is used instead.
+/// `location.origin` from the injected script is used instead. That origin
+/// is trustworthy only because every start script (the bridge bootstrap and
+/// the channels, which hold the session key) is injected into the top frame
+/// alone ([add_start_script]): a child frame, same- or cross-origin, never
+/// receives the key, so it cannot post a message the helper accepts.
 pub const IPC_URI_IS_POSTING_FRAME: bool = false;
 
 /// Private script message handler name; page scripts never see it as a
@@ -146,9 +150,11 @@ pub fn stop(webview: &WebView) {
   webview.webview().stop_loading();
 }
 
+/// Top frame only (L1): see [IPC_URI_IS_POSTING_FRAME]. Page-start scripts
+/// share this path, so on WebKitGTK they too run in the top frame only.
 pub fn add_start_script(webview: &WebView, js: &str) -> Result<(), String> {
   let manager = webview.webview().user_content_manager().ok_or("no user content manager")?;
-  let script = UserScript::new(js, UserContentInjectedFrames::AllFrames, UserScriptInjectionTime::Start, &[], &[]);
+  let script = UserScript::new(js, UserContentInjectedFrames::TopFrame, UserScriptInjectionTime::Start, &[], &[]);
   manager.add_script(&script);
   Ok(())
 }

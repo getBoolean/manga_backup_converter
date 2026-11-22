@@ -26,7 +26,7 @@ block2 = "0.6.2"
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSResponder", "NSWindow"] }
 objc2-foundation = { version = "0.3.2", features = ["NSDate", "NSError", "NSRunLoop", "NSString", "NSURL", "NSURLRequest", "NSURLResponse"] }
-objc2-web-kit = { version = "0.3.2", features = ["block2", "WKContentRuleList", "WKContentRuleListStore", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKNavigationResponse", "WKPreferences", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController", "WKUserScript", "WKWebView", "WKWebViewConfiguration", "objc2-app-kit"] }
+objc2-web-kit = { version = "0.3.2", features = ["block2", "WKContentRuleList", "WKContentRuleListStore", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKNavigationResponse", "WKPreferences", "WKScriptMessage", "WKScriptMessageHandler", "WKSecurityOrigin", "WKUserContentController", "WKUserScript", "WKWebView", "WKWebViewConfiguration", "objc2-app-kit"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
