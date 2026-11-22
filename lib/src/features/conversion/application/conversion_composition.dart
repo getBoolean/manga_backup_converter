@@ -220,7 +220,7 @@ abstract base class LocalSourceRuntimes {
   }
 
   void _registerSecrets(SettingsSnapshot settings) =>
-      settings.secrets.values.forEach(config.redactor.addSecret);
+      settings.allSecretValues.forEach(config.redactor.addSecret);
 
   void _log(String line) => config.onLog?.call(config.redactor.redact(line));
 
