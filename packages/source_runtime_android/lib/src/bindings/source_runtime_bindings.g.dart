@@ -2242,3 +2242,264 @@ final class $AppBrowserListener$Type$ extends jni$_.JType<AppBrowserListener> {
   @core$_.override
   String get className => r'dev/getboolean/sourceruntime/browser/AppBrowserListener';
 }
+
+/// from: `dev.getboolean.sourceruntime.browser.AppForegroundMonitor`
+extension type AppForegroundMonitor._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/browser/AppForegroundMonitor');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<AppForegroundMonitor> type = $AppForegroundMonitor$Type$();
+  static final _id_new$ = _class.constructorId(
+    r'(Landroid/content/Context;Ldev/getboolean/sourceruntime/browser/AppForegroundListener;)V',
+  );
+
+  static final _new$ =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>, jni$_.Pointer<jni$_.Void>)>,
+              )
+            >
+          >('globalEnv_NewObject')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.Pointer<jni$_.Void>,
+            )
+          >();
+
+  /// from: `public void <init>(android.content.Context context, dev.getboolean.sourceruntime.browser.AppForegroundListener appForegroundListener)`
+  /// The returned object must be released after use, by calling the [release] method.
+  factory AppForegroundMonitor(
+    jni$_.JObject context,
+    AppForegroundListener appForegroundListener,
+  ) {
+    final _$$classRef = _class.reference;
+    final _$context = context.reference;
+    final _$appForegroundListener = appForegroundListener.reference;
+    return _new$(
+      _$$classRef.pointer,
+      _id_new$.pointer,
+      _$context.pointer,
+      _$appForegroundListener.pointer,
+    ).object<AppForegroundMonitor>();
+  }
+}
+
+extension AppForegroundMonitor$$Methods on AppForegroundMonitor {
+  static final _id_get$isForeground = AppForegroundMonitor._class.instanceMethodId(
+    r'isForeground',
+    r'()Z',
+  );
+
+  static final _get$isForeground =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JniResult Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallBooleanMethod')
+          .asFunction<
+            jni$_.JniResult Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public fun isForeground(): kotlin.Boolean`
+  core$_.bool get isForeground {
+    final _$$selfRef = reference;
+    return _get$isForeground(_$$selfRef.nonNullPointer, _id_get$isForeground.pointer).boolean;
+  }
+
+  static final _id_dispose = AppForegroundMonitor._class.instanceMethodId(
+    r'dispose',
+    r'()V',
+  );
+
+  static final _dispose =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `public fun dispose(): kotlin.Unit`
+  void dispose() {
+    final _$$selfRef = reference;
+    _dispose(_$$selfRef.nonNullPointer, _id_dispose.pointer).check();
+  }
+}
+
+final class $AppForegroundMonitor$Type$ extends jni$_.JType<AppForegroundMonitor> {
+  @jni$_.internal
+  const $AppForegroundMonitor$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/browser/AppForegroundMonitor;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/browser/AppForegroundMonitor';
+}
+
+/// from: `dev.getboolean.sourceruntime.browser.AppForegroundListener`
+extension type AppForegroundListener._(jni$_.JObject _$this) implements jni$_.JObject {
+  static final _class = jni$_.JClass.forName(r'dev/getboolean/sourceruntime/browser/AppForegroundListener');
+
+  /// The type which includes information such as the signature of this class.
+  static const jni$_.JType<AppForegroundListener> type = $AppForegroundListener$Type$();
+
+  /// Maps a specific port to the implemented interface.
+  static final core$_.Map<core$_.int, $AppForegroundListener> _$impls = {};
+  static jni$_.JObjectPtr _$invoke(
+    core$_.int port,
+    jni$_.JObjectPtr descriptor,
+    jni$_.JObjectPtr args,
+  ) {
+    return _$invokeMethod(
+      port,
+      jni$_.MethodInvocation.fromAddresses(
+        0,
+        descriptor.address,
+        args.address,
+      ),
+    );
+  }
+
+  static final jni$_.Pointer<
+    jni$_.NativeFunction<jni$_.JObjectPtr Function(jni$_.Int64, jni$_.JObjectPtr, jni$_.JObjectPtr)>
+  >
+  _$invokePointer = jni$_.Pointer.fromFunction(_$invoke);
+
+  static jni$_.Pointer<jni$_.Void> _$invokeMethod(
+    core$_.int $p,
+    jni$_.MethodInvocation $i,
+  ) {
+    try {
+      final $d = $i.methodDescriptor.toDartString(releaseOriginal: true);
+      final $a = $i.args;
+      if ($d == r'onForegroundChanged(Z)V') {
+        _$impls[$p]!.onForegroundChanged(
+          ($a![0] as jni$_.JBoolean).toDartBool(releaseOriginal: true),
+        );
+        return jni$_.nullptr;
+      }
+    } catch (e) {
+      return jni$_.ProtectedJniExtensions.newDartException(e);
+    }
+    return jni$_.nullptr;
+  }
+
+  static void implementIn(
+    jni$_.JImplementer implementer,
+    $AppForegroundListener $impl,
+  ) {
+    late final jni$_.RawReceivePort $p;
+    $p = jni$_.RawReceivePort(($m) {
+      if ($m == null) {
+        _$impls.remove($p.sendPort.nativePort);
+        $p.close();
+        return;
+      }
+      final $i = jni$_.MethodInvocation.fromMessage($m);
+      final $r = _$invokeMethod($p.sendPort.nativePort, $i);
+      $i.args?.release();
+      jni$_.ProtectedJniExtensions.returnResult($i.result, $r);
+    });
+    implementer.add(
+      r'dev.getboolean.sourceruntime.browser.AppForegroundListener',
+      $p,
+      _$invokePointer,
+      [
+        if ($impl.onForegroundChanged$async) r'onForegroundChanged(Z)V',
+      ],
+    );
+    final $a = $p.sendPort.nativePort;
+    _$impls[$a] = $impl;
+  }
+
+  factory AppForegroundListener.implement(
+    $AppForegroundListener $impl,
+  ) {
+    final $i = jni$_.JImplementer();
+    implementIn($i, $impl);
+    return $i.implement<AppForegroundListener>();
+  }
+}
+
+extension AppForegroundListener$$Methods on AppForegroundListener {
+  static final _id_onForegroundChanged = AppForegroundListener._class.instanceMethodId(
+    r'onForegroundChanged',
+    r'(Z)V',
+  );
+
+  static final _onForegroundChanged =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.VarArgs<(jni$_.Int32,)>)
+            >
+          >('globalEnv_CallVoidMethod')
+          .asFunction<jni$_.JThrowablePtr Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, core$_.int)>();
+
+  /// from: `public fun onForegroundChanged(foreground: kotlin.Boolean): kotlin.Unit`
+  void onForegroundChanged(
+    core$_.bool z,
+  ) {
+    final _$$selfRef = reference;
+    _onForegroundChanged(_$$selfRef.nonNullPointer, _id_onForegroundChanged.pointer, z ? 1 : 0).check();
+  }
+}
+
+abstract base mixin class $AppForegroundListener {
+  factory $AppForegroundListener({
+    required void Function(core$_.bool z) onForegroundChanged,
+    core$_.bool onForegroundChanged$async,
+  }) = _$AppForegroundListener;
+
+  void onForegroundChanged(core$_.bool z);
+  core$_.bool get onForegroundChanged$async => false;
+}
+
+final class _$AppForegroundListener with $AppForegroundListener {
+  _$AppForegroundListener({
+    required void Function(core$_.bool z) onForegroundChanged,
+    this.onForegroundChanged$async = false,
+  }) : _onForegroundChanged = onForegroundChanged;
+
+  final void Function(core$_.bool z) _onForegroundChanged;
+  final core$_.bool onForegroundChanged$async;
+
+  void onForegroundChanged(core$_.bool z) {
+    return _onForegroundChanged(z);
+  }
+}
+
+final class $AppForegroundListener$Type$ extends jni$_.JType<AppForegroundListener> {
+  @jni$_.internal
+  const $AppForegroundListener$Type$();
+
+  @jni$_.internal
+  @core$_.override
+  String get signature => r'Ldev/getboolean/sourceruntime/browser/AppForegroundListener;';
+
+  @jni$_.internal
+  @core$_.override
+  String get className => r'dev/getboolean/sourceruntime/browser/AppForegroundListener';
+}

@@ -16,6 +16,7 @@ import 'dart:math';
 import 'package:jni/jni.dart';
 import 'package:jni_flutter/jni_flutter.dart';
 import 'package:source_runtime/source_contracts.dart';
+import 'package:source_runtime_android/src/app_foreground.dart';
 import 'package:source_runtime_android/src/bindings/source_runtime_bindings.g.dart' as jni;
 
 /// The native side of [AndroidWebViewBrowserPort]: posts JSON commands to
@@ -194,6 +195,8 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
   int _validFrom = 0;
   int _started = 1;
   bool? _backgroundOverride;
+  AndroidAppForeground? _foreground;
+  bool _wasBackgrounded = false;
   bool _disposed = false;
 
   /// What `init` reported: features, WebView package, profile support.
@@ -209,9 +212,14 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
   /// proxy when [AndroidBrowserConfig.offline], and wipes all source browser
   /// data (KTD20 start-up rule). Fails with a named reason, never with a
   /// half-started port.
+  ///
+  /// With [foreground] (the app's one lifecycle signal, shared with the
+  /// background gate), the port follows it instead of its host's own
+  /// foreground events; both come from the same Activity tracker.
   static Future<SourceOutcome<AndroidWebViewBrowserPort>> start({
     AndroidBrowserConfig config = const AndroidBrowserConfig(),
     AppBrowserNativeFactory? native,
+    AndroidAppForeground? foreground,
   }) async {
     final String? unavailable = native == null ? unavailableReason : null;
     if (unavailable != null) {
@@ -251,6 +259,10 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
         CapabilityUnavailableFailure('browser.wipe', 'Start-up wipe not confirmed: $wiped'),
       );
     }
+    port
+      .._foreground = foreground
+      .._wasBackgrounded = port.isBackgrounded;
+    foreground?.addListener(port._onForeground);
     port._log('started: ${jsonEncode(port.info)}');
     return SourceSuccess<AndroidWebViewBrowserPort>(port);
   }
@@ -268,7 +280,7 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
   Map<String, AndroidWebViewBrowserSession> get sessions =>
       Map<String, AndroidWebViewBrowserSession>.unmodifiable(_sessions);
 
-  bool get isBackgrounded => _backgroundOverride ?? _started == 0;
+  bool get isBackgrounded => _backgroundOverride ?? _foreground?.isBackgrounded ?? _started == 0;
 
   void _log(String line) => config.onLog?.call('[android-webview] $line');
 
@@ -303,7 +315,7 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
       return;
     }
     if (session.isEmpty) {
-      if (kind == 'foreground') _setStarted((data['started'] as num?)?.toInt() ?? 0);
+      if (kind == 'foreground' && _foreground == null) _setStarted((data['started'] as num?)?.toInt() ?? 0);
       return;
     }
     final AndroidWebViewBrowserSession? s = _sessions[session];
@@ -319,20 +331,21 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
   }
 
   void _setStarted(int started) {
-    final bool was = isBackgrounded;
     _started = started;
-    _backgroundChanged(was);
+    _backgroundChanged();
   }
+
+  void _onForeground(bool _) => _backgroundChanged();
 
   /// Test seam: forces the background state (`null` follows the Activities).
   void setBackgroundedOverride(bool? backgrounded) {
-    final bool was = isBackgrounded;
     _backgroundOverride = backgrounded;
-    _backgroundChanged(was);
+    _backgroundChanged();
   }
 
-  void _backgroundChanged(bool was) {
-    if (was == isBackgrounded) return;
+  void _backgroundChanged() {
+    if (_wasBackgrounded == isBackgrounded) return;
+    _wasBackgrounded = isBackgrounded;
     _log(isBackgrounded ? 'app entered the background' : 'app returned to the foreground');
     if (isBackgrounded) {
       for (final AndroidWebViewBrowserSession s in _sessions.values) {
@@ -410,6 +423,7 @@ final class AndroidWebViewBrowserPort implements BrowserPort {
   /// Closes every session, then destroys the host. Later calls are refused.
   Future<void> dispose() async {
     if (_disposed) return;
+    _foreground?.removeListener(_onForeground);
     await fence(1 << 62);
     _disposed = true;
     _native.dispose();
