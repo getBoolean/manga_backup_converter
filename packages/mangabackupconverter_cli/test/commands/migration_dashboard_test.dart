@@ -132,9 +132,9 @@ void main() {
         pluginNames: ['pluginA', 'pluginB'],
       );
 
-      // Candidates are still enriched for display...
-      check(fetched.toSet()).deepEquals({'pluginA', 'pluginB'});
-      // ...but two equally exact candidates require the user to choose.
+      // Two equally exact candidates require the user to choose; titles are
+      // all matching needs, so no candidate's details are fetched.
+      check(fetched).isEmpty();
       check(results).length.equals(1);
       check(results.first.confirmedMatch).isNull();
     });
@@ -348,6 +348,8 @@ void main() {
 
       check(results).length.equals(1);
       final PluginSearchResult match = results.first.confirmedMatch!;
+      // The confirmation carries the snapshot, so the pipeline reuses it.
+      check(match.fetched).isNotNull();
       check(match.authors).deepEquals(['Author A']);
       check(match.chapters).length.equals(42);
       check(match.details)
@@ -357,6 +359,52 @@ void main() {
             'url',
           )
           .equals('https://example.com/test');
+    });
+
+    test('the next search does not wait for enrichment, but accepting does', () async {
+      final release = Completer<void>();
+      final searched = <String>[];
+      var fetches = 0;
+      final output = StringBuffer();
+      final input = StreamController<List<int>>.broadcast();
+      final context = TerminalContext.test(output: output, inputStream: input.stream, height: 40, width: 120);
+      final Future<List<MangaMatchConfirmation>> future = MigrationDashboard().run(
+        context: context,
+        pluginNames: const ['plugin1'],
+        manga: [_source('Manga 1'), _source('Manga 2')],
+        onSearch: (String query) {
+          searched.add(query);
+          return Stream<PluginSearchEvent>.fromIterable(<PluginSearchEvent>[
+            PluginSearchResults(pluginId: 'plugin1', results: [_result('plugin1', query)]),
+          ]);
+        },
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async {
+          fetches++;
+          await release.future;
+          return (PluginMangaDetails(key: mangaKey, title: mangaKey), _chapters(2));
+        }),
+      );
+      var done = false;
+      unawaited(future.then((_) => done = true));
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        check(searched).deepEquals(['Manga 1', 'Manga 2']);
+        input.add([0x79]); // 'y' while details are still being fetched: ignored.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        check(done).isFalse();
+
+        release.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        input.add([0x79]);
+        final List<MangaMatchConfirmation> results = await future;
+        check(fetches).equals(2);
+        for (final r in results) {
+          check(r.confirmedMatch).isNotNull().has((PluginSearchResult m) => m.fetched, 'fetched').isNotNull();
+        }
+      } finally {
+        context.dispose();
+        await input.close();
+      }
     });
 
     test('multiple manga entries searched sequentially', () async {

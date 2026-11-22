@@ -621,6 +621,42 @@ void main() {
       check((draft.backup as AidokuBackup).history!.single.chapterId).equals('d1');
     });
 
+    test('a match the selection UI already enriched is fetched exactly once and journaled', () async {
+      final store = InMemoryJournalStore();
+      final FakePluginSource dest = destination(settings());
+      Future<List<MangaMatchConfirmation>> confirmEnriched(
+        List<String> names,
+        List<SourceMangaData> manga,
+        Stream<PluginSearchEvent> Function(String) onSearch,
+        FetchDetails onFetch,
+      ) async => <MangaMatchConfirmation>[
+        for (final MangaMatchConfirmation c in await confirmExactTitle(names, manga, onSearch, onFetch))
+          if (c.confirmedMatch case final PluginSearchResult match?)
+            // As the dashboard does: fetch for display, confirm the enriched
+            // result, and hand over no destination.
+            MangaMatchConfirmation(
+              sourceManga: c.sourceManga,
+              confirmedMatch: match.enrichedWith((await onFetch(match.ref)).fetchedOrNull!),
+            )
+          else
+            c,
+      ];
+
+      final ConversionDraft draft = await _run(
+        _pipeline(
+          loader: FakePluginLoader(sources: <PluginSource>[dest]),
+          journalStore: store,
+          onConfirmMatches: confirmEnriched,
+        ),
+        input,
+        inputIdentity: 'enriched-input',
+      );
+      check(dest.fetches).equals(2); // Alpha and Beta, once each.
+      check((draft.backup as AidokuBackup).history!.single.chapterId).equals('d1');
+      final Iterable<Object?> confirmations = (store.json!['confirmations']! as Map<String, Object?>).values;
+      check(confirmations.every((Object? c) => (c! as Map<String, Object?>)['snapshot'] != null)).isTrue();
+    });
+
     test('a changed non-secret setting reopens the affected decisions', () async {
       final store = InMemoryJournalStore();
       await _run(

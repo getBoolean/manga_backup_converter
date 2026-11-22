@@ -380,13 +380,15 @@ class MigrationPipeline {
       }
     }
 
-    // Fetch the confirmed destination snapshot of every match that has none
-    // (journaled snapshots are reused, never re-fetched).
+    // Fetch the confirmed destination snapshot of every match that has none.
+    // A snapshot the selection UI already fetched (an enriched match) or the
+    // journal holds is reused, never fetched again; either way it is journaled.
     await Future.wait(<Future<void>>[
       for (final (int i, MangaMatchConfirmation? c) in confirmations.indexed)
         if (c != null && !c.excluded && c.confirmedMatch != null && c.destination == null)
           () async {
-            final DetailsOutcome outcome = await fetchDetails(c.confirmedMatch!.ref);
+            final DetailsOutcome outcome =
+                c.confirmedMatch!.fetchedOutcome ?? await fetchDetails(c.confirmedMatch!.ref);
             switch (outcome) {
               case DetailsFailed(:final SourceFailure failure):
                 final SourceFailure redacted = redactFailure(failure, redact);

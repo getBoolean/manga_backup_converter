@@ -208,5 +208,44 @@ void main() {
       check(result).isNotNull().has((r) => r.pluginSourceId, 'pluginSourceId').equals('plugin2');
       check(result).isNotNull().has((r) => r.title, 'title').equals('Second Result');
     });
+
+    test('confirming from Tab details returns the enriched result, fetched once', () async {
+      final output = StringBuffer();
+      final input = StreamController<List<int>>.broadcast();
+      addTearDown(input.close);
+      final context = TerminalContext.test(output: output, inputStream: input.stream, height: 30);
+      addTearDown(context.dispose);
+
+      var fetches = 0;
+      final Future<PluginSearchResult?> future = LiveSearchSelect().run(
+        context: context,
+        initialQuery: 'test',
+        onSearch: (String query) => Stream<PluginSearchEvent>.fromIterable(<PluginSearchEvent>[
+          PluginSearchResults(
+            pluginId: 'plugin1',
+            results: [testResult(pluginSourceId: 'plugin1', mangaKey: 'key1', title: 'First Result')],
+          ),
+        ]),
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async {
+          fetches++;
+          return (
+            PluginMangaDetails(key: mangaKey, title: 'First Result'),
+            <PluginChapter>[PluginChapter(chapterId: 'c1', chapterNumber: 1)],
+          );
+        }),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      input.add([0x1b, 0x5b, 0x42]); // ArrowDown to result 0
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      input.add([0x09]); // Tab: details
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      input.add([0x0d]); // Enter: confirm from the details screen
+      final PluginSearchResult? result = await future;
+
+      check(fetches).equals(1);
+      check(result).isNotNull().has((PluginSearchResult r) => r.fetched, 'fetched').isNotNull();
+      check(result!.chapters).length.equals(1);
+    });
   });
 }
