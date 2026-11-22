@@ -1,11 +1,10 @@
 {
   "unit": "U14 release APK record and package check",
-  "evidence": "Build inspection of the final branch build; an earlier release build of the same sources (before the Gradle lock excluded io.flutter) was installed and launched on the API 36 emulator (x86_64)",
-  "command": "flutter build apk --release; python3 -I scripts/android_package_check.py build/app/outputs/flutter-apk/app-release.apk <out> --build-dir build",
+  "evidence": "U14 release APK record, refreshed by the licensing follow-up (generated third-party notices, full texts)",
+  "command": "python3 -I scripts/android_package_check.py build/app/outputs/flutter-apk/app-release.apk <out.json> --build-dir build",
   "flutter": "3.50.0 (Dart 3.14)",
-  "apk": "app-release.apk",
-  "apkSha256": "fec5272073ac2d888d9d8263c7e19fc0dc7d4f4b2241c380a354ee2db79010e5",
-  "apkBytes": 81393923,
+  "apkSha256": "cc42ddacdf0c07797628a8cddaa9e3294ce88b1953ec2f962fc9c4af2957e45a",
+  "apkBytes": 81459683,
   "identity": {
     "package": "dev.getboolean.mangabackupconverter",
     "versionCode": "1",
@@ -36,7 +35,7 @@
       "path": "lib/arm64-v8a/libapp.so",
       "abi": "arm64-v8a",
       "bytes": 6620120,
-      "sha256": "6e00232ea8e4f0b5b74b1792a0b33865db66901c623d6e704ad563a1e84136a2",
+      "sha256": "ccce737aa7c81eb025e71dc2f51cac887dfa0b4798524a7f3b3bcdbcc2ba3781",
       "elf": {
         "class": 64,
         "machine": 183
@@ -46,7 +45,7 @@
       "path": "lib/arm64-v8a/libdartjni.so",
       "abi": "arm64-v8a",
       "bytes": 131944,
-      "sha256": "5bcbccc675b9cdc289ccac19c5baa329b8da1435e96d45a14969a12dd789cc3c",
+      "sha256": "d3c22ff071596f99c4e86e738b4a3881a15a29fcfd1206ba92c618d381e601da",
       "elf": {
         "class": 64,
         "machine": 183
@@ -116,7 +115,7 @@
       "path": "lib/arm64-v8a/libwasm3.so",
       "abi": "arm64-v8a",
       "bytes": 145672,
-      "sha256": "b08af4ed3600adf41c781c2fb50fe0d51413de70975a60ce940fa40c305f4526",
+      "sha256": "d19d832d975c12a037cc72782a9ec49f21c4180ac0b4d28b06ce82080fec6909",
       "elf": {
         "class": 64,
         "machine": 183
@@ -136,7 +135,7 @@
       "path": "lib/armeabi-v7a/libapp.so",
       "abi": "armeabi-v7a",
       "bytes": 7258696,
-      "sha256": "5c968419bcb777143fa6a44edd2d18b5e800b4ec4af5657510382329929277ca",
+      "sha256": "fb09cf3af2d44a22920276b0f653d378607f979ee1f1222aa5cb2380f25127f3",
       "elf": {
         "class": 32,
         "machine": 40
@@ -146,7 +145,7 @@
       "path": "lib/armeabi-v7a/libdartjni.so",
       "abi": "armeabi-v7a",
       "bytes": 82048,
-      "sha256": "30e938a6c908fa009fcc97dd4452657c643784c5cbac7c66bbbb994fb311981d",
+      "sha256": "5f3e7d17ddb1e1428698a0a17f702a163a68a4198280a954b4be19bf75a67cf1",
       "elf": {
         "class": 32,
         "machine": 40
@@ -216,7 +215,7 @@
       "path": "lib/armeabi-v7a/libwasm3.so",
       "abi": "armeabi-v7a",
       "bytes": 129924,
-      "sha256": "040caf83f47ec0e3ee89cf5eaf9bf3621f1730f3474aef678f7b8d9a6e678584",
+      "sha256": "5685824ba540d0503b163fa73b0d0ab4d48a16554cbae66c6263220ecf0ba5f5",
       "elf": {
         "class": 32,
         "machine": 40
@@ -236,7 +235,7 @@
       "path": "lib/x86_64/libapp.so",
       "abi": "x86_64",
       "bytes": 6816728,
-      "sha256": "9b54a143db3492404ab5bb11714b9de4b9ce62dfec3de3d09f6ef0d66fe12290",
+      "sha256": "47a705660cad92c11a2f29fcbcbfa9d0584e957da6c6b7f4120f0683635b5452",
       "elf": {
         "class": 64,
         "machine": 62
@@ -246,7 +245,7 @@
       "path": "lib/x86_64/libdartjni.so",
       "abi": "x86_64",
       "bytes": 117256,
-      "sha256": "5305a8cd72966c4d86e5e7d72036f67d1d6cf1b207670c8f10f4cf56614e8d92",
+      "sha256": "adb15e25f89c15c6bb2bc7cd272b0ff3b1359e8b871b791790d917a3c32b38cc",
       "elf": {
         "class": 64,
         "machine": 62
@@ -316,7 +315,7 @@
       "path": "lib/x86_64/libwasm3.so",
       "abi": "x86_64",
       "bytes": 142696,
-      "sha256": "11e1ac6feceb365e25f92abb4bb13b63c24d276af613f20b6cf59dda1caedd48",
+      "sha256": "935b82ab8b7cccfd57376dca80e0bb2470d30b9ba94e65fb28b6bdffbae95127",
       "elf": {
         "class": 64,
         "machine": 62
@@ -347,7 +346,7 @@
       },
       {
         "path": "lib/arm64-v8a/libwasm3.so",
-        "sha256": "c05357159f948508c6cd2185e18b06129e6d04a38e59ea68d9ac03bd3e266a1c"
+        "sha256": "4d3b118edf4e656de95194320e961d1f42515959c7a1d36b750a168bf2c65966"
       },
       {
         "path": "lib/armeabi-v7a/libquickjs.so",
@@ -359,7 +358,7 @@
       },
       {
         "path": "lib/armeabi-v7a/libwasm3.so",
-        "sha256": "4b6c6f7649a94a470c14e26ccf6b8687bd4f7c0fa37c0542db78a9ad410033fe"
+        "sha256": "120534e0999abe04c06b8997533633e23549f07ed9d8a6cd8202b9d8a061140e"
       },
       {
         "path": "lib/x86_64/libquickjs.so",
@@ -371,11 +370,12 @@
       },
       {
         "path": "lib/x86_64/libwasm3.so",
-        "sha256": "ea799dcecc1c1533bba0408b278b585f149fe99b90688b58f6f7cd8c5b8c8fad"
+        "sha256": "aed81ee59ade30abbc9c5b8491af04c4dad91fd8157c028daaf53cc26502fc0f"
       }
     ]
   },
   "notices": {
+    "libapp.so": true,
     "libdartjni.so": true,
     "libdatastore_shared_counter.so": true,
     "libflutter.so": true,
@@ -385,21 +385,15 @@
     "libsuper_native_extensions.so": true,
     "libwasm3.so": true,
     "libzstd-kmp.so": true,
-    "OkHttp": true,
-    "Okio": true,
-    "jsoup": true,
-    "RxJava": true,
-    "Kotlin": true,
-    "kotlinx.coroutines": true,
-    "kotlinx.serialization": true,
-    "Injekt": true,
-    "apksig": true,
-    "AndroidX": true,
-    "Mihon source API": true,
-    "zstd-kmp": true
+    "components": {
+      "expected": 304,
+      "withText": 307,
+      "missing": [],
+      "notExpected": []
+    }
   },
   "noticesBytes": 1636953,
-  "hostNoticesBytes": 43681,
+  "thirdPartyNotices": 307,
   "testPayload": {
     "allowed": false,
     "entries": 0,
@@ -407,5 +401,6 @@
     "repositoryStrings": []
   },
   "problems": [],
-  "ok": true
+  "ok": true,
+  "apk": "app-release.apk"
 }

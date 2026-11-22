@@ -442,8 +442,8 @@ The generator fails when any component has no text. `scripts/android_package_che
 what ships, not from the asset: the lockfile's `releaseRuntimeClasspath` (without platform BOMs and the Flutter engine),
 `cargo metadata` for each Rust library's ABIs in the APK, and a rule per native library; it fails on any shipped library
 without an entry carrying a full text (200+ characters), and on a native library without a rule. CI runs
-`generate_notices.dart android --check` before the package check. `u14-release-apk-check.json` predates this format
-(see the licensing follow-up below).
+`generate_notices.dart android --check` before the package check. `u14-release-apk-check.json` is now the
+refreshed release record (304 expected components, 307 with a full text, none missing).
 
 ## U14: still open
 
