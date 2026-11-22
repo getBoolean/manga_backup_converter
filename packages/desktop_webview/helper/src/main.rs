@@ -11,6 +11,7 @@
 mod platform;
 mod policy;
 mod scripts;
+mod wire;
 
 use std::{
   cell::RefCell,
@@ -21,12 +22,14 @@ use std::{
   sync::mpsc,
 };
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tao::{
   event::{Event, WindowEvent},
   event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
   window::{Window, WindowBuilder, WindowId},
 };
+use wire::{Command, CookieSpec, Event as HelperEvent, InteractionEndReason, WipeSummary};
 use wry::{NewWindowResponse, WebContext, WebView, WebViewBuilder};
 
 /// Helper protocol version, reported in the `ready` event.
@@ -35,9 +38,12 @@ pub const PROTOCOL_VERSION: u64 = 1;
 /// Maximum encoded frame size in either direction (KTD4).
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
-/// How a session's requests are reported to the client.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// How a session's requests are reported to the client (`open.intercept`,
+/// `intercept.mode`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InterceptMode {
+  #[default]
   None,
   /// Report each request (`request` event); it proceeds unchanged.
   Observe,
@@ -220,6 +226,15 @@ impl Out {
     let _ = self.0.send(v.to_string());
   }
 
+  fn event(&self, ev: HelperEvent) {
+    match serde_json::to_string(&ev) {
+      Ok(line) => {
+        let _ = self.0.send(line);
+      }
+      Err(e) => eprintln!("[helper] cannot encode event: {e}"),
+    }
+  }
+
   fn ok(&self, id: u64, v: Value) {
     self.send(json!({"id": id, "ok": v}));
   }
@@ -236,7 +251,7 @@ impl Out {
 }
 
 fn fatal(out: &Out, code: &str, message: &str) -> ! {
-  out.send(json!({"ev": "fatal", "code": code, "message": message}));
+  out.event(HelperEvent::Fatal { code: code.into(), message: message.into() });
   // Give the writer thread a moment to flush the frame.
   std::thread::sleep(std::time::Duration::from_millis(100));
   std::process::exit(3);
@@ -401,25 +416,33 @@ fn str_field<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
 }
 
 impl App {
-  fn handle_command(&mut self, cmd: Value, target: &EventLoopWindowTarget<UserEvent>) -> bool {
-    let Some(id) = cmd.get("id").and_then(Value::as_u64) else {
+  fn handle_command(&mut self, frame: Value, target: &EventLoopWindowTarget<UserEvent>) -> bool {
+    let Some(id) = frame.get("id").and_then(Value::as_u64) else {
       eprintln!("[helper] command without id ignored");
       return true;
     };
-    let op = str_field(&cmd, "op").unwrap_or("").to_string();
-    match op.as_str() {
-      "open" => self.open(id, &cmd, target),
-      "shutdown" => {
+    let command = match Command::deserialize(&frame) {
+      Ok(c) => c,
+      Err(e) => {
+        self.refuse_malformed(id, &frame, &e.to_string());
+        return true;
+      }
+    };
+    match command {
+      Command::Open { session, user_agent, title, intercept } => {
+        self.open(id, session, user_agent.as_deref(), title.as_deref(), intercept.unwrap_or_default(), target)
+      }
+      Command::Shutdown => {
         self.out.ok(id, json!({}));
         return false;
       }
-      "wipe" => {
+      Command::Wipe { retry_ms } => {
+        let retry = retry_ms.map(std::time::Duration::from_millis);
         let Some(root) = self.opts.data_root.clone() else {
           self.out.ok(id, json!({"removed": 0}));
           return true;
         };
         // Off the event loop: retrying must not stall other sessions.
-        let retry = cmd.get("retryMs").and_then(Value::as_u64).map(std::time::Duration::from_millis);
         let (own, out) = (self.data_dir.clone(), self.out.clone());
         std::thread::spawn(move || {
           let w = wipe_stale(&root, own.as_deref(), retry);
@@ -427,24 +450,21 @@ impl App {
             out.ok(id, json!({"removed": w.removed}));
           } else {
             let message = format!("{} stale browser data directories could not be removed ({})", w.failures.len(), w.failures.join("; "));
-            out.err(id, "capability-unavailable", message, Some(("operation", json!("wipe"))));
+            out.err(id, "capability-unavailable", message, Some(("operation", json!("wipeAllSourceData"))));
           }
         });
       }
-      "respond" => {
-        let rid = cmd.get("rid").and_then(Value::as_u64).unwrap_or(0);
-        if let Some(reason) = str_field(&cmd, "fail") {
+      Command::Respond { rid, response, fail, replay } => {
+        if let Some(reason) = fail {
           // The client refused the replacement or its handler threw: the
           // page sees a network error.
-          platform::respond(rid, platform::Answer::Fail(reason.to_string()));
+          platform::respond(rid, platform::Answer::Fail(reason));
           self.out.ok(id, json!({}));
           return true;
         }
         // `replay`: the client's own capture replay (never a worker's
         // replacement) may serve a captured redirect to an http(s) target.
-        let replay = cmd.get("replay").and_then(Value::as_bool).unwrap_or(false);
-        let response = cmd.get("response").filter(|r| !r.is_null()).map(|r| platform::ReplacementResponse::from_json(r, replay));
-        match response {
+        match response.filter(|r| !r.is_null()).map(|r| platform::ReplacementResponse::from_json(&r, replay)) {
           Some(Err(e)) => {
             // Never serve an invalid replacement, and never let the request
             // proceed in its place: fail it.
@@ -461,29 +481,53 @@ impl App {
           }
         }
       }
-      _ => {
-        let Some(sid) = str_field(&cmd, "session").map(str::to_string) else {
-          self.out.err(id, "invalid", format!("{op} needs a session"), None);
-          return true;
-        };
+      Command::DebugRequestClose { .. } if !self.opts.test_hooks => {
+        self.out.err(id, "invalid", "unknown operation debugRequestClose", None);
+      }
+      command => {
+        let sid = command.session().expect("every other command addresses a session").to_string();
         if !self.sessions.contains_key(&sid) {
           self.out.err(id, "session-closed", format!("unknown session {sid}"), None);
           return true;
         }
-        self.session_command(id, &op, &sid, &cmd);
+        self.session_command(id, &sid, command);
       }
     }
     true
   }
 
-  fn open(&mut self, id: u64, cmd: &Value, target: &EventLoopWindowTarget<UserEvent>) {
-    let Some(sid) = str_field(cmd, "session").map(str::to_string) else {
-      return self.out.err(id, "invalid", "open needs a session", None);
-    };
+  /// Answers a request that does not decode as a [Command]. A request for a
+  /// session that is gone is still `session-closed` (the client treats it as
+  /// cancelled), and a malformed `respond` still fails its held request, so
+  /// the page never waits for an answer that cannot come.
+  fn refuse_malformed(&mut self, id: u64, frame: &Value, reason: &str) {
+    let op = str_field(frame, "op").unwrap_or("");
+    if op == "respond" {
+      if let Some(rid) = frame.get("rid").and_then(Value::as_u64) {
+        platform::respond(rid, platform::Answer::Fail(format!("malformed respond: {reason}")));
+      }
+    } else if let Some(sid) = str_field(frame, "session").filter(|_| op != "open") {
+      if !self.sessions.contains_key(sid) {
+        return self.out.err(id, "session-closed", format!("unknown session {sid}"), None);
+      }
+    }
+    self.out.err(id, "invalid", format!("malformed {op:?} request: {reason}"), None);
+  }
+
+  fn open(
+    &mut self,
+    id: u64,
+    sid: String,
+    user_agent: Option<&str>,
+    title: Option<&str>,
+    intercept: InterceptMode,
+    target: &EventLoopWindowTarget<UserEvent>,
+  ) {
+    let unavailable = |out: &Out, message: String| out.err(id, "capability-unavailable", message, Some(("operation", json!("openSession"))));
     if self.sessions.contains_key(&sid) {
       return self.out.err(id, "invalid", format!("session {sid} already open"), None);
     }
-    let mode = match parse_mode(str_field(cmd, "intercept").unwrap_or("none")) {
+    let mode = match check_mode(intercept) {
       Ok(m) => m,
       Err((op, msg)) => return self.out.err(id, "capability-unavailable", msg, Some(("operation", json!(op)))),
     };
@@ -501,11 +545,7 @@ impl App {
       nav_id: None,
       main_frame_pending: Vec::new(),
     }));
-    let window = match WindowBuilder::new()
-      .with_title(str_field(cmd, "title").unwrap_or("Source browser"))
-      .with_visible(false)
-      .build(target)
-    {
+    let window = match WindowBuilder::new().with_title(title.unwrap_or("Source browser")).with_visible(false).build(target) {
       Ok(w) => w,
       Err(e) => return self.out.err(id, "interaction-required", format!("cannot create a window: {e}"), None),
     };
@@ -520,29 +560,29 @@ impl App {
     .with_incognito(true)
     .with_devtools(false)
     .with_new_window_req_handler(|_, _| NewWindowResponse::Deny);
-    if let Some(ua) = str_field(cmd, "userAgent") {
+    if let Some(ua) = user_agent {
       builder = builder.with_user_agent(ua);
     }
     builder = platform::configure_builder(builder, &sid, proxy.clone(), self.opts.offline);
     let webview = match platform::build(builder, &window) {
       Ok(w) => w,
-      Err(e) => return self.out.err(id, "capability-unavailable", format!("cannot create the WebView: {e}"), Some(("operation", json!("openSession")))),
+      Err(e) => return unavailable(&self.out, format!("cannot create the WebView: {e}")),
     };
     let native = match platform::install(&webview, shared.clone(), proxy) {
       Ok(n) => n,
-      Err(e) => return self.out.err(id, "capability-unavailable", format!("cannot hook the WebView: {e}"), Some(("operation", json!("openSession")))),
+      Err(e) => return unavailable(&self.out, format!("cannot hook the WebView: {e}")),
     };
     // The engine bridge comes first, before any channel or page-start
     // script, in every later document.
     let bootstrap = scripts::bootstrap_script(&shared.borrow().bridge, platform::POST_EXPR);
     if let Err(e) = platform::add_start_script(&webview, &bootstrap) {
-      return self.out.err(id, "capability-unavailable", format!("cannot install the page bridge: {e}"), Some(("operation", json!("openSession"))));
+      return unavailable(&self.out, format!("cannot install the page bridge: {e}"));
     }
     // Start the initial document only now that the hooks are installed, and
     // reply to `open` when it settles.
     shared.borrow_mut().awaiting_start = true;
     if let Err(e) = webview.load_url("about:blank") {
-      return self.out.err(id, "capability-unavailable", format!("cannot start the WebView: {e}"), Some(("operation", json!("openSession"))));
+      return unavailable(&self.out, format!("cannot start the WebView: {e}"));
     }
     self.windows.insert(window.id(), sid.clone());
     self.sessions.insert(
@@ -561,77 +601,70 @@ impl App {
     );
   }
 
-  fn session_command(&mut self, id: u64, op: &str, sid: &str, cmd: &Value) {
+  fn session_command(&mut self, id: u64, sid: &str, command: Command) {
     let out = self.out.clone();
-    let test_hooks = self.opts.test_hooks;
+    let operation = command.operation();
+    let unavailable = |message: String| out.err(id, "capability-unavailable", message, Some(("operation", json!(operation))));
     let s = self.sessions.get_mut(sid).expect("checked");
-    match op {
-      "load" => {
-        let url = str_field(cmd, "url").unwrap_or("");
-        if !policy::is_navigable(url) {
-          return out.err(id, "capability-unavailable", format!("scheme of {url} is not allowed (only http, https, about:blank)"), Some(("operation", json!("load"))));
+    match command {
+      Command::Load { url, headers, .. } => {
+        if !policy::is_navigable(&url) {
+          return unavailable(format!("scheme of {url} is not allowed (only http, https, about:blank)"));
         }
         supersede_load(&out, s);
         {
           let mut sh = s.shared.borrow_mut();
           sh.load_data = None;
-          sh.load_chain = vec![url.to_string()];
+          sh.load_chain = vec![url.clone()];
           sh.awaiting_start = true;
         }
         s.pending_load = Some(PendingLoad { req: id, rejected: None, open: false });
-        let headers = cmd.get("headers").and_then(Value::as_object);
         let result = match headers {
           Some(h) if !h.is_empty() => {
             let mut map = wry::http::HeaderMap::new();
-            for (k, v) in h {
-              if let (Ok(name), Some(Ok(value))) = (
-                wry::http::header::HeaderName::from_bytes(k.as_bytes()),
-                v.as_str().map(wry::http::HeaderValue::from_str),
-              ) {
+            for (k, v) in &h {
+              if let (Ok(name), Ok(value)) = (wry::http::header::HeaderName::from_bytes(k.as_bytes()), wry::http::HeaderValue::from_str(v)) {
                 map.insert(name, value);
               }
             }
-            s.webview.load_url_with_headers(url, map)
+            s.webview.load_url_with_headers(&url, map)
           }
-          _ => s.webview.load_url(url),
+          _ => s.webview.load_url(&url),
         };
         if let Err(e) = result {
           s.pending_load = None;
           out.err(id, "navigation-failed", format!("load failed: {e}"), Some(("url", json!(url))));
         }
       }
-      "loadData" => {
-        let base = str_field(cmd, "baseUrl").unwrap_or("");
-        if !policy::is_allowed_base(base) {
-          return out.err(id, "capability-unavailable", format!("base URL scheme of {base} is not allowed (only http, https)"), Some(("operation", json!("loadData"))));
+      Command::LoadData { html, base_url: base, .. } => {
+        if !policy::is_allowed_base(&base) {
+          return unavailable(format!("base URL scheme of {base} is not allowed (only http, https)"));
         }
-        let html = str_field(cmd, "html").unwrap_or("").to_string();
         supersede_load(&out, s);
         {
           let mut sh = s.shared.borrow_mut();
-          sh.load_chain = vec![base.to_string()];
+          sh.load_chain = vec![base.clone()];
           sh.awaiting_start = true;
         }
         s.pending_load = Some(PendingLoad { req: id, rejected: None, open: false });
-        if let Err(e) = platform::load_data(&s.webview, &s.shared, &html, base) {
+        if let Err(e) = platform::load_data(&s.webview, &s.shared, &html, &base) {
           s.pending_load = None;
           out.err(id, "navigation-failed", format!("loadData failed: {e}"), Some(("url", json!(base))));
         }
       }
-      "stop" => {
+      Command::Stop { .. } => {
         s.pending_load = None;
         platform::stop(&s.webview);
         out.ok(id, json!({}));
       }
-      "eval" => {
-        let script = str_field(cmd, "script").unwrap_or("");
+      Command::Eval { script, .. } => {
         s.eval_seq += 1;
         let seq = s.eval_seq;
         let (key, bridge) = {
           let sh = s.shared.borrow();
           (sh.key.clone(), sh.bridge.clone())
         };
-        let wrapped = scripts::eval_wrapper(&bridge, &key, seq, script);
+        let wrapped = scripts::eval_wrapper(&bridge, &key, seq, &script);
         s.pending_evals.insert(seq, id);
         let proxy = self.proxy.clone();
         let session = sid.to_string();
@@ -643,92 +676,81 @@ impl App {
           out.err(id, "no-script-bridge", format!("evaluate failed: {e}"), None);
         }
       }
-      "channel" => {
-        let name = str_field(cmd, "name").unwrap_or("");
-        if !policy::is_js_identifier(name) {
-          return out.err(id, "capability-unavailable", format!("channel name {name:?} is not a JavaScript identifier"), Some(("operation", json!("setMessageHandler"))));
+      Command::Channel { name, enabled, .. } => {
+        if !policy::is_js_identifier(&name) {
+          return unavailable(format!("channel name {name:?} is not a JavaScript identifier"));
         }
         if let Some((_, reason)) = platform::RESERVED_CHANNELS.iter().find(|(n, _)| *n == name) {
-          return out.err(id, "capability-unavailable", format!("channel name {name:?} is reserved: {reason}"), Some(("operation", json!("setMessageHandler"))));
+          return unavailable(format!("channel name {name:?} is reserved: {reason}"));
         }
-        let enabled = cmd.get("enabled").and_then(Value::as_bool).unwrap_or(true);
         let js = {
           let sh = s.shared.borrow();
-          scripts::channel_script(&sh.bridge, &sh.key, name)
+          scripts::channel_script(&sh.bridge, &sh.key, &name)
         };
         if enabled {
-          s.shared.borrow_mut().channels.insert(name.to_string());
-          if s.installed_channels.insert(name.to_string()) {
+          s.shared.borrow_mut().channels.insert(name.clone());
+          if s.installed_channels.insert(name.clone()) {
             // Document start of every later document, in every frame.
             if let Err(e) = platform::add_start_script(&s.webview, &js) {
-              return out.err(id, "capability-unavailable", format!("cannot install channel: {e}"), Some(("operation", json!("setMessageHandler"))));
+              return unavailable(format!("cannot install channel: {e}"));
             }
           }
           // And the current document, at once.
           let _ = s.webview.evaluate_script(&js);
         } else {
-          s.shared.borrow_mut().channels.remove(name);
-          let _ = s.webview.evaluate_script(&scripts::remove_channel_script(name));
+          s.shared.borrow_mut().channels.remove(&name);
+          let _ = s.webview.evaluate_script(&scripts::remove_channel_script(&name));
         }
         out.ok(id, json!({}));
       }
-      "intercept" => match parse_mode(str_field(cmd, "mode").unwrap_or("none")) {
+      Command::Intercept { mode, .. } => match check_mode(mode) {
         Ok(mode) => {
           s.shared.borrow_mut().mode = mode;
           out.ok(id, json!({}));
         }
         Err((op, msg)) => out.err(id, "capability-unavailable", msg, Some(("operation", json!(op)))),
       },
-      "startScript" => {
-        let script = str_field(cmd, "script").unwrap_or("");
-        match platform::add_start_script(&s.webview, script) {
-          Ok(()) => out.ok(id, json!({})),
-          Err(e) => out.err(id, "capability-unavailable", format!("cannot add start script: {e}"), Some(("operation", json!("addPageStartScript")))),
+      Command::StartScript { script, .. } => match platform::add_start_script(&s.webview, &script) {
+        Ok(()) => out.ok(id, json!({})),
+        Err(e) => unavailable(format!("cannot add start script: {e}")),
+      },
+      Command::Cookies { url, .. } => {
+        if !policy::is_allowed_base(&url) {
+          return unavailable(format!("cookies need an http(s) URL, got {url}"));
         }
-      }
-      "cookies" => {
-        let url = str_field(cmd, "url").unwrap_or("");
-        if !policy::is_allowed_base(url) {
-          return out.err(id, "capability-unavailable", format!("cookies need an http(s) URL, got {url}"), Some(("operation", json!("getCookies"))));
-        }
-        match platform::cookies_for_url(&s.webview, url) {
+        match platform::cookies_for_url(&s.webview, &url) {
           Ok(list) => out.ok(id, json!({"cookies": list.iter().map(cookie_json).collect::<Vec<_>>()})),
-          Err(e) => out.err(id, "capability-unavailable", format!("cannot read cookies: {e}"), Some(("operation", json!("getCookies")))),
+          Err(e) => unavailable(format!("cannot read cookies: {e}")),
         }
       }
-      "setCookie" => {
-        let url = str_field(cmd, "url").unwrap_or("");
-        if !policy::is_allowed_base(url) {
-          return out.err(id, "capability-unavailable", format!("cookies need an http(s) URL, got {url}"), Some(("operation", json!("setCookie"))));
+      Command::SetCookie { url, cookie, .. } => {
+        if !policy::is_allowed_base(&url) {
+          return unavailable(format!("cookies need an http(s) URL, got {url}"));
         }
-        let c = cmd.get("cookie").cloned().unwrap_or(Value::Null);
-        match build_cookie(url, &c) {
+        match build_cookie(&url, cookie) {
           Ok(cookie) => match s.webview.set_cookie(&cookie) {
             Ok(()) => out.ok(id, json!({})),
-            Err(e) => out.err(id, "capability-unavailable", format!("cannot set cookie: {e}"), Some(("operation", json!("setCookie")))),
+            Err(e) => unavailable(format!("cannot set cookie: {e}")),
           },
           Err(e) => out.err(id, "invalid", e, None),
         }
       }
-      "userAgent" => {
-        let ua = str_field(cmd, "userAgent").unwrap_or("");
-        match platform::set_user_agent(&s.webview, ua) {
-          Ok(()) => out.ok(id, json!({})),
-          Err(e) => out.err(id, "capability-unavailable", format!("cannot set user agent: {e}"), Some(("operation", json!("setUserAgent")))),
-        }
-      }
-      "show" => {
+      Command::UserAgent { user_agent, .. } => match platform::set_user_agent(&s.webview, &user_agent) {
+        Ok(()) => out.ok(id, json!({})),
+        Err(e) => unavailable(format!("cannot set user agent: {e}")),
+      },
+      Command::Show { .. } => {
         s.window.set_visible(true);
         s.window.set_focus();
         s.showing = true;
         out.ok(id, json!({}));
       }
-      "hide" => {
+      Command::Hide { .. } => {
         s.window.set_visible(false);
         s.showing = false;
         out.ok(id, json!({}));
       }
-      "debugRequestClose" if test_hooks => {
+      Command::DebugRequestClose { .. } => {
         out.ok(id, json!({}));
         // Through the OS where the engine allows it, so the close arrives as
         // a user's would (WindowEvent::CloseRequested).
@@ -737,14 +759,13 @@ impl App {
           self.window_close_requested(wid);
         }
       }
-      "close" => {
-        let result = self.close_session(sid);
-        match result {
-          Ok(()) => out.ok(id, json!({})),
-          Err(e) => out.err(id, "capability-unavailable", format!("storage deletion not confirmed: {e}"), Some(("operation", json!("close")))),
-        }
+      Command::Close { .. } => match self.close_session(sid) {
+        Ok(()) => out.ok(id, json!({})),
+        Err(e) => unavailable(format!("storage deletion not confirmed: {e}")),
+      },
+      Command::Open { .. } | Command::Respond { .. } | Command::Wipe { .. } | Command::Shutdown => {
+        unreachable!("handled before session lookup")
       }
-      other => out.err(id, "invalid", format!("unknown operation {other}"), None),
     }
   }
 
@@ -760,7 +781,7 @@ impl App {
       self.out.err(p.req, "session-closed", "session closed", None);
     }
     if s.showing {
-      self.out.send(json!({"ev": "interactionEnded", "session": sid, "reason": "session-closed"}));
+      self.out.event(HelperEvent::InteractionEnded { session: sid.to_string(), reason: InteractionEndReason::SessionClosed });
     }
     drop(s);
     result
@@ -772,7 +793,7 @@ impl App {
       s.window.set_visible(false);
       if s.showing {
         s.showing = false;
-        self.out.send(json!({"ev": "interactionEnded", "session": sid, "reason": "closed"}));
+        self.out.event(HelperEvent::InteractionEnded { session: sid, reason: InteractionEndReason::Closed });
       }
     }
   }
@@ -833,38 +854,34 @@ impl App {
       }
       UserEvent::Request(r) => {
         use base64::Engine as _;
-        let hs: Map<String, Value> = r.headers.into_iter().map(|(k, v)| (k, Value::String(v))).collect();
-        let body = r.body.map(|b| base64::engine::general_purpose::STANDARD.encode(b));
-        self.out.send(json!({
-          "ev": "request",
-          "session": r.session,
-          "rid": r.rid,
-          "url": r.url,
-          "method": r.method,
-          "headers": hs,
-          "bodyBase64": body,
-          "bodyOmitted": r.body_omitted,
-          "mainFrame": r.main_frame,
-          "redirect": r.redirect,
-          "context": r.context,
-        }));
+        self.out.event(HelperEvent::Request {
+          session: r.session,
+          rid: r.rid,
+          url: r.url,
+          method: r.method,
+          // Repeated names keep the last value, as the client's map does.
+          headers: r.headers.into_iter().collect(),
+          body_base64: r.body.map(|b| base64::engine::general_purpose::STANDARD.encode(b)),
+          body_omitted: r.body_omitted,
+          main_frame: r.main_frame,
+          redirect: r.redirect,
+          context: r.context,
+        });
       }
       UserEvent::Exchange(x) => {
         use base64::Engine as _;
         let b64 = |b: Vec<u8>| base64::engine::general_purpose::STANDARD.encode(b);
-        let headers: Vec<Value> = x.headers.into_iter().map(|(k, v)| json!([k, v])).collect();
-        self.out.send(json!({
-          "ev": "exchange",
-          "session": x.session,
-          "method": x.method,
-          "url": x.url,
-          "requestBodyBase64": x.request_body.map(b64),
-          "requestBodyOmitted": x.request_body_omitted,
-          "status": x.status,
-          "headers": headers,
-          "bodyBase64": x.body.map(b64),
-          "bodyOmitted": x.body_omitted,
-        }));
+        self.out.event(HelperEvent::Exchange {
+          session: x.session,
+          method: x.method,
+          url: x.url,
+          request_body_base64: x.request_body.map(b64),
+          request_body_omitted: x.request_body_omitted,
+          status: x.status,
+          headers: x.headers,
+          body_base64: x.body.map(b64),
+          body_omitted: x.body_omitted,
+        });
       }
       UserEvent::Command(_) | UserEvent::StdinClosed | UserEvent::FrameError(_) => unreachable!(),
     }
@@ -905,7 +922,7 @@ impl App {
           return;
         }
         let Some(message) = v.get("m").and_then(Value::as_str) else { return };
-        self.out.send(json!({"ev": "message", "session": session, "name": channel, "message": message}));
+        self.out.event(HelperEvent::Message { session: session.to_string(), name: channel.to_string(), message: message.to_string() });
       }
       _ => {}
     }
@@ -927,17 +944,16 @@ impl App {
   }
 }
 
-fn parse_mode(mode: &str) -> Result<InterceptMode, (&'static str, &'static str)> {
+/// Refuses an interception tier this engine does not have.
+fn check_mode(mode: InterceptMode) -> Result<InterceptMode, (&'static str, &'static str)> {
   match mode {
-    "observe" if platform::CAPS.request_observe == "none" => {
+    InterceptMode::Observe if platform::CAPS.request_observe == "none" => {
       Err(("interceptRequest.observe", "request observation is unavailable on this engine"))
     }
-    "observe" => Ok(InterceptMode::Observe),
-    "replace" if !platform::CAPS.request_replace => {
+    InterceptMode::Replace if !platform::CAPS.request_replace => {
       Err(("interceptRequest.replace", "request replacement is only available on WebView2"))
     }
-    "replace" => Ok(InterceptMode::Replace),
-    _ => Ok(InterceptMode::None),
+    mode => Ok(mode),
   }
 }
 
@@ -963,24 +979,20 @@ fn cookie_json(c: &wry::cookie::Cookie<'static>) -> Value {
   })
 }
 
-fn build_cookie(url: &str, c: &Value) -> Result<wry::cookie::Cookie<'static>, String> {
-  let name = str_field(c, "name").ok_or("cookie needs a name")?.to_string();
-  let value = str_field(c, "value").unwrap_or("").to_string();
+fn build_cookie(url: &str, c: CookieSpec) -> Result<wry::cookie::Cookie<'static>, String> {
   let host = policy::host_of(url).ok_or_else(|| format!("cannot derive a cookie domain from {url}"))?;
-  let mut b = wry::cookie::Cookie::build((name, value))
-    .domain(str_field(c, "domain").map(str::to_string).unwrap_or(host))
-    .path(str_field(c, "path").map(str::to_string).unwrap_or_else(|| "/".into()));
+  let mut b = wry::cookie::Cookie::build((c.name, c.value)).domain(c.domain.unwrap_or(host)).path(c.path.unwrap_or_else(|| "/".into()));
   // Set only when true: wry's WKWebView cookie conversion writes the
   // `Secure`/`HttpOnly` property whenever it is present, and Foundation
   // treats a present `HttpOnly` as set even with the value "FALSE" (measured:
   // the cookie then never reached `document.cookie`).
-  if c.get("secure").and_then(Value::as_bool).unwrap_or(false) {
+  if c.secure {
     b = b.secure(true);
   }
-  if c.get("httpOnly").and_then(Value::as_bool).unwrap_or(false) {
+  if c.http_only {
     b = b.http_only(true);
   }
-  if let Some(secs) = c.get("expiresUnix").and_then(Value::as_i64) {
+  if let Some(secs) = c.expires_unix {
     let t = wry::cookie::time::OffsetDateTime::from_unix_timestamp(secs).map_err(|e| e.to_string())?;
     b = b.expires(t);
   }
@@ -1045,17 +1057,16 @@ fn main() {
   let proxy = event_loop.create_proxy();
   let web_context = platform::web_context(data_dir.as_deref());
 
-  out.send(json!({
-    "ev": "ready",
-    "protocol": PROTOCOL_VERSION,
-    "helperVersion": env!("CARGO_PKG_VERSION"),
-    "engine": platform::ENGINE,
-    "engineVersion": engine_version,
-    "pid": std::process::id(),
-    "maxFrameBytes": MAX_FRAME_BYTES,
-    "capabilities": platform::CAPS.to_json(),
-    "wipe": {"removed": wipe.removed, "failed": wipe.failures.len()},
-  }));
+  out.event(HelperEvent::Ready {
+    protocol: PROTOCOL_VERSION,
+    helper_version: env!("CARGO_PKG_VERSION").into(),
+    engine: platform::ENGINE.into(),
+    engine_version,
+    pid: std::process::id(),
+    max_frame_bytes: MAX_FRAME_BYTES,
+    capabilities: platform::CAPS.to_json(),
+    wipe: WipeSummary { removed: wipe.removed, failed: wipe.failures.len() },
+  });
   spawn_stdin(proxy.clone());
 
   let mut app = App {
@@ -1084,7 +1095,7 @@ fn main() {
         *control_flow = ControlFlow::Exit;
       }
       Event::UserEvent(UserEvent::FrameError(e)) => {
-        app.out.send(json!({"ev": "protocolError", "message": e}));
+        app.out.event(HelperEvent::ProtocolError { message: e });
         app.shutdown();
         *control_flow = ControlFlow::Exit;
       }
