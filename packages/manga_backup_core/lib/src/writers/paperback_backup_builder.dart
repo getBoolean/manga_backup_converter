@@ -65,151 +65,17 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
   BackupFormat get format => const Paperback();
 
   @override
-  ConvertableBackup build(List<MangaConversionPlan> plans, {String? sourceFormatAlias, ConversionReport? report}) {
-    final infos = <PaperbackBackupMangaInfo>[];
-    final sources = <PaperbackBackupSourceManga>[];
-    final chapters = <PaperbackBackupChapter>[];
-    final markers = <PaperbackBackupChapterProgressMarker>[];
-    final library = <PaperbackBackupLibraryManga>[];
-    final DateTime now = clock();
-    var unknownNumbers = 0;
+  Set<UnrepresentableField> get unrepresentableFields => const <UnrepresentableField>{
+    UnrepresentableField.chapterBookmark,
+    UnrepresentableField.scanlatorGroups,
+  };
 
-    for (final plan in plans) {
-      final PluginSearchResult? match = plan.confirmation.confirmedMatch;
-      final SourceMangaData sourceManga = plan.sourceManga;
-      if (!plan.isBuildable || match == null) {
-        if (report != null) accountUnbuilt(plan, report);
-        continue;
-      }
-      final String title = sourceManga.details.title;
-      report?.add(RecordKind.manga, RecordDisposition.transferred, title, title);
+  @override
+  TrackingDisposition trackingFor(String? sourceFormatAlias) =>
+      (disposition: RecordDisposition.unrepresentable, reason: unverifiedTrackingReason);
 
-      final String sourceId = match.pluginSourceId;
-      final String mangaId = match.mangaKey;
-      final String infoId = paperbackLocalId('manga-info', <String>[sourceId, mangaId]);
-      final String sourceMangaId = paperbackLocalId('source-manga', <String>[sourceId, mangaId]);
-      final PluginMangaDetails? details = plan.confirmation.targetMangaDetails;
-
-      infos.add(
-        PaperbackBackupMangaInfo(
-          id: infoId,
-          titles: <String>[details?.title ?? match.title],
-          covers: const <String>[],
-          image: details?.coverUrl ?? match.coverUrl ?? '',
-          desc: details?.description ?? '',
-          author: (details?.authors ?? match.authors).join(', '),
-          artist: (details?.artists ?? const <String>[]).join(', '),
-          hentai: details?.contentRating == MangaContentRating.nsfw,
-          status: _status(details?.status),
-          tags: <PaperbackBackupMangaTag>[
-            if (details != null && details.tags.isNotEmpty)
-              PaperbackBackupMangaTag(
-                id: 'tags',
-                label: 'Tags',
-                tags: <PaperbackBackupMangaTag>[
-                  for (final String t in details.tags) PaperbackBackupMangaTag(id: t, label: t),
-                ],
-              ),
-          ],
-          additionalInfo: PaperbackBackupMangaAdditionalInfo(),
-        ),
-      );
-      sources.add(
-        PaperbackBackupSourceManga(
-          id: sourceMangaId,
-          sourceId: sourceId,
-          mangaId: mangaId,
-          mangaInfo: PaperbackBackupItemReference(type: PaperbackBackupItemType.mangaInfoV4, id: infoId),
-        ),
-      );
-
-      final chapterIds = <String, String>{};
-      for (final PluginChapter c in plan.confirmation.targetChapters) {
-        final String id = paperbackLocalId('chapter', <String>[sourceId, mangaId, c.chapterId]);
-        chapterIds[c.chapterId] = id;
-        if (c.chapterNumber == null) unknownNumbers++;
-        chapters.add(
-          PaperbackBackupChapter(
-            id: id,
-            chapterId: c.chapterId,
-            sourceManga: PaperbackBackupItemReference(type: PaperbackBackupItemType.sourceMangaV4, id: sourceMangaId),
-            chapNum: c.chapterNumber ?? 0,
-            volume: c.volumeNumber ?? 0,
-            langCode: c.language ?? '',
-            group: c.scanlator ?? '',
-            name: c.title ?? '',
-            time: c.dateUploaded?.toUtc() ?? paperbackUnknownDate,
-            sortingIndex: c.sourceOrder,
-            isNew: false,
-          ),
-        );
-      }
-
-      for (final ChapterMatch m in plan.reconciliation.matches) {
-        final SourceChapter s = m.source;
-        if (s.isBookmarked) {
-          report?.add(
-            RecordKind.field,
-            RecordDisposition.unrepresentable,
-            title,
-            'bookmark on ${chapterLabel(s)}',
-            reason: 'Paperback backups cannot represent chapter bookmarks',
-          );
-        }
-        if (!s.isRead && s.lastPageRead <= 0 && s.dateRead == null) continue;
-        markers.add(
-          PaperbackBackupChapterProgressMarker(
-            chapter: PaperbackBackupItemReference(
-              type: PaperbackBackupItemType.chapterV4,
-              id: chapterIds[m.destination.chapterId]!,
-            ),
-            completed: s.isRead,
-            lastPage: s.lastPageRead,
-            totalPages: s.totalPages ?? 0,
-            time: (s.dateRead ?? sourceManga.lastRead)?.toUtc() ?? paperbackUnknownDate,
-            hidden: false,
-          ),
-        );
-      }
-      if (report != null) {
-        accountChapterState(
-          plan,
-          report,
-          trackingDisposition: RecordDisposition.unrepresentable,
-          trackingReason: unverifiedTrackingReason,
-        );
-      }
-
-      library.add(
-        PaperbackBackupLibraryManga(
-          id: paperbackLocalId('library-manga', <String>[sourceId, mangaId]),
-          primarySource: PaperbackBackupItemReference(type: PaperbackBackupItemType.sourceMangaV4, id: sourceMangaId),
-          secondarySources: const <PaperbackBackupItemReference>[],
-          trackedSources: const <PaperbackBackupItemReference>[],
-          libraryTabs: <PaperbackBackupLibraryTab>[
-            for (final (int i, String name) in sourceManga.categories.indexed)
-              PaperbackBackupLibraryTab(id: paperbackLocalId('library-tab', <String>[name]), name: name, sortOrder: i),
-          ],
-          lastRead: sourceManga.lastRead?.toUtc(),
-          dateBookmarked: (sourceManga.dateAdded ?? now).toUtc(),
-        ),
-      );
-    }
-
-    if (unknownNumbers > 0) {
-      report?.notes.add(
-        '$unknownNumbers destination chapter(s) have no chapter number; Paperback requires one, so 0 is written',
-      );
-    }
-    return PaperbackBackup(
-      mangaInfo: infos,
-      sourceManga: sources,
-      chapters: chapters,
-      chapterProgressMarker: markers,
-      libraryManga: library,
-      name: sourceFormatAlias == null ? null : 'Migrated from $sourceFormatAlias',
-    );
-  }
+  @override
+  BackupAssembly startBuild({String? sourceFormatAlias}) => _PaperbackAssembly(sourceFormatAlias, clock());
 
   /// Status strings as the repo's existing Paperback mapping writes them
   /// (`PaperbackBackupMangaInfo.statusFromAidoku`); unverified against a
@@ -221,12 +87,8 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
   };
 
   @override
-  List<String> validate(Uint8List bytes, List<MangaConversionPlan> plans) {
-    final (PaperbackBackup? backup, List<String> decodeProblems) = decodeForValidation(
-      bytes,
-      PaperbackBackup.fromData,
-    );
-    if (backup == null) return decodeProblems;
+  WrittenBackup project(Uint8List bytes) {
+    final backup = PaperbackBackup.fromData(bytes);
     final problems = <String>[
       // The V4 envelope always carries all five entries.
       if (backup.mangaInfo == null) 'the archive has no __MANGA_INFO_V4 entry',
@@ -235,7 +97,6 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
       if (backup.chapterProgressMarker == null) 'the archive has no __CHAPTER_PROGRESS_MARKER_V4-1 entry',
       if (backup.libraryManga == null) 'the archive has no __LIBRARY_MANGA_V4 entry',
     ];
-    final index = FetchedChapterIndex(plans);
     final infoIds = <String>{for (final PaperbackBackupMangaInfo i in backup.mangaInfo ?? const []) i.id};
     final sourcesById = <String, PaperbackBackupSourceManga>{
       for (final PaperbackBackupSourceManga s in backup.sourceManga ?? const []) s.id: s,
@@ -247,28 +108,27 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
     String? check(PaperbackBackupItemReference ref, PaperbackBackupItemType type, Set<String> ids) =>
         ref.type != type ? 'has type ${ref.type}, expected $type' : (ids.contains(ref.id) ? null : 'is dangling');
 
+    final chapterIds = <String, List<String>>{for (final String id in sourcesById.keys) id: <String>[]};
+    final stateIds = <String, List<String>>{for (final String id in sourcesById.keys) id: <String>[]};
     for (final PaperbackBackupSourceManga s in sourcesById.values) {
       final String? bad = check(s.mangaInfo, PaperbackBackupItemType.mangaInfoV4, infoIds);
       if (bad != null) problems.add('source manga ${s.id}: manga info reference $bad');
-      if (!index.hasManga(s.sourceId, s.mangaId)) {
-        problems.add('source manga ${s.id} (${s.sourceId}/${s.mangaId}): not a confirmed destination');
-      }
     }
-    final writtenChapters = <String, Set<String>>{};
     for (final PaperbackBackupChapter c in chaptersById.values) {
-      final PaperbackBackupSourceManga? s = sourcesById[c.sourceManga.id];
-      if (c.sourceManga.type != PaperbackBackupItemType.sourceMangaV4 || s == null) {
+      if (c.sourceManga.type != PaperbackBackupItemType.sourceMangaV4 || !sourcesById.containsKey(c.sourceManga.id)) {
         problems.add('chapter ${c.id}: source manga reference is dangling');
         continue;
       }
-      if (!index.fetched(s.sourceId, s.mangaId, c.chapterId)) {
-        problems.add('chapter ${c.id} (${c.chapterId}): not returned by the destination runtime');
-      }
-      (writtenChapters[s.id] ??= <String>{}).add(c.chapterId);
+      chapterIds[c.sourceManga.id]!.add(c.chapterId);
     }
     for (final PaperbackBackupChapterProgressMarker m in backup.chapterProgressMarker ?? const []) {
       final String? bad = check(m.chapter, PaperbackBackupItemType.chapterV4, chaptersById.keys.toSet());
-      if (bad != null) problems.add('progress marker for ${m.chapter.id}: chapter reference $bad');
+      if (bad != null) {
+        problems.add('progress marker for ${m.chapter.id}: chapter reference $bad');
+        continue;
+      }
+      final PaperbackBackupChapter c = chaptersById[m.chapter.id]!;
+      stateIds[c.sourceManga.id]?.add(c.chapterId);
     }
     final tabNames = <String, String>{};
     for (final PaperbackBackupLibraryManga l in backup.libraryManga ?? const []) {
@@ -283,18 +143,149 @@ class PaperbackBackupBuilder extends TargetBackupBuilder {
         if (known != t.name) problems.add('library tab ${t.id} has two names ("$known", "${t.name}")');
       }
     }
-    // Every fetched destination chapter is written exactly once (a duplicate
-    // generated ID would have collapsed two chapters into one archive key).
-    for (final plan in plans) {
-      final PluginSearchResult? match = plan.confirmation.confirmedMatch;
-      if (!plan.isBuildable || match == null) continue;
-      final String sourceMangaId = paperbackLocalId('source-manga', <String>[match.pluginSourceId, match.mangaKey]);
-      final int expected = plan.confirmation.targetChapters.map((PluginChapter c) => c.chapterId).toSet().length;
-      final int written = writtenChapters[sourceMangaId]?.length ?? 0;
-      if (written != expected) {
-        problems.add('${match.pluginSourceId}/${match.mangaKey}: $written of $expected destination chapters written');
-      }
+    // Records are archive keys: a duplicate generated ID has already
+    // collapsed into one record here, which the chapter count then reveals.
+    return WrittenBackup(
+      manga: <WrittenManga>[
+        for (final PaperbackBackupSourceManga s in sourcesById.values)
+          WrittenManga(
+            sourceId: s.sourceId,
+            mangaId: s.mangaId,
+            chapterIds: chapterIds[s.id]!,
+            stateChapterIds: stateIds[s.id]!,
+          ),
+      ],
+      stateName: 'progress marker for',
+      problems: problems,
+    );
+  }
+}
+
+final class _PaperbackAssembly implements BackupAssembly {
+  _PaperbackAssembly(this.sourceFormatAlias, this.now);
+
+  final String? sourceFormatAlias;
+  final DateTime now;
+  final infos = <PaperbackBackupMangaInfo>[];
+  final sources = <PaperbackBackupSourceManga>[];
+  final chapters = <PaperbackBackupChapter>[];
+  final markers = <PaperbackBackupChapterProgressMarker>[];
+  final library = <PaperbackBackupLibraryManga>[];
+  int unknownNumbers = 0;
+
+  @override
+  void writeManga(MangaConversionPlan plan, PluginSearchResult match) {
+    final SourceMangaData sourceManga = plan.sourceManga;
+    final String sourceId = match.pluginSourceId;
+    final String mangaId = match.mangaKey;
+    final String infoId = paperbackLocalId('manga-info', <String>[sourceId, mangaId]);
+    final String sourceMangaId = paperbackLocalId('source-manga', <String>[sourceId, mangaId]);
+    final PluginMangaDetails? details = plan.confirmation.targetMangaDetails;
+
+    infos.add(
+      PaperbackBackupMangaInfo(
+        id: infoId,
+        titles: <String>[details?.title ?? match.title],
+        covers: const <String>[],
+        image: details?.coverUrl ?? match.coverUrl ?? '',
+        desc: details?.description ?? '',
+        author: (details?.authors ?? match.authors).join(', '),
+        artist: (details?.artists ?? const <String>[]).join(', '),
+        hentai: details?.contentRating == MangaContentRating.nsfw,
+        status: PaperbackBackupBuilder._status(details?.status),
+        tags: <PaperbackBackupMangaTag>[
+          if (details != null && details.tags.isNotEmpty)
+            PaperbackBackupMangaTag(
+              id: 'tags',
+              label: 'Tags',
+              tags: <PaperbackBackupMangaTag>[
+                for (final String t in details.tags) PaperbackBackupMangaTag(id: t, label: t),
+              ],
+            ),
+        ],
+        additionalInfo: PaperbackBackupMangaAdditionalInfo(),
+      ),
+    );
+    sources.add(
+      PaperbackBackupSourceManga(
+        id: sourceMangaId,
+        sourceId: sourceId,
+        mangaId: mangaId,
+        mangaInfo: PaperbackBackupItemReference(type: PaperbackBackupItemType.mangaInfoV4, id: infoId),
+      ),
+    );
+
+    final chapterIds = <String, String>{};
+    for (final PluginChapter c in plan.confirmation.targetChapters) {
+      final String id = paperbackLocalId('chapter', <String>[sourceId, mangaId, c.chapterId]);
+      chapterIds[c.chapterId] = id;
+      if (c.chapterNumber == null) unknownNumbers++;
+      chapters.add(
+        PaperbackBackupChapter(
+          id: id,
+          chapterId: c.chapterId,
+          sourceManga: PaperbackBackupItemReference(type: PaperbackBackupItemType.sourceMangaV4, id: sourceMangaId),
+          chapNum: c.chapterNumber ?? 0,
+          volume: c.volumeNumber ?? 0,
+          langCode: c.language ?? '',
+          // One group field: every group is kept, joined.
+          group: c.scanlator ?? '',
+          name: c.title ?? '',
+          time: c.dateUploaded?.toUtc() ?? paperbackUnknownDate,
+          sortingIndex: c.sourceOrder,
+          isNew: false,
+        ),
+      );
     }
-    return problems;
+
+    for (final ChapterMatch m in plan.reconciliation.matches) {
+      final SourceChapter s = m.source;
+      if (!s.isRead && s.lastPageRead <= 0 && s.dateRead == null) continue;
+      markers.add(
+        PaperbackBackupChapterProgressMarker(
+          chapter: PaperbackBackupItemReference(
+            type: PaperbackBackupItemType.chapterV4,
+            id: chapterIds[m.destination.chapterId]!,
+          ),
+          completed: s.isRead,
+          lastPage: s.lastPageRead,
+          totalPages: s.totalPages ?? 0,
+          time: (s.dateRead ?? sourceManga.lastRead)?.toUtc() ?? paperbackUnknownDate,
+          hidden: false,
+        ),
+      );
+    }
+
+    library.add(
+      PaperbackBackupLibraryManga(
+        id: paperbackLocalId('library-manga', <String>[sourceId, mangaId]),
+        primarySource: PaperbackBackupItemReference(type: PaperbackBackupItemType.sourceMangaV4, id: sourceMangaId),
+        secondarySources: const <PaperbackBackupItemReference>[],
+        trackedSources: const <PaperbackBackupItemReference>[],
+        libraryTabs: <PaperbackBackupLibraryTab>[
+          for (final (int i, String name) in sourceManga.categories.indexed)
+            PaperbackBackupLibraryTab(id: paperbackLocalId('library-tab', <String>[name]), name: name, sortOrder: i),
+        ],
+        lastRead: sourceManga.lastRead?.toUtc(),
+        dateBookmarked: (sourceManga.dateAdded ?? now).toUtc(),
+      ),
+    );
+  }
+
+  @override
+  ConvertableBackup finish(ConversionReport report) {
+    if (unknownNumbers > 0) {
+      report.notes.add(
+        '$unknownNumbers destination chapter(s) have no chapter number; Paperback requires one, so 0 is written',
+      );
+    }
+    return PaperbackBackup(
+      mangaInfo: infos,
+      sourceManga: sources,
+      chapters: chapters,
+      chapterProgressMarker: markers,
+      libraryManga: library,
+      name: sourceFormatAlias == null ? null : 'Migrated from $sourceFormatAlias',
+    );
   }
 }

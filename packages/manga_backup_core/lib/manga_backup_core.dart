@@ -76,5 +76,6 @@ export 'src/formats/tachi/tachi_mihon_encoder.dart';
 export 'src/formats/tachi/tachi_update_strategy.dart';
 export 'src/reconciliation/chapter_decisions.dart';
 export 'src/reconciliation/chapter_reconciler.dart';
+export 'src/writers/aidoku_backup_builder.dart';
 export 'src/writers/paperback_backup_builder.dart';
 export 'src/writers/tachi_backup_builder.dart';

@@ -158,20 +158,11 @@ String unresolvedReason(UnresolvedChapter u) => switch (u) {
 
 /// Records every input record of a manga that is not built — excluded by the
 /// user or without a usable destination — with one shared disposition.
-void accountUnbuilt(MangaConversionPlan plan, ConversionReport report) {
+void accountUnbuilt(MangaConversionPlan plan, ConversionReport report, {String? reason}) {
   final MangaMatchConfirmation c = plan.confirmation;
   final String title = c.sourceManga.details.title;
   final RecordDisposition d = c.excluded ? RecordDisposition.excluded : RecordDisposition.unresolved;
-  final String reason = switch (c) {
-    MangaMatchConfirmation(excluded: true) => 'skipped by the user',
-    MangaMatchConfirmation(:final detailsFailure?) =>
-      'details for the confirmed match could not be fetched (${detailsFailure.code}: ${detailsFailure.message})',
-    MangaMatchConfirmation(:final searchFailures) when searchFailures.isNotEmpty =>
-      'no confirmed match; ${searchFailures.length} source search failure(s): '
-          '${searchFailures.map((PluginSearchFailure f) => '${f.pluginName ?? f.pluginId} ${f.failure.code}').join(', ')}',
-    _ => 'no confirmed match',
-  };
-  report.add(RecordKind.manga, d, title, title, reason: reason);
+  report.add(RecordKind.manga, d, title, title, reason: reason ?? _unbuiltReason(c));
   final childReason = c.excluded ? 'manga skipped by the user' : 'manga not migrated';
   for (final SourceChapter ch in plan.statefulChapters) {
     report.add(RecordKind.chapterState, d, title, chapterLabel(ch), reason: childReason);
@@ -186,6 +177,16 @@ void accountUnbuilt(MangaConversionPlan plan, ConversionReport report) {
     report.add(RecordKind.tracking, d, title, trackingLabel(t), reason: childReason);
   }
 }
+
+String _unbuiltReason(MangaMatchConfirmation c) => switch (c) {
+  MangaMatchConfirmation(excluded: true) => 'skipped by the user',
+  MangaMatchConfirmation(:final detailsFailure?) =>
+    'details for the confirmed match could not be fetched (${detailsFailure.code}: ${detailsFailure.message})',
+  MangaMatchConfirmation(:final searchFailures) when searchFailures.isNotEmpty =>
+    'no confirmed match; ${searchFailures.length} source search failure(s): '
+        '${searchFailures.map((PluginSearchFailure f) => '${f.pluginName ?? f.pluginId} ${f.failure.code}').join(', ')}',
+  _ => 'no confirmed match',
+};
 
 /// Short label for a tracking record.
 String trackingLabel(SourceTrackingEntry t) => 'tracker ${t.syncId}${t.title == null ? '' : ' "${t.title}"'}';

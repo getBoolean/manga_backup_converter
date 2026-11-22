@@ -5,13 +5,13 @@ import 'package:manga_backup_core/src/conversion/manga_details.dart';
 import 'package:manga_backup_core/src/conversion/match_confirmation.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
-import 'package:manga_backup_core/src/conversion/target_backup_builder.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_chapter.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_history.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_library_manga.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup_manga.dart';
 import 'package:manga_backup_core/src/formats/paperback/paperback_backup.dart';
+import 'package:manga_backup_core/src/writers/aidoku_backup_builder.dart';
 import 'package:test/scaffolding.dart';
 
 import '../fixtures/paperback_fixtures.dart' as fx;

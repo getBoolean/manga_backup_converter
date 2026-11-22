@@ -40,114 +40,28 @@ class TachiBackupBuilder extends TargetBackupBuilder {
   BackupFormat get format => fork;
 
   @override
-  ConvertableBackup build(List<MangaConversionPlan> plans, {String? sourceFormatAlias, ConversionReport? report}) {
-    final int now = clock().millisecondsSinceEpoch;
-    // Category order is the list position; Mihon restores a manga's
-    // categories by matching `order` (unverified against a restore: U8).
-    final categoryNames = <String>[];
-    final sources = <String, TachiBackupSource>{};
-    final manga = <TachiBackupManga>[];
-    // Tracker IDs are only meaningful inside the same app's tracker registry.
-    final sameTrackers = sourceFormatAlias == fork.alias;
+  Set<UnrepresentableField> get unrepresentableFields => const <UnrepresentableField>{};
 
-    for (final plan in plans) {
-      final PluginSearchResult? match = plan.confirmation.confirmedMatch;
-      final SourceMangaData sourceManga = plan.sourceManga;
-      if (!plan.isBuildable || match == null) {
-        if (report != null) accountUnbuilt(plan, report);
-        continue;
-      }
-      final String title = sourceManga.details.title;
-      final Int64? sourceId = _int64(match.pluginSourceId);
-      if (sourceId == null) {
-        // Not a Tachi runtime identity: never guessed or hashed into one.
-        report?.add(
-          RecordKind.manga,
-          RecordDisposition.unresolved,
-          title,
-          title,
-          reason: 'destination source ID "${match.pluginSourceId}" is not a Tachi int64 source ID',
-        );
-        continue;
-      }
-      report?.add(RecordKind.manga, RecordDisposition.transferred, title, title);
-      sources[match.pluginSourceId] = TachiBackupSource(
-        name: match.pluginSourceName ?? match.pluginSourceId,
-        sourceId: sourceId.toInt(),
-      );
+  /// Tracker IDs are only meaningful inside the same app's tracker registry.
+  bool _sameTrackers(String? sourceFormatAlias) => sourceFormatAlias == fork.alias;
 
-      final stateByDestination = <String, SourceChapter>{
-        for (final ChapterMatch m in plan.reconciliation.matches) m.destination.chapterId: m.source,
-      };
-      final chapters = <TachiBackupChapter>[];
-      final history = <TachiBackupHistory>[];
-      for (final PluginChapter c in plan.confirmation.targetChapters) {
-        final SourceChapter? s = stateByDestination[c.chapterId];
-        chapters.add(
-          TachiBackupChapter(
-            url: c.chapterId,
-            name: c.title ?? '',
-            scanlator: _rawScanlator(c),
-            read: s?.isRead ?? false,
-            bookmark: s?.isBookmarked ?? false,
-            lastPageRead: s?.lastPageRead ?? 0,
-            dateFetch: now,
-            dateUpload: c.dateUploaded?.millisecondsSinceEpoch ?? 0,
-            chapterNumber: _rawChapterNumber(c),
-            sourceOrder: c.sourceOrder,
-          ),
-        );
-        final DateTime? read = s?.dateRead;
-        if (s != null && read != null) {
-          history.add(TachiBackupHistory(url: c.chapterId, lastRead: read.millisecondsSinceEpoch, readDuration: 0));
-        }
-      }
+  @override
+  TrackingDisposition trackingFor(String? sourceFormatAlias) => _sameTrackers(sourceFormatAlias)
+      ? (disposition: RecordDisposition.transferred, reason: 'same tracker registry (${fork.alias})')
+      : (disposition: RecordDisposition.unrepresentable, reason: unverifiedTrackingReason);
 
-      final categories = <int>[
-        for (final String name in sourceManga.categories) _orderOf(categoryNames, name),
-      ];
-      final PluginMangaDetails? details = plan.confirmation.targetMangaDetails;
-      manga.add(
-        TachiBackupManga(
-          source: sourceId.toInt(),
-          url: match.mangaKey,
-          title: details?.title ?? match.title,
-          artist: (details?.artists ?? const <String>[]).join(', '),
-          author: (details?.authors ?? match.authors).join(', '),
-          description: details?.description ?? '',
-          genre: details?.tags ?? const <String>[],
-          status: _status(details?.status),
-          thumbnailUrl: details?.coverUrl ?? match.coverUrl ?? '',
-          dateAdded: (sourceManga.dateAdded ?? clock()).millisecondsSinceEpoch,
-          viewer: 0,
-          chapters: chapters,
-          categories: categories,
-          tracking: sameTrackers ? sourceManga.tracking.map(_tracking).toList() : const <TachiBackupTracking>[],
-          favorite: true,
-          chapterFlags: 0,
-          viewerFlags: 0,
-          history: history,
-        ),
-      );
-      if (report != null) {
-        accountChapterState(
-          plan,
-          report,
-          trackingDisposition: sameTrackers ? RecordDisposition.transferred : RecordDisposition.unrepresentable,
-          trackingReason: sameTrackers ? 'same tracker registry (${fork.alias})' : unverifiedTrackingReason,
-        );
-      }
-    }
-
-    return TachiBackup(
-      format: fork,
-      backupManga: manga,
-      backupCategories: <TachiBackupCategory>[
-        for (final (int i, String name) in categoryNames.indexed) TachiBackupCategory(name: name, order: i, flags: 0),
-      ],
-      backupSources: sources.values.toList(),
-    );
+  /// A destination source ID that is not a Tachi int64 runtime identity is
+  /// never guessed or hashed into one.
+  @override
+  String? skipReason(MangaConversionPlan plan) {
+    final String? sourceId = plan.confirmation.confirmedMatch?.pluginSourceId;
+    if (sourceId == null || _int64(sourceId) != null) return null;
+    return 'destination source ID "$sourceId" is not a Tachi int64 source ID';
   }
+
+  @override
+  BackupAssembly startBuild({String? sourceFormatAlias}) =>
+      _TachiAssembly(this, sameTrackers: _sameTrackers(sourceFormatAlias), now: clock());
 
   static int _orderOf(List<String> names, String name) {
     final int i = names.indexOf(name);
@@ -202,37 +116,119 @@ class TachiBackupBuilder extends TargetBackupBuilder {
   );
 
   @override
-  List<String> validate(Uint8List bytes, List<MangaConversionPlan> plans) {
-    final (mihon.Backup? backup, List<String> decodeProblems) = decodeForValidation(
-      bytes,
-      (Uint8List b) => mihon.Backup.fromBuffer(const GZipDecoder().decodeBytes(b)),
-    );
-    if (backup == null) return decodeProblems;
+  WrittenBackup project(Uint8List bytes) {
+    final backup = mihon.Backup.fromBuffer(const GZipDecoder().decodeBytes(bytes));
     final problems = <String>[];
-    final index = FetchedChapterIndex(plans);
     final sourceIds = <Int64>{for (final mihon.BackupSource s in backup.backupSources) s.sourceId};
     final orders = <Int64>{for (final mihon.BackupCategory c in backup.backupCategories) c.order};
-    final seenManga = <String>{};
+    final manga = <WrittenManga>[];
     for (final mihon.BackupManga m in backup.backupManga) {
       final source = m.source.toString();
-      final label = '$source ${m.url}';
-      if (!seenManga.add(label)) problems.add('manga $label is written twice');
-      if (!sourceIds.contains(m.source)) problems.add('manga $label: source is not listed');
-      if (!index.hasManga(source, m.url)) problems.add('manga $label: not a confirmed destination');
+      if (!sourceIds.contains(m.source)) problems.add('manga $source/${m.url}: source is not listed');
       for (final Int64 c in m.categories) {
-        if (!orders.contains(c)) problems.add('manga $label: unknown category order $c');
+        if (!orders.contains(c)) problems.add('manga $source/${m.url}: unknown category order $c');
       }
-      final chapterUrls = <String>{};
-      for (final mihon.BackupChapter c in m.chapters) {
-        if (!chapterUrls.add(c.url)) problems.add('manga $label: chapter ${c.url} is written twice');
-        if (!index.fetched(source, m.url, c.url)) {
-          problems.add('manga $label: chapter ${c.url} was not returned by the destination runtime');
-        }
-      }
-      for (final mihon.BackupHistory h in m.history) {
-        if (!chapterUrls.contains(h.url)) problems.add('manga $label: history ${h.url} has no chapter');
+      manga.add(
+        WrittenManga(
+          sourceId: source,
+          mangaId: m.url,
+          chapterIds: <String>[for (final mihon.BackupChapter c in m.chapters) c.url],
+          stateChapterIds: <String>[for (final mihon.BackupHistory h in m.history) h.url],
+        ),
+      );
+    }
+    return WrittenBackup(manga: manga, stateName: 'history', problems: problems);
+  }
+}
+
+final class _TachiAssembly implements BackupAssembly {
+  _TachiAssembly(this.builder, {required this.sameTrackers, required DateTime now})
+    : now = now,
+      nowMs = now.millisecondsSinceEpoch;
+
+  final TachiBackupBuilder builder;
+  final bool sameTrackers;
+  final DateTime now;
+  final int nowMs;
+
+  // Category order is the list position; Mihon restores a manga's
+  // categories by matching `order` (unverified against a restore: U8).
+  final categoryNames = <String>[];
+  final sources = <String, TachiBackupSource>{};
+  final manga = <TachiBackupManga>[];
+
+  @override
+  void writeManga(MangaConversionPlan plan, PluginSearchResult match) {
+    final SourceMangaData sourceManga = plan.sourceManga;
+    final int sourceId = TachiBackupBuilder._int64(match.pluginSourceId)!.toInt();
+    sources[match.pluginSourceId] = TachiBackupSource(
+      name: match.pluginSourceName ?? match.pluginSourceId,
+      sourceId: sourceId,
+    );
+
+    final stateByDestination = <String, SourceChapter>{
+      for (final ChapterMatch m in plan.reconciliation.matches) m.destination.chapterId: m.source,
+    };
+    final chapters = <TachiBackupChapter>[];
+    final history = <TachiBackupHistory>[];
+    for (final PluginChapter c in plan.confirmation.targetChapters) {
+      final SourceChapter? s = stateByDestination[c.chapterId];
+      chapters.add(
+        TachiBackupChapter(
+          url: c.chapterId,
+          name: c.title ?? '',
+          scanlator: TachiBackupBuilder._rawScanlator(c),
+          read: s?.isRead ?? false,
+          bookmark: s?.isBookmarked ?? false,
+          lastPageRead: s?.lastPageRead ?? 0,
+          dateFetch: nowMs,
+          dateUpload: c.dateUploaded?.millisecondsSinceEpoch ?? 0,
+          chapterNumber: TachiBackupBuilder._rawChapterNumber(c),
+          sourceOrder: c.sourceOrder,
+        ),
+      );
+      final DateTime? read = s?.dateRead;
+      if (s != null && read != null) {
+        history.add(TachiBackupHistory(url: c.chapterId, lastRead: read.millisecondsSinceEpoch, readDuration: 0));
       }
     }
-    return problems;
+
+    final PluginMangaDetails? details = plan.confirmation.targetMangaDetails;
+    manga.add(
+      TachiBackupManga(
+        source: sourceId,
+        url: match.mangaKey,
+        title: details?.title ?? match.title,
+        artist: (details?.artists ?? const <String>[]).join(', '),
+        author: (details?.authors ?? match.authors).join(', '),
+        description: details?.description ?? '',
+        genre: details?.tags ?? const <String>[],
+        status: TachiBackupBuilder._status(details?.status),
+        thumbnailUrl: details?.coverUrl ?? match.coverUrl ?? '',
+        dateAdded: (sourceManga.dateAdded ?? now).millisecondsSinceEpoch,
+        viewer: 0,
+        chapters: chapters,
+        categories: <int>[
+          for (final String name in sourceManga.categories) TachiBackupBuilder._orderOf(categoryNames, name),
+        ],
+        tracking: sameTrackers
+            ? sourceManga.tracking.map(TachiBackupBuilder._tracking).toList()
+            : const <TachiBackupTracking>[],
+        favorite: true,
+        chapterFlags: 0,
+        viewerFlags: 0,
+        history: history,
+      ),
+    );
   }
+
+  @override
+  ConvertableBackup finish(ConversionReport report) => TachiBackup(
+    format: builder.fork,
+    backupManga: manga,
+    backupCategories: <TachiBackupCategory>[
+      for (final (int i, String name) in categoryNames.indexed) TachiBackupCategory(name: name, order: i, flags: 0),
+    ],
+    backupSources: sources.values.toList(),
+  );
 }

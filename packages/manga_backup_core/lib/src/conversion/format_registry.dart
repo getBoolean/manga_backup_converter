@@ -8,6 +8,7 @@ import 'package:manga_backup_core/src/conversion/target_backup_builder.dart';
 import 'package:manga_backup_core/src/formats/aidoku/aidoku_backup.dart';
 import 'package:manga_backup_core/src/formats/paperback/paperback_backup.dart';
 import 'package:manga_backup_core/src/formats/tachi/tachi_backup.dart';
+import 'package:manga_backup_core/src/writers/aidoku_backup_builder.dart';
 import 'package:manga_backup_core/src/writers/paperback_backup_builder.dart';
 import 'package:manga_backup_core/src/writers/tachi_backup_builder.dart';
 
