@@ -4,6 +4,7 @@ import 'package:manga_backup_core/src/common/convertable.dart';
 import 'package:manga_backup_core/src/conversion/backup_format.dart';
 import 'package:manga_backup_core/src/conversion/conversion_plan.dart';
 import 'package:manga_backup_core/src/conversion/conversion_report.dart';
+import 'package:manga_backup_core/src/conversion/destination_merge.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
 import 'package:manga_backup_core/src/reconciliation/chapter_reconciler.dart';
@@ -75,6 +76,17 @@ abstract class TargetBackupBuilder {
     final Set<UnrepresentableField> limits = unrepresentableFields;
     var joinedScanlators = 0;
 
+    // Source manga confirmed to the same destination manga are written once,
+    // merged (mergeDestinationPlans); each is still accounted on its own.
+    final byDestination = <String, List<MangaConversionPlan>>{};
+    for (final plan in plans) {
+      final PluginSearchResult? match = plan.confirmation.confirmedMatch;
+      if (!plan.isBuildable || match == null || skipReason(plan) != null) continue;
+      (byDestination[FetchedChapterIndex._key(match.pluginSourceId, match.mangaKey)] ??= <MangaConversionPlan>[]).add(
+        plan,
+      );
+    }
+
     for (final plan in plans) {
       final PluginSearchResult? match = plan.confirmation.confirmedMatch;
       if (!plan.isBuildable || match == null) {
@@ -88,10 +100,26 @@ abstract class TargetBackupBuilder {
       }
       final String title = plan.sourceManga.details.title;
       accounting.add(RecordKind.manga, RecordDisposition.transferred, title, title);
-      assembly.writeManga(plan, match);
-
-      if (limits.contains(UnrepresentableField.scanlatorGroups)) {
-        joinedScanlators += plan.confirmation.targetChapters.where((PluginChapter c) => c.scanlators.length > 1).length;
+      final List<MangaConversionPlan> group =
+          byDestination[FetchedChapterIndex._key(
+            match.pluginSourceId,
+            match.mangaKey,
+          )]!;
+      if (identical(group.first, plan)) {
+        final MangaConversionPlan written = mergeDestinationPlans(group);
+        assembly.writeManga(written, match);
+        if (limits.contains(UnrepresentableField.scanlatorGroups)) {
+          joinedScanlators += written.confirmation.targetChapters
+              .where((PluginChapter c) => c.scanlators.length > 1)
+              .length;
+        }
+        if (group.length > 1) {
+          accounting.notes.add(
+            '${group.map((MangaConversionPlan p) => _sourceLabel(p.sourceManga)).join(' and ')} were confirmed to '
+            'the same destination manga (${match.pluginSourceId}/${match.mangaKey}); it is written once, with '
+            'their reading state, categories and dates merged',
+          );
+        }
       }
       if (limits.contains(UnrepresentableField.chapterBookmark)) {
         for (final ChapterMatch m in plan.reconciliation.matches.where((ChapterMatch m) => m.source.isBookmarked)) {
@@ -115,6 +143,9 @@ abstract class TargetBackupBuilder {
     }
     return assembly.finish(accounting);
   }
+
+  static String _sourceLabel(SourceMangaData m) =>
+      '"${m.details.title}"${m.sourceId == null ? '' : ' (${m.sourceId})'}';
 
   /// Structural validation of the exact [bytes] that will be published,
   /// decoded again, against the [plans] they were built from (see

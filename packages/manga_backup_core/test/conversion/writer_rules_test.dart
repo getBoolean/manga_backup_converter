@@ -88,49 +88,80 @@ void main() {
   });
 
   // Two source manga (the same series from two sources) confirmed to one
-  // destination manga. Pinned per writer: the destination records collapse
-  // when they are identical; when they differ (the destination reports no
-  // artist, so each falls back to its own source's), Aidoku and Tachi write
-  // the manga twice and validation refuses the output.
+  // destination manga: every writer writes the destination once, merged,
+  // and the report names both source manga.
   group('two source manga confirmed to one destination', () {
-    MangaMatchConfirmation twin(SourceIdentity identity, String artist, {required bool destinationArtists}) {
-      final SourceMangaData source = statefulManga();
-      return fetchedConfirmation(
-        SourceMangaData(
-          details: MangaSearchDetails(title: source.details.title, artists: <String>[artist]),
-          sourceId: source.sourceId,
-          sourceMangaKey: source.sourceMangaKey,
-          chapters: source.chapters,
-        ),
-        identity,
-        mangaId: 'm1',
-        chapters: destinationChapters(),
-        artists: destinationArtists ? const <String>['Artist B'] : const <String>[],
-      );
-    }
+    MangaMatchConfirmation twin(
+      SourceIdentity identity, {
+      required String sourceId,
+      required String artist,
+      required List<String> categories,
+      required List<SourceChapter> chapters,
+    }) => fetchedConfirmation(
+      SourceMangaData(
+        details: MangaSearchDetails(title: 'Onimai', artists: <String>[artist]),
+        sourceId: sourceId,
+        sourceMangaKey: 'onimai',
+        categories: categories,
+        chapters: chapters,
+      ),
+      identity,
+      mangaId: 'm1',
+      chapters: destinationChapters(),
+      // No destination artist: each source would fall back to its own.
+      artists: const <String>[],
+    );
 
-    Future<List<String>> problems(TargetBackupBuilder writer, SourceIdentity identity, {required bool same}) async {
-      final plans = <MangaConversionPlan>[
-        planConversion(twin(identity, 'From source one', destinationArtists: same)),
-        planConversion(twin(identity, 'From source two', destinationArtists: same)),
-      ];
-      final ConvertableBackup backup = writer.build(plans, report: ConversionReport());
-      return writer.validate(await backup.toData(), plans);
-    }
-
-    final expectations = <String, (bool, bool)>{
-      // format: (valid when the records are identical, valid when they differ)
-      'Aidoku': (true, false),
-      'Paperback': (true, true),
-      'Mihon': (false, false),
-    };
     for (final (TargetBackupBuilder writer, SourceIdentity identity) in writers) {
-      test('${writer.format}', () async {
-        final (bool identical, bool differing) = expectations['${writer.format}']!;
-        check(because: 'identical records', (await problems(writer, identity, same: true)).isEmpty).equals(identical);
-        final List<String> found = await problems(writer, identity, same: false);
-        check(because: 'differing records', found.isEmpty).equals(differing);
-        if (!differing) check(found).any((Subject<String> it) => it.contains('is written twice'));
+      test('${writer.format} writes the destination once, merged, with a note', () async {
+        final plans = <MangaConversionPlan>[
+          planConversion(
+            twin(
+              identity,
+              sourceId: 'source-one',
+              artist: 'Artist One',
+              categories: const <String>['Reading'],
+              chapters: <SourceChapter>[SourceChapter(title: 'One', chapterNumber: 1, isRead: true)],
+            ),
+          ),
+          planConversion(
+            twin(
+              identity,
+              sourceId: 'source-two',
+              artist: 'Artist Two',
+              categories: const <String>['Reading', 'Favourites'],
+              chapters: <SourceChapter>[
+                SourceChapter(title: 'One', chapterNumber: 1, lastPageRead: 3),
+                SourceChapter(title: 'Two', chapterNumber: 2, lastPageRead: 5, totalPages: 20),
+              ],
+            ),
+          ),
+        ];
+        final report = ConversionReport();
+        final Uint8List bytes = await writer.build(plans, report: report).toData();
+
+        check(writer.validate(bytes, plans)).isEmpty();
+        check(report.notes).any(
+          (Subject<String> it) => it
+            ..contains('"Onimai" (source-one) and "Onimai" (source-two)')
+            ..contains('written once'),
+        );
+        // Each source manga is still accounted on its own.
+        check(report.where(RecordKind.manga, RecordDisposition.transferred)).length.equals(2);
+        check(report.where(RecordKind.chapterState, RecordDisposition.transferred)).length.equals(3);
+
+        final SourceMangaData written = (await FormatRegistry.portable().codecFor(writer.format)!(bytes))
+            .sourceMangaDataEntries
+            .single;
+        check(written.categories.toSet()).deepEquals(<String>{'Reading', 'Favourites'});
+        // Read back as the planner does: history folded into its chapters.
+        final List<SourceChapter> state = mergeHistoryIntoChapters(
+          written,
+        ).$1.where((SourceChapter c) => c.hasReadingState).toList();
+        // Chapter 1 folds "read" from one source and page 3 from the other.
+        final SourceChapter one = state.firstWhere((SourceChapter c) => c.chapterNumber == 1);
+        check(one.isRead).isTrue();
+        check(state.any((SourceChapter c) => c.chapterNumber == 2)).isTrue();
       });
     }
   });
