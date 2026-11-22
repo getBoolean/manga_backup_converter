@@ -7,6 +7,7 @@ import 'package:manga_backup_core/src/conversion/backup_format.dart';
 import 'package:manga_backup_core/src/conversion/conversion_journal.dart';
 import 'package:manga_backup_core/src/conversion/conversion_owner.dart';
 import 'package:manga_backup_core/src/conversion/conversion_report.dart';
+import 'package:manga_backup_core/src/conversion/conversion_session.dart';
 import 'package:manga_backup_core/src/conversion/conversion_strategy.dart';
 import 'package:manga_backup_core/src/conversion/extension_settings.dart';
 import 'package:manga_backup_core/src/conversion/format_registry.dart';
@@ -97,50 +98,55 @@ final class ConversionResult {
 }
 
 /// The conversion job every host runs (KTD14): the CLI and the Flutter app
-/// service differ only in the adapters they inject — the [RuntimeRegistry]
-/// (source providers and capabilities), the [SelectionPort] (user
-/// decisions), the [ConversionOutput] and [JournalStore] (platform I/O).
+/// service differ only in the adapters they inject. The job holds the
+/// host-lifetime parts — the [FormatRegistry], the [RuntimeRegistry] (source
+/// providers and capabilities), the [TrustStore], the redactor and the
+/// runtime scope adoption — and each [run] takes the per-run parts: the
+/// [ConversionRequest], the [ConversionOutput] and the [ConversionSession]
+/// (user decisions, journal, policies, progress).
 ///
-/// It decodes the input with the [FormatRegistry], checks the destination is
-/// enabled on this host (writer and runtime, or a direct converter), runs
-/// the pipeline (which validates the exact output bytes, KTD8), and only
-/// then publishes and clears the journal. Any failure publishes nothing.
+/// A run decodes the input with the [FormatRegistry], checks the destination
+/// is enabled on this host (writer and runtime, or a direct converter),
+/// decides the [ConversionRoute] once, runs the pipeline on it (which
+/// validates the exact output bytes, KTD8), and only then publishes and
+/// clears the journal. Any failure publishes nothing.
 final class ConversionJob {
+  /// The per-run parameters ([selection] through [settingsFor]) are a
+  /// compatibility path: given here, they form the session [run] uses when it
+  /// is passed none. New hosts pass a [ConversionSession] to [run] instead.
   ConversionJob({
     required this.formats,
     required this.runtimes,
-    required this.selection,
-    this.onProgress = _noProgress,
-    this.journalStore,
-    this.ratingPolicy = const SourceRatingPolicy(),
-    this.languagePolicy,
     this.trustStore,
     this.redact = _identity,
     this.onOwnerOpened,
-    this.onResume,
-    this.onDecoded,
-    this.settingsFor = noExtensionSettings,
-  });
+    SelectionPort? selection,
+    void Function(int current, int total, String message)? onProgress,
+    JournalStore? journalStore,
+    SourceRatingPolicy ratingPolicy = const SourceRatingPolicy(),
+    SourceLanguagePolicy? languagePolicy,
+    void Function(int decisions)? onResume,
+    void Function(ConvertableBackup input)? onDecoded,
+    ExtensionSettingsProvider settingsFor = noExtensionSettings,
+  }) : _defaultSession = selection == null
+           ? null
+           : ConversionSession(
+               selection: selection,
+               onProgress: onProgress ?? _noProgress,
+               journalStore: journalStore,
+               ratingPolicy: ratingPolicy,
+               languagePolicy: languagePolicy,
+               onResume: onResume,
+               onDecoded: onDecoded,
+               settingsFor: settingsFor,
+             );
 
   final FormatRegistry formats;
-
-  /// The user's extension settings, handed to the destination runtime.
-  final ExtensionSettingsProvider settingsFor;
   final RuntimeRegistry runtimes;
-  final SelectionPort selection;
-  final void Function(int current, int total, String message) onProgress;
-  final JournalStore? journalStore;
-  final SourceRatingPolicy ratingPolicy;
-
-  /// `null` infers the languages from the input backup.
-  final SourceLanguagePolicy? languagePolicy;
   final TrustStore? trustStore;
   final String Function(String text) redact;
   final FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened;
-  final void Function(int decisions)? onResume;
-
-  /// Called with the decoded input before conversion (diagnostics).
-  final void Function(ConvertableBackup input)? onDecoded;
+  final ConversionSession? _defaultSession;
 
   static void _noProgress(int current, int total, String message) {}
   static String _identity(String s) => s;
@@ -154,56 +160,57 @@ final class ConversionJob {
   bool enabled(BackupFormat source, BackupFormat target, {bool forceMigration = false}) =>
       unavailable(source, target, forceMigration: forceMigration) == null;
 
-  Future<ConversionResult> run(ConversionRequest request, ConversionOutput output) async {
+  Future<ConversionResult> run(ConversionRequest request, ConversionOutput output, [ConversionSession? session]) async {
+    final ConversionSession s =
+        session ?? _defaultSession ?? (throw ArgumentError('ConversionJob.run needs a ConversionSession'));
+    final ConversionRoute route = _route(request, s);
+
+    final ConvertableBackup input = await formats.codecFor(request.sourceFormat)!(
+      Uint8List.fromList(request.input),
+      name: request.inputName,
+    );
+    s.onDecoded?.call(input);
+
+    final ConversionDraft draft =
+        await MigrationPipeline.forJob(
+          session: s,
+          repoUrls: request.repoUrls,
+          explicitSources: request.sources,
+          formats: formats,
+          trustStore: trustStore,
+          redact: redact,
+          onOwnerOpened: onOwnerOpened,
+        ).execute(
+          route,
+          sourceBackup: input,
+          sourceFormat: request.sourceFormat,
+          targetFormat: request.targetFormat,
+          inputIdentity: sha256.convert(request.input).toString(),
+        );
+    await output.publish(draft.bytes);
+    await s.journalStore?.clear();
+    return ConversionResult(draft: draft, input: input);
+  }
+
+  /// The one decision of how [request] is produced on this host; throws
+  /// [DestinationUnavailable] when it cannot be.
+  ConversionRoute _route(ConversionRequest request, ConversionSession session) {
     final SourceFailure? missing = unavailable(
       request.sourceFormat,
       request.targetFormat,
       forceMigration: request.forceMigration,
     );
     if (missing != null) throw DestinationUnavailable(missing);
-
-    final bool direct =
-        determineStrategy(request.sourceFormat, request.targetFormat) is DirectConversion && !request.forceMigration;
-    PluginLoader? loader;
-    if (!direct) {
-      final SourceOutcome<PluginLoader> resolved = runtimes.loaderFor(
-        request.targetFormat,
-        RuntimeContext(settingsFor: settingsFor),
-      );
-      loader = resolved.valueOrNull;
-      if (loader == null) throw DestinationUnavailable(resolved.failureOrNull!);
+    if (determineStrategy(request.sourceFormat, request.targetFormat) is DirectConversion && !request.forceMigration) {
+      return DirectRoute(formats.directConverter!);
     }
-
-    final ConvertableBackup input = await formats.codecFor(request.sourceFormat)!(
-      Uint8List.fromList(request.input),
-      name: request.inputName,
+    final SourceOutcome<PluginLoader> loader = runtimes.loaderFor(
+      request.targetFormat,
+      RuntimeContext(settingsFor: session.settingsFor),
     );
-    onDecoded?.call(input);
-
-    final pipeline = MigrationPipeline(
-      repoUrls: request.repoUrls,
-      selection: selection,
-      onProgress: onProgress,
-      pluginLoader: loader,
-      formats: formats,
-      languagePolicy: languagePolicy,
-      explicitSources: request.sources,
-      onOwnerOpened: onOwnerOpened,
-      journalStore: journalStore,
-      onResume: onResume,
-      ratingPolicy: ratingPolicy,
-      trustStore: trustStore,
-      redact: redact,
+    return MigrationRoute(
+      writer: formats.writerFor(request.targetFormat)!,
+      loader: loader.valueOrNull ?? (throw DestinationUnavailable(loader.failureOrNull!)),
     );
-    final ConversionDraft draft = await pipeline.run(
-      sourceBackup: input,
-      sourceFormat: request.sourceFormat,
-      targetFormat: request.targetFormat,
-      forceMigration: request.forceMigration,
-      inputIdentity: sha256.convert(request.input).toString(),
-    );
-    await output.publish(draft.bytes);
-    await journalStore?.clear();
-    return ConversionResult(draft: draft, input: input);
   }
 }

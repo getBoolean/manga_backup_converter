@@ -164,6 +164,37 @@ void main() {
     }
   });
 
+  test('one host-lifetime job runs each conversion with its own session', () async {
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('aidoku', <String>[])]);
+    final job = ConversionJob(formats: FormatRegistry.portable(), runtimes: runtimes);
+    final Uint8List input = await _input(const Mihon());
+    final ConversionRequest request = _request(input, const Mihon(), const Aidoku());
+    await check(job.run(request, MemoryOutput())).throws<ArgumentError>();
+
+    for (final run in <int>[1, 2]) {
+      final progress = <String>[];
+      final journal = InMemoryJournalStore();
+      final output = MemoryOutput();
+      final ConversionResult result = await job.run(
+        request,
+        output,
+        ConversionSession(
+          selection: CallbackSelectionPort(
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onConfirmMatches: confirmExactTitle,
+            acceptPartial: true,
+          ),
+          journalStore: journal,
+          onProgress: (_, _, String message) => progress.add(message),
+        ),
+      );
+      check(because: 'run $run', output.publishes).equals(1);
+      check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
+      check(progress).isNotEmpty();
+      check(journal.json).isNull(); // cleared after publishing
+    }
+  });
+
   test('AE3: an ambiguous destination is not published without explicit acceptance', () async {
     final ambiguous = <NativeChapter>[
       const NativeChapter(chapterId: 'a', sourceOrder: 0, chapterNumber: 1, title: 'Chapter 1'),

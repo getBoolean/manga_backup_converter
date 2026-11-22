@@ -20,6 +20,7 @@ export 'src/conversion/conversion_journal.dart';
 export 'src/conversion/conversion_owner.dart';
 export 'src/conversion/conversion_plan.dart';
 export 'src/conversion/conversion_report.dart';
+export 'src/conversion/conversion_session.dart';
 export 'src/conversion/conversion_strategy.dart';
 export 'src/conversion/details_outcome.dart';
 export 'src/conversion/extension_entry.dart';

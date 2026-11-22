@@ -7,6 +7,7 @@ import 'package:manga_backup_core/src/conversion/conversion_journal.dart';
 import 'package:manga_backup_core/src/conversion/conversion_owner.dart';
 import 'package:manga_backup_core/src/conversion/conversion_plan.dart';
 import 'package:manga_backup_core/src/conversion/conversion_report.dart';
+import 'package:manga_backup_core/src/conversion/conversion_session.dart';
 import 'package:manga_backup_core/src/conversion/conversion_strategy.dart';
 import 'package:manga_backup_core/src/conversion/details_outcome.dart';
 import 'package:manga_backup_core/src/conversion/extension_entry.dart';
@@ -24,6 +25,7 @@ import 'package:manga_backup_core/src/conversion/stable_keys.dart';
 import 'package:manga_backup_core/src/conversion/target_backup_builder.dart';
 import 'package:manga_backup_core/src/exceptions/migration_exception.dart';
 import 'package:manga_backup_core/src/reconciliation/chapter_decisions.dart';
+import 'package:meta/meta.dart';
 import 'package:source_runtime/source_contracts.dart';
 
 /// A built and structurally validated destination document, its exact
@@ -82,42 +84,89 @@ class PartialConversionDeclined extends MigrationException {
   final ConversionReport report;
 }
 
+/// How a conversion produces its destination, decided once before any
+/// source work: a direct conversion, or plugin migration through a writer
+/// and the destination runtime's loader.
+sealed class ConversionRoute {
+  const ConversionRoute();
+}
+
+/// Converts field by field with [convert]; no sources.
+final class DirectRoute extends ConversionRoute {
+  const DirectRoute(this.convert);
+
+  final DirectConverter convert;
+}
+
+/// Migrates through [loader]'s sources and builds with [writer].
+final class MigrationRoute extends ConversionRoute {
+  const MigrationRoute({required this.writer, required this.loader});
+
+  final TargetBackupBuilder writer;
+  final PluginLoader loader;
+}
+
 /// Runs a conversion: direct conversion for formats that need no sources, or
 /// plugin migration with complete loss accounting (KTD8).
+///
+/// Hosts run conversions through `ConversionJob`, which decides the
+/// [ConversionRoute] and hands it to [execute]. The public constructor and
+/// [run] are a standalone path (tests, tools) that decides the route itself.
 class MigrationPipeline {
   MigrationPipeline({
     required this.repoUrls,
-    required this.selection,
-    required this.onProgress,
+    required SelectionPort selection,
+    required void Function(int current, int total, String message) onProgress,
     this.pluginLoader,
     FormatRegistry? formats,
     DirectConverter? directConverter,
-    this.languagePolicy,
+    SourceLanguagePolicy? languagePolicy,
     this.explicitSources = const <String>{},
     this.onOwnerOpened,
-    this.journalStore,
-    this.onResume,
-    this.ratingPolicy = const SourceRatingPolicy(),
+    JournalStore? journalStore,
+    void Function(int decisions)? onResume,
+    SourceRatingPolicy ratingPolicy = const SourceRatingPolicy(),
     TrustStore? trustStore,
     this.redact = _identity,
-  }) : trustStore = trustStore ?? InMemoryTrustStore(),
+  }) : session = ConversionSession(
+         selection: selection,
+         onProgress: onProgress,
+         journalStore: journalStore,
+         ratingPolicy: ratingPolicy,
+         languagePolicy: languagePolicy,
+         onResume: onResume,
+       ),
+       trustStore = trustStore ?? InMemoryTrustStore(),
        formats = formats ?? FormatRegistry.portable(),
        directConverter = directConverter ?? formats?.directConverter;
 
-  final List<String> repoUrls;
-  final SelectionPort selection;
-  final void Function(int current, int total, String message) onProgress;
+  /// The pipeline a `ConversionJob` runs for one request.
+  @internal
+  MigrationPipeline.forJob({
+    required this.session,
+    required this.repoUrls,
+    required this.explicitSources,
+    required this.formats,
+    required TrustStore? trustStore,
+    required this.redact,
+    required this.onOwnerOpened,
+  }) : trustStore = trustStore ?? InMemoryTrustStore(),
+       pluginLoader = null,
+       directConverter = null;
 
-  /// The destination runtime's loader; required for migration.
+  /// The run's collaborators: selection, progress, journal and policies.
+  final ConversionSession session;
+
+  final List<String> repoUrls;
+
+  /// The destination runtime's loader, for [run]'s migrations.
   final PluginLoader? pluginLoader;
 
-  /// Writers (and codecs, used to re-check direct conversions).
+  /// Codecs, used to re-check direct conversions (and, for [run], writers).
   final FormatRegistry formats;
-  final DirectConverter? directConverter;
 
-  /// Narrows sources by language; `null` infers the languages from the
-  /// input backup ([SourceLanguagePolicy.inferredFrom]).
-  final SourceLanguagePolicy? languagePolicy;
+  /// For [run]'s direct conversions.
+  final DirectConverter? directConverter;
 
   /// Runtime source IDs the user named: exactly these are searched, with no
   /// language narrowing; every one must load.
@@ -127,22 +176,17 @@ class MigrationPipeline {
   /// fetched; composition roots adopt their runtime scope (worker processes)
   /// here so it is closed in the same `finally` as every plugin.
   final FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened;
-
-  /// Persists the conversion journal; `null` disables journaling.
-  final JournalStore? journalStore;
-
-  /// Called when a journal for the same input is resumed, with the number of
-  /// journaled manga decisions (hosts tell the user and offer a fresh start).
-  final void Function(int decisions)? onResume;
-  final SourceRatingPolicy ratingPolicy;
   final TrustStore trustStore;
 
   /// Applied to every failure message before it enters the report or the
   /// journal (KTD9). The CLI passes its session `Redactor`.
   final String Function(String text) redact;
 
+  SelectionPort get _selection => session.selection;
+
   static String _identity(String s) => s;
 
+  /// Decides the route from this pipeline's own parts, then runs it.
   Future<ConversionDraft> run({
     required ConvertableBackup sourceBackup,
     required BackupFormat sourceFormat,
@@ -152,42 +196,68 @@ class MigrationPipeline {
     /// Identity of the input backup (for example a digest of its bytes);
     /// required for the journal to resume a conversion.
     String? inputIdentity,
-  }) async {
-    final bool direct = determineStrategy(sourceFormat, targetFormat) is DirectConversion && !forceMigration;
-    if (direct) return _directConvert(sourceBackup, targetFormat);
-    if (formats.writerFor(targetFormat) == null) {
+  }) async => execute(
+    _route(sourceFormat, targetFormat, forceMigration: forceMigration),
+    sourceBackup: sourceBackup,
+    sourceFormat: sourceFormat,
+    targetFormat: targetFormat,
+    inputIdentity: inputIdentity,
+  );
+
+  ConversionRoute _route(BackupFormat source, BackupFormat target, {required bool forceMigration}) {
+    if (determineStrategy(source, target) is DirectConversion && !forceMigration) {
+      final DirectConverter? convert = directConverter;
+      if (convert == null) {
+        throw DestinationUnavailable(
+          CapabilityUnavailableFailure('direct.${target.alias}', 'No direct converter is registered for $target'),
+        );
+      }
+      return DirectRoute(convert);
+    }
+    final TargetBackupBuilder? writer = formats.writerFor(target);
+    if (writer == null) {
       throw DestinationUnavailable(
-        CapabilityUnavailableFailure(
-          'writer.${targetFormat.alias}',
-          'No backup writer is registered for $targetFormat',
-        ),
+        CapabilityUnavailableFailure('writer.${target.alias}', 'No backup writer is registered for $target'),
       );
     }
-    if (pluginLoader == null) {
+    final PluginLoader? loader = pluginLoader;
+    if (loader == null) {
       throw DestinationUnavailable(
-        CapabilityUnavailableFailure(
-          'runtime.${targetFormat.alias}',
-          'No source runtime was supplied for $targetFormat',
-        ),
+        CapabilityUnavailableFailure('runtime.${target.alias}', 'No source runtime was supplied for $target'),
       );
     }
-    return _runMigration(sourceBackup, sourceFormat, targetFormat, inputIdentity);
+    return MigrationRoute(writer: writer, loader: loader);
   }
+
+  /// Runs the decided [route] (the `ConversionJob` path).
+  @internal
+  Future<ConversionDraft> execute(
+    ConversionRoute route, {
+    required ConvertableBackup sourceBackup,
+    required BackupFormat sourceFormat,
+    required BackupFormat targetFormat,
+    String? inputIdentity,
+  }) => switch (route) {
+    DirectRoute(:final DirectConverter convert) => _directConvert(convert, sourceBackup, targetFormat),
+    MigrationRoute(:final TargetBackupBuilder writer, :final PluginLoader loader) => _runMigration(
+      writer,
+      loader,
+      sourceBackup,
+      sourceFormat,
+      targetFormat,
+      inputIdentity,
+    ),
+  };
 
   /// Converts without sources. Every manga, state-bearing chapter and
   /// tracking record is accounted as transferred (the converter carries them
   /// over field by field) and the converter adds what it changes or drops.
   /// The output is decoded again before it may be published.
-  Future<ConversionDraft> _directConvert(ConvertableBackup sourceBackup, BackupFormat targetFormat) async {
-    final DirectConverter? convert = directConverter;
-    if (convert == null) {
-      throw DestinationUnavailable(
-        CapabilityUnavailableFailure(
-          'direct.${targetFormat.alias}',
-          'No direct converter is registered for $targetFormat',
-        ),
-      );
-    }
+  Future<ConversionDraft> _directConvert(
+    DirectConverter convert,
+    ConvertableBackup sourceBackup,
+    BackupFormat targetFormat,
+  ) async {
     final report = ConversionReport();
     final List<SourceMangaData> manga = sourceBackup.sourceMangaDataEntries;
     for (final m in manga) {
@@ -218,11 +288,13 @@ class MigrationPipeline {
       }
     }
     if (problems.isNotEmpty) throw InvalidConversionOutput(targetFormat, problems, report);
-    if (report.isPartial && !await selection.acceptPartialConversion(report)) throw PartialConversionDeclined(report);
+    if (report.isPartial && !await _selection.acceptPartialConversion(report)) throw PartialConversionDeclined(report);
     return ConversionDraft(backup: backup, bytes: bytes, report: report, partialAccepted: report.isPartial);
   }
 
   Future<ConversionDraft> _runMigration(
+    TargetBackupBuilder writer,
+    PluginLoader loader,
     ConvertableBackup sourceBackup,
     BackupFormat sourceFormat,
     BackupFormat targetFormat,
@@ -232,19 +304,21 @@ class MigrationPipeline {
     try {
       await onOwnerOpened?.call(owner);
       final _Journal journal = await _Journal.open(
-        journalStore,
+        session.journalStore,
         inputIdentity: inputIdentity,
         sourceFormat: sourceFormat.alias,
         targetFormat: targetFormat.alias,
       );
-      if (journal.resumedDecisions > 0) onResume?.call(journal.resumedDecisions);
-      return await _migrate(owner, journal, sourceBackup, sourceFormat, targetFormat);
+      if (journal.resumedDecisions > 0) session.onResume?.call(journal.resumedDecisions);
+      return await _migrate(writer, loader, owner, journal, sourceBackup, sourceFormat, targetFormat);
     } finally {
       await owner.close();
     }
   }
 
   Future<ConversionDraft> _migrate(
+    TargetBackupBuilder writer,
+    PluginLoader loader,
     ConversionOwner owner,
     _Journal journal,
     ConvertableBackup sourceBackup,
@@ -252,10 +326,13 @@ class MigrationPipeline {
     BackupFormat targetFormat,
   ) async {
     final report = ConversionReport();
+    final SelectionPort selection = _selection;
+    final void Function(int current, int total, String message) onProgress = session.onProgress;
+    final SourceRatingPolicy ratingPolicy = session.ratingPolicy;
     final gate = RepositoryTrustGate(store: trustStore, decide: selection.decideRepositoryTrust);
 
     onProgress(0, 0, 'Fetching extension lists...');
-    final List<ExtensionEntry> availableExtensions = await pluginLoader!.fetchExtensionLists(
+    final List<ExtensionEntry> availableExtensions = await loader.fetchExtensionLists(
       repoUrls,
       onWarning: (String msg) => onProgress(0, 0, 'Warning: ${redact(msg)}'),
       trust: gate,
@@ -273,7 +350,7 @@ class MigrationPipeline {
     final List<SourceMangaData> mangaList = sourceBackup.sourceMangaDataEntries;
     final SourceLanguagePolicy languages = explicitSources.isNotEmpty
         ? const SourceLanguagePolicy.any()
-        : languagePolicy ?? SourceLanguagePolicy.inferredFrom(mangaList);
+        : session.languagePolicy ?? SourceLanguagePolicy.inferredFrom(mangaList);
     report.notes.add(
       explicitSources.isNotEmpty
           ? 'Exactly the named sources were searched (${(explicitSources.toList()..sort()).join(', ')}); '
@@ -300,7 +377,7 @@ class MigrationPipeline {
 
     onProgress(0, selected.length, 'Loading plugins...');
     final loadFailures = <PluginLoadFailure>[];
-    final List<PluginSource> loaded = await pluginLoader!.loadPlugins(
+    final List<PluginSource> loaded = await loader.loadPlugins(
       selected,
       onProgress: onProgress,
       owner: owner,
@@ -449,7 +526,6 @@ class MigrationPipeline {
       plans.add(plan);
     }
 
-    final TargetBackupBuilder writer = formats.writerFor(targetFormat)!;
     final ConvertableBackup backup = writer.build(plans, sourceFormatAlias: sourceFormat.alias, report: report);
     // KTD8: validate the exact bytes that will be published, before asking
     // for acceptance; an invalid output is never offered or written.

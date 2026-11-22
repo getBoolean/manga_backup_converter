@@ -825,17 +825,17 @@ void main() {
 }
 
 extension on MigrationPipeline {
-  /// A copy with an [MigrationPipeline.onResume] callback.
+  /// A copy with an `onResume` callback.
   MigrationPipeline copyWithResume(void Function(int decisions) onResume) => MigrationPipeline(
     repoUrls: repoUrls,
-    selection: selection,
-    onProgress: onProgress,
+    selection: session.selection,
+    onProgress: session.onProgress,
     pluginLoader: pluginLoader,
     directConverter: directConverter,
     onOwnerOpened: onOwnerOpened,
-    journalStore: journalStore,
+    journalStore: session.journalStore,
     onResume: onResume,
-    ratingPolicy: ratingPolicy,
+    ratingPolicy: session.ratingPolicy,
     trustStore: trustStore,
     redact: redact,
   );
