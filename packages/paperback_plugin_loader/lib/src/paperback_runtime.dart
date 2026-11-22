@@ -199,7 +199,7 @@ final class PaperbackSourceHost {
     runtime.bridge.registerAsync('__pbHost.fetch', (List<Object?> args) {
       final Object? wire = args.isEmpty ? null : args.first;
       if (wire is! Map<String, Object?>) throw const HostCallError('fetch expects an object');
-      return http.exchange(wire);
+      return http.exchange(wire, maxBodyBytes: runtime.limits.memoryLimitBytes);
     });
     runtime.bridge.registerAsync('__pbHost.wake', (List<Object?> args) async {
       final num ms = args.isEmpty ? 0 : (args.first as num? ?? 0);
