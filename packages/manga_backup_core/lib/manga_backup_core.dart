@@ -8,6 +8,7 @@ library;
 export 'src/common/aidoku_date_time_mapper.dart';
 export 'src/common/convertable.dart';
 export 'src/common/fix_double_encoding.dart';
+export 'src/common/language_code.dart';
 export 'src/common/legacy_proto_field.dart';
 export 'src/common/normalize_chapter_number.dart';
 export 'src/common/paperback_date_time_mapper.dart';

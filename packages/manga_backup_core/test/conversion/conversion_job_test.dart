@@ -407,19 +407,17 @@ void main() {
       check(r.report.notes).any((Subject<String> it) => it.contains('records no content language'));
     });
 
-    test('entries are narrowed by their listed languages; unrecognised codes are kept', () {
+    test('sources match by primary subtag; multi-language and unrecognised languages are kept', () {
       final policy = SourceLanguagePolicy.parse('pt');
-      const entries = <ExtensionEntry>[
-        StubExtensionEntry(id: 'br', name: 'BR', languages: <String>['pt-BR']),
-        StubExtensionEntry(id: 'en', name: 'EN', languages: <String>['en']),
-        StubExtensionEntry(id: 'multi', name: 'Multi', languages: <String>['multi']),
-        StubExtensionEntry(id: 'flag', name: 'Flag', languages: <String>['🇬🇧']),
+      final allowed = <String>[
+        for (final String language in <String>['pt-BR', 'en', 'multi', 'mul', 'all', '🇬🇧'])
+          if (policy.allowsLanguage(language)) language,
       ];
-      final ({int hidden, List<ExtensionEntry> visible}) r = policy.apply(entries);
-      check(r.visible.map((ExtensionEntry e) => e.id)).deepEquals(<String>['br', 'multi', 'flag']);
-      check(r.hidden).equals(1);
+      check(allowed).deepEquals(<String>['pt-BR', 'multi', 'mul', 'all', '🇬🇧']);
       check(() => SourceLanguagePolicy.parse('not a code!')).throws<FormatException>();
       check(SourceLanguagePolicy.parse('all').languages).isNull();
+      check(SourceLanguagePolicy.parse('mul').languages).isNull();
+      check(SourceLanguagePolicy.parse('PT_br, ja').languages).isNotNull().deepEquals(<String>{'pt-br', 'ja'});
     });
   });
 }

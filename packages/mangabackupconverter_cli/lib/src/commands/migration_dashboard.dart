@@ -483,13 +483,11 @@ List<String> _renderEntry(MigrationEntry entry, bool isCursor, Spinner spinner, 
 /// result order are not evidence of identity, so anything else is left for
 /// the user to choose (interactive) or unresolved (non-interactive).
 PluginSearchResult? uniqueExactTitleMatch(String title, Iterable<PluginSearchResult> candidates) {
-  final String wanted = _normalizeTitle(title);
-  if (wanted.isEmpty) return null;
+  final String? wanted = normalizedChapterTitle(title);
+  if (wanted == null) return null;
   final List<PluginSearchResult> exact = candidates
-      .where((PluginSearchResult r) => _normalizeTitle(r.title) == wanted)
+      .where((PluginSearchResult r) => normalizedChapterTitle(r.title) == wanted)
       .take(2)
       .toList();
   return exact.length == 1 ? exact.single : null;
 }
-
-String _normalizeTitle(String title) => title.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
