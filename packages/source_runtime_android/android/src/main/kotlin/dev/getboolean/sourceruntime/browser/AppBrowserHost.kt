@@ -34,7 +34,6 @@ import androidx.webkit.WebViewFeature
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Replies and events of [AppBrowserHost]; implemented in Dart as a JNIgen
@@ -81,7 +80,7 @@ class AppBrowserHost(context: Context, private val listener: AppBrowserListener)
 
     @Volatile private var disposed = false
 
-    private val foreground: (Int) -> Unit = { started -> event("", "foreground", JSONObject().put("started", started)) }
+    private val foreground: (Boolean) -> Unit = { fg -> event("", "foreground", JSONObject().put("started", if (fg) 1 else 0)) }
 
     init {
         ActivityTracker.install(app, foreground)
@@ -160,7 +159,7 @@ class AppBrowserHost(context: Context, private val listener: AppBrowserListener)
             .put("multiProfile", multiProfile)
             .put("features", features)
             .put("webViewPackage", pkg?.let { "${it.packageName} ${it.versionName}" } ?: JSONObject.NULL)
-            .put("startedActivities", ActivityTracker.started)
+            .put("startedActivities", if (ActivityTracker.foreground) maxOf(ActivityTracker.started, 1) else 0)
         if (!a.optBoolean("offline")) {
             ok(callId, info)
             return
@@ -550,88 +549,6 @@ internal class BrowserSessionView(
             if (confirmed) host.okReply(callId, detail) else host.failReply(callId, "unconfirmed", "Storage deletion left data: $detail")
         }
     }
-}
-
-/**
- * Counts started Activities of this process (process-wide foreground state).
- *
- * Listeners hear "background" (0) only after no Activity has been started
- * for [BACKGROUND_DELAY_MS], as `ProcessLifecycleOwner` does: an Activity
- * recreated for a configuration change, or one replacing another, stops
- * before its successor starts, and that gap is not the app leaving the
- * foreground.
- */
-internal object ActivityTracker : android.app.Application.ActivityLifecycleCallbacks {
-    @Volatile var started = 0
-        private set
-
-    private const val BACKGROUND_DELAY_MS = 700L
-    private val main = android.os.Handler(android.os.Looper.getMainLooper())
-    private var reported = -1
-    private val reportBackground = Runnable { if (started == 0) report() }
-
-    private fun report() {
-        if ((reported == 0) == (started == 0) && reported != -1) return
-        reported = started
-        listeners.keys.forEach { it(started) }
-    }
-
-    @Volatile var top: android.app.Activity? = null
-        private set
-
-    private val listeners = ConcurrentHashMap<(Int) -> Unit, Boolean>()
-    private var installed = false
-
-    fun install(context: Context, onChange: (Int) -> Unit) {
-        listeners[onChange] = true
-        if (installed) return
-        installed = true
-        (context.applicationContext as android.app.Application).registerActivityLifecycleCallbacks(this)
-        // Activities started before the first host existed.
-        started = currentlyStarted(context)
-        reported = started
-    }
-
-    fun remove(onChange: (Int) -> Unit) {
-        listeners.remove(onChange)
-    }
-
-    private fun currentlyStarted(context: Context): Int {
-        val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return 0
-        val visible = am.runningAppProcesses.orEmpty().any {
-            it.pid == android.os.Process.myPid() &&
-                it.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
-        }
-        return if (visible) 1 else 0
-    }
-
-    override fun onActivityStarted(activity: android.app.Activity) {
-        started++
-        main.removeCallbacks(reportBackground)
-        report()
-    }
-
-    override fun onActivityStopped(activity: android.app.Activity) {
-        started = (started - 1).coerceAtLeast(0)
-        if (started == 0) {
-            main.removeCallbacks(reportBackground)
-            main.postDelayed(reportBackground, BACKGROUND_DELAY_MS)
-        }
-    }
-
-    override fun onActivityResumed(activity: android.app.Activity) {
-        top = activity
-    }
-
-    override fun onActivityPaused(activity: android.app.Activity) {
-        if (top === activity) top = null
-    }
-
-    override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
-
-    override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
-
-    override fun onActivityDestroyed(activity: android.app.Activity) {}
 }
 
 /**

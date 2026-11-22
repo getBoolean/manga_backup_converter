@@ -117,10 +117,14 @@ final class AndroidConversionHarness extends ConversionHarness {
     this.logs,
     this.fixtureRepositoryUrl,
     this.webViewOfflineUnavailableReason,
+    this.paperbackSite,
   ) : super(root, 'U14');
 
   final AndroidSourceRuntimes runtimes;
   final HoldableClient aidokuSite;
+
+  /// Holds Paperback site responses inside the worker isolate.
+  final FileHold paperbackSite;
   final List<String> logs;
 
   /// The synthetic fixture repository, when the harness serves it.
@@ -164,6 +168,7 @@ final class AndroidConversionHarness extends ConversionHarness {
     final String paperback = copyFixtureAssetDirectory(
       'source_captures/paperback',
     );
+    final paperbackHold = '${dir.path}/paperback-hold';
     final repositories = <FixtureRepository>[
       FixtureRepository(
         baseUrl: keiyoushiRepository,
@@ -210,10 +215,13 @@ final class AndroidConversionHarness extends ConversionHarness {
         inkdex: Directory('$paperback/inkdex-0.9'),
       ),
       aidokuSiteClient: aidokuSite,
-      paperbackSiteClient: () => MultiReplayHttpClient.load(<Directory>[
-        Directory('$paperback/weebcentral'),
-        Directory('$paperback/mangafire'),
-      ]),
+      paperbackSiteClient: () => FileHoldClient(
+        MultiReplayHttpClient.load(<Directory>[
+          Directory('$paperback/weebcentral'),
+          Directory('$paperback/mangafire'),
+        ]),
+        paperbackHold,
+      ),
       tachiFetch: FixtureFetch(repositories).call,
       tachiWorkerArguments: <String>[
         for (final String name in tachiCaptureSources) ...<String>[
@@ -244,6 +252,7 @@ final class AndroidConversionHarness extends ConversionHarness {
       logs,
       fixtureUrl,
       offlineUnavailable,
+      FileHold(paperbackHold),
     );
   }
 
@@ -254,6 +263,7 @@ final class AndroidConversionHarness extends ConversionHarness {
   /// Resource counters that must return to their baseline after each job.
   Map<String, Object?> resources() => <String, Object?>{
     'browserSessions': runtimes.browserPort?.sessions.length,
+    'gatedCalls': runtimes.backgroundGate.pendingCalls,
     'tachiScopeOpen': runtimes.tachiScope != null,
     'paperbackScopeOpen': runtimes.paperbackScope != null,
     'servicePids': servicePids(),

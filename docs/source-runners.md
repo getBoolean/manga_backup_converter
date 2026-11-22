@@ -632,8 +632,20 @@ the Android branch of the app's composition root. It shares `LocalSourceRuntimes
   refuses replay mode and the Tachi worker refuses `--offline-browser`. Cases that load pages then skip with that
   reason. Before U14, the service's hook only reported the missing override and carried on, so on that image
   service WebViews reached the network (U14 receipts, "API 28 network contact").
-- **Lifecycle.** Only the browser port reacts to backgrounding on Android. A destroyed `MainActivity` destroys the
-  Flutter engine and with it the conversion; the journal resumes it at the next launch.
+- **Lifecycle (KTD18).** One signal, `AndroidAppForeground` over the Kotlin `AppForegroundMonitor` (the Activity
+  tracker the browser port's host already used: background after 700 ms without a started Activity; a visible
+  `:source_runtime` challenge Activity counts as foreground; on the emulator a bound worker alone does not keep the app in the foreground, and a challenge on screen is not yet exercised), feeds the shared `BackgroundGate`
+  (`source_runtime`) first and the browser port second. The gate wraps the Aidoku provider and both worker scopes
+  (`WorkerSupervisor.gate`). While backgrounded, new calls fail `cancelled: app-backgrounded`; searches and
+  details in flight answer the same at once and their late replies are dropped; prepare, load and settings calls
+  already sent finish (interrupting them would leave the worker holding untracked state); cleanup and restart
+  rehydration are never gated; no new worker starts. Sessions stay open and work resumes in the foreground. A job
+  whose calls failed this way publishes nothing partial unless the user accepts the partial result. iOS uses the
+  same gate class for Aidoku only.
+- **Activity recreation and process death: journal resume is enough.** A destroyed `MainActivity` destroys the
+  Flutter engine and with it the conversion; the journal resumes it at the next launch. There is no cached engine
+  and no foreground service: keeping a job alive across recreation would need one, and the journal already
+  avoids asking the user again for decisions already made.
 - **Packaging.** `scripts/android_package_check.py` records the APK identity, SDK levels, signing identity and
   native library hashes, and fails on missing notices, missing runtime ABIs or extension/repository payload.
   `android/app/gradle.lockfile` locks the app's Gradle closure, except Flutter's engine artifacts. The Android

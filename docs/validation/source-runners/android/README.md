@@ -255,7 +255,7 @@ Verification (static; the release APK was not run): `tools/tachi-source-runner/a
 - **Cloudflare interaction.** (Addressed in U12 for interactive runs; see "Carried from U11".) The `CloudflareInterceptor` still fails with `interaction-required` (the desktop behaviour). It does not open `ChallengeActivity` yet; the Activity and its visible-only launcher exist and are tested directly.
 - **Resources.** `Context.getString(resId)` resolves against the app's resources, not the extension's: the extension's resources are not merged. None of the qualification sources call it.
 - **Not implemented:**
-  - Pausing new work and fencing callbacks when the app is backgrounded (KTD18 lifecycle).
+  - Pausing new work and fencing callbacks when the app is backgrounded (KTD18 lifecycle). (Addressed by the background gate; see "Android background gate" at the end.)
   - The app-scoped conversion job and its recovery from the KTD8 journal (the journal exists in `manga_backup_core` but is not exercised on Android).
   - Activity recreation was not run. The worker lives in a bound service; nothing in U11 ties it to an Activity, and `MainActivity` handles configuration changes itself.
 - **U17 gate test.** `integration_test/android_runtime_gate_test.dart` passes 4/5 on this branch. Scenario 2 asserts `construction['ok'] == false` with `Stub!`; with the real host, MangaDex's sources now construct (`ok` true), so the case stops there, before its writable and tampered staged-file checks. The file is outside U11's ownership: it needs its construction assertion updated.
@@ -279,7 +279,7 @@ Final run, on `feat/source-runners` 28b44470 (branch head `5b584a5b`): `flutter 
   - **Messages:** one private `WebViewCompat.addWebMessageListener` bridge per session, registered before the first load, reports the engine-attested frame origin; Dart applies the KTD20 origin rule. Channel objects and page-start scripts are `addDocumentStartJavaScript` scripts, channels first. The port refuses to start without `WEB_MESSAGE_LISTENER` and `DOCUMENT_START_SCRIPT`. WebView reports a loadData document's URL as `about:blank`, so the session uses its loadData base URL as the document for the origin rule.
   - **Evaluate (protocol 1.3):** values and thrown errors come back through `evaluateJavascript`; a returned thenable posts its settled value on the bridge (`scriptErrors` is available). A page CSP without `unsafe-eval` falls back to the unwrapped script, without promise awaiting. An evaluation still running when its WebView is destroyed settles as cancelled.
   - **Show (protocol 1.3):** `BrowserInteractionActivity` (app process, not exported) hosts the session's WebView, which lives on a `MutableContextWrapper` and outlives the Activity. The close button, back or task removal ends it as `closed`; timeout, cancel and session close hide it. A configuration change recreates the Activity, and the new instance re-attaches the same WebView.
-  - **Backgrounding:** when no Activity of the process has been started for 700 ms (the `ProcessLifecycleOwner` delay, so recreation gaps do not count), pending loads and evaluations end as interaction-required, and new work and shows are refused the same way. `setBackgroundedOverride` is the test seam.
+  - **Backgrounding:** when no Activity of the process has been started for 700 ms (the `ProcessLifecycleOwner` delay, so recreation gaps do not count), pending loads and evaluations end as interaction-required, and new work and shows are refused the same way. `setBackgroundedOverride` is the test seam. (Since the background gate, the tracker lives in `AppForegroundMonitor` and the app composition passes the port the shared `AndroidAppForeground` signal; see "Android background gate".)
   - **Cookies, UA, redirects, binary data:** a cookie is set with one `Set-Cookie` line (injection refused) and read back as name and value, which is what `CookieManager` reports. A redirect to `file:` is refused as capability-unavailable; `file:` and `content:` access are off, and non-web subresources get a blocked response. Status codes are reported for HTTP errors only: WebView exposes no status for a successful main-frame load, so 200 reads as `null`. `replaceRequests` and `observeRequestBodies` are named unavailable.
   - **Replay mode** (`AndroidBrowserConfig.offline`, tests only): `ProxyController` points every WebView request of the process at a loopback refuser with no DIRECT fallback; loopback hosts keep Chromium's implicit bypass. The port refuses to start if the override is not confirmed. Debug builds allow cleartext to `127.0.0.1` only (`android/app/src/debug/res/xml/srt_debug_network_security.xml`); release keeps the platform default.
 
@@ -449,8 +449,8 @@ refreshed release record (304 expected components, 307 with a full text, none mi
 
 - **Physical ARM64, release profile (R16, AE9).** All six directions, AE10, AE11, kill-and-relaunch, recreation and backgrounding still need a physical ARM64 device with a release-profile build. Only x86_64 debug builds ran these cases; the release APK was only launched.
 - **MangaFire success path** (AE11) needs a live challenge. Offline it fails with named errors in both ecosystems, which keeps M2 open.
-- **Backgrounding gate.** On Android only the browser port reacts when the app goes to the background. An in-flight Aidoku or Tachi call keeps running. An Aidoku call that outlives the host's 30 s request timeout comes back as an empty search page without a named error. iOS has an Aidoku gate (`IosAidokuBackend.setBackgrounded`). Whether Android should get one (and Tachi lifecycle pausing, already listed under U11) is a decision for the parent.
-- **Activity recreation ends the job.** `MainActivity` is a plain `FlutterActivity` that owns its engine, so destroying the Activity destroys the Dart isolate and the conversion; the journal makes the next launch resume. Keeping a job alive across recreation would need an engine that outlives the Activity (a cached engine or a foreground service). That is a product decision, not taken here.
+- **Backgrounding gate.** Decided and done: Android gates Aidoku, Paperback and Tachi (see "Android background gate" at the end).
+- **Activity recreation ends the job.** `MainActivity` is a plain `FlutterActivity` that owns its engine, so destroying the Activity destroys the Dart isolate and the conversion; the journal makes the next launch resume. Decision: journal resume is enough; there is no cached engine and no foreground service (see "Android background gate").
 - **Requeue after service death.** The supervisor re-sends a call that was in flight when the service died (AE10 receipt). If that call itself killed the service (for example, a native crash), it gets one more attempt before it fails. The deadline path does not re-send.
 - **Restore.** Restoring Android-built Paperback and Aidoku backups is iOS-device work under U8's restore prerequisites. The Mihon check refreshed through Mihon's own live traffic (outside the test suite, as authorised).
 - **Host notices.** Closed by the licensing follow-up: every crate, artifact and vendored library now has its full text (see Notices).
@@ -460,3 +460,47 @@ refreshed release record (304 expected components, 307 with a full text, none mi
 - **The CI package-check step was not run in CI**; the same command passed locally on the release APK.
 - **Platforms built.** Android debug and release, and Windows debug (the licence registration now imports `source_runtime_android` on every native platform). iOS, macOS and Linux were not built.
 - **iOS not re-run.** The iOS branch moved onto `LocalSourceRuntimes`, and the iOS harness onto the shared harness. Both analyze clean, but no iOS suite ran (no Mac here).
+
+# Android background gate — receipts
+
+## Decision
+
+- **Gate:** Android gets a background gate like iOS (parent decision). Aidoku (U13), Paperback (U12 isolate) and Tachi (U11 service) calls go through it.
+- **Activity recreation → journal resume is enough.** A destroyed `MainActivity` ends the job with its engine, and the next launch resumes from the journal. There is no cached engine and no foreground service.
+
+## How it works
+
+- **One signal.** The Activity tracker moved out of `AppBrowserHost` into `browser/AppForeground.kt`. `AppForegroundMonitor` and `AppForegroundListener` are a JNIgen facade, with `@Keep` and consumer rules. The Dart side, `AndroidAppForeground`, notifies its listeners in order. `AndroidSourceRuntimes.start` adds the gate first and passes the same object to the browser port. Given that object, the port ignores its host's own foreground events. The gate therefore answers `cancelled: app-backgrounded` before the port reacts. The test seam is `AndroidAppForeground.setBackgroundedOverride`.
+- **Challenge Activity.** Tachi's `ChallengeActivity` runs in `:source_runtime`. While this process has no started Activity, the tracker treats another process of the app (same UID) at importance `VISIBLE` or better as foreground. It re-checks every 700 ms, so an interactive Cloudflare challenge is not cancelled as backgrounding.
+  - **Checked on the emulator:** a bound Tachi worker does not keep the app in the foreground after Home. In "BG real tachi" the app was reported backgrounded about 2.8 s after agent-device `home` returned (5.3 s after the case asked for it). That is a few re-checks beyond the 700 ms delay: the service's inherited importance drops shortly after the app's. So the rule did not need changing.
+  - **Not checked:** the positive half, that a challenge on screen keeps the app in the foreground. The harness runs `interactive: false`, so no `ChallengeActivity` is shown during a job.
+- **Gate** (`BackgroundGate`, `source_runtime`):
+  - The Aidoku provider is wrapped by `gate.provider`, the shared form of the former iOS gate.
+  - The workers go through `WorkerSupervisor.gate`, via `ConversionRuntimeScope(gate:)`.
+  - `search` and `details` are refused when new, and interrupted in flight: they answer at once, a cooperative cancel is sent, and the late reply is dropped.
+  - `artifact.prepare`, `package.load` and `settings.update` are refused when new but finish once sent. Interrupting them would leave the worker holding state the supervisor does not track.
+  - `dispose`, `package.unload`, restart rehydration, handshake and shutdown are never gated.
+  - A scope does not start a new worker while backgrounded.
+- **iOS** uses the same `BackgroundGate` class inside `IosAidokuBackend`, with an unchanged API. iOS still gates Aidoku only: Paperback and Tachi were never gated there (`workerGate` is `null`).
+
+## Results
+
+API 36 emulator (AVD `Pixel_9_Pro`, Android 16, x86_64, debug build). The AVD normally lives on B:, which was full, so it ran from a temporary copy on C: with a cold boot (`-no-snapshot`); the copy was deleted afterwards.
+
+| Suite | Result |
+|---|---|
+| "BG real tachi", the first case run, driven by agent-device `home`/`open` | pass: held `busy` search `cancelled: app-backgrounded`, two new searches refused, retry after reopen hit `2131019126180322627`, one validated output, no service or scope left |
+| "BG real" (Aidoku, Paperback, Tachi), driven by agent-device | 3/3 pass; each held call answered `cancelled: app-backgrounded` once (0-9 ms after detection), new calls were refused, the retry after reopen hit (`en.weebcentral`, `WeebCentral`, `2131019126180322627`), and each job published one output |
+| "BG programmatic" (declined and resume, three ecosystems) | 6/6 pass; declined jobs threw `PartialConversionDeclined` and published nothing, then the same runtimes published the next job; resumed jobs published exactly one output |
+| Whole file `source_runners_android_test.dart` (U11-U14 + BG) | 110 pass, 7 skip, 1 fail. The failure is U11 "extension WebViews run in the service; cookies and web storage are wiped…" (`webview=timeout`, the first service WebView after a cold boot). It passed when re-run alone (1/1). That case runs only in `:source_runtime` and touches neither the tracker nor the gate |
+| `packages/source_runtime` host (incl. `background_gate_test.dart`, 10 new) | 221 pass |
+| `packages/source_runtime_ios` host | 12 pass (iOS device suites not run: no Mac) |
+| `packages/source_runtime_android` host (incl. the shared-signal port case) | 31 pass |
+| `test/features/conversion` | 7 pass |
+| JNIgen bindings regenerated twice | no diff on the second run |
+| Debug APK, release APK | built |
+| `scripts/android_package_check.py` on the release APK (`--build-dir build`) | PASS; R8 kept `AppForegroundMonitor`, `AppForegroundListener` and `onForegroundChanged` |
+| `dart analyze --fatal-infos` (three packages, `lib`, `integration_test`, `test`), format | clean |
+
+- **Device actions.** Home and reopen went through agent-device. Once agent-device `open` reported "could not launch the application" while the app still came back to the foreground (the case recorded `foregrounded`). A System UI "isn't responding" dialog after the cold boot was dismissed with agent-device `alert dismiss`. That disturbed the first try of "BG real tachi", whose held call had already reached its deadline before Home; the receipt row above is from a clean run.
+- **Detection times** (`detected-after-ask-ms` in the events) include agent-device and log-flush latency. They are upper bounds, not the tracker's own delay.

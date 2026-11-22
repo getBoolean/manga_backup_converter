@@ -60,6 +60,16 @@ final class _FakeNative implements AppBrowserNative {
   void dispose() => disposed = true;
 }
 
+final class _FakeForeground implements AppForegroundNative {
+  bool disposed = false;
+
+  @override
+  bool get isForeground => true;
+
+  @override
+  void dispose() => disposed = true;
+}
+
 Map<String, _Handler> _defaults({bool multiProfile = true, Map<String, Object?>? features}) => <String, _Handler>{
   'init': (_) => (
     true,
@@ -261,6 +271,51 @@ void main() {
     native.event('', 'foreground', <String, Object?>{'started': 1});
     check(port.isBackgrounded).isFalse();
     await port.dispose();
+  });
+
+  test('with the shared lifecycle signal the port follows it, after the gate, and ignores host events', () async {
+    late void Function(bool) emit;
+    final fake = _FakeForeground();
+    final AndroidAppForeground foreground = AndroidAppForeground.start(
+      native: (void Function(bool) onChange) {
+        emit = onChange;
+        return fake;
+      },
+    ).valueOrNull!;
+    final gate = BackgroundGate();
+    final order = <String>[];
+    foreground.addListener((bool b) {
+      gate.setBackgrounded(b);
+      order.add('gate');
+    });
+    late _FakeNative native;
+    final AndroidWebViewBrowserPort port = (await AndroidWebViewBrowserPort.start(
+      native: (onReply, onEvent) => native = _FakeNative(onReply, onEvent, _defaults()..['loadUrl'] = (_) => null),
+      foreground: foreground,
+    )).valueOrNull!;
+    foreground.addListener((_) => order.add('after-port'));
+    final AndroidWebViewBrowserSession s = await _open(port, 'a');
+    final Future<BrowserOutcome<BrowserPage>> pending = s.loadUrl(Uri.parse('https://a.test/'));
+    await Future<void>.delayed(Duration.zero);
+    // The host's own event no longer moves the port.
+    native.event('', 'foreground', <String, Object?>{'started': 0});
+    check(port.isBackgrounded).isFalse();
+    emit(false);
+    check(gate.isBackgrounded).isTrue();
+    check(port.isBackgrounded).isTrue();
+    check(order).deepEquals(<String>['gate', 'after-port']);
+    check(await pending).isA<BrowserInteractionRequired<BrowserPage>>();
+    emit(true);
+    check(gate.isBackgrounded).isFalse();
+    check(port.isBackgrounded).isFalse();
+    foreground.setBackgroundedOverride(true);
+    check(port.isBackgrounded).isTrue();
+    check(gate.isBackgrounded).isTrue();
+    foreground.setBackgroundedOverride(null);
+    check(port.isBackgrounded).isFalse();
+    await port.dispose();
+    foreground.dispose();
+    check(fake.disposed).isTrue();
   });
 
   group('protocol 1.3 show', () {

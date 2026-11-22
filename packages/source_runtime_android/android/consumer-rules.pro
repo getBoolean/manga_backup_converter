@@ -15,6 +15,8 @@
 -keep interface dev.getboolean.sourceruntime.tachi.TachiWorkerListener { *; }
 -keep class dev.getboolean.sourceruntime.browser.AppBrowserHost { public *; }
 -keep interface dev.getboolean.sourceruntime.browser.AppBrowserListener { *; }
+-keep class dev.getboolean.sourceruntime.browser.AppForegroundMonitor { public *; }
+-keep interface dev.getboolean.sourceruntime.browser.AppForegroundListener { *; }
 -keep class dev.getboolean.sourceruntime.browser.ProfileProbe { public *; }
 
 # The extension host surface (Mihon source API, Kotlin, OkHttp, jsoup, ...)

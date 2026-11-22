@@ -30,6 +30,8 @@ const List<String> _facadeClasses = <String>[
   'dev.getboolean.sourceruntime.tachi.FixtureAssets',
   'dev.getboolean.sourceruntime.browser.AppBrowserHost',
   'dev.getboolean.sourceruntime.browser.AppBrowserListener',
+  'dev.getboolean.sourceruntime.browser.AppForegroundMonitor',
+  'dev.getboolean.sourceruntime.browser.AppForegroundListener',
 ];
 
 Future<void> main() async {

@@ -1,6 +1,7 @@
 // U13: the Aidoku runner on Android (KTD22), U11's Tachi cases, U12's
 // Paperback and app-process BrowserPort cases (android_u12_cases.dart) and
-// U14's complete conversion jobs (android_u14_cases.dart). Runs
+// U14's complete conversion jobs (android_u14_cases.dart) and the background
+// gate inside jobs (android_background_cases.dart). Runs
 // on an Android device or emulator:
 //   flutter test integration_test/source_runners_android_test.dart -d <device>
 //
@@ -35,6 +36,7 @@ import 'package:tachi_plugin_loader/tachi_plugin_loader.dart';
 import 'package:tachi_plugin_loader/testing.dart';
 
 import 'aidoku_fixture_bundle.g.dart';
+import 'android_background_cases.dart';
 import 'android_u12_cases.dart';
 import 'android_u14_cases.dart';
 import 'support/android_conversion_harness.dart' show webViewOfflineUnavailable;
@@ -1619,4 +1621,5 @@ void _tachiCases() {
 
   registerU12Cases();
   registerU14Cases();
+  registerBackgroundCases();
 }

@@ -98,13 +98,15 @@ final class AndroidTachiBackend {
   };
 
   /// A conversion-scoped owner of the Tachi worker.
-  ConversionRuntimeScope scope({void Function(String line)? onLog, Redactor? redactor}) => ConversionRuntimeScope(
-    workers: <WorkerKind, WorkerSpec>{WorkerKind.jvm: spec},
-    limits: limits,
-    launcher: launcher,
-    onLog: onLog,
-    redactor: redactor,
-  );
+  ConversionRuntimeScope scope({void Function(String line)? onLog, Redactor? redactor, BackgroundGate? gate}) =>
+      ConversionRuntimeScope(
+        workers: <WorkerKind, WorkerSpec>{WorkerKind.jvm: spec},
+        limits: limits,
+        launcher: launcher,
+        onLog: onLog,
+        redactor: redactor,
+        gate: gate,
+      );
 
   /// A supervisor of the Tachi worker (for callers that own it directly).
   WorkerSupervisor supervisor({void Function(String line)? onLog, Redactor? redactor}) =>
