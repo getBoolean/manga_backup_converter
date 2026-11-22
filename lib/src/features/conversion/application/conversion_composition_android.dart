@@ -12,6 +12,19 @@
 //   through the common `TachiRuntime` with APK artifacts only (KTD17). Its
 //   WebViews are real ones inside the service, not the browser port.
 //
+// Backgrounding (KTD18): one app-lifecycle signal, `AndroidAppForeground`
+// (the Activity tracker the browser port's host already used), feeds the
+// shared `BackgroundGate` first and the browser port second. The gate sits in
+// front of Aidoku (provider decorator) and both workers (supervisor hook):
+// while backgrounded new calls fail `cancelled: app-backgrounded`, searches
+// and details in flight answer the same at once with late replies dropped,
+// and in the foreground work resumes on the same sessions. A conversion
+// whose calls failed this way publishes nothing partial unless the user
+// accepts the partial result. Activity recreation and process death are
+// left to the journal: a destroyed `MainActivity` ends the job with its
+// engine, and the next launch resumes from the journal (no cached engine,
+// no foreground service).
+//
 // The app is interactive, so a production configuration lets Cloudflare
 // challenges open the service's challenge Activity (`--interactive-challenges`)
 // and the browser port show interactions; unattended runs turn both off.
@@ -79,6 +92,8 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
     required this._paperback,
     required SourceOutcome<AndroidWebViewBrowserPort> browser,
     required super.paperbackPlan,
+    required this.appForeground,
+    required BackgroundGate gate,
   }) : _aidoku = aidoku,
        _port = browser.valueOrNull,
        tachi = AndroidTachiBackend(
@@ -86,11 +101,12 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
          handshakeDeadline: config.tachiHandshakeDeadline,
        ),
        super._(
+         workerGate: gate,
          aidoku: switch (aidoku) {
            SourceSuccess<AndroidAidokuBackend>(
              :final AndroidAidokuBackend value,
            ) =>
-             SourceSuccess<SourceProvider>(value.provider),
+             SourceSuccess<SourceProvider>(gate.provider(value.provider)),
            SourceFailed<AndroidAidokuBackend>(:final SourceFailure failure) =>
              SourceFailed<SourceProvider>(failure),
          },
@@ -120,8 +136,26 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
         );
     final SourceFailure? paperback =
         AndroidPaperbackBackend.checkNativeLibrary();
+    // The one lifecycle signal: the gate hears it before the port does.
+    final gate = BackgroundGate();
+    final SourceOutcome<AndroidAppForeground> started =
+        AndroidAppForeground.start();
+    final AndroidAppForeground? foreground = started.valueOrNull;
+    if (foreground == null) {
+      config.onLog?.call(
+        config.redactor.redact(
+          '[lifecycle] unavailable: ${started.failureOrNull!.message}',
+        ),
+      );
+    } else {
+      foreground.addListener(gate.setBackgrounded);
+      gate.setBackgrounded(foreground.isBackgrounded);
+    }
     final SourceOutcome<AndroidWebViewBrowserPort> browser =
-        await AndroidWebViewBrowserPort.start(config: config.browser);
+        await AndroidWebViewBrowserPort.start(
+          config: config.browser,
+          foreground: foreground,
+        );
     if (browser case SourceFailed<AndroidWebViewBrowserPort>(
       :final SourceFailure failure,
     )) {
@@ -139,6 +173,8 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
         paperback: paperback,
         browser: browser,
         paperbackPlan: plan,
+        appForeground: foreground,
+        gate: gate,
       ),
     );
   }
@@ -149,6 +185,16 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
 
   /// The Tachi backend: the `:source_runtime` service worker's launcher.
   final AndroidTachiBackend tachi;
+
+  /// The app's lifecycle signal, or `null` when its monitor did not start
+  /// (then nothing is gated and the port follows its own host).
+  final AndroidAppForeground? appForeground;
+
+  /// The background gate in front of Aidoku, Paperback and Tachi.
+  BackgroundGate get backgroundGate => workerGate!;
+
+  /// Whether source work is gated as backgrounded.
+  bool get isBackgrounded => backgroundGate.isBackgrounded;
 
   /// The app-process WebView port, or `null` when it could not start.
   @override
@@ -173,6 +219,7 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
     final ConversionRuntimeScope workers = tachi.scope(
       onLog: _log,
       redactor: config.redactor,
+      gate: workerGate,
     );
     _tachiScope = workers;
     scope.closeTachi = () async {
@@ -200,5 +247,6 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
   Future<void> close() async {
     await super.close();
     await _port?.dispose();
+    appForeground?.dispose();
   }
 }

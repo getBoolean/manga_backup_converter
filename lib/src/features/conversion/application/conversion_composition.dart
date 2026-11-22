@@ -119,6 +119,7 @@ abstract base class LocalSourceRuntimes {
     required this.browserPort,
     required this.paperbackPlan,
     this.browserUnavailable,
+    this.workerGate,
   }) : _aidokuProvider = aidoku;
 
   final LocalRuntimeConfig config;
@@ -132,6 +133,11 @@ abstract base class LocalSourceRuntimes {
   final SourceFailure? browserUnavailable;
 
   final PaperbackWorkerPlan paperbackPlan;
+
+  /// The app-lifecycle gate the conversion's workers (Paperback isolate,
+  /// Tachi worker) pass through, or `null` where the platform gates only
+  /// Aidoku (iOS).
+  final BackgroundGate? workerGate;
 
   _ConversionScope? _current;
 
@@ -264,6 +270,7 @@ abstract base class LocalSourceRuntimes {
           _hostedIdentity(scope.paperback, kind, 'paperback', packageId, id),
       onLog: _log,
       redactor: config.redactor,
+      gate: workerGate,
     );
     return workers.worker(WorkerKind.paperback);
   }

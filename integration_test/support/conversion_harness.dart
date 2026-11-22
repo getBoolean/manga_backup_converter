@@ -77,6 +77,51 @@ final class HoldableClient extends http.BaseClient {
   }
 }
 
+/// A hold that also works inside another isolate (the Paperback worker):
+/// while the file at [path] exists, [FileHoldClient] holds every response
+/// and marks `<path>.inflight`. Only the path string crosses isolates.
+final class FileHold {
+  FileHold(this.path);
+
+  final String path;
+
+  File get _marker => File('$path.inflight');
+
+  void hold() => File(path).createSync(recursive: true);
+
+  void release() {
+    if (File(path).existsSync()) File(path).deleteSync();
+  }
+
+  /// Whether a held request is waiting.
+  bool get inFlight => _marker.existsSync();
+}
+
+/// Holds every response of the wrapped client while [holdPath] exists
+/// ([FileHold]).
+final class FileHoldClient extends http.BaseClient {
+  FileHoldClient(this._inner, this.holdPath);
+
+  final http.Client _inner;
+  final String holdPath;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (File(holdPath).existsSync()) {
+      final marker = File('$holdPath.inflight')..createSync();
+      while (File(holdPath).existsSync()) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      try {
+        marker.deleteSync();
+      } on FileSystemException {
+        // Another held request already removed it.
+      }
+    }
+    return _inner.send(request);
+  }
+}
+
 /// Picks extensions whose id contains one of [picks], trusts repositories
 /// once, and confirms the first hit whose title contains "onimai".
 final class ScriptedSelection {
