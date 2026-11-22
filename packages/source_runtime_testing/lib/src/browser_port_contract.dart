@@ -274,6 +274,22 @@ void runBrowserPortContractSuite(
         await expectNoStorage(await open(sourceB));
       });
 
+      test('a domain cookie is not sent to a host that only ends with its domain', () async {
+        final BrowserSession s = await open(sourceA);
+        check(await s.loadUrl(harness.pageUrl)).isA<BrowserCompleted<BrowserPage>>();
+        final String host = harness.pageUrl.host;
+        check(
+          await s.setCookie(harness.pageUrl, BrowserCookie(name: 'scoped', value: '1', domain: host)),
+        ).isA<BrowserCompleted<void>>();
+        check(
+          (await s.getCookies(harness.pageUrl)).valueOrNull!.map((BrowserCookie c) => c.name),
+        ).contains('scoped');
+        final List<BrowserCookie> lookalike = (await s.getCookies(
+          harness.pageUrl.replace(host: 'evil$host'),
+        )).valueOrNull!;
+        check(lookalike.map((BrowserCookie c) => c.name)).not((Subject<Iterable<String>> it) => it.contains('scoped'));
+      });
+
       test('operations on a closed session are cancelled', () async {
         final BrowserSession s = await open(sourceA);
         await s.close();

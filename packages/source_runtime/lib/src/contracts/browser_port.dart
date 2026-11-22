@@ -267,6 +267,18 @@ final class BrowserCookie {
   final bool secure;
   final bool httpOnly;
 
+  /// Whether this cookie is sent to [host] (RFC 6265 domain matching): the
+  /// host equals the domain (a leading dot ignored) or is a subdomain of it,
+  /// so `example.com` never matches `evilexample.com`. A cookie without a
+  /// domain matches any host; the session's store is already scoped.
+  bool matches(String host) {
+    final String? d = domain;
+    if (d == null) return true;
+    final String bare = (d.startsWith('.') ? d.substring(1) : d).toLowerCase();
+    final String h = host.toLowerCase();
+    return h == bare || h.endsWith('.$bare');
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
     'name': name,
     'value': value,

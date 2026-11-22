@@ -129,7 +129,7 @@ class TachiRuntime implements SourceProvider {
   final String hostCompatibility;
 
   final Map<String, _HostedPackage> _hosted = <String, _HostedPackage>{};
-  final Map<String, Future<void>> _locks = <String, Future<void>>{};
+  final KeyedMutex _locks = KeyedMutex();
   int _prepares = 0;
 
   /// `artifact.prepare` requests sent to the worker.
@@ -249,7 +249,7 @@ class TachiRuntime implements SourceProvider {
     if (artifact.lease.isReleased) {
       return const SourceFailed<SourcePackage>(ArtifactIncompatibleFailure('Prepared artifact lease was released'));
     }
-    return _serialized(artifact.packageId, () => _open(artifact, settings, cancel));
+    return _locks.run(artifact.packageId, () => _open(artifact, settings, cancel));
   }
 
   Future<SourceOutcome<SourcePackage>> _open(
@@ -303,7 +303,7 @@ class TachiRuntime implements SourceProvider {
   }
 
   /// Called by a hosted package when its last session closed.
-  Future<void> _released(_HostedPackage hosted) => _serialized(hosted.artifact.packageId, () async {
+  Future<void> _released(_HostedPackage hosted) => _locks.run(hosted.artifact.packageId, () async {
     if (hosted.liveSessions == 0 && identical(_hosted[hosted.artifact.packageId], hosted)) {
       await _unload(hosted, reason: 'Package ${hosted.artifact.packageId} was unloaded');
     }
@@ -318,20 +318,6 @@ class TachiRuntime implements SourceProvider {
       await hosted.supervisor.unloadPackage(hosted.artifact.packageId);
     }
     hosted.artifact.lease.release();
-  }
-
-  Future<T> _serialized<T>(String key, Future<T> Function() body) async {
-    final Future<void> previous = _locks[key] ?? Future<void>.value();
-    final done = Completer<void>();
-    final Future<void> mine = done.future;
-    _locks[key] = mine;
-    try {
-      await previous;
-      return await body();
-    } finally {
-      done.complete();
-      if (identical(_locks[key], mine)) unawaited(_locks.remove(key));
-    }
   }
 }
 

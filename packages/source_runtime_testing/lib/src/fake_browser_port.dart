@@ -705,7 +705,7 @@ class FakeBrowserSession implements BrowserSession {
       final String host = _current.host;
       return jsonEncode(
         cookies.values
-            .where((BrowserCookie c) => c.domain == null || host.endsWith(c.domain!))
+            .where((BrowserCookie c) => c.matches(host))
             .map((BrowserCookie c) => '${c.name}=${c.value}')
             .join('; '),
       );
@@ -792,11 +792,7 @@ class FakeBrowserSession implements BrowserSession {
     final BrowserCancelled<List<BrowserCookie>>? dead = _dead(cancel);
     if (dead != null) return dead;
     return BrowserCompleted<List<BrowserCookie>>(
-      _port.store
-          .cookiesFor(_key)
-          .values
-          .where((BrowserCookie c) => c.domain == null || url.host.endsWith(c.domain!))
-          .toList(),
+      _port.store.cookiesFor(_key).values.where((BrowserCookie c) => c.matches(url.host)).toList(),
     );
   }
 

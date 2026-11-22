@@ -322,6 +322,15 @@ void main() {
     });
   });
 
+  test('a cookie domain matches itself and its subdomains, never a lookalike suffix', () {
+    const cookie = BrowserCookie(name: 'n', value: 'v', domain: '.Example.com');
+    check(cookie.matches('example.com')).isTrue();
+    check(cookie.matches('www.example.com')).isTrue();
+    check(cookie.matches('evilexample.com')).isFalse();
+    check(cookie.matches('example.com.evil')).isFalse();
+    check(const BrowserCookie(name: 'n', value: 'v').matches('anything.test')).isTrue();
+  });
+
   group('outcomes and capabilities', () {
     test('an empty success is distinct from a failure', () {
       const SourceOutcome<SearchPage> empty = SourceSuccess<SearchPage>(SearchPage(hits: <SearchHit>[]));

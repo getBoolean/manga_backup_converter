@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/src/contracts/identity.dart';
+import 'package:source_runtime/src/contracts/keyed_mutex.dart';
 import 'package:source_runtime/src/contracts/source.dart';
 
 /// The bytes did not match their expected or recorded digest.
@@ -49,7 +50,7 @@ class ArtifactCache {
 
   final Directory root;
   final Map<String, int> _leaseCounts = <String, int>{};
-  final Map<String, Future<void>> _locks = <String, Future<void>>{};
+  final KeyedMutex _locks = KeyedMutex();
   final Random _random = Random.secure();
 
   String _objectPath(ArtifactProfile profile, String digest) =>
@@ -70,7 +71,7 @@ class ArtifactCache {
     }
     await verifier(bytes, binding);
     final String path = _objectPath(profile, digest);
-    await _withLock(path, () async {
+    await _locks.run(path, () async {
       final file = File(path);
       if (file.existsSync() && await _digestOf(file) == digest) return;
       await _stage(bytes, file);
@@ -88,7 +89,7 @@ class ArtifactCache {
   }) async {
     final String path = _objectPath(profile, binding.sha256);
     Uint8List? bytes;
-    await _withLock(path, () async {
+    await _locks.run(path, () async {
       final file = File(path);
       if (!file.existsSync()) return;
       final Uint8List data = await file.readAsBytes();
@@ -121,7 +122,7 @@ class ArtifactCache {
   Future<bool> evict(ArtifactBinding binding, ArtifactProfile profile) async {
     final String path = _objectPath(profile, binding.sha256);
     var deleted = false;
-    await _withLock(path, () async {
+    await _locks.run(path, () async {
       if ((_leaseCounts[path] ?? 0) > 0) return;
       final file = File(path);
       if (file.existsSync()) {
@@ -164,20 +165,6 @@ class ArtifactCache {
     }
     if (target.existsSync()) await target.delete();
     await tmp.rename(target.path);
-  }
-
-  Future<T> _withLock<T>(String key, Future<T> Function() body) async {
-    final Future<void> previous = _locks[key] ?? Future<void>.value();
-    final done = Completer<void>();
-    final Future<void> mine = done.future;
-    _locks[key] = mine;
-    try {
-      await previous;
-      return await body();
-    } finally {
-      done.complete();
-      if (identical(_locks[key], mine)) unawaited(_locks.remove(key));
-    }
   }
 
   static Future<String> _digestOf(File file) async => (await sha256.bind(file.openRead()).first).toString();

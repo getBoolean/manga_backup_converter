@@ -183,18 +183,13 @@ final class _Package {
 /// Maps adapter details output to [MangaMetadata].
 MangaMetadata metadataOf(Map<String, Object?> details) {
   final m = details['metadata']! as Map<String, Object?>;
-  return MangaMetadata(
-    title: m['title']! as String,
-    altTitles: _strings(m['altTitles']),
-    authors: _strings(m['authors']),
-    artists: _strings(m['artists']),
-    description: m['description'] as String?,
-    tags: _strings(m['tags']),
-    status: publishingStatusOf(m['status'] as String?),
-    contentRating: ContentRatingLevel.values.byName(m['contentRating'] as String? ?? 'unknown'),
-    url: m['url'] as String?,
-    coverUrl: m['coverUrl'] as String?,
-  );
+  // Bundle output is free-form: the status is normalized and non-string list
+  // items are dropped before the contract's wire shape is read.
+  return MangaMetadata.fromJson(<String, Object?>{
+    ...m,
+    'status': publishingStatusOf(m['status'] as String?).name,
+    for (final String key in const <String>['altTitles', 'authors', 'artists', 'tags']) key: _strings(m[key]),
+  });
 }
 
 /// Maps adapter details output to [NativeChapter]s, keeping the source's

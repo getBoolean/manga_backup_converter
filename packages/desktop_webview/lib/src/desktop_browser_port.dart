@@ -488,9 +488,8 @@ class DesktopBrowserSession implements BrowserSession {
     final BrowserCancelled<void>? dead = _dead<void>(null);
     if (dead != null) return dead;
     // Any identifier, `ipc` included (protocol 1.2 reserves none).
-    if (!RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(name)) {
-      return BrowserCapabilityUnavailable<void>('setMessageHandler', 'Channel name "$name" is not a usable identifier');
-    }
+    final BrowserCapabilityUnavailable<void>? invalid = BrowserMessageChannel.checkName<void>(name);
+    if (invalid != null) return invalid;
     final BrowserOutcome<void> outcome = await _call<void>(
       'channel',
       <String, Object?>{'name': name, 'enabled': handler != null},
