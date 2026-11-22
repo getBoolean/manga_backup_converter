@@ -1,11 +1,11 @@
 {
   "kind": "desktop-package-smoke",
   "evidence": "local packaged build",
-  "recordedAt": "2026-11-21T21:04:22.780943Z",
+  "recordedAt": "2026-11-22T02:42:41.267265Z",
   "os": "windows",
   "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
   "arch": "x64",
-  "hostCommit": "f8b278116242b2659ea747d7da907200072fa25a",
+  "hostCommit": "0a298169050ecfe137f8b32d9e3b65e215d57f72",
   "hostDirty": false,
   "jre": {
     "vendor": "Amazon Corretto",
@@ -41,7 +41,7 @@
       "check": "manifest hashes match the packaged files",
       "ok": true,
       "detail": {
-        "files": 225
+        "files": 568
       }
     },
     {
@@ -54,10 +54,23 @@
           "desktop_webview_helper-crates.txt",
           "paperback-host-lib-LICENSES.txt",
           "quickjs-ng-LICENSE",
+          "scraper_bridge-crates.txt",
           "tachi-source-runner-THIRD_PARTY.md",
           "wasm3-LICENSE"
         ],
         "jreLegal": true
+      }
+    },
+    {
+      "check": "every bundled Rust crate has its licence text",
+      "ok": true,
+      "detail": {
+        "desktop_webview_helper": {
+          "crates": 85
+        },
+        "scraper_bridge": {
+          "crates": 113
+        }
       }
     },
     {
@@ -66,7 +79,8 @@
     },
     {
       "check": "no system java/dart/gradle/rust/node on the scrubbed PATH",
-      "ok": true
+      "ok": true,
+      "detail": {}
     },
     {
       "check": "--help runs",
@@ -85,15 +99,15 @@
         "exit": 0,
         "tachi": {
           "java": "<package>\\runtime\\jre\\bin\\java.exe",
-          "pid": 76080,
+          "pid": 44600,
           "protocol": "1.3"
         },
         "paperback": {
-          "pid": 55488,
+          "pid": 66668,
           "protocol": "1.3"
         },
         "helper": {
-          "pid": 72292,
+          "pid": 81784,
           "engine": "webview2",
           "engineVersion": "157.0.4341.60",
           "evaluated": "\"ok\""
