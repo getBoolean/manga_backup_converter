@@ -129,19 +129,26 @@ PluginSearchResult? _onimai(List<PluginSearchResult> hits) => hits
     .where((PluginSearchResult r) => r.title.toLowerCase().contains('onimai'))
     .firstOrNull;
 
-Future<AndroidConversionHarness> _harness(_Hold hold, String label) =>
-    AndroidConversionHarness.create(
-      label: label,
-      fixtureRepository: hold.ecosystem == 'tachi',
-      tachiArguments: hold.ecosystem == 'tachi'
-          ? const <String>[
-              '--limit',
-              'operationDeadlineMs=15000',
-              '--limit',
-              'cancelGraceMs=500',
-            ]
-          : const <String>[],
-    );
+/// [deadline] bounds the Tachi `busy` loop: short for the programmatic
+/// cases, long enough for the real cases to background the app by hand
+/// before the deadline ends the held call. After the gate answers, the next
+/// call of that package waits for this deadline to restart the worker.
+Future<AndroidConversionHarness> _harness(
+  _Hold hold,
+  String label, {
+  Duration deadline = const Duration(seconds: 15),
+}) => AndroidConversionHarness.create(
+  label: label,
+  fixtureRepository: hold.ecosystem == 'tachi',
+  tachiArguments: hold.ecosystem == 'tachi'
+      ? <String>[
+          '--limit',
+          'operationDeadlineMs=${deadline.inMilliseconds}',
+          '--limit',
+          'cancelGraceMs=500',
+        ]
+      : const <String>[],
+);
 
 /// Holds a call, backgrounds the app with [background], checks the named
 /// outcome and the refusal, then returns to the foreground with
@@ -337,6 +344,7 @@ void registerBackgroundCases() {
           final AndroidConversionHarness h = await _harness(
             hold,
             'bg-real-${hold.ecosystem}',
+            deadline: const Duration(seconds: 90),
           );
           final events = <String>[];
           try {
@@ -351,12 +359,16 @@ void registerBackgroundCases() {
                 events,
                 background: () async {
                   print('BG_HOLDING ${hold.ecosystem}: background the app now');
+                  final asked = Stopwatch()..start();
                   await until(
                     () => h.runtimes.isBackgrounded,
                     timeout: const Duration(minutes: 5),
                   );
                   events.add(
                     'port-backgrounded:${h.runtimes.browserPort?.isBackgrounded}',
+                  );
+                  events.add(
+                    'detected-after-ask-ms:${asked.elapsedMilliseconds}',
                   );
                 },
                 foreground: () async {
