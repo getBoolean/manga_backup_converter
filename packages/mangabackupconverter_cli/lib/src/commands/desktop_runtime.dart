@@ -36,27 +36,60 @@ String? packagedTachiManifest({String? executable}) {
   return File(path).existsSync() ? path : null;
 }
 
+/// Environment variable naming a development checkout explicitly. Setting it
+/// is the only way a compiled CLI uses development build outputs.
+const String developmentRootVariable = 'MANGA_BACKUP_CONVERTER_DEV_ROOT';
+
+/// The repository checkout whose development build outputs
+/// (`packages/desktop_webview/build/helper/`, the Tachi `installDist`) this
+/// run may use, or `null` when it may use none.
+///
+/// A released (compiled) CLI never searches the file system for development
+/// layouts: a manifest or helper planted in a parent folder by another local
+/// user would otherwise run as the victim (`java`/`classpath` in a
+/// `tachi-runtime.json`, or the helper binary). Development discovery
+/// therefore happens only when
+/// - [developmentRootVariable] names a checkout (used as given, no search), or
+/// - the CLI runs from source ([script] ends in `.dart`, as under
+///   `melos run cli`), in which case the checkout is the nearest ancestor of
+///   the script that holds the workspace `pubspec.yaml` and
+///   `packages/mangabackupconverter_cli/pubspec.yaml`. The search stops at
+///   that root and never looks above it.
+Directory? developmentRepositoryRoot({String? script, Map<String, String>? environment}) {
+  final String? explicit = (environment ?? Platform.environment)[developmentRootVariable];
+  if (explicit != null && explicit.isNotEmpty) return Directory(p.normalize(p.absolute(explicit)));
+  final String scriptPath = script ?? Platform.script.toFilePath();
+  if (p.extension(scriptPath) != '.dart') return null;
+  Directory dir = File(scriptPath).absolute.parent;
+  while (true) {
+    if (_isRepositoryRoot(dir)) return dir;
+    final Directory parent = dir.parent;
+    if (parent.path == dir.path) return null;
+    dir = parent;
+  }
+}
+
+bool _isRepositoryRoot(Directory dir) =>
+    File(p.join(dir.path, 'pubspec.yaml')).existsSync() &&
+    File(p.join(dir.path, 'packages', 'mangabackupconverter_cli', 'pubspec.yaml')).existsSync();
+
 /// Finds the WebView helper's runtime artifact manifest: [explicit] if
 /// given; else the packaged `runtime/desktop_webview/runtime-artifacts.json`;
 /// else the development build (`packages/desktop_webview/build/helper/`)
-/// found by walking up from [searchFrom]. `null` when there is none.
-File? locateWebViewHelperManifest({String? explicit, Directory? searchFrom, String? executable}) {
+/// directly under [developmentRoot] (see [developmentRepositoryRoot]; no
+/// search). `null` when there is none.
+File? locateWebViewHelperManifest({String? explicit, Directory? developmentRoot, String? executable}) {
   if (explicit != null) return File(explicit);
   final Directory? runtime = packagedRuntimeDirectory(executable: executable);
   if (runtime != null) {
     final packaged = File(p.join(runtime.path, 'desktop_webview', RuntimeArtifactManifest.fileName));
     if (packaged.existsSync()) return packaged;
   }
-  Directory dir = (searchFrom ?? Directory.current).absolute;
-  while (true) {
-    final dev = File(
-      p.join(dir.path, 'packages', 'desktop_webview', 'build', 'helper', RuntimeArtifactManifest.fileName),
-    );
-    if (dev.existsSync()) return dev;
-    final Directory parent = dir.parent;
-    if (parent.path == dir.path) return null;
-    dir = parent;
-  }
+  if (developmentRoot == null) return null;
+  final dev = File(
+    p.join(developmentRoot.path, 'packages', 'desktop_webview', 'build', 'helper', RuntimeArtifactManifest.fileName),
+  );
+  return dev.existsSync() ? dev : null;
 }
 
 /// The desktop browser policy of the CLI (KTD20, KTD25). Every value here is

@@ -198,7 +198,7 @@ const Duration testHandshakeDeadline = Duration(minutes: 1);
   final SourceOutcome<TachiWorkerLocation> resolved = TachiWorkerLocation.resolve(
     javaHome: home,
     handshakeDeadline: testHandshakeDeadline,
-    searchFrom: repositoryRoot(),
+    developmentRoot: repositoryRoot(),
   );
   return switch (resolved) {
     SourceSuccess<TachiWorkerLocation>(:final TachiWorkerLocation value) => (location: value, skip: null),

@@ -1219,17 +1219,6 @@ jobs:
             cd packages/mangabackupconverter_cli
             dart build cli
 
-      - name: Package CLI
-        run: |
-          cd packages/mangabackupconverter_cli/build/cli/linux_x64/bundle
-          mv bin/mangabackupconverter_cli bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
-
-      - name: Upload CLI Bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
-          path: packages/mangabackupconverter_cli/build/cli/linux_x64/bundle/
-
       # Packaged build with the bundled runtime (U8). Non-gating: the WebView
       # helper has not yet been built or run on Linux (docs/source-runners.md).
       - name: Install WebKitGTK and Xvfb (WebView helper)
@@ -1252,16 +1241,22 @@ jobs:
           path: build/runtime-cache
           key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
 
-      - name: Package CLI with bundled runtime (non-gating)
+      # Released archives are the packaged bundle (with runtime/), like
+      # Windows: a bare `dart build cli` bundle has no runtime/ and would leave
+      # users to point the CLI at a JVM worker and helper themselves (M1).
+      # Packaging and its smoke test gate tag builds; elsewhere they stay
+      # non-gating until the helper has run on this OS.
+      - name: Package CLI with bundled runtime (gating on tags)
         id: package_runtime
-        continue-on-error: true
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
         run: dart run scripts/package_cli.dart
         env:
           TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: Smoke test packaged CLI (non-gating)
+      - name: Smoke test packaged CLI (gating on tags)
+        id: smoke_runtime
         if: steps.package_runtime.outcome == 'success'
-        continue-on-error: true
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
         run: xvfb-run -a dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-linux-x64.json
 
       - name: Upload smoke receipt
@@ -1272,17 +1267,25 @@ jobs:
           path: build/package-smoke-linux-x64.json
           if-no-files-found: ignore
 
+      - name: Upload CLI Bundle
+        if: steps.package_runtime.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
+          path: build/package/linux-x64/
+
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/linux_x64
-          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz -C bundle .
+          test -f build/package/linux-x64/runtime/runtime-manifest.json
+          cd build/package
+          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz -C linux-x64 .
 
       - name: Release CLI
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: packages/mangabackupconverter_cli/build/cli/linux_x64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz
+          artifacts: build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -1364,17 +1367,6 @@ jobs:
             cd packages/mangabackupconverter_cli
             dart build cli
 
-      - name: Package CLI
-        run: |
-          cd packages/mangabackupconverter_cli/build/cli/macos_arm64/bundle
-          mv bin/mangabackupconverter_cli bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
-
-      - name: Upload CLI Bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
-          path: packages/mangabackupconverter_cli/build/cli/macos_arm64/bundle/
-
       # Packaged build with the bundled runtime (U8). Non-gating: the WebView
       # helper has not yet been built or run on macOS (docs/source-runners.md).
       - name: Install Rust toolchain (WebView helper)
@@ -1393,16 +1385,22 @@ jobs:
           path: build/runtime-cache
           key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
 
-      - name: Package CLI with bundled runtime (non-gating)
+      # Released archives are the packaged bundle (with runtime/), like
+      # Windows: a bare `dart build cli` bundle has no runtime/ and would leave
+      # users to point the CLI at a JVM worker and helper themselves (M1).
+      # Packaging and its smoke test gate tag builds; elsewhere they stay
+      # non-gating until the helper has run on this OS.
+      - name: Package CLI with bundled runtime (gating on tags)
         id: package_runtime
-        continue-on-error: true
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
         run: dart run scripts/package_cli.dart
         env:
           TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: Smoke test packaged CLI (non-gating)
+      - name: Smoke test packaged CLI (gating on tags)
+        id: smoke_runtime
         if: steps.package_runtime.outcome == 'success'
-        continue-on-error: true
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
         run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-macos-arm64.json
 
       - name: Upload smoke receipt
@@ -1413,17 +1411,25 @@ jobs:
           path: build/package-smoke-macos-arm64.json
           if-no-files-found: ignore
 
+      - name: Upload CLI Bundle
+        if: steps.package_runtime.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
+          path: build/package/macos-arm64/
+
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/macos_arm64
-          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz -C bundle .
+          test -f build/package/macos-arm64/runtime/runtime-manifest.json
+          cd build/package
+          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz -C macos-arm64 .
 
       - name: Release CLI
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: packages/mangabackupconverter_cli/build/cli/macos_arm64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz
+          artifacts: build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz
           allowUpdates: true
           omitBodyDuringUpdate: true
 

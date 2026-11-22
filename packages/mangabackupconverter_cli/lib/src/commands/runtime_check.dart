@@ -35,7 +35,7 @@ Future<void> runRuntimeCheck(List<String> args) async {
     final String? tachiManifest = packagedTachiManifest();
     final SourceOutcome<TachiWorkerLocation> located = TachiWorkerLocation.resolve(
       manifestPath: tachiManifest,
-      searchFrom: File(Platform.script.toFilePath()).parent,
+      developmentRoot: developmentRepositoryRoot(),
     );
     switch (located) {
       case SourceFailed<TachiWorkerLocation>(:final SourceFailure failure):
@@ -94,7 +94,7 @@ Future<void> runRuntimeCheck(List<String> args) async {
     final (DesktopBrowserPort? port, String? why) = createCliBrowserPort(
       interactive: false,
       dataRoot: dataRoot,
-      manifest: locateWebViewHelperManifest(searchFrom: File(Platform.script.toFilePath()).parent),
+      manifest: locateWebViewHelperManifest(developmentRoot: developmentRepositoryRoot()),
       offline: true,
     );
     browser = port;

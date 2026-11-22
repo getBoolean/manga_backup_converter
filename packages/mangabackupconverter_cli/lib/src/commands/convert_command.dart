@@ -372,11 +372,16 @@ class ConvertCommand extends Command<void> {
     // One desktop WebView helper per conversion serves both workers' browser
     // requests (KTD20). Interactive runs may show its window for a challenge;
     // unattended runs never open a window (interaction-required).
-    final io.Directory searchFrom = io.File(io.Platform.script.toFilePath()).parent;
+    // Development build outputs only when running from source or with an
+    // explicit development root; a compiled CLI never searches for them.
+    final io.Directory? developmentRoot = developmentRepositoryRoot();
     final (DesktopBrowserPort? browser, String? browserUnavailable) = createCliBrowserPort(
       interactive: interactive,
       dataRoot: io.Directory(p.join(userConfigDirectory(), 'cache', 'webview')),
-      manifest: locateWebViewHelperManifest(explicit: results.option('webview-helper'), searchFrom: searchFrom),
+      manifest: locateWebViewHelperManifest(
+        explicit: results.option('webview-helper'),
+        developmentRoot: developmentRoot,
+      ),
       onLog: (String line) => activeLog?.writeln(line),
     );
     if (browserUnavailable != null && verbose) {
@@ -390,7 +395,7 @@ class ConvertCommand extends Command<void> {
       locate: () => TachiWorkerLocation.resolve(
         manifestPath: results.option('tachi-runtime') ?? packagedTachiManifest(),
         handshakeDeadline: tachiHandshakeDeadline,
-        searchFrom: searchFrom,
+        developmentRoot: developmentRoot,
       ),
       cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
       fetch: httpTachiFetch,
