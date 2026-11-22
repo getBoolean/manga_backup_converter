@@ -3,7 +3,8 @@
 //! [Command] is what `DesktopBrowserPort` sends: each variant's fields are the
 //! ones the Dart client writes, so a missing or mistyped field is an explicit
 //! `invalid` error instead of an empty string. [Event] is what the helper
-//! reports.
+//! reports. Both are checked against the shared golden vectors in
+//! `fixtures/wire_vectors/` (see the tests below).
 
 use std::collections::BTreeMap;
 
@@ -170,6 +171,76 @@ pub struct WipeSummary {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::path::PathBuf;
+
+  fn vectors(name: &str) -> Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/wire_vectors").join(name);
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str(&text).expect("vector file is JSON")
+  }
+
+  /// The vectors' comparison rule: an absent key and a `null` value are the same.
+  fn without_nulls(v: &Value) -> Value {
+    match v {
+      Value::Object(m) => Value::Object(m.iter().filter(|(_, v)| !v.is_null()).map(|(k, v)| (k.clone(), without_nulls(v))).collect()),
+      Value::Array(a) => Value::Array(a.iter().map(without_nulls).collect()),
+      other => other.clone(),
+    }
+  }
+
+  fn entries<'a>(file: &'a Value, key: &str) -> &'a Vec<Value> {
+    file[key].as_array().unwrap_or_else(|| panic!("vector file has no {key} list"))
+  }
+
+  #[test]
+  fn decodes_and_reencodes_every_command_the_client_sends() {
+    let file = vectors("helper_protocol.json");
+    let commands = entries(&file, "commands");
+    assert!(!commands.is_empty());
+    for case in commands {
+      let mut frame = case["frame"].clone();
+      let name = case["name"].as_str().unwrap();
+      assert!(frame["id"].is_u64(), "{name}: every request carries an integer id");
+      let command = Command::deserialize(&frame).unwrap_or_else(|e| panic!("{name}: {e}"));
+      frame.as_object_mut().unwrap().remove("id");
+      let encoded = serde_json::to_value(&command).unwrap();
+      assert_eq!(without_nulls(&encoded), without_nulls(&frame), "{name}");
+    }
+  }
+
+  #[test]
+  fn reports_every_command_operation_the_client_sends() {
+    let file = vectors("helper_protocol.json");
+    let mut ops: Vec<String> = entries(&file, "commands").iter().map(|c| c["frame"]["op"].as_str().unwrap().to_string()).collect();
+    ops.sort();
+    ops.dedup();
+    // Every client operation is covered, except the test hook (needs a real window).
+    let expected = [
+      "channel", "close", "cookies", "eval", "hide", "intercept", "load", "loadData", "open", "respond", "setCookie", "show", "shutdown",
+      "startScript", "stop", "userAgent", "wipe",
+    ];
+    assert_eq!(ops, expected);
+  }
+
+  #[test]
+  fn encodes_every_event_as_the_client_reads_it() {
+    let file = vectors("helper_protocol.json");
+    for case in entries(&file, "events") {
+      let name = case["name"].as_str().unwrap();
+      let frame = &case["frame"];
+      let event: Event = serde_json::from_value(frame.clone()).unwrap_or_else(|e| panic!("{name}: {e}"));
+      assert_eq!(without_nulls(&serde_json::to_value(&event).unwrap()), without_nulls(frame), "{name}");
+    }
+  }
+
+  #[test]
+  fn shares_the_limits_with_the_client() {
+    let helper = &vectors("helper_protocol.json")["constants"];
+    assert_eq!(helper["helperMaxFrameBytes"].as_u64(), Some(crate::MAX_FRAME_BYTES as u64));
+    assert_eq!(helper["helperProtocolVersion"].as_u64(), Some(crate::PROTOCOL_VERSION));
+    let worker = vectors("constants.json");
+    assert_eq!(worker["hostBrowserMaxForwardedBodyBytes"].as_u64(), Some(crate::MAX_FORWARDED_BODY_BYTES as u64));
+  }
 
   #[test]
   fn a_missing_field_is_an_error_not_an_empty_string() {

@@ -1,0 +1,119 @@
+{
+  "comment": "Written by packages/source_runtime/test/wire_vectors_test.dart; the Kotlin worker and the Rust helper assert their copies equal these. See README.md.",
+  "protocolVersion": 1,
+  "protocolMinorVersion": 3,
+  "protocolMaxFrameBytes": 16777216,
+  "hostBrowserMaxForwardedBodyBytes": 1048576,
+  "recordedResponseHeaders": [
+    "cf-mitigated",
+    "content-type",
+    "location",
+    "retry-after"
+  ],
+  "captureFormatVersion": 1,
+  "workerOperations": [
+    {
+      "wire": "handshake",
+      "perPackage": false,
+      "requiresLoadedPackage": false
+    },
+    {
+      "wire": "artifact.prepare",
+      "perPackage": true,
+      "requiresLoadedPackage": false
+    },
+    {
+      "wire": "package.load",
+      "perPackage": true,
+      "requiresLoadedPackage": false
+    },
+    {
+      "wire": "package.unload",
+      "perPackage": true,
+      "requiresLoadedPackage": true
+    },
+    {
+      "wire": "settings.update",
+      "perPackage": true,
+      "requiresLoadedPackage": true
+    },
+    {
+      "wire": "search",
+      "perPackage": true,
+      "requiresLoadedPackage": true
+    },
+    {
+      "wire": "details",
+      "perPackage": true,
+      "requiresLoadedPackage": true
+    },
+    {
+      "wire": "dispose",
+      "perPackage": true,
+      "requiresLoadedPackage": true
+    },
+    {
+      "wire": "shutdown",
+      "perPackage": false,
+      "requiresLoadedPackage": false
+    }
+  ],
+  "hostBrowserOperations": [
+    {
+      "wire": "host.browser.open",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.load",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.loadData",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.evaluate",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.setMessageHandler",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.getCookies",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.setCookie",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.setUserAgent",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.show",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.close",
+      "sinceMinor": 0
+    },
+    {
+      "wire": "host.browser.addPageStartScript",
+      "sinceMinor": 2
+    },
+    {
+      "wire": "host.browser.setRequestInterception",
+      "sinceMinor": 2
+    },
+    {
+      "wire": "host.browser.respond",
+      "sinceMinor": 2
+    },
+    {
+      "wire": "host.browser.endInteraction",
+      "sinceMinor": 3
+    }
+  ]
+}
