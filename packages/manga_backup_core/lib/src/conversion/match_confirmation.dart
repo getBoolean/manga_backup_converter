@@ -1,5 +1,4 @@
 import 'package:manga_backup_core/src/conversion/details_outcome.dart';
-import 'package:manga_backup_core/src/conversion/manga_details.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
 import 'package:source_runtime/source_contracts.dart';
@@ -56,20 +55,6 @@ class MangaMatchConfirmation {
     searchFailures: searchFailures,
     detailsFailure: failure,
   );
-}
-
-class MangaMatchProposal {
-  const MangaMatchProposal({
-    required this.sourceManga,
-    required this.candidates,
-    this.bestMatch,
-    this.failures = const <PluginSearchFailure>[],
-  });
-
-  final MangaSearchDetails sourceManga;
-  final List<PluginSearchResult> candidates;
-  final PluginSearchResult? bestMatch;
-  final List<PluginSearchFailure> failures;
 }
 
 /// One source's search failure, with its typed reason.
