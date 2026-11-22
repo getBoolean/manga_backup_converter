@@ -12,6 +12,7 @@ import 'package:desktop_webview/desktop_webview.dart' show DesktopBrowserPort;
 import 'package:mangabackupconverter_cli/mangabackupconverter_lib.dart';
 import 'package:mangabackupconverter_cli/src/commands/chapter_resolve_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/conversion_composition.dart';
+import 'package:mangabackupconverter_cli/src/commands/convert_options.dart';
 import 'package:mangabackupconverter_cli/src/commands/desktop_runtime.dart';
 import 'package:mangabackupconverter_cli/src/commands/extension_select_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
@@ -24,7 +25,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/source_runtime.dart'
     show Redactor, SettingsSnapshot, SourceFailure, isSecretLikeSettingKey;
-import 'package:tachi_plugin_loader/tachi_plugin_loader.dart' show TachiArtifactPolicy, TachiWorkerLocation;
+import 'package:tachi_plugin_loader/tachi_plugin_loader.dart' show TachiWorkerLocation;
 
 class ConvertCommand extends Command<void> {
   /// Set by the migration pipeline; printed once the terminal is restored.
@@ -190,7 +191,12 @@ class ConvertCommand extends Command<void> {
   @override
   Future<void> run() async {
     final ArgResults results = argResults!;
-    final bool verbose = results.flag('verbose');
+    final ConvertOptions options;
+    try {
+      options = ConvertOptions.parse(results);
+    } on FormatException catch (e) {
+      throw UsageException(e.message, usage);
+    }
     final bool interactive = hasTerminal;
 
     // Single TerminalContext for the entire interactive session — stdin's
@@ -199,7 +205,7 @@ class ConvertCommand extends Command<void> {
     final TerminalContext? context = interactive ? TerminalContext() : null;
 
     // --- Backup file path ---
-    String? backupPath = results.option('backup');
+    String? backupPath = options.backup;
     if (backupPath == null) {
       if (!interactive) {
         context?.showCursor();
@@ -222,7 +228,7 @@ class ConvertCommand extends Command<void> {
     }
 
     try {
-      await _runWithContext(results, verbose, interactive, backupFile, context);
+      await _runWithContext(options, results.arguments, interactive, backupFile, context);
     } finally {
       context?.showCursor();
       context?.dispose();
@@ -233,16 +239,17 @@ class ConvertCommand extends Command<void> {
   }
 
   Future<void> _runWithContext(
-    ArgResults results,
-    bool verbose,
+    ConvertOptions options,
+    List<String> arguments,
     bool interactive,
     io.File backupFile,
     TerminalContext? context,
   ) async {
+    final bool verbose = options.verbose;
     // --- Output format ---
-    final String? outputFormatName = results.option('output-format');
     final BackupFormat outputFormat;
-    if (outputFormatName == null) {
+    final BackupFormat? namedOutputFormat = options.outputFormat;
+    if (namedOutputFormat == null) {
       if (!interactive) {
         throw UsageException('--output-format is required in non-interactive mode.', usage);
       }
@@ -256,16 +263,13 @@ class ConvertCommand extends Command<void> {
       }
       outputFormat = picked;
     } else {
-      outputFormat = BackupFormat.byName(outputFormatName);
+      outputFormat = namedOutputFormat;
     }
 
     // --- Input format ---
     final String backupFileExtension = p.extension(backupFile.uri.toString());
 
-    BackupFormat? inputFormat = BackupFormat.byExtension(backupFileExtension);
-    if (results.wasParsed('input-format')) {
-      inputFormat = BackupFormat.byName(results.option('input-format')!);
-    }
+    BackupFormat? inputFormat = options.inputFormat ?? BackupFormat.byExtension(backupFileExtension);
 
     if (inputFormat == null) {
       if (!interactive) {
@@ -287,57 +291,13 @@ class ConvertCommand extends Command<void> {
     }
     final BackupFormat resolvedInputFormat = inputFormat;
 
-    List<String> repoUrls = results.multiOption('repos');
-
-    // --- Tachi runtime options (validated up front) ---
-    final Map<Uri, String> tachiPins;
-    final TachiArtifactPolicy tachiPolicy;
-    final Duration? tachiHandshakeDeadline;
-    try {
-      tachiPins = PinnedTrustStore.parsePins(results.multiOption('trust-tachi-repo'));
-      tachiPolicy = parseTachiArtifactOverrides(results.multiOption('tachi-artifact'));
-      tachiHandshakeDeadline = switch (results.option('tachi-handshake-deadline-ms')) {
-        null => null,
-        final String ms when (int.tryParse(ms) ?? 0) > 0 => Duration(milliseconds: int.parse(ms)),
-        final String ms => throw FormatException('--tachi-handshake-deadline-ms must be a positive integer, got "$ms"'),
-      };
-    } on FormatException catch (e) {
-      throw UsageException(e.message, usage);
-    }
-
-    // Adult sources stay hidden unless the user confirms their age (shared
-    // core policy; the mobile hosts reuse it).
-    final ratingPolicy = SourceRatingPolicy(
-      adultContentConfirmed: results.flag('confirm-adult'),
-      maxRating: switch (results.option('max-rating')) {
-        'safe' => ContentRatingLevel.safe,
-        'suggestive' => ContentRatingLevel.suggestive,
-        'nsfw' => ContentRatingLevel.nsfw,
-        _ => null,
-      },
-    );
-    if (ratingPolicy.requestsUnconfirmedAdult) {
-      throw UsageException('--max-rating nsfw requires --confirm-adult (age confirmation).', usage);
-    }
-    // `null` infers the languages from the backup. Plain if/try (no
-    // pattern switch into a deferred final): see the Dart 3.14 AOT note.
-    SourceLanguagePolicy? languagePolicy;
-    final String? languagesOption = results.option('languages');
-    if (languagesOption != null) {
-      try {
-        languagePolicy = SourceLanguagePolicy.parse(languagesOption);
-      } on FormatException catch (e) {
-        throw UsageException(e.message, usage);
-      }
-    }
-
+    List<String> repoUrls = options.repos;
+    final SourceRatingPolicy ratingPolicy = options.ratingPolicy;
+    final SourceLanguagePolicy? languagePolicy = options.languagePolicy;
     // Extension picks and settings are the user's (no built-in defaults).
-    final List<String> extensionIds = results.multiOption('extensions');
-    final Set<String> sourceIds = results.multiOption('sources').toSet();
-    final UserExtensionSettings userSettings = _readUserSettings(
-      results.option('settings'),
-      results.multiOption('setting'),
-    );
+    final List<String> extensionIds = options.extensionIds;
+    final Set<String> sourceIds = options.sourceIds;
+    final UserExtensionSettings userSettings = _readUserSettings(options.settingsFile, options.settingFlags);
 
     final ConversionStrategy strategy = determineStrategy(resolvedInputFormat, outputFormat);
     var forceMigration = false;
@@ -384,7 +344,7 @@ class ConvertCommand extends Command<void> {
       interactive: interactive,
       dataRoot: io.Directory(p.join(userConfigDirectory(), 'cache', 'webview')),
       manifest: locateWebViewHelperManifest(
-        explicit: results.option('webview-helper'),
+        explicit: options.webviewHelper,
         developmentRoot: developmentRoot,
       ),
       onLog: (String line) => activeLog?.writeln(line),
@@ -398,13 +358,13 @@ class ConvertCommand extends Command<void> {
       interactionTimeout: CliBrowserPolicy.interactionTimeout,
       interactiveChallenges: interactive,
       locate: () => TachiWorkerLocation.resolve(
-        manifestPath: results.option('tachi-runtime') ?? packagedTachiManifest(),
-        handshakeDeadline: tachiHandshakeDeadline,
+        manifestPath: options.tachiRuntime ?? packagedTachiManifest(),
+        handshakeDeadline: options.tachiHandshakeDeadline,
         developmentRoot: developmentRoot,
       ),
       cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
       fetch: httpTachiFetch,
-      policy: tachiPolicy,
+      policy: options.tachiPolicy,
       onLog: (String line) => activeLog?.writeln(line),
       redactor: redactor,
     );
@@ -472,8 +432,9 @@ class ConvertCommand extends Command<void> {
     );
 
     String outputPath;
-    if (results.wasParsed('output')) {
-      outputPath = results.option('output')!;
+    final String? namedOutput = options.output;
+    if (namedOutput != null) {
+      outputPath = namedOutput;
     } else if (interactive) {
       final String? customPath = await _readPath(
         context!,
@@ -498,12 +459,12 @@ class ConvertCommand extends Command<void> {
       );
     }
 
-    final String logPath = results.option('log-file') ?? (interactive ? '${p.withoutExtension(outputPath)}.log' : '');
+    final String logPath = options.logFile ?? (interactive ? '${p.withoutExtension(outputPath)}.log' : '');
     final io.IOSink? logSink = logPath.isNotEmpty ? io.File(logPath).openWrite() : null;
     final log = RedactingLog(logSink, redactor: redactor);
     activeLog = log;
-    final String journalPath = results.option('journal') ?? '${p.withoutExtension(outputPath)}.journal.json';
-    final bool acceptPartial = results.flag('accept-partial');
+    final String journalPath = options.journal ?? '${p.withoutExtension(outputPath)}.journal.json';
+    final bool acceptPartial = options.acceptPartial;
 
     // Loading indicator for interactive startup.
     final Spinner? spinner = interactive ? Spinner() : null;
@@ -534,67 +495,47 @@ class ConvertCommand extends Command<void> {
 
     final selection = CallbackSelectionPort(
       onSelectSources: (SourceSelectionRequest request) async {
-        final List<ExtensionEntry> extensions = request.available;
-        if (extensions.isEmpty) {
-          throw MigrationException(
-            'No extensions available in the given repositories at the selected content rating'
-            '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}.',
-          );
+        final ExtensionResolution resolution = resolveExtensions(
+          request,
+          extensionIds: extensionIds.toSet(),
+          sourceIds: sourceIds,
+          canAskUser: interactive,
+        );
+        for (final String id in resolution.unmatched) {
+          Zone.root.print('Warning: extension "$id" not found in repos (or hidden by the content rating).');
         }
-
-        // A resumed conversion reuses its journaled sources unless
-        // --extensions or --sources name others.
-        if (extensionIds.isEmpty && sourceIds.isEmpty && request.previousSelection.isNotEmpty) {
-          return request.previousSelection;
-        }
-
-        // --sources alone: the extensions hosting the named sources.
-        if (extensionIds.isEmpty && sourceIds.isNotEmpty) {
-          final List<ExtensionEntry> hosting = extensions
-              .where((ExtensionEntry e) => sourceIds.any((String id) => entryHostsSource(e, id)))
-              .toList();
-          if (hosting.isEmpty) {
+        switch (resolution) {
+          case Picked(:final List<ExtensionEntry> extensions):
+            return extensions;
+          case NeedsUser():
+            final List<ExtensionEntry>? result = await paused(
+              (TerminalContext c) => ExtensionSelectScreen().run(
+                context: c,
+                extensions: request.available,
+                hiddenByRating: request.hiddenByRating,
+              ),
+            );
+            if (result == null || result.isEmpty) {
+              throw const MigrationException('No extensions selected.');
+            }
+            return result;
+          case Fail(reason: ExtensionResolutionFailure.nothingOffered):
+            throw MigrationException(
+              'No extensions available in the given repositories at the selected content rating'
+              '${request.hiddenByRating > 0 ? ' (${request.hiddenByRating} hidden by rating; see --confirm-adult)' : ''}.',
+            );
+          case Fail(reason: ExtensionResolutionFailure.sourcesNotHosted):
             throw UsageException(
               'No extension in the given repositories hosts the named sources (or they are hidden by the '
               'content rating).',
               usage,
             );
-          }
-          return hosting;
-        }
-
-        // --extensions flag: filter by ID, skip the selection screen. Matching
-        // runs after the rating policy, so a hidden source cannot be named.
-        if (extensionIds.isNotEmpty) {
-          final Set<String> idSet = extensionIds.toSet();
-          final List<ExtensionEntry> matched = extensions.where((ExtensionEntry e) => idSet.contains(e.id)).toList();
-          final Set<String> unmatched = idSet.difference(matched.map((ExtensionEntry e) => e.id).toSet());
-          for (final id in unmatched) {
-            Zone.root.print('Warning: extension "$id" not found in repos (or hidden by the content rating).');
-          }
-          if (matched.isNotEmpty) return matched;
-          if (!interactive) {
+          case Fail(reason: ExtensionResolutionFailure.extensionsNotFound):
             throw UsageException('None of the specified extensions were found.', usage);
-          }
-          // Fall through to TUI when interactive.
+          case Fail(reason: ExtensionResolutionFailure.nothingNamed):
+            // Never auto-picked: unattended runs were required to name them.
+            throw UsageException('No extensions named: pass --extensions or --sources.', usage);
         }
-
-        if (interactive) {
-          final List<ExtensionEntry>? result = await paused(
-            (TerminalContext c) => ExtensionSelectScreen().run(
-              context: c,
-              extensions: extensions,
-              hiddenByRating: request.hiddenByRating,
-            ),
-          );
-          if (result == null || result.isEmpty) {
-            throw const MigrationException('No extensions selected.');
-          }
-          return result;
-        }
-
-        // Never auto-picked: unattended runs were required to name them.
-        throw UsageException('No extensions named: pass --extensions or --sources.', usage);
       },
       onConfirmMatches: interactive
           ? (pluginNames, manga, onSearch, onFetchDetails) => paused(
@@ -629,13 +570,13 @@ class ConvertCommand extends Command<void> {
           updateLoading('Importing ${resolvedInputFormat.alias} backup...');
 
           final journalStore = FileJournalStore(journalPath);
-          if (results.flag('fresh')) await journalStore.clear();
+          if (options.fresh) await journalStore.clear();
           final job = ConversionJob(
             formats: formats,
             runtimes: runtimes,
             trustStore: PinnedTrustStore(
               FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
-              tachiPins,
+              options.tachiPins,
             ),
             redact: redactor.redact,
             // The Tachi worker scope is closed with every plugin, in the
@@ -658,7 +599,7 @@ class ConvertCommand extends Command<void> {
             ),
             onDecoded: (ConvertableBackup imported) {
               if (!verbose) return;
-              print('[VERBOSE] All arguments: ${results.arguments}');
+              print('[VERBOSE] All arguments: $arguments');
               print('Imported Backup Extension: $backupFileExtension');
               print('============ Imported Backup Data ============ ');
               imported.diagnostics.forEach(print);

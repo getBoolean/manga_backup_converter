@@ -27,6 +27,7 @@ export 'src/conversion/conversion_session.dart';
 export 'src/conversion/conversion_strategy.dart';
 export 'src/conversion/details_outcome.dart';
 export 'src/conversion/extension_entry.dart';
+export 'src/conversion/extension_resolution.dart';
 export 'src/conversion/extension_settings.dart';
 export 'src/conversion/format_registry.dart';
 export 'src/conversion/manga_details.dart';
