@@ -86,4 +86,52 @@ void main() {
     check(report.where(RecordKind.chapterState, RecordDisposition.transferred)).isEmpty();
     check(writer.validate(bytes, <MangaConversionPlan>[planConversion(c)])).isEmpty();
   });
+
+  // Two source manga (the same series from two sources) confirmed to one
+  // destination manga. Pinned per writer: the destination records collapse
+  // when they are identical; when they differ (the destination reports no
+  // artist, so each falls back to its own source's), Aidoku and Tachi write
+  // the manga twice and validation refuses the output.
+  group('two source manga confirmed to one destination', () {
+    MangaMatchConfirmation twin(SourceIdentity identity, String artist, {required bool destinationArtists}) {
+      final SourceMangaData source = statefulManga();
+      return fetchedConfirmation(
+        SourceMangaData(
+          details: MangaSearchDetails(title: source.details.title, artists: <String>[artist]),
+          sourceId: source.sourceId,
+          sourceMangaKey: source.sourceMangaKey,
+          chapters: source.chapters,
+        ),
+        identity,
+        mangaId: 'm1',
+        chapters: destinationChapters(),
+        artists: destinationArtists ? const <String>['Artist B'] : const <String>[],
+      );
+    }
+
+    Future<List<String>> problems(TargetBackupBuilder writer, SourceIdentity identity, {required bool same}) async {
+      final plans = <MangaConversionPlan>[
+        planConversion(twin(identity, 'From source one', destinationArtists: same)),
+        planConversion(twin(identity, 'From source two', destinationArtists: same)),
+      ];
+      final ConvertableBackup backup = writer.build(plans, report: ConversionReport());
+      return writer.validate(await backup.toData(), plans);
+    }
+
+    final expectations = <String, (bool, bool)>{
+      // format: (valid when the records are identical, valid when they differ)
+      'Aidoku': (true, false),
+      'Paperback': (true, true),
+      'Mihon': (false, false),
+    };
+    for (final (TargetBackupBuilder writer, SourceIdentity identity) in writers) {
+      test('${writer.format}', () async {
+        final (bool identical, bool differing) = expectations['${writer.format}']!;
+        check(because: 'identical records', (await problems(writer, identity, same: true)).isEmpty).equals(identical);
+        final List<String> found = await problems(writer, identity, same: false);
+        check(because: 'differing records', found.isEmpty).equals(differing);
+        if (!differing) check(found).any((Subject<String> it) => it.contains('is written twice'));
+      });
+    }
+  });
 }
