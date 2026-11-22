@@ -494,7 +494,7 @@ void registerU14PhaseCases() {
       // Reached only when the Dart isolate survived the interruption (the
       // recreate phase with an engine that outlives its Activity).
       final data = <String, Object?>{
-        'pass': true,
+        'ok': true,
         'path': 'same-isolate',
         ...h.checkRun(run),
         'interruptedAt': jsonDecode(interrupted.readAsStringSync()),
@@ -545,7 +545,7 @@ void registerU14PhaseCases() {
         expect(outputs, hasLength(1), reason: '$outputs');
         final Map<String, Object?> checked = h.checkRun(run);
         final data = <String, Object?>{
-          'pass': true,
+          'ok': true,
           'path': 'relaunch-resumed',
           ...checked,
           'interruptedAt': interruptedAt,
@@ -564,7 +564,7 @@ void registerU14PhaseCases() {
     } on Object catch (e) {
       if (!receipt.existsSync()) {
         receipt.writeAsStringSync(
-          jsonEncode(<String, Object?>{'pass': false, 'error': '$e'}),
+          jsonEncode(<String, Object?>{'ok': false, 'error': '$e'}),
         );
       }
       rethrow;

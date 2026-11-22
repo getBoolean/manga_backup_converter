@@ -286,7 +286,7 @@ def main(argv):
         "hostNoticesBytes": len(host_notices),
         "testPayload": {"allowed": allow_test, "entries": len(payload), "kinds": sorted({p["kind"] for p in payload}), "repositoryStrings": forbidden_hits},
         "problems": problems,
-        "pass": not problems,
+        "ok": not problems,
     }
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         json.dump(record, f, indent=2)

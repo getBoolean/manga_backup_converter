@@ -1,0 +1,59 @@
+{
+  "unit": "U14 restore spot check: Android-built Mihon backup in a clean Mihon",
+  "evidence": "EMULATOR EVIDENCE, manual (T3 device tools / agent-device on the user-authorised disposable AVD); not a physical-device receipt",
+  "device": {
+    "avd": "Pixel_9_Pro",
+    "android": "16",
+    "sdkInt": 36,
+    "abi": "x86_64"
+  },
+  "destinationApp": {
+    "app": "Mihon",
+    "package": "app.mihon",
+    "versionName": "0.21.3",
+    "versionCode": 39,
+    "artifact": "mihon-x86_64-v0.21.3.apk",
+    "artifactUrl": "https://github.com/mihonapp/mihon/releases/tag/v0.21.3",
+    "artifactSha256": "ec762db5e17d334a2dc0adf6c6ae9aec400499217e7625e8b7fbd40a86887671",
+    "provenance": "latest official GitHub release (published 2026-10-25); SHA-256 equals the digest GitHub reports for the asset; installed fresh, no prior data",
+    "committed": false
+  },
+  "input": {
+    "file": "u14-aidoku-to-mihon.tachibk",
+    "bytes": 3164,
+    "sha256": "7e3fc0b7ac4be68e1338bc15015a23d727010d18ecb69d97540ea861d950d40f",
+    "producedBy": "the U14 recreate-phase job on the same emulator (debug APK, AndroidSourceRuntimes): Aidoku -> Mihon through the :source_runtime Tachi worker with the pinned keiyoushi WeebCentral 1.6.27 APK, replayed captures; pulled with run-as; SHA-256 equals the receipt's outputSha256",
+    "fixture": "sanitized fixture library: one manga, category 'Reading', Step 1 read, Step 2 at page index 4, Step 3 bookmarked (Aidoku input cannot carry the bookmark, so it is a recorded loss)"
+  },
+  "steps": [
+    "Mihon first run: storage folder created through the system picker; onboarding finished",
+    "More > Settings > Data and storage > Restore backup > picked the file > Restore",
+    "Library inspected, the entry opened",
+    "The same backup restored a second time, library and entry inspected again"
+  ],
+  "observed": {
+    "beforeRestoreWarning": "Missing sources: Weeb Central (en)",
+    "libraryEntries": 1,
+    "categories": ["Reading"],
+    "mangaSourceShown": "2131019126180322627 (Source not found: no extension installed)",
+    "chapters": 114,
+    "unreadBadge": 113,
+    "chapterState": {
+      "Step 1": "read",
+      "Step 2": "unread, Page: 5 (lastPageRead 4)",
+      "Step 3": "unread, no bookmark (expected loss from the Aidoku input)",
+      "others": "unread"
+    },
+    "afterSecondRestore": {
+      "libraryEntries": 1,
+      "chapters": 114
+    }
+  },
+  "notDone": {
+    "refresh": "Mihon cannot refresh the manga or its chapter list without the Weeb Central extension installed; installing it would need adding a repository and downloading the extension live, which is beyond restoring/refreshing. Open item.",
+    "openChapter": "Needs the extension and live network; not attempted. Open item.",
+    "paperbackAidokuRestores": "iOS test-device work under U8's restore prerequisites; open."
+  },
+  "networkNote": "Mihon itself fetched the cover image after restore (its own network use, outside the test suite, as authorised for this manual check). The converter made no network request.",
+  "result": "ok (restore, no duplicates after a repeated restore, expected library/category/read state); refresh and chapter open not exercised"
+}

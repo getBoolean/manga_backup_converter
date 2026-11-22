@@ -42,8 +42,13 @@ android {
 // transitive artifacts it packages) is pinned in app/gradle.lockfile (U14
 // build records). Regenerate after a dependency change with
 //   cd android && ./gradlew :app:dependencies --write-locks
+//
+// Flutter's engine artifacts (io.flutter:*) are left out: the Flutter SDK
+// pins them, and the Flutter tool resolves only the ABIs of each build
+// (`flutter test` builds one), which a lock of all ABIs would reject.
 dependencyLocking {
     lockAllConfigurations()
+    ignoredDependencies.add("io.flutter:*")
 }
 
 kotlin {
