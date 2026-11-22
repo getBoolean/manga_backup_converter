@@ -39,6 +39,9 @@ object CaptureFormat {
     const val MANIFEST = "capture.json"
     const val BODIES = "bodies"
     const val VOLATILE_VALUE = "*"
+
+    /** The only body path a manifest may name. */
+    val BODY_FILE = Regex("bodies/[0-9a-f]{64}[.]bin")
     val RECORDED_RESPONSE_HEADERS = setOf("content-type", "location", "retry-after", "cf-mitigated")
 
     /** How an allow-listed `Set-Cookie` value is written (Dart `CapturedCookieValue`). */
@@ -270,6 +273,9 @@ object CaptureFormat {
                 ?.mapValues { CookieMode.fromWire((it.value as? JsonPrimitive)?.contentOrNull) }.orEmpty(),
         )
         val bodies = exchanges.associate { e ->
+            // Only `bodies/<sha256 hex>.bin`, as every capture writer names them: a manifest cannot point the
+            // loader at another file (L5).
+            require(BODY_FILE.matches(e.bodyFile)) { "Capture body path ${e.bodyFile} in $dir is not bodies/<sha256>.bin" }
             val bytes = File(dir, e.bodyFile).readBytes()
             val digest = Digests.sha256(bytes)
             require(digest == e.sha256 && bytes.size == e.size) { "Capture body ${e.bodyFile} in $dir does not match its recorded SHA-256" }

@@ -74,6 +74,9 @@ object ArtifactVerifier {
 
     fun verifyApk(file: File, trustedSigners: Set<String>): Verified {
         if (trustedSigners.isEmpty()) throw ArtifactException("No trusted signing identity was supplied for ${file.name}")
+        // apksig verifies the entries it reads; a later reader (dex2jar, ART)
+        // could pick the other copy of a duplicated name (L5).
+        requireUniqueEntries(file)
         val result = try {
             ApkVerifier.Builder(file).build().verify()
         } catch (e: Exception) {
@@ -100,7 +103,7 @@ object ArtifactVerifier {
     }
 
     /** A ZIP with duplicate entry names can verify one copy and load another. */
-    private fun requireUniqueEntries(file: File) {
+    internal fun requireUniqueEntries(file: File) {
         try {
             ZipFile(file).use { zip ->
                 val seen = HashSet<String>()
