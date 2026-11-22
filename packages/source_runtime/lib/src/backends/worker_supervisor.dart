@@ -19,6 +19,7 @@ import 'package:source_runtime/src/backends/browser_reverse_bridge.dart';
 import 'package:source_runtime/src/backends/protocol.dart';
 import 'package:source_runtime/src/backends/redaction.dart';
 import 'package:source_runtime/src/backends/worker_process.dart';
+import 'package:source_runtime/src/contracts/background_gate.dart';
 import 'package:source_runtime/src/contracts/browser_port.dart';
 import 'package:source_runtime/src/contracts/cancellation.dart';
 import 'package:source_runtime/src/contracts/identity.dart';
@@ -385,6 +386,7 @@ class WorkerSupervisor {
     void Function(String line)? onLog,
     Redactor? redactor,
     this.onGenerationFenced,
+    this.gate,
   }) : limitsPolicy = limits,
        _limits = limits is SupervisorLimits ? limits : null,
        _launcher = launcher ?? launchWorkerProcess,
@@ -413,6 +415,18 @@ class WorkerSupervisor {
   /// session or [close] it is one past the last, so every generation is
   /// fenced. Browser sessions of fenced generations close in response.
   final FutureOr<void> Function(int generation)? onGenerationFenced;
+
+  /// The app-lifecycle gate (KTD18), or `null` where none applies (the CLI).
+  ///
+  /// While backgrounded, `search` and `details` are refused and those in
+  /// flight answer `cancelled: app-backgrounded` at once (a cooperative
+  /// cancel goes to the worker and its late reply is discarded).
+  /// `artifact.prepare`, `package.load` and `settings.update` are refused
+  /// when new but finish once sent: interrupting them would leave the worker
+  /// holding state the supervisor does not track. Cleanup (`dispose`,
+  /// `package.unload`) and the supervisor's own control calls (restart
+  /// rehydration, handshake, shutdown) are never gated.
+  final BackgroundGate? gate;
 
   static void _discardLog(String _) {}
 
@@ -743,6 +757,36 @@ class WorkerSupervisor {
     CancellationToken? cancel,
     String? coalesceKey,
     Duration? deadline,
+  }) {
+    final BackgroundGate? g = gate;
+    final bool? interruptible = g == null ? null : _gatedOps[op];
+    if (g == null || interruptible == null) {
+      return _call(packageId, op, payload, cancel: cancel, coalesceKey: coalesceKey, deadline: deadline);
+    }
+    return g.run(
+      cancel,
+      (CancellationToken c) => _call(packageId, op, payload, cancel: c, coalesceKey: coalesceKey, deadline: deadline),
+      interruptible: interruptible,
+    );
+  }
+
+  /// Operations behind [gate], and whether backgrounding interrupts them in
+  /// flight. Any other operation is never gated.
+  static final Map<String, bool> _gatedOps = <String, bool>{
+    WorkerOperation.search.wire: true,
+    WorkerOperation.details.wire: true,
+    WorkerOperation.artifactPrepare.wire: false,
+    WorkerOperation.packageLoad.wire: false,
+    WorkerOperation.settingsUpdate.wire: false,
+  };
+
+  Future<SourceOutcome<Map<String, Object?>>> _call(
+    String packageId,
+    String op,
+    Map<String, Object?> payload, {
+    required CancellationToken? cancel,
+    required String? coalesceKey,
+    required Duration? deadline,
   }) {
     final SourceFailure? failure = _unavailable();
     if (failure != null) return Future<SourceOutcome<Map<String, Object?>>>.value(SourceFailed(failure));
@@ -1426,6 +1470,7 @@ class ConversionRuntimeScope {
     this.onLog,
     Redactor? redactor,
     this.onGenerationFenced,
+    this.gate,
   }) : redactor = redactor ?? Redactor();
 
   /// Worker specs by kind; a kind without a spec is unavailable.
@@ -1450,6 +1495,11 @@ class ConversionRuntimeScope {
   final void Function(String line)? onLog;
   final Redactor redactor;
   final FutureOr<void> Function(WorkerKind kind, int generation)? onGenerationFenced;
+
+  /// The app-lifecycle gate every worker's calls pass through
+  /// ([WorkerSupervisor.gate]); while backgrounded, [worker] refuses to
+  /// start a worker that does not exist yet.
+  final BackgroundGate? gate;
 
   final Map<WorkerKind, WorkerSupervisor> _supervisors = <WorkerKind, WorkerSupervisor>{};
   final Map<WorkerKind, BrowserReverseBridge> _bridges = <WorkerKind, BrowserReverseBridge>{};
@@ -1482,6 +1532,10 @@ class ConversionRuntimeScope {
         CapabilityUnavailableFailure('worker.${kind.name}', 'No ${kind.name} worker is configured on this host'),
       );
     }
+    if (!_supervisors.containsKey(kind)) {
+      final SourceFailed<WorkerSupervisor>? refused = gate?.refusal<WorkerSupervisor>();
+      if (refused != null) return refused;
+    }
     final WorkerSupervisor supervisor = _supervisors.putIfAbsent(kind, () => _create(kind, spec));
     final SourceOutcome<HandshakeResponse> started = await supervisor.start();
     return started.map((_) => supervisor);
@@ -1513,6 +1567,7 @@ class ConversionRuntimeScope {
         await bridge?.fence(generation);
         await onGenerationFenced?.call(kind, generation);
       },
+      gate: gate,
     );
     bridge?.emitEvent = supervisor.sendEvent;
     return supervisor;
