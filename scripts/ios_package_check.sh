@@ -250,10 +250,14 @@ for cid in with_text:
     if cid.startswith("maven:"):
         _, g, a, v = cid.split(":")
         jar_names[f"{a}-{v}.jar"] = cid
-classpath = [l.split("\t")[1] for l in open(layout) if l.startswith("classpath\t")] if os.path.exists(layout) else []
+classpath = [l.rstrip("\r\n").split("\t")[1] for l in open(layout) if l.startswith("classpath\t")] if os.path.exists(layout) else []
+# A --test payload adds the replay server, which the shipping notices exclude.
+TEST_ONLY_JARS = ("mockwebserver3-", "okhttp-tls-")
 for flat in classpath:
     jar = flat[len("cp__"):]
     if jar == "ios-host.jar" or jar.startswith("tachi-source-runner-"):
+        continue
+    if allow_test and jar.startswith(TEST_ONLY_JARS):
         continue
     if jar not in jar_names:
         problems.append(f"no notices entry with text for class path JAR {jar}")

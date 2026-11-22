@@ -152,6 +152,15 @@ stage_libffi() {
   done
 }
 
+# The pin's commit time; an offline build (no history) takes SOURCE_DATE_EPOCH.
+source_date() {
+  if [[ -n "${OPENJDK_MOBILE_SOURCE:-}" ]]; then
+    printf '%s' "$SOURCE_DATE_EPOCH"
+  else
+    git -C "$src" log -1 --format=%ct
+  fi
+}
+
 configure_and_make() {
   local conf="$1"; shift
   local -a configure_args=("$@")
@@ -164,7 +173,7 @@ configure_and_make() {
       --with-conf-name="$conf" --with-boot-jdk="$jdk" \
       --disable-warnings-as-errors --with-jobs="$jobs" \
       --with-build-user=srt --with-version-opt="sourcerunner.r$RUNTIME_BUILD_REVISION" \
-      --with-source-date="${SOURCE_DATE_EPOCH:-$(git -C "$src" log -1 --format=%ct)}" \
+      --with-source-date="$(source_date)" \
       ${configure_args[@]+"${configure_args[@]}"} >"$logs/$conf-configure.log" 2>&1
   ) || die "configure $conf failed; see $logs/$conf-configure.log"
 }
