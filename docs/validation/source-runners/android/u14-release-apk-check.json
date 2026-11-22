@@ -1,0 +1,411 @@
+{
+  "unit": "U14 release APK record and package check",
+  "evidence": "Build inspection of the final branch build; an earlier release build of the same sources (before the Gradle lock excluded io.flutter) was installed and launched on the API 36 emulator (x86_64)",
+  "command": "flutter build apk --release; python3 -I scripts/android_package_check.py build/app/outputs/flutter-apk/app-release.apk <out> --build-dir build",
+  "flutter": "3.50.0 (Dart 3.14)",
+  "apk": "app-release.apk",
+  "apkSha256": "fec5272073ac2d888d9d8263c7e19fc0dc7d4f4b2241c380a354ee2db79010e5",
+  "apkBytes": 81393923,
+  "identity": {
+    "package": "dev.getboolean.mangabackupconverter",
+    "versionCode": "1",
+    "versionName": "0.1.0",
+    "minSdk": 28,
+    "targetSdk": 36,
+    "compileSdk": 36,
+    "nativeCode": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86_64"
+    ]
+  },
+  "signing": {
+    "verified": true,
+    "schemes": [
+      "v2 scheme (APK Signature Scheme v2)"
+    ],
+    "signers": [
+      {
+        "dn": "C=US, O=Android, CN=Android Debug",
+        "sha256": "38f73b527d22675ccad2379bda776416b27429ab026f93984676aaacd88d1892"
+      }
+    ]
+  },
+  "nativeLibraries": [
+    {
+      "path": "lib/arm64-v8a/libapp.so",
+      "abi": "arm64-v8a",
+      "bytes": 6620120,
+      "sha256": "6e00232ea8e4f0b5b74b1792a0b33865db66901c623d6e704ad563a1e84136a2",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libdartjni.so",
+      "abi": "arm64-v8a",
+      "bytes": 131944,
+      "sha256": "5bcbccc675b9cdc289ccac19c5baa329b8da1435e96d45a14969a12dd789cc3c",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "abi": "arm64-v8a",
+      "bytes": 7112,
+      "sha256": "d3e48717c9aa147e0ab21063ba0e8e0211cabf8bf40b222640829519edbf58e1",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libflutter.so",
+      "abi": "arm64-v8a",
+      "bytes": 11346352,
+      "sha256": "897269cb58e4ae58e67be458235a15180eee37dd8a0fd648bfc095798bf1a005",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libirondash_engine_context_native.so",
+      "abi": "arm64-v8a",
+      "bytes": 4424,
+      "sha256": "ac694688afe6319849d4f839adc9d0dc7c685f2640f309335b33d3435275a324",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libquickjs.so",
+      "abi": "arm64-v8a",
+      "bytes": 1165048,
+      "sha256": "67ab8cefac725b699c9e368052ab112150d969d42dfd5bd9a5cf1b58d6785d28",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libscraper_bridge.so",
+      "abi": "arm64-v8a",
+      "bytes": 2903640,
+      "sha256": "0aae498315354441cd1c8505e509208fce4d23280fd3def9eb1fd1abb3e2b646",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libsuper_native_extensions.so",
+      "abi": "arm64-v8a",
+      "bytes": 1067232,
+      "sha256": "7c5c94d3750ceff78c3ad5b63b6d21eeed7fdf92b58c6529ee8f96d897dcbbf9",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libwasm3.so",
+      "abi": "arm64-v8a",
+      "bytes": 145672,
+      "sha256": "b08af4ed3600adf41c781c2fb50fe0d51413de70975a60ce940fa40c305f4526",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/arm64-v8a/libzstd-kmp.so",
+      "abi": "arm64-v8a",
+      "bytes": 731872,
+      "sha256": "10ec47f13bee884450b0911066019ba7aa6b4164a4c1f8c33c9d30dd3fd8868a",
+      "elf": {
+        "class": 64,
+        "machine": 183
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libapp.so",
+      "abi": "armeabi-v7a",
+      "bytes": 7258696,
+      "sha256": "5c968419bcb777143fa6a44edd2d18b5e800b4ec4af5657510382329929277ca",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libdartjni.so",
+      "abi": "armeabi-v7a",
+      "bytes": 82048,
+      "sha256": "30e938a6c908fa009fcc97dd4452657c643784c5cbac7c66bbbb994fb311981d",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libdatastore_shared_counter.so",
+      "abi": "armeabi-v7a",
+      "bytes": 4416,
+      "sha256": "716c5d8d2cac8ca0edf65da8f139c7886b726ac79d542a14edeb94994ba6d3dc",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libflutter.so",
+      "abi": "armeabi-v7a",
+      "bytes": 8458404,
+      "sha256": "d5e7b4070acc3aa661a44bcf12fe160a9c57a0d3b077b517d5a6bf9e422164ec",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libirondash_engine_context_native.so",
+      "abi": "armeabi-v7a",
+      "bytes": 2976,
+      "sha256": "22c6a7b6ebfbe0f86e0a0bae28a45a3cc323ca73073645c72e6377959ef6f741",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libquickjs.so",
+      "abi": "armeabi-v7a",
+      "bytes": 1104344,
+      "sha256": "8c03f1ae94f03c8b414d03968176099adbff1512d069d38e5237867192d1b2b6",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libscraper_bridge.so",
+      "abi": "armeabi-v7a",
+      "bytes": 2003352,
+      "sha256": "03f17757fb8eda7675771c977bb348eed8b59bd1847393581bf467753cdcc6a3",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libsuper_native_extensions.so",
+      "abi": "armeabi-v7a",
+      "bytes": 817592,
+      "sha256": "34aa13f6304caf9473a1b8df5e30901d3bb52905c4544443626d35fe9ab4c6e1",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libwasm3.so",
+      "abi": "armeabi-v7a",
+      "bytes": 129924,
+      "sha256": "040caf83f47ec0e3ee89cf5eaf9bf3621f1730f3474aef678f7b8d9a6e678584",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/armeabi-v7a/libzstd-kmp.so",
+      "abi": "armeabi-v7a",
+      "bytes": 566996,
+      "sha256": "4b30671d21e9c6953dc84e4b4602e33b88740d61417af96dbc4ddf44b22a8e15",
+      "elf": {
+        "class": 32,
+        "machine": 40
+      }
+    },
+    {
+      "path": "lib/x86_64/libapp.so",
+      "abi": "x86_64",
+      "bytes": 6816728,
+      "sha256": "9b54a143db3492404ab5bb11714b9de4b9ce62dfec3de3d09f6ef0d66fe12290",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libdartjni.so",
+      "abi": "x86_64",
+      "bytes": 117256,
+      "sha256": "5305a8cd72966c4d86e5e7d72036f67d1d6cf1b207670c8f10f4cf56614e8d92",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libdatastore_shared_counter.so",
+      "abi": "x86_64",
+      "bytes": 6224,
+      "sha256": "fb6c9208988c49ae94943bc3236fa763ba584722e044fa4ea9a12d2941027105",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libflutter.so",
+      "abi": "x86_64",
+      "bytes": 12467088,
+      "sha256": "dee9d6ee522b4024edc002953307dca92c731cad84dad2a9e66a329cc2e6436c",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libirondash_engine_context_native.so",
+      "abi": "x86_64",
+      "bytes": 4440,
+      "sha256": "e27410e743afa8d61ac3fd3cd694eff0e2f4a978cfcf6a7915ee98edaf0d3c68",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libquickjs.so",
+      "abi": "x86_64",
+      "bytes": 1198600,
+      "sha256": "6c135af6a2af187741940b13505327dfd9a603b4b3063cef17e7d2968f25a795",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libscraper_bridge.so",
+      "abi": "x86_64",
+      "bytes": 3174456,
+      "sha256": "fdcd27722cd18550816a491781deb7617caf3571ca69967eba2c9f8418d9094a",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libsuper_native_extensions.so",
+      "abi": "x86_64",
+      "bytes": 1202504,
+      "sha256": "f344425624b37b18f56cb12fd69b54c4513c408325c69a5aeab3da7e0fe8e136",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libwasm3.so",
+      "abi": "x86_64",
+      "bytes": 142696,
+      "sha256": "11e1ac6feceb365e25f92abb4bb13b63c24d276af613f20b6cf59dda1caedd48",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    },
+    {
+      "path": "lib/x86_64/libzstd-kmp.so",
+      "abi": "x86_64",
+      "bytes": 816568,
+      "sha256": "fefcbdcd59580a3043c62380a83d92f13c031c278481e22591a2c75112296e28",
+      "elf": {
+        "class": 64,
+        "machine": 62
+      }
+    }
+  ],
+  "buildOutputs": {
+    "variant": "release",
+    "matchedStripped": 30,
+    "hookOutputsUnstripped": [
+      {
+        "path": "lib/arm64-v8a/libquickjs.so",
+        "sha256": "e69041bf1e944e8dd13a11bc1a9e16a72997e118bc00c7098cf7383da65e195c"
+      },
+      {
+        "path": "lib/arm64-v8a/libscraper_bridge.so",
+        "sha256": "a388a7a2fa30570225019781695cc2c0673e9d4a6f91a74ebf3eb8dbe6bf4441"
+      },
+      {
+        "path": "lib/arm64-v8a/libwasm3.so",
+        "sha256": "c05357159f948508c6cd2185e18b06129e6d04a38e59ea68d9ac03bd3e266a1c"
+      },
+      {
+        "path": "lib/armeabi-v7a/libquickjs.so",
+        "sha256": "5117499dd64a40f496d4bf869b8537c3670e2df13f0b6e047be0dea65c259607"
+      },
+      {
+        "path": "lib/armeabi-v7a/libscraper_bridge.so",
+        "sha256": "34cc091448fed377e73754b5843d841db63dc4df9317e0a450b77b6e0533e96e"
+      },
+      {
+        "path": "lib/armeabi-v7a/libwasm3.so",
+        "sha256": "4b6c6f7649a94a470c14e26ccf6b8687bd4f7c0fa37c0542db78a9ad410033fe"
+      },
+      {
+        "path": "lib/x86_64/libquickjs.so",
+        "sha256": "717d54a514741aa6077230a34a3c50857c880cf04719d895873e1baa75b10380"
+      },
+      {
+        "path": "lib/x86_64/libscraper_bridge.so",
+        "sha256": "a125efb7881a3ba11f1d77b87fd6df1a74e4622711687af039e3eb7efda3ee15"
+      },
+      {
+        "path": "lib/x86_64/libwasm3.so",
+        "sha256": "ea799dcecc1c1533bba0408b278b585f149fe99b90688b58f6f7cd8c5b8c8fad"
+      }
+    ]
+  },
+  "notices": {
+    "libdartjni.so": true,
+    "libdatastore_shared_counter.so": true,
+    "libflutter.so": true,
+    "libirondash_engine_context_native.so": true,
+    "libquickjs.so": true,
+    "libscraper_bridge.so": true,
+    "libsuper_native_extensions.so": true,
+    "libwasm3.so": true,
+    "libzstd-kmp.so": true,
+    "OkHttp": true,
+    "Okio": true,
+    "jsoup": true,
+    "RxJava": true,
+    "Kotlin": true,
+    "kotlinx.coroutines": true,
+    "kotlinx.serialization": true,
+    "Injekt": true,
+    "apksig": true,
+    "AndroidX": true,
+    "Mihon source API": true,
+    "zstd-kmp": true
+  },
+  "noticesBytes": 1636953,
+  "hostNoticesBytes": 43681,
+  "testPayload": {
+    "allowed": false,
+    "entries": 0,
+    "kinds": [],
+    "repositoryStrings": []
+  },
+  "problems": [],
+  "ok": true
+}

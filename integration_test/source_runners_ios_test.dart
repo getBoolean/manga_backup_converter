@@ -49,103 +49,6 @@ void _receipt(String name, Map<String, Object?> data) {
   print('U15_RECEIPT ${jsonEncode(r)}');
 }
 
-String _ecosystemOf(BackupFormat f) => switch (f) {
-  Aidoku() => 'aidoku',
-  Paperback() => 'paperback',
-  _ => 'tachi',
-};
-
-/// Complete accounting and validation of [run], plus its destination checks.
-Map<String, Object?> _checkRun(IosConversionHarness h, HarnessRun run) {
-  final ConversionResult result = run.result;
-  expect(run.published, result.draft.bytes, reason: 'published bytes');
-  expect(
-    h.formats
-        .writerFor(run.target)!
-        .validate(run.published, result.draft.plans),
-    isEmpty,
-  );
-  final int stateful = mergeHistoryIntoChapters(
-    result.input.sourceMangaDataEntries.single,
-  ).$1.where((SourceChapter c) => c.hasReadingState).length;
-  expect(stateful, run.source is Tachiyomi ? 3 : 2);
-  expect(result.report.count(RecordKind.chapterState), stateful);
-  expect(
-    result.report.count(RecordKind.manga, RecordDisposition.transferred),
-    1,
-  );
-  expect(
-    result.report.count(
-      RecordKind.chapterState,
-      RecordDisposition.transferred,
-    ),
-    stateful,
-  );
-  final SourceIdentity runtimeIdentity =
-      result.draft.plans.single.confirmation.confirmedMatch!.ref.source;
-  expect(runtimeIdentity.ecosystem, _ecosystemOf(run.target));
-  final String emitted;
-  final int chapters;
-  switch (run.target) {
-    case Aidoku():
-      final AidokuBackup b = AidokuBackup.fromData(run.published);
-      emitted = b.manga!.single.sourceId;
-      chapters = b.chapters!.length;
-      expect(emitted, 'en.weebcentral');
-      expect(b.history, isNotEmpty);
-    case Paperback():
-      final b = PaperbackBackup.fromData(run.published);
-      emitted = b.sourceManga!.single.sourceId;
-      chapters = b.chapters!.length;
-      expect(emitted, 'WeebCentral');
-      expect(b.chapterProgressMarker, isNotEmpty);
-    default:
-      final TachiBackupManga m = TachiBackup.fromData(
-        run.published,
-      ).backupManga.single;
-      emitted = m.source.toString();
-      chapters = m.chapters.length;
-      // AE1: the loaded source's exact int64 ID and its own URLs.
-      expect(emitted, tachiWeebCentralId);
-      expect(m.url, weebCentralSeries);
-      expect(m.chapters.every((c) => !c.url.startsWith('http')), isTrue);
-      final TachiBackupChapter partial = m.chapters.singleWhere(
-        (c) => c.lastPageRead > 0,
-      );
-      expect(partial.lastPageRead, 4);
-      expect(partial.read, isFalse);
-  }
-  // The emitted identity is the one the local runtime enumerated.
-  expect(emitted, runtimeIdentity.sourceId);
-  expect(chapters, greaterThan(100));
-  return <String, Object?>{
-    'direction': '${run.source.alias} -> ${run.target.alias}',
-    'runtime': _ecosystemOf(run.target),
-    'emittedSourceId': emitted,
-    'runtimeSourceId': runtimeIdentity.sourceId,
-    'artifactSha256': runtimeIdentity.artifact.sha256,
-    'artifactKind': runtimeIdentity.artifact.kind,
-    'chapters': chapters,
-    'statefulChapters': stateful,
-    'transferred': result.report.count(
-      RecordKind.chapterState,
-      RecordDisposition.transferred,
-    ),
-    'losses':
-        result.report.count(RecordKind.chapterState) -
-        result.report.count(
-          RecordKind.chapterState,
-          RecordDisposition.transferred,
-        ),
-    'outputBytes': run.published.length,
-    'publishedInSandbox': run.outputPath.startsWith(
-      Directory.systemTemp.parent.path,
-    ),
-    'elapsedMs': run.elapsed.inMilliseconds,
-    'maxMainLoopGapMs': run.maxTickGap.inMilliseconds,
-  };
-}
-
 void _expectBaseline(IosConversionHarness h) {
   final Map<String, Object?> r = h.resources();
   expect(r['browserSessions'], anyOf(isNull, 0), reason: '$r');
@@ -205,18 +108,10 @@ void main() {
         await h.close();
       });
 
-      for (final (BackupFormat source, BackupFormat target)
-          in const <(BackupFormat, BackupFormat)>[
-            (Paperback(), Aidoku()),
-            (Mihon(), Aidoku()),
-            (Aidoku(), Paperback()),
-            (Mihon(), Paperback()),
-            (Aidoku(), Mihon()),
-            (Paperback(), Mihon()),
-          ]) {
+      for (final (BackupFormat source, BackupFormat target) in r5Directions) {
         test('${source.alias} -> ${target.alias}', () async {
           final HarnessRun run = await h.convert(source, target);
-          final Map<String, Object?> data = _checkRun(h, run);
+          final Map<String, Object?> data = h.checkRun(run);
           _expectBaseline(h);
           expect(h.runtimes.jvm!.globalRefCount, baselineRefs);
           expect(run.maxTickGap, lessThan(const Duration(milliseconds: 500)));
@@ -260,7 +155,7 @@ void main() {
             onSearch,
             events,
           );
-          await _until(() => h.aidokuSite.inFlight > 0);
+          await until(() => h.aidokuSite.inFlight > 0);
           h.runtimes.setBackgrounded(true);
           final PluginSearchResult? stale = await first;
           events.add('first:${stale?.title}');
@@ -280,7 +175,7 @@ void main() {
         const Aidoku(),
         selection: selection,
       );
-      final Map<String, Object?> data = _checkRun(h, run);
+      final Map<String, Object?> data = h.checkRun(run);
       expect(events.first, startsWith('error:cancelled'));
       expect(events, contains('first:null'));
       expect(events, contains('refused:null'));
@@ -299,7 +194,7 @@ void main() {
           h.aidokuSite.hold();
           final StreamSubscription<PluginSearchEvent> sub = onSearch('Onimai')
               .listen((_) {});
-          await _until(() => h.aidokuSite.inFlight > 0);
+          await until(() => h.aidokuSite.inFlight > 0);
           final watch = Stopwatch()..start();
           await sub.cancel();
           h.aidokuSite.release();
@@ -318,7 +213,7 @@ void main() {
         const Aidoku(),
         selection: selection,
       );
-      _receipt('ae8-cancel', _checkRun(h, run));
+      _receipt('ae8-cancel', h.checkRun(run));
       _expectBaseline(h);
     }, timeout: const Timeout(Duration(minutes: 5)));
 
@@ -333,7 +228,7 @@ void main() {
               (Paperback(), Aidoku()),
             ]) {
           final HarnessRun run = await h.convert(s, t);
-          _checkRun(h, run);
+          h.checkRun(run);
           _expectBaseline(h);
           rounds.add(<String, Object?>{
             'round': i,
@@ -361,15 +256,15 @@ void main() {
             onSearch,
             events,
           );
-          await _until(() => h.aidokuSite.inFlight > 0);
+          await until(() => h.aidokuSite.inFlight > 0);
           print('U15_HOLDING background the app now');
-          await _until(
+          await until(
             () => h.runtimes.aidoku!.isBackgrounded,
             timeout: const Duration(minutes: 3),
           );
           events.add('backgrounded');
           await first;
-          await _until(
+          await until(
             () => !h.runtimes.aidoku!.isBackgrounded,
             timeout: const Duration(minutes: 3),
           );
@@ -384,7 +279,7 @@ void main() {
         selection: selection,
       );
       print('U15_EVENTS $events');
-      final Map<String, Object?> data = _checkRun(h, run);
+      final Map<String, Object?> data = h.checkRun(run);
       // The held search was answered once, as cancelled by the lifecycle
       // gate, between the transition to the background and the return.
       expect(events, hasLength(3), reason: '$events');
@@ -490,7 +385,7 @@ void main() {
             const Mihon(),
             const Paperback(),
           );
-          _checkRun(h, next);
+          h.checkRun(next);
         } finally {
           poll.cancel();
           await h.close();
@@ -607,36 +502,6 @@ void main() {
           : 'Built-app case: --dart-define=SRT_PHASE=relaunch',
     );
   });
-}
-
-/// Searches once and records the outcome in [events].
-Future<PluginSearchResult?> searchOnce(
-  Stream<PluginSearchEvent> Function(String query) onSearch,
-  List<String> events,
-) async {
-  final hits = <PluginSearchResult>[];
-  await for (final PluginSearchEvent e in onSearch('Onimai')) {
-    if (e is PluginSearchResults) hits.addAll(e.results);
-    if (e is PluginSearchError) {
-      events.add(
-        'error:${e.failure.failure.code}:${e.failure.failure.message}',
-      );
-    }
-  }
-  return hits
-      .where((PluginSearchResult r) => r.title.toLowerCase().contains('onimai'))
-      .firstOrNull;
-}
-
-Future<void> _until(
-  bool Function() condition, {
-  Duration timeout = const Duration(seconds: 30),
-}) async {
-  final watch = Stopwatch()..start();
-  while (!condition()) {
-    if (watch.elapsed > timeout) throw TimeoutException('condition', timeout);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
 }
 
 /// Records that publication was reached with the journal on disk, then

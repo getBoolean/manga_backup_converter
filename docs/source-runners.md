@@ -602,3 +602,36 @@ deadline basis conservative.
   figures size the shipped worker.
 - **Not measured:** Clang targets (Android, Apple, Linux), slower reference devices, worker start-up to handshake
   (the CLI allows 30 s, an unmeasured policy value), and concurrency above one runtime.
+
+## Android app composition (U14)
+
+`AndroidSourceRuntimes` (`lib/src/features/conversion/application/conversion_composition_android.dart`) is
+the Android branch of the app's composition root. It shares `LocalSourceRuntimes` with the iOS branch.
+
+| Ecosystem | Backend | Admission | Runs in |
+|---|---|---|---|
+| Aidoku | `AndroidAidokuBackend` over the desktop `AidokuSourceProvider` | `libwasm3.so` and `libscraper_bridge.so` load | app process, one WASM isolate per source |
+| Paperback | `isolatePaperbackLauncher`, plan from `planPaperbackIsolateWorker()` | `AndroidPaperbackBackend.checkNativeLibrary` (`libquickjs.so`) | app process, one worker isolate per conversion; `executeInWebView` on `AndroidWebViewBrowserPort` |
+| Tachi | `AndroidTachiBackend` (`TachiRuntime`, APK artifacts only) | handshake of the service worker | `:source_runtime`, one worker per conversion, ended with it |
+
+- **Configuration.** `AndroidConversionConfig.interactive` is required. When true, the Tachi worker gets
+  `--interactive-challenges <interactionTimeout ms>` and the browser port may show interactions. Unattended runs
+  pass false. `tachiWorkerArguments` carries test-only worker arguments (`--replay`, `--offline-browser`,
+  `--limit`, `--challenge-once`); release builds refuse the debug-only ones, so production passes none.
+- **No defaults.** The composition contains no repository, extension or settings. Starting it binds no service
+  and starts no worker or isolate. The app's `main` does not start it, and no screen creates it yet.
+- **Degraded browser.** If the browser port cannot start, Paperback runs without `executeInWebView` and
+  `browserUnavailable` names the reason; the Aidoku and Tachi runtimes are unaffected.
+- **Replay fails closed.** Tests block WebView networking through `ProxyController`, which needs the WebView
+  feature `PROXY_OVERRIDE`. Where it is missing (the API 28 emulator image's WebView 69), the browser port
+  refuses replay mode and the Tachi worker refuses `--offline-browser`. Cases that load pages then skip with that
+  reason. Before U14, the service's hook only reported the missing override and carried on, so on that image
+  service WebViews reached the network (U14 receipts, "API 28 network contact").
+- **Lifecycle.** Only the browser port reacts to backgrounding on Android. A destroyed `MainActivity` destroys the
+  Flutter engine and with it the conversion; the journal resumes it at the next launch.
+- **Packaging.** `scripts/android_package_check.py` records the APK identity, SDK levels, signing identity and
+  native library hashes, and fails on missing notices, missing runtime ABIs or extension/repository payload.
+  `android/app/gradle.lockfile` locks the app's Gradle closure, except Flutter's engine artifacts. The Android
+  host libraries' notices ship in `packages/source_runtime_android/notices/`.
+
+Receipts and open items: `docs/validation/source-runners/android/README.md` (U14 section).

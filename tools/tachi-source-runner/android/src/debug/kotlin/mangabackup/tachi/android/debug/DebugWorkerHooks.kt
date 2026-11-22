@@ -71,7 +71,11 @@ class DebugWorkerHooks : AndroidWorkerRuntime.DebugHooks {
             }
         }
         val applied = done.await(30, TimeUnit.SECONDS)
-        if (proxyStatus == null) proxyStatus = if (applied) "applied" else "not confirmed within 10 s"
+        if (proxyStatus == null) proxyStatus = if (applied) "applied" else "not confirmed within 30 s"
+        // Fail closed: without a confirmed override the process's WebViews would reach the network
+        // (and resolve hosts through DNS), so the worker refuses to start in replay mode. U14 found
+        // this on API 28's image WebView 69, which lacks PROXY_OVERRIDE.
+        check(proxyStatus == "applied") { "--offline-browser cannot block WebView network: $proxyStatus" }
         return "loopback refusing proxy on 127.0.0.1:${proxy.localPort} ($proxyStatus)"
     }
 

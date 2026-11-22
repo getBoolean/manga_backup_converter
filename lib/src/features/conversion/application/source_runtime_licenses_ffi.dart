@@ -1,10 +1,16 @@
 import 'package:flutter/foundation.dart';
-import 'package:source_runtime_ios/source_runtime_ios.dart'
-    show registerSourceRuntimeLicenses;
+import 'package:source_runtime_android/source_runtime_android.dart' as android;
+import 'package:source_runtime_ios/source_runtime_ios.dart' as ios;
 
-/// GPL notices and source offer of the embedded iOS runtime (R18).
+/// Notices of the platform's source runtime: the embedded iOS runtime's GPL
+/// notices and source offer (R18), or the Android host libraries' notices.
 void registerPlatformSourceRuntimeLicenses() {
-  if (defaultTargetPlatform == TargetPlatform.iOS) {
-    registerSourceRuntimeLicenses();
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.iOS:
+      ios.registerSourceRuntimeLicenses();
+    case TargetPlatform.android:
+      android.registerSourceRuntimeLicenses();
+    default:
+      break;
   }
 }

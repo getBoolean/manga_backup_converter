@@ -342,3 +342,109 @@ Final run, on `feat/source-runners` 28b44470 (branch head `5b584a5b`): `flutter 
 ## U12 notes
 
 - **DNS lookup in a development run.** The first version of `BrowserCookiesAndChallengeTest` put its fake site behind an OkHttp network interceptor, so OkHttp tried to resolve `site.test` before reaching it (`UnknownHostException`). No connection was made. The committed test uses an application interceptor and touches no network.
+
+---
+
+# U14 Android on-device conversion and packaging — receipts
+
+Plan: U14 (R5, R9-R12, R15-R17; AE9-AE11). **Emulator evidence only.** Nothing here satisfies R16 or AE9: every physical ARM64 release-profile cell stays open (see "U14: still open").
+
+| Receipt | Device or build | Result |
+|---|---|---|
+| [`u14-conversion-emulator-api36-pixel9pro-x86_64.json`](u14-conversion-emulator-api36-pixel9pro-x86_64.json) | AVD `Pixel_9_Pro`, Android 16 (API 36), x86_64, WebView 134.0.6998.135, debug build | final whole-file run (U11-U14): 105 pass, 3 skip, 0 fail; manual backgrounding 1/1; kill-and-relaunch and Activity recreation pass |
+| [`u14-conversion-emulator-api28-x86_64.json`](u14-conversion-emulator-api28-x86_64.json) | AVD `U14_API28_x86_64` (`system-images;android-28;google_apis;x86_64` r11, installed for this unit), Android 9 (API 28) | final whole-file run: 35 pass, 7 skip, 67 fail; every failure is a U12 browser-port case failing closed (no `PROXY_OVERRIDE`); see "Minimum SDK (API 28)" |
+| [`u14-release-apk-check.json`](u14-release-apk-check.json) | `flutter build apk --release` | package check passes on the final build (native libraries identical to the earlier build, which was installed and launched on the API 36 AVD) |
+| [`u14-mihon-restore-emulator-api36-pixel9pro-x86_64.json`](u14-mihon-restore-emulator-api36-pixel9pro-x86_64.json) | Mihon 0.21.3 (official x86_64 release APK) on the API 36 AVD | restore ok; with the pinned WeebCentral APK installed, refresh kept 114 chapters (no duplicates) and the read/partial state, and Step 2 opened at page 5 |
+
+Commands:
+- `flutter test integration_test/source_runners_android_test.dart -d <emulator> --name U14 --reporter expanded` runs the U14 cases; without `--name` the file also runs U11, U12 and U13.
+- Real backgrounding: add `--name "U14 background" --dart-define=SRT_MANUAL=true` and drive the device with the T3 device tools (`agent-device home` at `U14_HOLDING`, `agent-device open <package>` at `U14_BACKGROUNDED`).
+- Built-app phases: `flutter build apk --debug -t integration_test/source_runners_android_test.dart --dart-define=SRT_PHASE=relaunch` (or `recreate`), `adb install -r`, then launches through `agent-device open`. The steps are in `registerU14PhaseCases` in `integration_test/android_u14_cases.dart`.
+
+## How it runs
+
+- **Composition.** `AndroidSourceRuntimes.start(AndroidConversionConfig)` (`lib/src/features/conversion/application/conversion_composition_android.dart`) registers three runtimes:
+  - U13 Aidoku (`AndroidAidokuBackend`: wasm3 and the scraper must load).
+  - U12 Paperback: the worker isolate with the KTD25 plan measured on the device. `AndroidPaperbackBackend.checkNativeLibrary` admits it only when `libquickjs.so` loads.
+  - U11 Tachi (`AndroidTachiBackend`): one `:source_runtime` worker per conversion, APK artifacts only.
+
+  Paperback's `executeInWebView` uses the app-process `AndroidWebViewBrowserPort`. If the port cannot start, Paperback still runs without it and `browserUnavailable` names the reason. iOS and Android share `LocalSourceRuntimes`: the registry, per-conversion scopes adopted by the job's `ConversionOwner`, the Paperback worker isolate and secret registration. `androidConversionServiceOverride` installs it for Riverpod.
+- **User-supplied only.** The composition has no default repository, extension or settings. The app passes repositories per request, picks through its `SelectionPort`, and passes settings through `convert(settingsFor:)`. Debug-only worker arguments (`--replay`, `--offline-browser`, `--limit`, `--challenge-once`) come only from `tachiWorkerArguments`, which production leaves empty.
+- **Interactive challenges.** `AndroidConversionConfig.interactive` is required. When true, the Tachi worker gets `--interactive-challenges <interactionTimeout ms>` and the browser port may show its interaction Activity. The harness runs with `false` (unattended). The supervisor's operation deadline is not paused during an in-service challenge (U12), so the interaction timeout (30 s in the harness) must stay below the adopted operation deadline (133,260 ms from the committed sizing rule). Nothing enforces that yet.
+- **Nothing starts at launch.** The app's `main` creates no runtime. The installed release APK, launched through `agent-device open`, ran as one process with no `:source_runtime` (checked with `ps`). Starting the runtimes binds no service either: the R5 group asserts that `start` adds no `:source_runtime` process and that none of the conversions' service processes outlives its job (the worker ends with the conversion). In whole-file runs an earlier U11/U12 diagnostics binding can leave its own service process alive; it is recorded as foreign and excluded.
+- **Harness.** Two files:
+  - `integration_test/support/conversion_harness.dart`, shared with iOS: scripted selection, sanitized input, replayed catalogs, the job, and the checks on the published backup.
+  - `support/android_conversion_harness.dart`: fixtures from the debug asset folders and the embedded Aidoku bundle, with the browser port in replay mode.
+
+  Every job publishes with `AppFileConversionOutput` inside the app's data directory.
+
+## Results (API 36 emulator)
+
+| Case | Result |
+|---|---|
+| R5, six directions | All six complete through `ConversionService`: parse, local runtime fetches, reconcile, build/validate, publish. Emitted source IDs equal the runtime's: `en.weebcentral` (Aidoku), `WeebCentral` (Paperback 0.9 bundle `bd62583e…`) and `2131019126180322627` (Tachi APK `7a53282b…`), with 114 chapters each. Read and partial state transferred (Mihon targets: partial at page index 4). 0 replay misses. No browser session, worker scope or service process was left after any job. The largest main-loop gap was 639 ms, in the first job of a run (debug JIT); the assertion bound is 1 s |
+| AE10 | One job (Aidoku → Mihon) picked keiyoushi WeebCentral and the U11 `busy` fixture from a second repository, with `operationDeadlineMs=4000` (now 15000: see the API 28 section on AE10). While `busy` looped, the app SIGKILLed the service: generation 2 (`exited unexpectedly with code 137`). The supervisor **re-sent** the in-flight `busy` search (`requeued: [fixture.android.busy]`), which looped into the deadline (generation 3). A second `busy` search hit the deadline again (generation 4). No reload failures. The job then searched WeebCentral in the rehydrated worker and published one complete, validated backup (main-loop gap 52 ms). WeebCentral's replay has no capture for "busy", so those two searches fail closed with a named capture miss, as expected |
+| Kill and relaunch | Built debug APK, Aidoku → Mihon with the journal. Launch 1 held at publication with the journal on disk: decisions and snapshot were journaled and the service had already ended. The host killed the app process with `run-as … kill -9` (logcat: `exited due to signal 9`). Launch 2 (via `agent-device open`) resumed: 1 journaled decision reused, 0 manga asked again, journal cleared, exactly one output. The case asserts the reused decision; it does not assert that the journaled snapshot was used without a new details fetch |
+| Activity recreation | "Don't keep activities" was switched on in Settings through agent-device. While launch 1 held at publication: Home, then reopen. The process survived (same PID). `MainActivity` was destroyed and **FlutterActivity destroyed its engine**, so the first Dart isolate (and the job) ended without publishing. The new engine re-ran `main`, resumed from the journal and published exactly one output. The setting was switched off afterwards |
+| AE11 Paperback | MangaFire 0.9 inside an Aidoku → Paperback job opened one session on the app-process WebView. Offline, the VRF capture times out (`source-error`, "VRF capture timed out matching /api/titles?"). Nothing was published and 0 sessions were left; the next job on the same port succeeded |
+| AE11 Tachi | MangaFire inside an Aidoku → Mihon job with `--challenge-once /api/titles`. The captcha 403 reached the extension, which reports its own named error (`source-error`, "Shape-selecting captcha detected…"). Nothing was published |
+| Real backgrounding (manual) | Mihon → Aidoku with an Aidoku search held, then `agent-device home`. The port saw the background through the real process lifecycle, and `openSession` answered `BrowserInteractionRequired`. The Aidoku call stayed in flight, because Android has no Aidoku or Tachi background gate. It ended at the Aidoku host's 30 s request timeout as an **empty page with no named error**. After `agent-device open`, a fresh search found the match and the job published one result |
+
+## Minimum SDK (API 28)
+
+AVD `U14_API28_x86_64`, Android 9, image WebView 69.0.3497.100. The full file (U11, U12, U13 and U14 cases) ran on the final tree (`df1bf2c4`): **35 pass, 7 skip, 67 fail**. An earlier run on `5a2c5218` gave 33/7/68 (the extra failure was AE10, below).
+
+- **U13 Aidoku and U11 Tachi** (APK loading, exact source IDs, two repositories, tamper/re-sign rejection, descriptor transport, AE10 kill and rehydrate, password not persisted, JNI references, production configuration) pass on API 28.
+- **U14 R5**: all six directions pass with the same emitted IDs as on API 36. The browser port is absent there, and Paperback ran without it.
+- **Fail closed, exercised.** The case `U14 the Tachi worker refuses --offline-browser…` started a worker with `--offline-browser` on this WebView: the start failed in 678 ms with `runtime-unavailable` naming "--offline-browser cannot block WebView network: unavailable: WebView lacks PROXY_OVERRIDE".
+- **Tachi without a WebView block.** Where the probe reports no `PROXY_OVERRIDE`, Tachi runs without `--offline-browser`. Safety then rests on the loaded extensions (WeebCentral, MangaDex, MangaFire without a challenge, the U11 fixtures) not creating a WebView outside the skipped cases; nothing asserts that.
+- **U14 AE10** failed once in the full run and passed on a rerun with the same restart sequence. The cause was found later on API 36, where it reproduced in 2 of 3 runs: the test's `operationDeadlineMs=4000` also applies to WeebCentral's details call, which replays near U11's measured qualification p99 (4442 ms). So the details call sometimes timed out, and the job correctly declined to publish a partial backup (`details 2131019126180322627 timeout`). The test now uses 15 s; the API 36 receipt rows below were recorded with 4 s.
+- **WebView cases.** The image's WebView 69 has no `PROXY_OVERRIDE`, so replay mode cannot keep WebViews off the network:
+  - the app-process port refuses to start, and the 67 U12 browser-port cases (66 contract/scenario cases and U12's MangaFire case) fail closed with "Replay mode needs PROXY_OVERRIDE";
+  - the five service-WebView and U14 AE11 cases skip with that reason.
+
+  Browser behaviour at the minimum SDK is therefore **not qualified** on this image. It needs an API 28 device or image with a WebView that has `PROXY_OVERRIDE` (newer than 69), which this image cannot update without Play.
+- **Kill/relaunch, recreation and backgrounding** were not repeated on API 28.
+
+**API 28 network contact.** The first API 28 run, before the fix, did not fail closed in the service process. The Tachi worker's `--offline-browser` hook only noted the missing override, so service WebViews used the emulator's real network:
+- the U11 storage-wipe case and the challenge-Activity case looked up `proxy-check.invalid` (DNS);
+- the U11 MangaFire solver page ran unblocked, and its subresources may have reached the live site.
+
+The app-process port did refuse, and no U14 browser case ran in that run. Commit `cf40a5af` makes the worker refuse `--offline-browser` unless the override is confirmed, and the harness now probes the capability and skips WebView cases. The incident is recorded in the API 28 receipt.
+
+## Build records
+
+- **SDK levels** (`aapt2 dump badging` on the release APK): minSdk 28, targetSdk 36, compileSdk 36; package `dev.getboolean.mangabackupconverter` 0.1.0 (1); NDK 28.2.13676358; Flutter 3.50.0 / Dart 3.14.
+- **Signing**: the release build is signed with the local Android debug key (`CN=Android Debug, O=Android, C=US`, certificate SHA-256 `38f73b527d22675ccad2379bda776416b27429ab026f93984676aaacd88d1892`), APK Signature Scheme v2. No store or distribution key exists. Distribution is by sideloading only, with no claim of store approval.
+- **Native libraries**: the release APK has 30 (arm64-v8a, armeabi-v7a, x86_64). The record lists each one's size, SHA-256 and ELF machine. All 30 equal AGP's stripped outputs (`--build-dir`). The unstripped build-hook outputs are recorded beside them; AGP strips symbols, so those hashes differ.
+- **Gradle dependency locks**: `android/app/gradle.lockfile` pins every resolved configuration of `:app`, including the transitive artifacts of the plugin projects it packages. Flutter's engine artifacts (`io.flutter:*`) are excluded: the Flutter tool resolves only the ABIs of each build, so a lock of every ABI made a single-ABI `flutter test` build fail. Regenerate with `cd android && ./gradlew :app:dependencies --write-locks`.
+- **Package check**: `python3 -I scripts/android_package_check.py <apk> <out.json> [--build-dir build] [--expect earlier.json] [--allow-test-payload]`. The release APK passes. The U14 test APK, checked without `--allow-test-payload`, fails with 98 problems (the extension JAR/APKs, captures, catalog manifests and fixture asset folders). This shows that the payload check catches test payload.
+
+## Notices
+
+Two gaps existed before this unit:
+- Flutter's `NOTICES.Z` covered the Dart packages but not QuickJS-ng, Wasm3 or the scraper's Rust crates: those path packages carry no LICENSE.
+- Nothing in the APK carried the notices of the Kotlin/Java host libraries; they were only in `tools/tachi-source-runner/THIRD_PARTY.md`.
+
+`packages/source_runtime_android/notices/android-host-notices.txt` now ships as a package asset. On Android it is registered with `LicenseRegistry` (`registerSourceRuntimeLicenses`). It contains:
+- the host libraries, with the licences their POMs declare (the Apache-2.0 text, jsoup's MIT licence, Zstandard's BSD-3-Clause);
+- the licences of QuickJS-ng and Wasm3, taken from the vendored sources;
+- the scraper's 80 runtime crates with their declared licences, including the ISC, MPL-2.0 and Unicode-3.0 texts.
+
+The package check requires a notice for every native library and for each host library group.
+
+## U14: still open
+
+- **Physical ARM64, release profile (R16, AE9).** All six directions, AE10, AE11, kill-and-relaunch, recreation and backgrounding still need a physical ARM64 device with a release-profile build. Only x86_64 debug builds ran these cases; the release APK was only launched.
+- **MangaFire success path** (AE11) needs a live challenge. Offline it fails with named errors in both ecosystems, which keeps M2 open.
+- **Backgrounding gate.** On Android only the browser port reacts when the app goes to the background. An in-flight Aidoku or Tachi call keeps running. An Aidoku call that outlives the host's 30 s request timeout comes back as an empty search page without a named error. iOS has an Aidoku gate (`IosAidokuBackend.setBackgrounded`). Whether Android should get one (and Tachi lifecycle pausing, already listed under U11) is a decision for the parent.
+- **Activity recreation ends the job.** `MainActivity` is a plain `FlutterActivity` that owns its engine, so destroying the Activity destroys the Dart isolate and the conversion; the journal makes the next launch resume. Keeping a job alive across recreation would need an engine that outlives the Activity (a cached engine or a foreground service). That is a product decision, not taken here.
+- **Requeue after service death.** The supervisor re-sends a call that was in flight when the service died (AE10 receipt). If that call itself killed the service (for example, a native crash), it gets one more attempt before it fails. The deadline path does not re-send.
+- **Restore.** Restoring Android-built Paperback and Aidoku backups is iOS-device work under U8's restore prerequisites. The Mihon check refreshed through Mihon's own live traffic (outside the test suite, as authorised).
+- **Host notices.** The copyright holders of the MIT crates, Brotli and Injekt are referenced, not reproduced, because their artifacts carry no licence file. A generated per-crate attribution (for example, `cargo about`) would close that.
+- **Not wired into the UI.** No app screen creates `AndroidSourceRuntimes` yet (the iOS branch is in the same state); the harness is the only caller.
+- **Device actions outside agent-device.** Taps, Home, reopen, Settings and the Mihon UI went through agent-device. These went through adb instead: `run-as … kill -9` (the real process kill), `am force-stop` (once, which interrupted the first API 28 run), copying the backup into `/sdcard` and a media-scan broadcast, `settings get` (read-only checks), installs and logcat.
+- **`--interactive-challenges` ran only in a host test** (`test/features/conversion/android_conversion_config_test.dart`); no device job ran with `interactive: true`.
+- **The CI package-check step was not run in CI**; the same command passed locally on the release APK.
+- **Platforms built.** Android debug and release, and Windows debug (the licence registration now imports `source_runtime_android` on every native platform). iOS, macOS and Linux were not built.
+- **iOS not re-run.** The iOS branch moved onto `LocalSourceRuntimes`, and the iOS harness onto the shared harness. Both analyze clean, but no iOS suite ran (no Mac here).

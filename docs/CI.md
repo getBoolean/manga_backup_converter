@@ -206,3 +206,23 @@ host libraries or the QuickJS pin changes.
 
 None of these jobs contacts a source site: the benchmarks and the smoke test replay committed captures or run
 offline. The packaging step downloads only the pinned JDK archive (checked against its SHA-256).
+
+## Android release APK check (`ci.yml`, `build_android`)
+
+After `flutter build apk --release` and the JNI bindings drift check, `build_android` runs
+`python3 -I scripts/android_package_check.py <universal apk> build/android-package-check.json --build-dir build`.
+It uploads the record as `android-package-check`. The step fails when:
+- minSdk is not 28, or targetSdk/compileSdk is below 36;
+- an advertised ABI lacks QuickJS, wasm3 or the scraper;
+- a packaged library differs from AGP's stripped output;
+- a native or host library has no shipped notice;
+- the APK holds an extension artifact, a capture, a catalog/fixture manifest, the test signer, a debug fixture
+  asset folder, or names a known extension repository in its code.
+
+Gradle resolves the app against `android/app/gradle.lockfile`. After a dependency change, regenerate it with
+`cd android && ./gradlew :app:dependencies --write-locks` (it needs a prior Flutter build so that `gradlew` and
+the plugin projects exist).
+
+The Android integration suites (`integration_test/source_runners_android_test.dart`, U11-U14) are not run in CI:
+they need an emulator or device and run locally (commands in the Android receipts README). They replay committed
+captures and never contact a server, including on WebViews without `PROXY_OVERRIDE`: there the WebView cases skip.

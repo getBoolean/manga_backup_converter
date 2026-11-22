@@ -1,0 +1,658 @@
+{
+  "unit": "U14 minimum SDK run (with U11, U12, U13 cases)",
+  "evidence": "EMULATOR EVIDENCE (not a physical-device receipt)",
+  "device": {
+    "avd": "U14_API28_x86_64",
+    "image": "system-images;android-28;google_apis;x86_64 r11 (installed for U14)",
+    "android": "9",
+    "sdkInt": 28,
+    "abi": "x86_64",
+    "webView": "com.android.chrome / Android System WebView 69.0.3497.100 (image default; no PROXY_OVERRIDE)"
+  },
+  "identity": {
+    "hostCommit": "df1bf2c4",
+    "testedApk": {
+      "variant": "debug (flutter test, android-x64)",
+      "sha256": "6da299ea1e4a8d1e76da6e1c109126a7d28c6cd0a4fbef8d38590c01e287e954",
+      "signer": "CN=Android Debug, O=Android, C=US (38f73b527d22675ccad2379bda776416b27429ab026f93984676aaacd88d1892)"
+    },
+    "tachiWorkerProtocol": "1.3",
+    "quickjsSubmodule": "dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df (v0.18.0-26)",
+    "wasm3Submodule": "79d412ea5fcf92f0efe658d52827a0e0a96ff442",
+    "flutter": "3.50.0 (framework ab2912035e), Dart 3.14",
+    "jni": "1.2.1",
+    "jnigen": "1.1.0",
+    "jni_flutter": "1.1.0",
+    "ffigen": "20.1.1",
+    "paperbackSizingRule": "quickjs-sizing-v2 (limits per run in the start receipt)",
+    "tachiSizing": "committed Android rule (tachi-worker-sizing.json), handshake deadline 13,860 ms"
+  },
+  "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded",
+  "result": {
+    "passed": 35,
+    "skipped": 7,
+    "failed": 67
+  },
+  "failures": [
+    {
+      "case": "U12 Paperback in an app worker isolate AE11: MangaFire 0.9 executeInWebView runs on the app-process WebView (offline replay; outcome recorded)",
+      "reason": "Browser port did not start: capability-unavailable: WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks",
+      "count": 1
+    },
+    {
+      "case": "U12 app-process BrowserPort (contract and scenario cases)",
+      "reason": "Browser port did not start: capability-unavailable: WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks",
+      "count": 66
+    }
+  ],
+  "skips": [
+    "U11 benchmark (opt-in)",
+    "U12 KTD25 benchmark (opt-in)",
+    "U14 manual backgrounding (SRT_MANUAL)",
+    "WebView network cannot be blocked (markTestSkipped): U11 storage wipe, U11 AE11 MangaFire, U11 challenge Activity, U14 AE11 Paperback, U14 AE11 Tachi"
+  ],
+  "u14Cases": [
+    {
+      "case": "start",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "paperbackSizing": {
+        "rule": "quickjs-sizing-v2",
+        "limits": {
+          "memoryLimitBytes": 19420946,
+          "maxStackBytes": 433936,
+          "operationDeadlineMicros": 194288145,
+          "jobSliceMicros": 165762
+        },
+        "device": {
+          "physicalMemoryBytes": 2095861760,
+          "threadStackBytes": 1050791,
+          "processors": 4,
+          "calibrationMicros": 105964
+        },
+        "profile": {
+          "source": "U6 real Paperback bundles (14 workloads, replayed captures), windows AOT",
+          "peakHeapBytes": 9710473,
+          "peakStackBytes": 216968,
+          "slowestOperationMicros": 2389048,
+          "referenceCalibrationMicros": 122176
+        },
+        "policy": {
+          "heapHeadroom": 2.0,
+          "stackHeadroom": 2.0,
+          "deadlineHeadroom": 4.0,
+          "maxMemoryShare": 0.25,
+          "maxThreadStackShare": 0.5,
+          "slicesPerDeadline": 50
+        },
+        "concurrentRuntimes": 1,
+        "hostWaitAllowanceMicros": 186000000,
+        "warnings": []
+      },
+      "aidokuRegistered": true,
+      "browserPort": null,
+      "browserUnavailable": "WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks",
+      "webViewOfflineUnavailable": "WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks",
+      "tachiArguments": [
+        "--replay",
+        "all.mangadex",
+        "--replay",
+        "en.weebcentral",
+        "--replay",
+        "all.mangafire"
+      ],
+      "tachiHandshakeDeadlineMs": 13860,
+      "dart": "3.14.0 (stable) (Wed Nov 4 16:28:39 2026 -0800) on \"android_x64\"",
+      "foreignServicePids": 0
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "paperback -> aidoku",
+      "runtime": "aidoku",
+      "emittedSourceId": "en.weebcentral",
+      "runtimeSourceId": "en.weebcentral",
+      "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "artifactKind": "aix",
+      "chapters": 114,
+      "statefulChapters": 2,
+      "transferred": 2,
+      "losses": 0,
+      "outputBytes": 12667,
+      "outputSha256": "bee96c751cb2a8f5d4f0bc59f581e77b92eb36e08a9f4b43995820884c5717cc",
+      "publishedInAppStorage": true,
+      "elapsedMs": 805,
+      "maxMainLoopGapMs": 366,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "mihon -> aidoku",
+      "runtime": "aidoku",
+      "emittedSourceId": "en.weebcentral",
+      "runtimeSourceId": "en.weebcentral",
+      "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "artifactKind": "aix",
+      "chapters": 114,
+      "statefulChapters": 3,
+      "transferred": 3,
+      "losses": 0,
+      "outputBytes": 12651,
+      "outputSha256": "13ee51e9422f436e511ae130abe277ca23ca018a748cecaafe9a19a63a302b22",
+      "publishedInAppStorage": true,
+      "elapsedMs": 414,
+      "maxMainLoopGapMs": 191,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "aidoku -> paperback",
+      "runtime": "paperback",
+      "emittedSourceId": "WeebCentral",
+      "runtimeSourceId": "WeebCentral",
+      "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+      "artifactKind": "paperback-bundle-0.9",
+      "chapters": 114,
+      "statefulChapters": 2,
+      "transferred": 2,
+      "losses": 0,
+      "outputBytes": 8230,
+      "outputSha256": "3cd9822c98c6ed98b0d6eb11e47f703f73ee30730467941e1d8847f0853712bd",
+      "publishedInAppStorage": true,
+      "elapsedMs": 3531,
+      "maxMainLoopGapMs": 116,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "mihon -> paperback",
+      "runtime": "paperback",
+      "emittedSourceId": "WeebCentral",
+      "runtimeSourceId": "WeebCentral",
+      "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+      "artifactKind": "paperback-bundle-0.9",
+      "chapters": 114,
+      "statefulChapters": 3,
+      "transferred": 3,
+      "losses": 0,
+      "outputBytes": 8232,
+      "outputSha256": "eddd1bcbfcf0132cce9b2448f74acd82e20c84a66d2349845db880a6be3b76b4",
+      "publishedInAppStorage": true,
+      "elapsedMs": 3361,
+      "maxMainLoopGapMs": 60,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "aidoku -> mihon",
+      "runtime": "tachi",
+      "emittedSourceId": "2131019126180322627",
+      "runtimeSourceId": "2131019126180322627",
+      "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+      "artifactKind": "apk",
+      "chapters": 114,
+      "statefulChapters": 2,
+      "transferred": 2,
+      "losses": 0,
+      "outputBytes": 3156,
+      "outputSha256": "b7431f43f6187ef5fc752873dc60bbb371c3c0265db376c5ac7b1a974ad3b9e4",
+      "publishedInAppStorage": true,
+      "elapsedMs": 7711,
+      "maxMainLoopGapMs": 81,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "r5",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "paperback -> mihon",
+      "runtime": "tachi",
+      "emittedSourceId": "2131019126180322627",
+      "runtimeSourceId": "2131019126180322627",
+      "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+      "artifactKind": "apk",
+      "chapters": 114,
+      "statefulChapters": 2,
+      "transferred": 2,
+      "losses": 0,
+      "outputBytes": 3149,
+      "outputSha256": "e387aabc5fc50f6e70c8bd1d0eb26ac280c1c8bd0eace18b29d406532e2c2467",
+      "publishedInAppStorage": true,
+      "elapsedMs": 7459,
+      "maxMainLoopGapMs": 47,
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      }
+    },
+    {
+      "case": "six-directions-summary",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "resources": {
+        "browserSessions": null,
+        "tachiScopeOpen": false,
+        "paperbackScopeOpen": false,
+        "servicePids": []
+      },
+      "replayMisses": 0
+    },
+    {
+      "case": "ae10-death-and-deadline",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "direction": "aidoku -> mihon",
+      "runtime": "tachi",
+      "emittedSourceId": "2131019126180322627",
+      "runtimeSourceId": "2131019126180322627",
+      "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+      "artifactKind": "apk",
+      "chapters": 114,
+      "statefulChapters": 2,
+      "transferred": 2,
+      "losses": 0,
+      "outputBytes": 3162,
+      "outputSha256": "6699e90cfe2742f51ba845bbc1b472e4888fc180b02c0430adfa50e64949690a",
+      "publishedInAppStorage": true,
+      "elapsedMs": 45735,
+      "maxMainLoopGapMs": 65,
+      "firstServicePidKilled": true,
+      "restarts": [
+        {
+          "reason": "tachi-android worker exited unexpectedly with code 137",
+          "requeued": [
+            "fixture.android.busy"
+          ],
+          "failed": [],
+          "reloadFailures": []
+        },
+        {
+          "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+          "requeued": [],
+          "failed": [],
+          "reloadFailures": []
+        },
+        {
+          "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+          "requeued": [],
+          "failed": [],
+          "reloadFailures": []
+        }
+      ],
+      "searchEvents": [
+        "error:source-error:HttpException: HTTP error 599",
+        "kill",
+        "error:timeout:search exceeded its deadline; worker restarted",
+        "after-kill",
+        "error:source-error:HttpException: HTTP error 599",
+        "error:timeout:search exceeded its deadline; worker restarted",
+        "after-deadline",
+        "onimai-hits:[3937397761619167058, 2131019126180322627]"
+      ],
+      "pickedExtensions": [
+        "eu.kanade.tachiyomi.extension.en.weebcentral",
+        "fixture.android.busy"
+      ],
+      "serviceAfterJob": []
+    },
+    {
+      "case": "ae11-skipped",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "reason": "WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks"
+    },
+    {
+      "case": "ae11-skipped",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "reason": "WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks"
+    },
+    {
+      "case": "replay-fails-closed",
+      "evidenceClass": "emulator",
+      "sdk": 28,
+      "release": "9",
+      "abi": "x86_64",
+      "buildType": "debug",
+      "webViewOfflineUnavailable": "WebView host did not start: Replay mode needs PROXY_OVERRIDE, which this WebView lacks",
+      "failure": "runtime-unavailable: Could not start tachi-android worker: Bad state: Tachi worker did not start: worker did not start: --offline-browser cannot block WebView network: unavailable: WebView lacks PROXY_OVERRIDE",
+      "elapsedMs": 678
+    }
+  ],
+  "u11Cases": [
+    {
+      "scenario": "qualification-apks",
+      "evidence": "emulator",
+      "worker": "tachi-android",
+      "protocolMinor": 3,
+      "packages": {
+        "eu.kanade.tachiyomi.extension.all.mangadex": {
+          "artifactSha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
+          "sources": 62,
+          "searchedSource": "2499283573021220255",
+          "hits": 2,
+          "title": "Oniichan ha Oshimai - Petit Onimai Manga! (Doujinshi)",
+          "chapters": 15,
+          "loadMs": 1110,
+          "searchMs": 436,
+          "detailsMs": 869
+        },
+        "eu.kanade.tachiyomi.extension.en.weebcentral": {
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "sources": 1,
+          "searchedSource": "2131019126180322627",
+          "hits": 1,
+          "title": "ONIMAI - I'm Now Your Sister!",
+          "chapters": 114,
+          "loadMs": 375,
+          "searchMs": 294,
+          "detailsMs": 4463
+        },
+        "eu.kanade.tachiyomi.extension.all.mangafire": {
+          "artifactSha256": "f2d1f69dfca4fcf930f696873807e6ec0f4dd1626aed0f0c779dfbab876f70f8",
+          "sources": 7,
+          "searchedSource": "6084907896154116083",
+          "hits": 50,
+          "title": "Highschool ONIMAI",
+          "chapters": 86,
+          "loadMs": 496,
+          "searchMs": 403,
+          "detailsMs": 1009
+        }
+      },
+      "liveLoaders": 3,
+      "replayServed": 10,
+      "replayMisses": [],
+      "descriptorFramesSent": 3,
+      "prepareCount": 3
+    },
+    {
+      "scenario": "two-repositories-duplicates-staging",
+      "evidence": "emulator",
+      "repositories": [
+        "https://raw.githubusercontent.com/keiyoushi/extensions/repo",
+        "https://fixtures.invalid/u11/repo"
+      ],
+      "packages": [
+        "eu.kanade.tachiyomi.extension.en.weebcentral",
+        "fixture.android.busy",
+        "fixture.android.dup"
+      ],
+      "liveLoaders": 3,
+      "duplicateRejection": "source IDs [2409223436869060766] of fixture.android.dup2 (3f8d735499b2046cc0839ad305a6c7516663cfc691f2c67c59879520143f3cda) are already hosted by fixture.android.dup (db0173fc0d5ed4b9fb53cd6e51e94814097edf235b86eafe28eb575a26b33d8b)",
+      "staged": [
+        {
+          "name": "7a53282bdf852e58-1.apk",
+          "mode": "r--------",
+          "canWrite": false
+        },
+        {
+          "name": "9195460413a71abe-2.apk",
+          "mode": "r--------",
+          "canWrite": false
+        },
+        {
+          "name": "db0173fc0d5ed4b9-3.apk",
+          "mode": "r--------",
+          "canWrite": false
+        }
+      ]
+    },
+    {
+      "scenario": "admission-rejections",
+      "evidence": "emulator",
+      "outcomes": {
+        "tampered": "input.bin: APK signature is not valid: APK integrity check failed. CHUNKED_SHA256 digest mismatch. Expected: <546d6f06df5ce1e952b2d2824333bbd675d4580501f539a5d1f512759ca5bb51>, actual: <bb047e04bd9edaf414d513e2a345d6dc556ff608f5d13479590742b1b54faf93>",
+        "resigned": "input.bin is signed by untrusted certificate a72f0e127e30039329d5af1fa52544d832c4184b86a3d4cfc2fb03498b2c4b35",
+        "wrong-anchor": "input.bin is signed by untrusted certificate 9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+      },
+      "liveLoaders": 0
+    },
+    {
+      "scenario": "descriptor-transport",
+      "evidence": "emulator",
+      "chapters": 20000,
+      "chapterJsonBytes": 10751121,
+      "serviceDescriptorFramesSent": 1,
+      "serviceDescriptorFramesReceived": 0,
+      "serviceDescriptorsClosed": 1
+    },
+    {
+      "scenario": "ae10-kill-rehydrate",
+      "evidence": "emulator",
+      "pidBefore": 11189,
+      "pidAfter": 11227,
+      "loopFailure": "timeout: search exceeded its deadline; worker restarted",
+      "restartReason": "search for fixture.android.busy did not settle after cooperative cancel",
+      "requeued": [],
+      "failed": [],
+      "reloadFailures": [],
+      "queuedHits": 1,
+      "maxDartTickGapMs": 30,
+      "startupWipe": [
+        "app_webview_source_runtime"
+      ],
+      "events": [
+        "WorkerStartedEvent",
+        "WorkerStartedEvent",
+        "WorkerRestartedEvent"
+      ]
+    },
+    {
+      "scenario": "password-not-persisted",
+      "evidence": "emulator",
+      "needleHits": {
+        "needle0": [],
+        "needle1": []
+      },
+      "sharedPrefsFiles": [
+        "WebViewChromiumPrefs.xml"
+      ]
+    },
+    {
+      "scenario": "jni-references",
+      "evidence": "emulator",
+      "rounds": 10,
+      "totalBefore": 661,
+      "totalAfter": 666,
+      "ownedBefore": 6,
+      "ownedAfter": 1,
+      "classDelta": {
+        "android.app.LoadedApk$ServiceDispatcher$InnerConnection": 10,
+        "com.github.dart_lang.jni.PortProxyBuilder": -5
+      }
+    },
+    {
+      "scenario": "production-start",
+      "evidence": "emulator",
+      "arguments": [],
+      "worker": "tachi-android",
+      "limits": {
+        "poolSize": 2,
+        "operationDeadlineMs": 133260,
+        "cancelGraceMs": 2075,
+        "shutdownGraceMs": 2075
+      }
+    }
+  ],
+  "u13Cases": [
+    {
+      "scenario": "native-libraries",
+      "evidence": "emulator-or-device",
+      "abi": "android_x64",
+      "loaded": [
+        "libwasm3.so",
+        "libscraper_bridge.so"
+      ],
+      "pid": 10901
+    },
+    {
+      "scenario": "source",
+      "evidence": "emulator-or-device",
+      "sourceId": "multi.mangadex",
+      "artifact": "multi.mangadex-v12.aix",
+      "artifactSha256": "83b28ef41c910117ebd45a699510fcdc9deb0b5e0ae319ff4d5aff0d8889e9ad",
+      "hits": 2,
+      "chapters": 223,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 264,
+      "searchMs": 222,
+      "detailsMs": 140
+    },
+    {
+      "scenario": "source",
+      "evidence": "emulator-or-device",
+      "sourceId": "en.weebcentral",
+      "artifact": "en.weebcentral-v6.aix",
+      "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "hits": 1,
+      "chapters": 114,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 18,
+      "searchMs": 40,
+      "detailsMs": 143
+    },
+    {
+      "scenario": "source",
+      "evidence": "emulator-or-device",
+      "sourceId": "multi.mangafire",
+      "artifact": "multi.mangafire-v8.aix",
+      "artifactSha256": "5caf557a0bab317215fd35c69ed3d5253f2256480a5c74fe1389d7dce6aaa541",
+      "hits": 50,
+      "chapters": 86,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 30,
+      "searchMs": 33,
+      "detailsMs": 46
+    },
+    {
+      "scenario": "cancel-in-flight",
+      "evidence": "emulator-or-device",
+      "failure": "cancelled",
+      "answeredAfterMs": 311,
+      "nextCallHits": 2
+    },
+    {
+      "scenario": "wasm-trap",
+      "evidence": "emulator-or-device",
+      "failures": [
+        "source-error",
+        "source-error"
+      ]
+    },
+    {
+      "scenario": "isolate-death",
+      "evidence": "emulator-or-device",
+      "failures": [
+        "runtime-unavailable",
+        "runtime-unavailable"
+      ],
+      "elapsedMs": 9
+    },
+    {
+      "scenario": "headers-rate-limit",
+      "evidence": "emulator-or-device",
+      "headerValues": [
+        "value-1",
+        "value-2",
+        "value-3",
+        "value-4",
+        "value-5"
+      ],
+      "rateLimit": "2/1s",
+      "windowGapsMs": [
+        1006,
+        1003,
+        1000
+      ]
+    }
+  ],
+  "earlierRun": {
+    "note": "An earlier run of the same file on this image (head 5a2c5218, AE10 at 4000 ms) gave 33 pass, 7 skip, 68 fail: the same 67 U12 cases plus AE10, whose WeebCentral details call exceeded the 4 s test deadline (root cause found on API 36; the test now uses 15 s)."
+  },
+  "networkContactIncident": {
+    "what": "In the first API 28 run (before cf40a5af) the service's --offline-browser hook did not fail closed on WebView 69 (no PROXY_OVERRIDE). Service-process WebViews therefore used the emulator's real network.",
+    "casesAffected": [
+      "U11 extension WebViews / storage wipe: the proxy check loaded https://proxy-check.invalid/ and got net::ERR_NAME_NOT_RESOLVED (a DNS lookup of a reserved name)",
+      "U11 AE11 MangaFire runWebViewBlocking: solver.html ran in an unblocked service WebView; its subresources name real hosts and may have reached them (the outcome matched the offline one)",
+      "U11 visible challenge Activity: loaded https://proxy-check.invalid/ in ChallengeActivity (DNS lookup)"
+    ],
+    "notAffected": "The app-process browser port refused replay mode (PROXY_OVERRIDE missing), and no U14 browser case ran in that run (it was interrupted). OkHttp/Aidoku/Paperback traffic replays captures and fails closed.",
+    "fix": "cf40a5af: the worker refuses --offline-browser when the override is not confirmed; the harness probes the capability and skips WebView cases with the reason."
+  }
+}
