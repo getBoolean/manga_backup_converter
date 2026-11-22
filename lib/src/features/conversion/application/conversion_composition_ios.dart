@@ -162,9 +162,18 @@ final class IosSourceRuntimes extends LocalSourceRuntimes {
   SourceFailure? _tachiProbe() => _jvm.failureOrNull;
 
   @override
-  SourceOutcome<TachiRuntime> _openTachi(_ConversionScope scope) {
-    final IosJvmRuntime? vm = _jvm.valueOrNull;
-    if (vm == null) return SourceFailed<TachiRuntime>(_jvm.failureOrNull!);
+  SourceOutcome<TachiRuntime> _openTachi(_ConversionScope scope) =>
+      switch (_jvm) {
+        SourceFailed<IosJvmRuntime>(:final SourceFailure failure) =>
+          SourceFailed<TachiRuntime>(failure),
+        SourceSuccess<IosJvmRuntime>(:final IosJvmRuntime value) =>
+          _openTachiIn(value, scope),
+      };
+
+  SourceOutcome<TachiRuntime> _openTachiIn(
+    IosJvmRuntime vm,
+    _ConversionScope scope,
+  ) {
     final cache = ArtifactCache(
       Directory('${config.storageRoot.path}/tachi_artifacts'),
     );

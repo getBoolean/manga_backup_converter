@@ -159,33 +159,34 @@ class TachiRuntime implements SourceProvider {
         ),
       );
     }
-    // Written without switch-pattern bindings: the Dart 3.14 AOT compiler
-    // crashes (linearscan "unreachable code") on the pattern-matching form
-    // of this method when the CLI executable is built.
-    final SourceOutcome<WorkerSupervisor> started = await worker();
-    final WorkerSupervisor? supervisor = started.valueOrNull;
-    if (supervisor == null) return SourceFailed<TachiPreparedArtifact>(started.failureOrNull!);
-    final Set<String> families = supervisor.handshake?.capabilities.apiFamilies ?? const <String>{};
-    if (!families.contains(listing.apiFamily)) {
-      return SourceFailed<TachiPreparedArtifact>(
-        UnsupportedApiFailure(
-          '${listing.packageId} needs ${listing.apiFamily}; the worker hosts ${(families.toList()..sort()).join(', ')}',
-        ),
-      );
-    }
-    var data = bytes;
-    if (data == null) {
-      final SourceOutcome<Uint8List> downloaded = await store.download(choice);
-      data = downloaded.valueOrNull;
-      if (data == null) return SourceFailed<TachiPreparedArtifact>(downloaded.failureOrNull!);
-    }
-    final SourceOutcome<ArtifactLease> admitted = await store.admit(
-      data,
-      kind: choice.kind,
-      version: listing.versionName,
-    );
-    final ArtifactLease? raw = admitted.valueOrNull;
-    if (raw == null) return SourceFailed<TachiPreparedArtifact>(admitted.failureOrNull!);
+    return worker().andThen((WorkerSupervisor supervisor) async {
+      final Set<String> families = supervisor.handshake?.capabilities.apiFamilies ?? const <String>{};
+      if (!families.contains(listing.apiFamily)) {
+        return SourceFailed<TachiPreparedArtifact>(
+          UnsupportedApiFailure(
+            '${listing.packageId} needs ${listing.apiFamily}; the worker hosts ${(families.toList()..sort()).join(', ')}',
+          ),
+        );
+      }
+      final SourceOutcome<Uint8List> data = bytes == null
+          ? await store.download(choice)
+          : SourceSuccess<Uint8List>(bytes);
+      return data
+          .andThen((Uint8List d) => store.admit(d, kind: choice.kind, version: listing.versionName))
+          .andThen((ArtifactLease raw) => _prepareAdmitted(supervisor, listing, choice, trust, raw, cancel));
+    });
+  }
+
+  /// Runs `artifact.prepare` on the admitted, unprepared [raw] artifact and
+  /// releases it afterwards, whatever the outcome.
+  Future<SourceOutcome<TachiPreparedArtifact>> _prepareAdmitted(
+    WorkerSupervisor supervisor,
+    TachiPackageListing listing,
+    TachiArtifactChoice choice,
+    TachiTrustIdentity trust,
+    ArtifactLease raw,
+    CancellationToken? cancel,
+  ) async {
     try {
       _prepares++;
       final SourceOutcome<ArtifactLease> prepared = await supervisor.prepareArtifact(

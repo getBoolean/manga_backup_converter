@@ -332,6 +332,25 @@ void main() {
       check(failed.valueOrNull).isNull();
     });
 
+    test('andThen continues a success and passes a failure through without calling the next step', () async {
+      final calls = <int>[];
+      Future<SourceOutcome<String>> next(int v) async {
+        calls.add(v);
+        return SourceSuccess<String>('v$v');
+      }
+
+      check((await const SourceSuccess<int>(1).andThen(next)).valueOrNull).equals('v1');
+      check((await Future<SourceOutcome<int>>.value(const SourceSuccess<int>(2)).andThen(next)).valueOrNull)
+          .equals('v2');
+      final SourceOutcome<String> failed = await const SourceFailed<int>(TimeoutFailure('slow')).andThen(next);
+      check(failed.failureOrNull).isA<TimeoutFailure>();
+      check(calls).deepEquals(<int>[1, 2]);
+      final SourceOutcome<String> stopped = await const SourceSuccess<int>(
+        3,
+      ).andThen((int v) => SourceFailed<String>(StaleReferenceFailure('gone $v')));
+      check(stopped.failureOrNull!.message).equals('gone 3');
+    });
+
     test('wire codes round-trip, and capability failures name the operation', () {
       final failures = <SourceFailure>[
         const TimeoutFailure('m'),

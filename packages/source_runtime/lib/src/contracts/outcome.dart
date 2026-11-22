@@ -4,6 +4,8 @@
 /// conflated with a [SourceFailed] outcome.
 library;
 
+import 'dart:async';
+
 /// Result of a source runtime operation.
 sealed class SourceOutcome<T> {
   const SourceOutcome();
@@ -28,6 +30,29 @@ sealed class SourceOutcome<T> {
     SourceSuccess<T>(:final T value) => SourceSuccess<R>(transform(value)),
     SourceFailed<T>(:final SourceFailure failure) => SourceFailed<R>(failure),
   };
+
+  /// Continues a success with [next], which may complete asynchronously; a
+  /// failure passes through unchanged and [next] is not called.
+  ///
+  /// Prefer this to unwrapping an outcome into a local. Dart 3.14's AOT
+  /// compiler crashed (`linearscan.cc: unreachable code` in AllocateRegisters,
+  /// reproduced on Windows x64 with `dart build cli`; no SDK issue found) when
+  /// an async method assigned a `final` local in a switch-statement case over
+  /// an outcome and then used it in a `try`/`finally` and captured it in a
+  /// closure (the trigger was not narrowed further). A switch that returns
+  /// from each case compiles (`PaperbackPluginLoader._openAdmitted`); pass
+  /// such values on through [andThen] or a private continuation.
+  Future<SourceOutcome<R>> andThen<R>(FutureOr<SourceOutcome<R>> Function(T value) next) async => switch (this) {
+    SourceSuccess<T>(:final T value) => await next(value),
+    SourceFailed<T>(:final SourceFailure failure) => SourceFailed<R>(failure),
+  };
+}
+
+/// [SourceOutcome.andThen] on a pending outcome, so steps chain without an
+/// intermediate `await`.
+extension PendingSourceOutcome<T> on Future<SourceOutcome<T>> {
+  Future<SourceOutcome<R>> andThen<R>(FutureOr<SourceOutcome<R>> Function(T value) next) async =>
+      (await this).andThen(next);
 }
 
 /// A completed operation and its (possibly empty) data.

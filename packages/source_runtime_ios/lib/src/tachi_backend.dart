@@ -210,9 +210,28 @@ final class IosTachiBackend implements SourceProvider {
     if (kind != 'jar' && kind != 'apk') {
       return SourceFailed<IosTachiPreparedArtifact>(ArtifactIncompatibleFailure('$kind is not a Tachi artifact'));
     }
-    final SourceOutcome<WorkerSupervisor> started = await worker();
-    final WorkerSupervisor? supervisor = started.valueOrNull;
-    if (supervisor == null) return SourceFailed<IosTachiPreparedArtifact>(started.failureOrNull!);
+    return worker().andThen(
+      (WorkerSupervisor supervisor) => _prepareIn(
+        supervisor,
+        packageId: packageId,
+        bytes: bytes,
+        kind: kind,
+        version: version,
+        trust: trust,
+        cancel: cancel,
+      ),
+    );
+  }
+
+  Future<SourceOutcome<IosTachiPreparedArtifact>> _prepareIn(
+    WorkerSupervisor supervisor, {
+    required String packageId,
+    required Uint8List bytes,
+    required String kind,
+    required String version,
+    required ArtifactTrustAnchor trust,
+    CancellationToken? cancel,
+  }) async {
     final ArtifactLease raw;
     try {
       raw = await config.cache.admit(
@@ -257,15 +276,23 @@ final class IosTachiBackend implements SourceProvider {
     }
     final _IosPackage? existing = _packages.remove(artifact.packageId);
     if (existing != null) await existing.close();
-    final SourceOutcome<WorkerSupervisor> started = await worker();
-    final WorkerSupervisor? supervisor = started.valueOrNull;
-    if (supervisor == null) return SourceFailed<SourcePackage>(started.failureOrNull!);
-    final SourceOutcome<PackageLoadResponse> loaded = await supervisor.loadPackage(
-      WorkerPackage(packageId: artifact.packageId, artifact: artifact.lease, settings: settings),
-      cancel: cancel,
+    return worker().andThen(
+      (WorkerSupervisor supervisor) => supervisor
+          .loadPackage(
+            WorkerPackage(packageId: artifact.packageId, artifact: artifact.lease, settings: settings),
+            cancel: cancel,
+          )
+          .andThen((PackageLoadResponse response) => _hosted(supervisor, artifact, settings, response)),
     );
-    final PackageLoadResponse? response = loaded.valueOrNull;
-    if (response == null) return SourceFailed<SourcePackage>(loaded.failureOrNull!);
+  }
+
+  /// Hosts the loaded [response] as a package with a session per source.
+  Future<SourceOutcome<SourcePackage>> _hosted(
+    WorkerSupervisor supervisor,
+    IosTachiPreparedArtifact artifact,
+    SettingsSnapshot settings,
+    PackageLoadResponse response,
+  ) async {
     if (response.sources.isEmpty) {
       await supervisor.unloadPackage(artifact.packageId);
       return SourceFailed<SourcePackage>(ArtifactIncompatibleFailure('${artifact.packageId} enumerates no sources'));

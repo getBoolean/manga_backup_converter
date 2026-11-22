@@ -191,43 +191,40 @@ final class PaperbackSourceProvider implements SourceProvider {
         ),
       );
     }
-    final SourceOutcome<WorkerSupervisor> started = await worker();
-    // Not a pattern switch assigning a deferred final: the Dart 3.14 AOT
-    // compiler crashes (linearscan "unreachable code") on that form here.
-    final WorkerSupervisor? supervisor = started.valueOrNull;
-    if (supervisor == null) return SourceFailed<SourcePackage>(started.failureOrNull!);
-    final SourceOutcome<PackageLoadResponse> loaded = await supervisor.loadPackage(
-      WorkerPackage(
-        packageId: entry.packageId,
-        artifact: artifact,
-        settings: settings,
-        // The family the trust decision bound (KTD6); a 1.3 worker hosts
-        // the package as this family.
-        apiFamily: entry.family.wire,
-      ),
-      cancel: cancel,
-    );
-    return loaded.map(
-      (PackageLoadResponse r) => _PaperbackPackage(
-        supervisor,
-        entry.packageId,
-        <SourceSession>[
-          for (final LoadedSource s in r.sources)
-            WorkerSourceSession(
-              supervisor: supervisor,
-              identity: _identities['${entry.packageId}|${s.sourceId}'] = SourceIdentity(
-                ecosystem: ecosystem,
-                packageId: entry.packageId,
-                sourceId: s.sourceId,
-                artifact: artifact.binding,
+    return worker().andThen((WorkerSupervisor supervisor) async {
+      final SourceOutcome<PackageLoadResponse> loaded = await supervisor.loadPackage(
+        WorkerPackage(
+          packageId: entry.packageId,
+          artifact: artifact,
+          settings: settings,
+          // The family the trust decision bound (KTD6); a 1.3 worker hosts
+          // the package as this family.
+          apiFamily: entry.family.wire,
+        ),
+        cancel: cancel,
+      );
+      return loaded.map(
+        (PackageLoadResponse r) => _PaperbackPackage(
+          supervisor,
+          entry.packageId,
+          <SourceSession>[
+            for (final LoadedSource s in r.sources)
+              WorkerSourceSession(
+                supervisor: supervisor,
+                identity: _identities['${entry.packageId}|${s.sourceId}'] = SourceIdentity(
+                  ecosystem: ecosystem,
+                  packageId: entry.packageId,
+                  sourceId: s.sourceId,
+                  artifact: artifact.binding,
+                ),
+                displayName: entry.name,
+                capabilities: s.capabilities,
+                settingsRevision: settings.revision,
               ),
-              displayName: entry.name,
-              capabilities: s.capabilities,
-              settingsRevision: settings.revision,
-            ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }
 

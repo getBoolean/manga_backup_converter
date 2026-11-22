@@ -173,13 +173,12 @@ final class ConversionJob {
     if (determineStrategy(request.sourceFormat, request.targetFormat) is DirectConversion && !request.forceMigration) {
       return DirectRoute(formats.directConverter!);
     }
-    final SourceOutcome<PluginLoader> loader = runtimes.loaderFor(
-      request.targetFormat,
-      RuntimeContext(settingsFor: session.settingsFor),
-    );
     return MigrationRoute(
       writer: formats.writerFor(request.targetFormat)!,
-      loader: loader.valueOrNull ?? (throw DestinationUnavailable(loader.failureOrNull!)),
+      loader: switch (runtimes.loaderFor(request.targetFormat, RuntimeContext(settingsFor: session.settingsFor))) {
+        SourceSuccess<PluginLoader>(:final PluginLoader value) => value,
+        SourceFailed<PluginLoader>(:final SourceFailure failure) => throw DestinationUnavailable(failure),
+      },
     );
   }
 }

@@ -3,7 +3,7 @@
 // and fetches details over the committed captures (`--replay`; no server).
 //
 // It builds the CLI with `dart build cli` (AOT), which also guards against
-// the Dart 3.14 AOT compiler crash worked around in the Paperback loader.
+// the Dart 3.14 AOT compiler crash described on `SourceOutcome.andThen`.
 @TestOn('vm')
 @Timeout(Duration(minutes: 15))
 library;
