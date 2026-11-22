@@ -1,8 +1,7 @@
-// ignore_for_file: implementation_imports, invalid_use_of_internal_member, library_prefixes
+// ignore_for_file: implementation_imports
 
 import 'dart:io';
 
-import 'package:jni/_internal.dart' as jni$_;
 import 'package:jni/jni.dart';
 import 'package:jsoup/src/html_parser.dart';
 import 'package:jsoup_jni/src/bindings/org/jsoup/Jsoup.dart' as jsoup_lib;
@@ -28,66 +27,10 @@ class JsoupParser implements NativeHtmlParser {
     }
   }
 
-  // java.util.List method IDs for Elements (extends ArrayList<Element>).
-  // Elements doesn't expose size()/get() in jnigen bindings, so we call
-  // java.util.List methods directly via the same FFI pattern jnigen uses.
-  static final JClass _listClass = JClass.forName('java/util/List');
-  static final JInstanceMethodId _sizeId = _listClass.instanceMethodId('size', '()I');
-  static final JInstanceMethodId _getId = _listClass.instanceMethodId('get', '(I)Ljava/lang/Object;');
-  static final JInstanceMethodId _addId = _listClass.instanceMethodId('add', '(Ljava/lang/Object;)Z');
-
-  static final jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr) _callIntMethod =
-      jni$_.ProtectedJniExtensions.lookup<
-            jni$_.NativeFunction<
-              jni$_.JniResult Function(
-                jni$_.Pointer<jni$_.Void>,
-                jni$_.JMethodIDPtr,
-              )
-            >
-          >('globalEnv_CallIntMethod')
-          .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-            )
-          >();
-
-  static final jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, int) _callObjectMethodWithInt =
-      jni$_.ProtectedJniExtensions.lookup<
-            jni$_.NativeFunction<
-              jni$_.JniResult Function(
-                jni$_.Pointer<jni$_.Void>,
-                jni$_.JMethodIDPtr,
-                jni$_.VarArgs<(jni$_.Int32,)>,
-              )
-            >
-          >('globalEnv_CallObjectMethod')
-          .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              int,
-            )
-          >();
-
-  static final jni$_.JniResult Function(jni$_.Pointer<jni$_.Void>, jni$_.JMethodIDPtr, jni$_.Pointer<jni$_.Void>)
-  _callBooleanMethodWithObject =
-      jni$_.ProtectedJniExtensions.lookup<
-            jni$_.NativeFunction<
-              jni$_.JniResult Function(
-                jni$_.Pointer<jni$_.Void>,
-                jni$_.JMethodIDPtr,
-                jni$_.VarArgs<(jni$_.Pointer<jni$_.Void>,)>,
-              )
-            >
-          >('globalEnv_CallBooleanMethod')
-          .asFunction<
-            jni$_.JniResult Function(
-              jni$_.Pointer<jni$_.Void>,
-              jni$_.JMethodIDPtr,
-              jni$_.Pointer<jni$_.Void>,
-            )
-          >();
+  /// Views a Jsoup `Elements` (a `java.util.ArrayList<Element>`) through the
+  /// `java.util.List` binding. Both are extension types over the same
+  /// `JObject`, so this neither creates nor releases a JNI reference.
+  static JList<jsoup_el.Element?> _asList(jsoup_els.Elements elements) => elements as JList<jsoup_el.Element?>;
 
   // Handle store: maps opaque int handles to JNI object references.
   // Elements (including Documents) go in _elements; TextNodes in _textNodes;
@@ -121,10 +64,10 @@ class JsoupParser implements NativeHtmlParser {
     // Try casting to TextNode first (cheaper check via nodeName).
     final String? name = node.nodeName()?.toDartString();
     if (name == '#text') {
-      return _addTextNode(node.as(jsoup_tn.TextNode.type));
+      return _addTextNode(node.as(jsoup_tn.TextNode.type, releaseOriginal: true));
     }
     // Default: treat as Element.
-    return _addElement(node.as(jsoup_el.Element.type));
+    return _addElement(node.as(jsoup_el.Element.type, releaseOriginal: true));
   }
 
   @override
@@ -133,7 +76,7 @@ class JsoupParser implements NativeHtmlParser {
     if (node == null) return null;
     try {
       return _readAndRelease(node.baseUri());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -147,7 +90,7 @@ class JsoupParser implements NativeHtmlParser {
       final String? result = _readAndRelease(node.absUrl(jKey));
       jKey.release();
       return result;
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -158,9 +101,9 @@ class JsoupParser implements NativeHtmlParser {
     if (node == null) return;
     try {
       final JString jValue = _jstr(value);
-      node.setBaseUri(jValue);
+      node.baseUri$1 = jValue;
       jValue.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -172,7 +115,7 @@ class JsoupParser implements NativeHtmlParser {
       final el = jsoup_el.Element.new$1(jTag);
       jTag.release();
       return _addElement(el);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -199,7 +142,7 @@ class JsoupParser implements NativeHtmlParser {
       jBaseUri.release();
       if (doc == null) return -1;
       return _addElement(doc);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -220,7 +163,7 @@ class JsoupParser implements NativeHtmlParser {
       jSel.release();
       if (elements == null) return -1;
       return _addNodeList(elements);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -235,7 +178,7 @@ class JsoupParser implements NativeHtmlParser {
       jSel.release();
       if (result == null) return -1;
       return _addElement(result);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -254,7 +197,7 @@ class JsoupParser implements NativeHtmlParser {
       // Jsoup returns empty string for missing attributes.
       if (val.isEmpty && !hasAttr(handle, key)) return null;
       return val;
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -268,7 +211,7 @@ class JsoupParser implements NativeHtmlParser {
       final bool result = el.hasAttr(jKey);
       jKey.release();
       return result;
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return false;
     }
   }
@@ -279,7 +222,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.text());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -290,7 +233,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.ownText());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -302,7 +245,7 @@ class JsoupParser implements NativeHtmlParser {
     try {
       // Element.html() returns inner HTML.
       return _readAndRelease(el.html$1());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -313,7 +256,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.outerHtml());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -324,7 +267,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.tagName());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -337,7 +280,7 @@ class JsoupParser implements NativeHtmlParser {
       final String? result = _readAndRelease(el.id());
       if (result != null && result.isEmpty) return null;
       return result;
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -348,7 +291,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.className());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -362,7 +305,7 @@ class JsoupParser implements NativeHtmlParser {
       final bool result = el.hasClass(jName);
       jName.release();
       return result;
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return false;
     }
   }
@@ -372,11 +315,8 @@ class JsoupParser implements NativeHtmlParser {
     final jsoup_els.Elements? list = _nodeLists[handle];
     if (list == null) return -1;
     try {
-      return _callIntMethod(
-        list.reference.pointer,
-        _sizeId as jni$_.JMethodIDPtr,
-      ).integer;
-    } on JniException catch (_) {
+      return _asList(list).size();
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -386,14 +326,10 @@ class JsoupParser implements NativeHtmlParser {
     final jsoup_els.Elements? list = _nodeLists[handle];
     if (list == null) return -1;
     try {
-      final jsoup_el.Element? el = _callObjectMethodWithInt(
-        list.reference.pointer,
-        _getId as jni$_.JMethodIDPtr,
-        index,
-      ).object<jsoup_el.Element?>(const jsoup_el.$Element$NullableType$());
+      final jsoup_el.Element? el = _asList(list).get(index);
       if (el == null) return -1;
       return _addElement(el);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -406,7 +342,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_el.Element? el = list.first();
       if (el == null) return -1;
       return _addElement(el);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -419,7 +355,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_el.Element? el = list.last();
       if (el == null) return -1;
       return _addElement(el);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -431,9 +367,8 @@ class JsoupParser implements NativeHtmlParser {
     try {
       final jsoup_el.Element? p = el.parent$1();
       if (p == null) return -1;
-      // parent() returns Node?, cast to Element
-      return _addElement(p.as(jsoup_el.Element.type));
-    } on JniException catch (_) {
+      return _addElement(p);
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -446,7 +381,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_els.Elements? kids = el.children();
       if (kids == null) return -1;
       return _addNodeList(kids);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -459,7 +394,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_el.Element? sib = el.nextElementSibling();
       if (sib == null) return -1;
       return _addElement(sib);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -472,7 +407,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_el.Element? sib = el.previousElementSibling();
       if (sib == null) return -1;
       return _addElement(sib);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -485,7 +420,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_els.Elements? sibs = el.siblingElements();
       if (sibs == null) return -1;
       return _addNodeList(sibs);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -498,7 +433,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jText = _jstr(text);
       el.text$1(jText);
       jText.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -511,7 +446,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jHtml = _jstr(html);
       el.html$2(jHtml);
       jHtml.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -522,7 +457,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return;
     try {
       el.remove();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -535,7 +470,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jHtml = _jstr(html);
       el.prepend(jHtml);
       jHtml.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -548,7 +483,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jHtml = _jstr(html);
       el.append(jHtml);
       jHtml.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -563,7 +498,7 @@ class JsoupParser implements NativeHtmlParser {
       el.attr$1(jKey, jValue);
       jKey.release();
       jValue.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -576,7 +511,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jKey = _jstr(key);
       el.removeAttr(jKey);
       jKey.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -589,7 +524,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jName = _jstr(name);
       el.addClass(jName);
       jName.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -602,7 +537,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jName = _jstr(name);
       el.removeClass(jName);
       jName.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -613,7 +548,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el == null) return null;
     try {
       return _readAndRelease(el.data());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -627,7 +562,7 @@ class JsoupParser implements NativeHtmlParser {
       final tn = jsoup_tn.TextNode(jText);
       jText.release();
       return _addTextNode(tn);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -639,18 +574,14 @@ class JsoupParser implements NativeHtmlParser {
     try {
       // Create an empty Jsoup Elements (extends ArrayList<Element>).
       final jElements = jsoup_els.Elements();
-      // Add each element via java.util.List.add(Object).
+      final JList<jsoup_el.Element?> list = _asList(jElements);
       for (final h in elementHandles) {
         final jsoup_el.Element? el = _elements[h];
         if (el == null) continue;
-        _callBooleanMethodWithObject(
-          jElements.reference.pointer,
-          _addId as jni$_.JMethodIDPtr,
-          el.reference.pointer,
-        );
+        list.add(el);
       }
       return _addNodeList(jElements);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -664,7 +595,7 @@ class JsoupParser implements NativeHtmlParser {
     if (el != null) {
       try {
         return _readAndRelease(el.nodeName());
-      } on JniException catch (_) {
+      } on JThrowable catch (_) {
         return null;
       }
     }
@@ -672,7 +603,7 @@ class JsoupParser implements NativeHtmlParser {
     if (tn != null) {
       try {
         return _readAndRelease(tn.nodeName());
-      } on JniException catch (_) {
+      } on JThrowable catch (_) {
         return null;
       }
     }
@@ -680,11 +611,8 @@ class JsoupParser implements NativeHtmlParser {
   }
 
   jsoup_node.Node? _resolveNode(int handle) {
-    final jsoup_el.Element? el = _elements[handle];
-    if (el != null) return el.as(jsoup_node.Node.type);
-    final jsoup_tn.TextNode? tn = _textNodes[handle];
-    if (tn != null) return tn.as(jsoup_node.Node.type);
-    return null;
+    // Upcasts between extension types: no new JNI reference.
+    return _elements[handle] ?? _textNodes[handle];
   }
 
   @override
@@ -693,7 +621,7 @@ class JsoupParser implements NativeHtmlParser {
     if (node == null) return 0;
     try {
       return node.childNodeSize();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return 0;
     }
   }
@@ -706,7 +634,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_node.Node? child = node.childNode(index);
       if (child == null) return -1;
       return _addNode(child);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -718,15 +646,11 @@ class JsoupParser implements NativeHtmlParser {
     try {
       final JList<jsoup_node.Node?>? children = node.childNodes();
       if (children == null) return const <int>[];
-      final int count = children.length;
-      final handles = <int>[];
-      for (var i = 0; i < count; i++) {
-        final jsoup_node.Node? child = children[i];
-        if (child == null) continue;
-        handles.add(_addNode(child));
-      }
-      return handles;
-    } on JniException catch (_) {
+      return <int>[
+        for (final jsoup_node.Node? child in children.asDart())
+          if (child != null) _addNode(child),
+      ];
+    } on JThrowable catch (_) {
       return const <int>[];
     }
   }
@@ -742,7 +666,7 @@ class JsoupParser implements NativeHtmlParser {
       final jsoup_node.Node? p = node.parent();
       if (p == null) return -1;
       return _addNode(p);
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return -1;
     }
   }
@@ -753,7 +677,7 @@ class JsoupParser implements NativeHtmlParser {
     if (node == null) return null;
     try {
       return _readAndRelease(node.outerHtml());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -764,7 +688,7 @@ class JsoupParser implements NativeHtmlParser {
     if (node == null) return;
     try {
       node.remove();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -778,15 +702,11 @@ class JsoupParser implements NativeHtmlParser {
     try {
       final JList<jsoup_tn.TextNode?>? tnList = el.textNodes();
       if (tnList == null) return const <int>[];
-      final int count = tnList.length;
-      final handles = <int>[];
-      for (var i = 0; i < count; i++) {
-        final jsoup_tn.TextNode? tn = tnList[i];
-        if (tn == null) continue;
-        handles.add(_addTextNode(tn));
-      }
-      return handles;
-    } on JniException catch (_) {
+      return <int>[
+        for (final jsoup_tn.TextNode? tn in tnList.asDart())
+          if (tn != null) _addTextNode(tn),
+      ];
+    } on JThrowable catch (_) {
       return const <int>[];
     }
   }
@@ -799,7 +719,7 @@ class JsoupParser implements NativeHtmlParser {
     if (tn == null) return null;
     try {
       return _readAndRelease(tn.text());
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -812,7 +732,7 @@ class JsoupParser implements NativeHtmlParser {
       final JString jText = _jstr(text);
       tn.text$1(jText);
       jText.release();
-    } on JniException catch (_) {
+    } on JThrowable catch (_) {
       // Ignore.
     }
   }
@@ -822,8 +742,8 @@ class JsoupParser implements NativeHtmlParser {
     final jsoup_tn.TextNode? tn = _textNodes[handle];
     if (tn == null) return null;
     try {
-      return _readAndRelease(tn.getWholeText());
-    } on JniException catch (_) {
+      return _readAndRelease(tn.wholeText);
+    } on JThrowable catch (_) {
       return null;
     }
   }
@@ -833,8 +753,8 @@ class JsoupParser implements NativeHtmlParser {
     final jsoup_tn.TextNode? tn = _textNodes[handle];
     if (tn == null) return true;
     try {
-      return tn.isBlank();
-    } on JniException catch (_) {
+      return tn.isBlank;
+    } on JThrowable catch (_) {
       return true;
     }
   }

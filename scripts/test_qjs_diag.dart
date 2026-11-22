@@ -1,21 +1,26 @@
-// ignore_for_file: avoid_print, implementation_imports
-import 'package:quickjs/src/js_eval_result.dart';
-import 'package:quickjs/src/native_js_engine.dart';
+// ignore_for_file: avoid_print
+import 'package:quickjs/quickjs.dart';
 
+/// Smoke-checks the vendored QuickJS-ng build: loads it, evaluates code and
+/// frees everything.
 void main() {
   try {
-    print('Creating NativeEngineManager...');
-    final mgr = NativeEngineManager();
-    print('Created mgr, length=${mgr.length}');
-    print('Creating NativeJsEngine...');
-    final engine = NativeJsEngine();
-    print('Created engine');
-    final JsEvalResult result = engine.eval('1 + 1');
     print(
-      'eval result: ${result.value}, isError=${result.isError}, stderr=${result.stderr}',
+      'QuickJS-ng ${QuickJs.engineVersion} (JSValue ${QuickJs.valueSize} bytes)',
     );
-    engine.dispose();
-    mgr.dispose();
+    print('thread stack available: ${QuickJs.threadStackAvailable()} bytes');
+    final runtime = JsRuntime();
+    final int? stack = QuickJs.threadStackAvailable();
+    if (stack != null) runtime.maxStackSize = stack ~/ 2;
+    final JsContext context = runtime.newContext();
+    print('eval result: ${context.eval('1 + 1').toDartString()}');
+    final String depth = context
+        .eval(
+          'var d = 0; function f() { d++; f(); } try { f(); } catch (e) {} d',
+        )
+        .toDartString();
+    print('recursion depth at half the thread stack: $depth');
+    runtime.dispose();
     print('Done');
   } on Object catch (e, st) {
     print('ERROR: $e');

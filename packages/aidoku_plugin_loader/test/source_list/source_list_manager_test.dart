@@ -119,7 +119,7 @@ void main() {
       final RemoteSourceList list = await mgr.fetchRemoteSourceList('https://example.com/index.json');
 
       final SourceEntry entry = list.sources[1]; // safe_source — no contentRating/baseURL/altNames
-      check(entry.contentRating).equals(0);
+      check(entry.contentRating).isNull(); // unrated, never guessed safe
       check(entry.baseUrl).isNull();
       check(entry.altNames).isEmpty();
     });

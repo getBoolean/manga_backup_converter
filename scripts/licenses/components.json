@@ -1,0 +1,56 @@
+{
+  "comment": "Inputs of scripts/generate_notices.dart (see scripts/licenses/README.md). 'upstream' records where each committed licence text came from; 'maven' overrides apply when a POM declares no licence or an artifact ships no licence file for a licence that names its holders; 'vendored' lists native code no package manager describes; 'targets' lists what each app build ships.",
+  "upstream": {
+    "scripts/licenses/texts/brotli-LICENSE": {"url": "https://raw.githubusercontent.com/google/brotli/v1.1.0/LICENSE", "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"},
+    "scripts/licenses/texts/injekt-kohesive-LICENSE": {"url": "https://raw.githubusercontent.com/kohesive/injekt/master/LICENSE", "sha256": "08a5be6e3c03075440ad532846713849592aefe8c90111cdb5b96cfadaaa850f"},
+    "scripts/licenses/texts/injekt-mihon-LICENSE": {"url": "https://raw.githubusercontent.com/mihonapp/injekt/91edab2317/LICENSE", "sha256": "9e1830676199aafb38aa796c13bb3fff35e9bd654adf1da4901e3eadd5934d23"},
+    "scripts/licenses/texts/zstd-LICENSE": {"url": "https://raw.githubusercontent.com/facebook/zstd/v1.5.7/LICENSE", "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"},
+    "scripts/licenses/texts/libffi-LICENSE": {"url": "libffi-3.8.1.tar.gz (LIBFFI_SHA256 in tools/tachi-source-runner/ios/manifest.env), libffi-3.8.1/LICENSE", "sha256": "17b64dc60f3b6897a60f971e288b973f655c2edcdf08b25f3c3dd5549857881c"},
+    "scripts/licenses/texts/swiftsoup-LICENSE": {"url": "https://raw.githubusercontent.com/scinfu/SwiftSoup/2.11.3/LICENSE", "sha256": "f137b49653842d1741c68a4424c57205cdf6d28faeff1ba263f144da41c1ae62"},
+    "scripts/licenses/texts/swift-atomics-LICENSE": {"url": "https://raw.githubusercontent.com/apple/swift-atomics/1.3.0/LICENSE.txt", "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55"},
+    "scripts/licenses/texts/lrucache-LICENSE": {"url": "https://raw.githubusercontent.com/nicklockwood/LRUCache/1.2.1/LICENSE.md", "sha256": "cc59ff976bc639612b7f2e92c6ecfad42e93b70099c7b950acd1b3651def10ab"},
+    "scripts/licenses/texts/asm-LICENSE": {"url": "https://gitlab.ow2.org/asm/asm/-/raw/ASM_9_11_1/LICENSE.txt", "sha256": "293b6af371eee28b0ff16f0334ea19e20a3d5522143faa4b95b346855507879a"},
+    "scripts/licenses/texts/protobuf-LICENSE": {"url": "https://raw.githubusercontent.com/protocolbuffers/protobuf/v29.3/LICENSE", "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"},
+    "scripts/licenses/texts/cocoaasyncsocket-LICENSE": {"url": "https://raw.githubusercontent.com/robbiehanson/CocoaAsyncSocket/7.6.5/LICENSE.txt", "sha256": "a591e14acf21833e30d4dc8206bbbeaa36bc29e0447c6d05e544ea2f3ae4581d"}
+  },
+  "maven": {
+    "org.brotli:dec": {"license": "MIT", "texts": ["scripts/licenses/texts/brotli-LICENSE"], "reason": "the POM declares no licence and the JAR carries none; google/brotli's LICENSE"},
+    "uy.kohesive.injekt:*": {"license": "MIT", "texts": ["scripts/licenses/texts/injekt-kohesive-LICENSE"], "reason": "MIT names its holders and the JAR carries no licence file; kohesive/injekt's LICENSE"},
+    "com.github.mihonapp:injekt": {"license": "MIT", "texts": ["scripts/licenses/texts/injekt-mihon-LICENSE"], "reason": "MIT names its holders and the JAR carries no licence file; mihonapp/injekt's LICENSE at 91edab2317"},
+    "org.ow2.asm:*": {"license": "BSD-3-Clause", "texts": ["scripts/licenses/texts/asm-LICENSE"], "reason": "BSD-3-Clause names its holders and the JARs carry no licence file; OW2 ASM's LICENSE.txt at ASM_9_11_1"},
+    "androidx.datastore:datastore-preferences-external-protobuf": {"license": "BSD-3-Clause", "texts": ["scripts/licenses/texts/protobuf-LICENSE"], "reason": "a repackaged protobuf-javalite (POM: BSD-3-Clause) whose JAR carries no licence file; protocolbuffers/protobuf's LICENSE"},
+    "com.google.guava:listenablefuture": {"license": "Apache-2.0", "texts": ["scripts/licenses/Apache-2.0.txt"], "reason": "the POM declares no licence; Guava is Apache-2.0"},
+    "org.jetbrains:annotations": {"license": "Apache-2.0", "texts": ["scripts/licenses/Apache-2.0.txt"], "reason": "the POM declares no licence; JetBrains/java-annotations is Apache-2.0"}
+  },
+  "vendored": {
+    "quickjs-ng": {"name": "QuickJS-ng (libquickjs, vendored at packages/quickjs/vendor/quickjs)", "license": "MIT", "texts": ["packages/quickjs/vendor/quickjs/LICENSE"], "origin": "the vendored source's LICENSE"},
+    "wasm3": {"name": "Wasm3 (libwasm3, vendored at packages/wasm3/vendor/wasm3)", "license": "MIT", "texts": ["packages/wasm3/vendor/wasm3/LICENSE"], "origin": "the vendored source's LICENSE"},
+    "zstd": {"name": "Zstandard (statically linked in zstd-kmp 0.4.0's native library)", "license": "BSD-3-Clause", "texts": ["scripts/licenses/texts/zstd-LICENSE"], "origin": "facebook/zstd's LICENSE (dual BSD-3-Clause OR GPL-2.0 upstream, used under BSD-3-Clause); the zstd-kmp artifacts carry no licence file"},
+    "mihon-source-api": {"name": "Mihon source API and network helpers (extracted from mihonapp/mihon f64d82b94218b42410c36e6c85da818574865a28 into tools/tachi-source-runner)", "license": "Apache-2.0", "texts": ["scripts/licenses/Apache-2.0.txt"], "origin": "Mihon is licensed under the Apache License 2.0 (tools/tachi-source-runner/THIRD_PARTY.md)"},
+    "libffi": {"name": "libffi 3.8.1 (statically linked in the iOS source runtime)", "license": "MIT", "texts": ["scripts/licenses/texts/libffi-LICENSE"], "origin": "LICENSE from the pinned release tarball"},
+    "swiftsoup": {"name": "SwiftSoup 2.11.3 (SwiftSoupWrapper)", "license": "MIT", "texts": ["scripts/licenses/texts/swiftsoup-LICENSE"], "origin": "scinfu/SwiftSoup's LICENSE at the version in packages/swiftsoup/swift/Package.resolved"},
+    "swift-atomics": {"name": "Swift Atomics 1.3.0 (SwiftSoupWrapper)", "license": "Apache-2.0", "texts": ["scripts/licenses/texts/swift-atomics-LICENSE"], "origin": "apple/swift-atomics's LICENSE.txt at the version in packages/swiftsoup/swift/Package.resolved"},
+    "lrucache": {"name": "LRUCache 1.2.1 (SwiftSoupWrapper)", "license": "MIT", "texts": ["scripts/licenses/texts/lrucache-LICENSE"], "origin": "nicklockwood/LRUCache's LICENSE.md at the version in packages/swiftsoup/swift/Package.resolved"},
+    "cocoaasyncsocket": {"name": "CocoaAsyncSocket 7.6.5 (dependency of the patrol plugin)", "license": "LicenseRef-PublicDomain OR BSD-3-Clause", "texts": ["scripts/licenses/texts/cocoaasyncsocket-LICENSE"], "origin": "robbiehanson/CocoaAsyncSocket's LICENSE.txt (patrol's podspec requires ~> 7.6)"}
+  },
+  "targets": {
+    "android": {
+      "output": "packages/source_runtime_android/notices/third_party_notices.json",
+      "maven": {"gradle": "android", "task": ":app:exportLicenseInputs", "configuration": "releaseRuntimeClasspath", "exclude": ["io.flutter:*"]},
+      "rust": [
+        {"manifest": "packages/scraper/rust/Cargo.toml", "triples": ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]},
+        {"pub": "super_native_extensions", "manifest": "rust/Cargo.toml", "triples": ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]},
+        {"pub": "irondash_engine_context", "manifest": "android/rust/Cargo.toml", "triples": ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]}
+      ],
+      "vendored": ["quickjs-ng", "wasm3", "zstd", "mihon-source-api"]
+    },
+    "ios": {
+      "output": "packages/source_runtime_ios/notices/third_party_notices.json",
+      "maven": {"gradle": "tools/tachi-source-runner", "task": ":exportLicenseInputs", "configuration": "runtimeClasspath", "exclude": ["com.squareup.okhttp3:mockwebserver3", "com.squareup.okhttp3:okhttp-tls"]},
+      "rust": [
+        {"pub": "super_native_extensions", "manifest": "rust/Cargo.toml", "triples": ["aarch64-apple-ios"]}
+      ],
+      "vendored": ["quickjs-ng", "wasm3", "zstd", "mihon-source-api", "libffi", "swiftsoup", "swift-atomics", "lrucache", "cocoaasyncsocket"]
+    }
+  }
+}

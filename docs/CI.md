@@ -184,3 +184,48 @@ jobs:
 ```
 
 Thanks for reading, hope it helps. I previously used an older version of this process for a Godot project, so most of this should be reusable in other languages/frameworks.
+
+## Desktop CLI packaging and source-runner reports (`ci.yml`)
+
+These jobs live in `.github/workflows/ci.yml`, not in the GitHub Pages workflows above.
+
+| Job | What it does | Gating |
+|---|---|---|
+| `build_cli_windows` | `dart run scripts/package_cli.dart` (the `dart build cli` bundle, the JVM worker, a JRE jlinked from the Corretto archive pinned in `tools/tachi-source-runner/runtime/jre-pins.json`, the WebView helper, licences, `runtime/runtime-manifest.json`), then `dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-windows.json` and `tool/check_evidence_receipts.dart` on the receipt; the installer is compiled from the package | yes |
+| `build_cli_linux`, `build_cli_macos` | the plain `dart build cli` bundle (gating, as before), then the same packaging and smoke steps with `continue-on-error` (Linux installs WebKitGTK 4.1 and runs the smoke under `xvfb-run`) | packaging and smoke are non-gating until the WebView helper has been built and run on those hosts |
+| `benchmarks` | the KTD25 benchmarks per desktop OS (Ubuntu, Windows, macOS arm64): the Paperback real-bundle benchmark under JIT and AOT, and the Tachi worker benchmark in `--quick` mode; then `tool/check_benchmark_results.dart`; results are uploaded as `ktd25-benchmarks-<os>` | non-gating report (`continue-on-error`); timing is never asserted |
+
+The JDK archive is cached by the hash of `jre-pins.json` (`build/runtime-cache/`). Raising the JRE pin means editing
+that file (version and every SHA-256) and `JRE_FLOOR` in the worker together.
+
+**Comparing benchmark reports.** `tool/check_benchmark_results.dart` (in the `benchmarks` job, non-gating) checks
+that the committed results still match the committed rules and workers: the Tachi sizing rule's cited results exist
+with the cited timestamps and derive every coefficient, a result that records its worker (`worker`, written by the
+Tachi benchmark since U8b) names the current worker version and host compatibility, and the Paperback plan's
+profile constants and QuickJS engine match its cited result. It checks only the results the rules cite (not, for
+example, the macOS results), and the committed Tachi results predate the recorded worker identity, so their
+worker version is reported rather than checked. Timings themselves are still compared by hand with the uploaded
+report; re-run the full benchmark when the rule, the worker's host libraries or the QuickJS pin changes.
+
+None of these jobs contacts a source site: the benchmarks and the smoke test replay committed captures or run
+offline. The packaging step downloads only the pinned JDK archive (checked against its SHA-256).
+
+## Android release APK check (`ci.yml`, `build_android`)
+
+After `flutter build apk --release` and the JNI bindings drift check, `build_android` runs
+`python3 -I scripts/android_package_check.py <universal apk> build/android-package-check.json --build-dir build`.
+It uploads the record as `android-package-check`. The step fails when:
+- minSdk is not 28, or targetSdk/compileSdk is below 36;
+- an advertised ABI lacks QuickJS, wasm3 or the scraper;
+- a packaged library differs from AGP's stripped output;
+- a native or host library has no shipped notice;
+- the APK holds an extension artifact, a capture, a catalog/fixture manifest, the test signer, a debug fixture
+  asset folder, or names a known extension repository in its code.
+
+Gradle resolves the app against `android/app/gradle.lockfile`. After a dependency change, regenerate it with
+`cd android && ./gradlew :app:dependencies --write-locks` (it needs a prior Flutter build so that `gradlew` and
+the plugin projects exist).
+
+The Android integration suites (`integration_test/source_runners_android_test.dart`, U11-U14) are not run in CI:
+they need an emulator or device and run locally (commands in the Android receipts README). They replay committed
+captures and never contact a server, including on WebViews without `PROXY_OVERRIDE`: there the WebView cases skip.

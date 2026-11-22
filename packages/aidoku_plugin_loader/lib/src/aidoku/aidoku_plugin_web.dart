@@ -17,6 +17,7 @@ import 'package:aidoku_plugin_loader/src/models/page.dart';
 import 'package:aidoku_plugin_loader/src/models/setting_item.dart';
 import 'package:aidoku_plugin_loader/src/models/source_info.dart';
 import 'package:aidoku_plugin_loader/src/web/wasm_worker_isolate.dart';
+import 'package:http/http.dart' as http;
 
 /// A loaded Aidoku WASM source plugin (web implementation).
 ///
@@ -25,13 +26,12 @@ import 'package:aidoku_plugin_loader/src/web/wasm_worker_isolate.dart';
 /// between the main thread and the worker uses [SendPort]/[ReceivePort].
 class AidokuPlugin {
   AidokuPlugin._({
-    required SendPort cmdPort,
-    required ReceivePort mainPort,
+    required this._cmdPort,
+    required this._mainPort,
     required this.sourceInfo,
     required this.settings,
     required this.filterDefinitions,
-  }) : _cmdPort = cmdPort,
-       _mainPort = mainPort;
+  });
 
   final SendPort _cmdPort;
   final ReceivePort _mainPort;
@@ -72,10 +72,18 @@ class AidokuPlugin {
   // ---------------------------------------------------------------------------
 
   /// Load a plugin from raw .aix file bytes.
+  ///
+  /// [httpClient] exists for API parity with the native implementation. On the
+  /// web, plugin requests are synchronous XHRs made inside the worker, so an
+  /// injected client cannot serve them; passing one throws [UnsupportedError].
   static Future<AidokuPlugin> fromAix(
     Uint8List aixBytes, {
     Map<String, dynamic>? defaults,
+    http.Client? httpClient,
   }) async {
+    if (httpClient != null) {
+      throw UnsupportedError('AidokuPlugin.fromAix(httpClient:) is not supported on the web');
+    }
     final AixBundle bundle = AixParser.parse(aixBytes);
 
     final List<SettingItem> settings = bundle.settings ?? const <SettingItem>[];

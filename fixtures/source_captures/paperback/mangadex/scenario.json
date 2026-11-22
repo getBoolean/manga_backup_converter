@@ -1,0 +1,96 @@
+{
+  "site": "mangadex",
+  "query": "Onimai",
+  "recordedAt": "2026-11-21T01:20:25.383076Z",
+  "runs": [
+    {
+      "bundle": "inkdex-0.9/MangaDex",
+      "apiFamily": "paperback-0.9",
+      "sha256": "f40ce64c5ab2bb16d1a3de5b821ea16ccfda82f24de3d1243b8003ca41d5dbc6",
+      "search": {
+        "hits": 2,
+        "first": {
+          "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+          "title": "ONIMAI: I'm Now Your Sister!                               ‍"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+        "title": "ONIMAI: I'm Now Your Sister!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 223,
+        "firstChapter": {
+          "chapterId": "3d1ff2d6-d917-4b81-b69e-44c41867e356",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.9",
+            "sortingIndex": 223,
+            "version": "daily multivitamin",
+            "langCode": "🇬🇧"
+          },
+          "title": "Mahiro and a Manly Job",
+          "chapterNumber": 117.0,
+          "volumeNumber": 0.0,
+          "scanlators": [
+            "daily multivitamin"
+          ],
+          "language": "🇬🇧",
+          "dateUploaded": "2026-10-30T23:59:31.000Z",
+          "url": null
+        }
+      }
+    },
+    {
+      "bundle": "community-0.8/MangaDex",
+      "apiFamily": "paperback-0.8",
+      "sha256": "46b05f31335349aeacc410df264e9f211e23da5d11c131a18883935e84627b68",
+      "search": {
+        "hits": 2,
+        "first": {
+          "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+          "title": "Onii-chan wa Oshimai!"
+        },
+        "nextCursor": "{\"offset\":100}"
+      },
+      "searchPage2": {
+        "hits": 0,
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "ed996855-70de-449f-bba2-e8e24224c14d",
+        "title": "Onii-chan wa Oshimai!",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 223,
+        "firstChapter": {
+          "chapterId": "3d1ff2d6-d917-4b81-b69e-44c41867e356",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 223,
+            "group": "daily multivitamin",
+            "langCode": "🇬🇧"
+          },
+          "title": "Mahiro and a Manly Job",
+          "chapterNumber": 117.0,
+          "volumeNumber": 0.0,
+          "scanlators": [
+            "daily multivitamin"
+          ],
+          "language": "🇬🇧",
+          "dateUploaded": "2026-10-30T23:59:31.000Z",
+          "url": null
+        }
+      }
+    }
+  ],
+  "rerecorded": {
+    "community-0.8/MangaDex": "2026-11-21T07:57:28.954211Z"
+  }
+}

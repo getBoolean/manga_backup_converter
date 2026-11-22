@@ -1,4 +1,5 @@
 export 'src/aidoku/_aidoku_decode.dart';
+export 'src/aidoku/aidoku_isolate_exited_exception.dart';
 export 'src/aidoku/aidoku_plugin.dart';
 export 'src/aidoku/aix_parser.dart';
 export 'src/models/chapter.dart';

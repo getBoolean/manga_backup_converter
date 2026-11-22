@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "all.mangafire",
+  "recordedAt": "2026-11-20T16:16:00Z",
+  "recordedBy": "U3 desktop Tachi worker (one manual download; tests never download)",
+  "notes": "Repository JAR and APK of the same release. Both verify against the keiyoushi signer (JAR: every entry signed; APK: apksig v2), so they share one trust identity. Loaded by tools/tachi-source-runner tests on both KTD5 paths; site responses for the fixed test query are in capture.json.",
+  "repository": {
+    "indexUrl": "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json",
+    "indexSha256AtCapture": "d477bbb98e3aa8257e9b0a13dd91f15120715227d279cf33367a70c1b7aff402",
+    "indexEntry": "index-entry.json",
+    "signingKeyFingerprint": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+  },
+  "artifacts": [
+    {
+      "path": "tachiyomi-all.mangafire-v1.6.38.jar",
+      "kind": "jar",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/02402ef/tachiyomi-all.mangafire-v1.6.38.jar",
+      "sha256": "dacbcbb39c3e5a37fd64110142f277151213c1331d424b446de87b5155c62a5f",
+      "size": 222843,
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangafire",
+      "versionName": "1.6.38",
+      "versionCode": 106038,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "jar"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    },
+    {
+      "path": "tachiyomi-all.mangafire-v1.6.38.apk",
+      "kind": "apk",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/02402ef/tachiyomi-all.mangafire-v1.6.38.apk",
+      "sha256": "f2d1f69dfca4fcf930f696873807e6ec0f4dd1626aed0f0c779dfbab876f70f8",
+      "size": 95675,
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangafire",
+      "versionName": "1.6.38",
+      "versionCode": 106038,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "v2"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    }
+  ]
+}

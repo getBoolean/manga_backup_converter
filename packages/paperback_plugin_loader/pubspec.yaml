@@ -1,0 +1,32 @@
+name: paperback_plugin_loader
+description: >-
+  Paperback source host: QuickJS runtimes with an asynchronous promise bridge,
+  resource limits, and a protocol v1 desktop worker (KTD2, KTD6).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+resolution: workspace
+
+dependencies:
+  args: ^2.4.2
+  crypto: ^3.0.0
+  http: ^1.2.0
+  meta: ^1.12.0
+  quickjs:
+    path: ../quickjs
+  source_runtime:
+    path: ../source_runtime
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  # The capture tool's browser recorder (manual runs) and the browser replay tests.
+  desktop_webview:
+    path: ../desktop_webview
+  test: ^1.24.0
+
+executables:
+  paperback_source_worker:

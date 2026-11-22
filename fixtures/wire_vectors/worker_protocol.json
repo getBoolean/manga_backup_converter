@@ -1,0 +1,856 @@
+{
+  "comment": "Written by packages/source_runtime/test/wire_vectors_test.dart from the Dart protocol types; decoded and re-encoded by tools/tachi-source-runner/src/test/kotlin/WireVectorsTest.kt. See README.md.",
+  "frames": [
+    {
+      "name": "handshake",
+      "payloadType": "HandshakeRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "handshake",
+        "payload": {
+          "protocolVersions": [
+            1
+          ],
+          "protocolMinor": 3,
+          "maxFrameBytes": 16777216
+        }
+      }
+    },
+    {
+      "name": "artifact.prepare",
+      "payloadType": "ArtifactPrepareRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "artifact.prepare",
+        "pkg": "pkg.a",
+        "payload": {
+          "artifact": {
+            "sha256": "cd34",
+            "kind": "apk",
+            "version": "1.6.4"
+          },
+          "inputPath": "/cache/in.apk",
+          "outputPath": "/cache/staged/out.jar",
+          "trustedSigners": [
+            "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+          ]
+        }
+      }
+    },
+    {
+      "name": "artifact.prepare reply",
+      "payloadType": "ArtifactPrepareResponse",
+      "frame": {
+        "v": 1,
+        "t": "res",
+        "id": "1-1",
+        "gen": 1,
+        "ok": {
+          "artifact": {
+            "sha256": "ab12",
+            "kind": "jar",
+            "version": "1.6.4"
+          },
+          "producer": "tachi-jvm/apk-dex2jar",
+          "converterVersion": "dex2jar.2+tachi-host.1"
+        }
+      }
+    },
+    {
+      "name": "package.load",
+      "payloadType": "PackageLoadRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "package.load",
+        "pkg": "pkg.a",
+        "payload": {
+          "artifact": {
+            "sha256": "ab12",
+            "kind": "jar",
+            "version": "1.6.4"
+          },
+          "path": "/cache/staged/out.jar",
+          "settings": {
+            "values": {
+              "lang": "en",
+              "count": 3,
+              "flag": true,
+              "tags": [
+                "b",
+                "a"
+              ]
+            },
+            "secrets": {
+              "token": "s3cret"
+            },
+            "sources": {
+              "2499283573021220255": {
+                "values": {
+                  "lang": "ja"
+                },
+                "secrets": {}
+              }
+            },
+            "revision": "rev-1"
+          },
+          "apiFamily": "tachi-1.6"
+        }
+      }
+    },
+    {
+      "name": "package.load reply",
+      "payloadType": "PackageLoadResponse",
+      "frame": {
+        "v": 1,
+        "t": "res",
+        "id": "1-1",
+        "gen": 1,
+        "ok": {
+          "sources": [
+            {
+              "sourceId": "2499283573021220255",
+              "name": "MangaDex",
+              "language": "en",
+              "capabilities": {
+                "operations": [
+                  "search",
+                  "mangaDetails",
+                  "chapterList"
+                ],
+                "apiFamilies": [
+                  "tachi-1.6"
+                ],
+                "requiresBrowser": true
+              }
+            },
+            {
+              "sourceId": "7",
+              "name": "All",
+              "language": null,
+              "capabilities": {
+                "operations": [
+                  "search"
+                ],
+                "apiFamilies": [],
+                "requiresBrowser": false
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "settings.update",
+      "payloadType": "SettingsUpdateRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "settings.update",
+        "pkg": "pkg.a",
+        "payload": {
+          "settings": {
+            "values": {
+              "lang": "en",
+              "count": 3,
+              "flag": true,
+              "tags": [
+                "b",
+                "a"
+              ]
+            },
+            "secrets": {
+              "token": "s3cret"
+            },
+            "sources": {
+              "2499283573021220255": {
+                "values": {
+                  "lang": "ja"
+                },
+                "secrets": {}
+              }
+            },
+            "revision": "rev-1"
+          }
+        }
+      }
+    },
+    {
+      "name": "search",
+      "payloadType": "WorkerSearchRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "search",
+        "pkg": "pkg.a",
+        "payload": {
+          "source": {
+            "ecosystem": "tachi",
+            "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+            "sourceId": "2499283573021220255",
+            "artifact": {
+              "sha256": "ab12",
+              "kind": "jar",
+              "version": "1.6.4"
+            }
+          },
+          "settingsRevision": "rev-1",
+          "query": "one piece",
+          "cursor": "2"
+        }
+      }
+    },
+    {
+      "name": "search first page",
+      "payloadType": "WorkerSearchRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "search",
+        "pkg": "pkg.a",
+        "payload": {
+          "source": {
+            "ecosystem": "tachi",
+            "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+            "sourceId": "2499283573021220255",
+            "artifact": {
+              "sha256": "ab12",
+              "kind": "jar",
+              "version": "1.6.4"
+            }
+          },
+          "settingsRevision": "rev-1",
+          "query": "x",
+          "cursor": null
+        }
+      }
+    },
+    {
+      "name": "details",
+      "payloadType": "WorkerDetailsRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "details",
+        "pkg": "pkg.a",
+        "payload": {
+          "source": {
+            "ecosystem": "tachi",
+            "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+            "sourceId": "2499283573021220255",
+            "artifact": {
+              "sha256": "ab12",
+              "kind": "jar",
+              "version": "1.6.4"
+            }
+          },
+          "settingsRevision": "rev-1",
+          "ref": {
+            "source": {
+              "ecosystem": "tachi",
+              "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+              "sourceId": "2499283573021220255",
+              "artifact": {
+                "sha256": "ab12",
+                "kind": "jar",
+                "version": "1.6.4"
+              }
+            },
+            "mangaId": "/manga/abc",
+            "settingsRevision": "rev-1",
+            "context": {
+              "url": "/manga/abc",
+              "title": "Title",
+              "status": 1,
+              "initialized": true,
+              "memo": {}
+            }
+          },
+          "handle": "h1"
+        }
+      }
+    },
+    {
+      "name": "dispose handles",
+      "payloadType": "DisposeRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "dispose",
+        "pkg": "pkg.a",
+        "payload": {
+          "source": {
+            "ecosystem": "tachi",
+            "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+            "sourceId": "2499283573021220255",
+            "artifact": {
+              "sha256": "ab12",
+              "kind": "jar",
+              "version": "1.6.4"
+            }
+          },
+          "handles": [
+            "h1",
+            "h2"
+          ]
+        }
+      }
+    },
+    {
+      "name": "dispose session",
+      "payloadType": "DisposeRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "dispose",
+        "pkg": "pkg.a",
+        "payload": {
+          "source": {
+            "ecosystem": "tachi",
+            "packageId": "eu.kanade.tachiyomi.extension.all.mangadex",
+            "sourceId": "2499283573021220255",
+            "artifact": {
+              "sha256": "ab12",
+              "kind": "jar",
+              "version": "1.6.4"
+            }
+          },
+          "handles": null
+        }
+      }
+    },
+    {
+      "name": "package.unload",
+      "payloadType": "PackageUnloadRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "package.unload",
+        "pkg": "pkg.a",
+        "payload": {}
+      }
+    },
+    {
+      "name": "shutdown",
+      "payloadType": "ShutdownRequest",
+      "frame": {
+        "v": 1,
+        "t": "req",
+        "id": "1-1",
+        "gen": 1,
+        "op": "shutdown",
+        "payload": {}
+      }
+    },
+    {
+      "name": "host.browser.open",
+      "payloadType": "HostBrowserOpen",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.open",
+        "of": "1-7",
+        "payload": {
+          "sourceId": "2499283573021220255",
+          "userAgent": "Mozilla/5.0 Test"
+        }
+      }
+    },
+    {
+      "name": "host.browser.open reply",
+      "payloadType": "HostBrowserOpened",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {
+          "session": "b1",
+          "capabilities": {
+            "available": [
+              "pageStartScripts",
+              "observeNavigations"
+            ],
+            "unavailable": {
+              "observeSubresources": "Not reported by the browser implementation",
+              "observeRequestHeaders": "Not reported by the browser implementation",
+              "observeClientHints": "Not reported by the browser implementation",
+              "observeRequestBodies": "Not reported by the browser implementation",
+              "replaceRequests": "WKWebView has no replace tier",
+              "scriptErrors": "Not reported by the browser implementation"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "host.browser.load",
+      "payloadType": "HostBrowserLoad",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.load",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "url": "https://example.test/a?b=1",
+          "headers": {
+            "Referer": "https://example.test/"
+          }
+        }
+      }
+    },
+    {
+      "name": "host.browser.load reply",
+      "payloadType": "HostBrowserPage",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {
+          "finalUrl": "https://example.test/final",
+          "status": 403
+        }
+      }
+    },
+    {
+      "name": "host.browser.loadData",
+      "payloadType": "HostBrowserLoadData",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.loadData",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "html": "<p>x</p>",
+          "baseUrl": "https://example.test/"
+        }
+      }
+    },
+    {
+      "name": "host.browser.evaluate",
+      "payloadType": "HostBrowserEvaluate",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.evaluate",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "script": "navigator.userAgent"
+        }
+      }
+    },
+    {
+      "name": "host.browser.evaluate reply",
+      "payloadType": "HostBrowserEvaluated",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {
+          "result": "\"Mozilla/5.0\"",
+          "scriptError": "TypeError: x"
+        }
+      }
+    },
+    {
+      "name": "host.browser.setMessageHandler",
+      "payloadType": "HostBrowserSetMessageHandler",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.setMessageHandler",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "name": "ipc",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "name": "host.browser.getCookies",
+      "payloadType": "HostBrowserGetCookies",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.getCookies",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "url": "https://example.test/"
+        }
+      }
+    },
+    {
+      "name": "host.browser.getCookies reply",
+      "payloadType": "HostBrowserCookies",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {
+          "cookies": [
+            {
+              "name": "cf_clearance",
+              "value": "v",
+              "domain": ".example.test",
+              "path": "/",
+              "expires": "2030-01-01T00:00:00.000Z",
+              "secure": true,
+              "httpOnly": true
+            },
+            {
+              "name": "plain",
+              "value": "",
+              "domain": null,
+              "path": null,
+              "expires": null,
+              "secure": false,
+              "httpOnly": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "host.browser.setCookie",
+      "payloadType": "HostBrowserSetCookie",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.setCookie",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "url": "https://example.test/",
+          "cookie": {
+            "name": "a",
+            "value": "b",
+            "domain": "example.test",
+            "path": "/",
+            "expires": "2030-01-01T00:00:00.000Z",
+            "secure": true,
+            "httpOnly": false
+          }
+        }
+      }
+    },
+    {
+      "name": "host.browser.setUserAgent",
+      "payloadType": "HostBrowserSetUserAgent",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.setUserAgent",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "userAgent": "Other/2.0"
+        }
+      }
+    },
+    {
+      "name": "host.browser.show",
+      "payloadType": "HostBrowserShow",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.show",
+        "of": "1-7",
+        "payload": {
+          "session": "b1"
+        }
+      }
+    },
+    {
+      "name": "host.browser.show reply",
+      "payloadType": "HostBrowserShown",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {
+          "outcome": "completed"
+        }
+      }
+    },
+    {
+      "name": "host.browser.show reply from 1.2",
+      "payloadType": "HostBrowserShown",
+      "frame": {
+        "v": 1,
+        "t": "rres",
+        "id": "r1",
+        "gen": 1,
+        "ok": {}
+      }
+    },
+    {
+      "name": "host.browser.close",
+      "payloadType": "HostBrowserClose",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.close",
+        "of": "1-7",
+        "payload": {
+          "session": "b1"
+        }
+      }
+    },
+    {
+      "name": "host.browser.addPageStartScript",
+      "payloadType": "HostBrowserAddPageStartScript",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.addPageStartScript",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "script": "window.x = 1;"
+        }
+      }
+    },
+    {
+      "name": "host.browser.setRequestInterception",
+      "payloadType": "HostBrowserSetRequestInterception",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.setRequestInterception",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "mode": "observe"
+        }
+      }
+    },
+    {
+      "name": "host.browser.respond",
+      "payloadType": "HostBrowserRespond",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.respond",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "requestId": "q1",
+          "response": {
+            "status": 200,
+            "reason": "OK",
+            "headers": {
+              "content-type": "text/plain"
+            },
+            "bodyBase64": "b2s="
+          }
+        }
+      }
+    },
+    {
+      "name": "host.browser.respond proceed",
+      "payloadType": "HostBrowserRespond",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.respond",
+        "of": "1-7",
+        "payload": {
+          "session": "b1",
+          "requestId": "q1",
+          "response": null
+        }
+      }
+    },
+    {
+      "name": "host.browser.endInteraction",
+      "payloadType": "HostBrowserEndInteraction",
+      "frame": {
+        "v": 1,
+        "t": "rreq",
+        "id": "r1",
+        "gen": 1,
+        "op": "host.browser.endInteraction",
+        "of": "1-7",
+        "payload": {
+          "session": "b1"
+        }
+      }
+    },
+    {
+      "name": "host.browser.message",
+      "payloadType": "HostBrowserMessage",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e1",
+        "gen": 1,
+        "op": "host.browser.message",
+        "payload": {
+          "session": "b1",
+          "name": "ipc",
+          "message": "{\"done\":true}"
+        }
+      }
+    },
+    {
+      "name": "host.browser.request held",
+      "payloadType": "HostBrowserRequestEvent",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e4",
+        "gen": 1,
+        "op": "host.browser.request",
+        "payload": {
+          "session": "b1",
+          "requestId": "q1",
+          "method": "POST",
+          "url": "https://example.test/api",
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyBase64": "eyJhIjoxfQ==",
+          "bodyOmitted": false,
+          "mainFrame": true,
+          "redirect": false,
+          "context": "document"
+        }
+      }
+    },
+    {
+      "name": "host.browser.request observed",
+      "payloadType": "HostBrowserRequestEvent",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e5",
+        "gen": 1,
+        "op": "host.browser.request",
+        "payload": {
+          "session": "b1",
+          "requestId": null,
+          "method": "GET",
+          "url": "https://example.test/img.png",
+          "headers": {},
+          "bodyBase64": null,
+          "bodyOmitted": true,
+          "mainFrame": false,
+          "redirect": true,
+          "context": "other"
+        }
+      }
+    },
+    {
+      "name": "interaction.started",
+      "payloadType": "WorkerInteractionStarted",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e2",
+        "gen": 1,
+        "op": "interaction.started",
+        "payload": {
+          "of": "1-7",
+          "timeoutMs": 300000
+        }
+      }
+    },
+    {
+      "name": "interaction.ended",
+      "payloadType": "WorkerInteractionEnded",
+      "frame": {
+        "v": 1,
+        "t": "event",
+        "id": "e3",
+        "gen": 1,
+        "op": "interaction.ended",
+        "payload": {
+          "of": "1-7",
+          "pausedMs": 42000
+        }
+      }
+    },
+    {
+      "name": "cancel",
+      "frame": {
+        "v": 1,
+        "t": "cancel",
+        "id": "1-7",
+        "gen": 1
+      }
+    },
+    {
+      "name": "error reply",
+      "frame": {
+        "v": 1,
+        "t": "res",
+        "id": "1-7",
+        "gen": 1,
+        "err": {
+          "code": "capability-unavailable",
+          "message": "no browser",
+          "operation": "host.browser.open"
+        }
+      }
+    }
+  ]
+}

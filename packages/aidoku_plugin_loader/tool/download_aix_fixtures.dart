@@ -10,6 +10,11 @@ import 'package:aidoku_plugin_loader/src/source_list/source_list.dart';
 import 'package:aidoku_plugin_loader/src/source_list/source_list_manager.dart';
 import 'package:http/http.dart' as http;
 
+/// The Aidoku Community source list this fixture tool downloads from (a
+/// developer tool; the product never names a repository).
+const String _communitySourceList =
+    'https://raw.githubusercontent.com/Aidoku-Community/sources/refs/heads/gh-pages/index.json';
+
 const Set<String> _targetIds = <String>{'en.asurascans', 'en.weebcentral', 'multi.mangafire'};
 const String _outputDir = 'test/aidoku/fixtures';
 
@@ -20,7 +25,7 @@ Future<void> main() async {
   print('Fetching source list...');
   late final RemoteSourceList list;
   try {
-    list = await mgr.fetchRemoteSourceList(kAidokuCommunitySourceListUrl);
+    list = await mgr.fetchRemoteSourceList(_communitySourceList);
   } on Object catch (e) {
     stderr.writeln('Failed to fetch source list: $e');
     client.close();

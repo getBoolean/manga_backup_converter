@@ -4,8 +4,10 @@
 // Requires the real .aix fixture — same prerequisites as
 // wasm_runner_native_test.dart. Wasmer is bundled via code assets.
 //
-// Tests make live network requests to MangaDex and assert on real data.
-// Verified live data (2026-02-19):
+// Network requests are served from committed captures in
+// fixtures/source_captures/aidoku/multi.mangadex/ (replay mode); no test
+// reaches a server. Re-record with tool/capture_source_fixtures.dart.
+// Captured data (2026-11-20):
 //   Manga  : ed996855-70de-449f-bba2-e8e24224c14d — "Onii-chan wa Oshimai!" (safe)
 //   Chapter: 6eb2f8ea-3b6c-4bce-a0d0-d9224fad5b64 — Ch. 108 "Mahiro and Bodyguards" (14 pages)
 //
@@ -18,7 +20,10 @@ import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
 import 'package:checks/checks.dart';
+import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
+
+import '../support/replay.dart';
 
 void main() {
   const fixturePath = 'test/aidoku/fixtures/multi.mangadex-v12.aix';
@@ -34,8 +39,10 @@ void main() {
     skip: !fixture.existsSync() ? 'Missing test/aidoku/fixtures/multi.mangadex-v12.aix' : null,
     () {
       late AidokuPlugin plugin;
+      late ReplayHttpClient replay;
 
       setUpAll(() async {
+        replay = aidokuReplayClient('multi.mangadex');
         // MangaDex's is_logged_in() calls defaults_get_json::<TokenResponse>("login").
         // The SDK reads stored bytes as postcard<String> (the JSON text), then
         // serde_json::from_str::<TokenResponse>. TokenResponse has Option<String> fields,
@@ -49,6 +56,7 @@ void main() {
         plugin = await AidokuPlugin.fromAix(
           fixture.readAsBytesSync(),
           defaults: <String, dynamic>{'login': loginPostcard},
+          httpClient: replay,
         );
       });
 
@@ -57,6 +65,16 @@ void main() {
       tearDown(() {
         final List<String> warnings = plugin.drainWarnings();
         check(because: '[CB] Plugin produced unexpected warnings:\n${warnings.join('\n')}', warnings).isEmpty();
+        check(because: 'requests without a committed capture', replay.misses).isEmpty();
+      });
+
+      test('a request without a committed capture fails instead of reaching the network', () async {
+        final int servedBefore = replay.served.length;
+        final MangaPageResult result = await plugin.searchManga('no capture exists for this query', 1);
+        check(result.manga).isEmpty();
+        check(replay.misses).length.equals(1);
+        check(replay.served.length).equals(servedBefore);
+        replay.misses.clear();
       });
 
       group('searchManga', () {

@@ -15,7 +15,9 @@ class SettingsMapper extends ClassMapperBase<Settings> {
   static SettingsMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = SettingsMapper._());
-      MapperContainer.globals.useAll([FlexSchemeDataMapper()]);
+      MapperContainer.globals.useAll(<MapperBase<Object>>[
+        FlexSchemeDataMapper(),
+      ]);
       ThemeTypeMapper.ensureInitialized();
     }
     return _instance!;
@@ -57,7 +59,7 @@ class SettingsMapper extends ClassMapperBase<Settings> {
     'customThemes',
     _$customThemes,
     opt: true,
-    def: const [],
+    def: const <FlexSchemeData>[],
   );
 
   @override

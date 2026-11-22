@@ -1,3 +1,6 @@
 [submodule "packages/wasm3/vendor/wasm3"]
 	path = packages/wasm3/vendor/wasm3
 	url = https://github.com/wasm3/wasm3.git
+[submodule "packages/quickjs/vendor/quickjs"]
+	path = packages/quickjs/vendor/quickjs
+	url = https://github.com/quickjs-ng/quickjs.git

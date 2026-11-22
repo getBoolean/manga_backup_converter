@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Integration tests serve WebView pages from 127.0.0.1 over http (U12). -->
+    <application android:networkSecurityConfig="@xml/srt_debug_network_security" />
 </manifest>

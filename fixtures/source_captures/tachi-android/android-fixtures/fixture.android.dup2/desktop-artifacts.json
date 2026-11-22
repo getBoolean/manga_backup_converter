@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "artifacts": [
+    {
+      "kind": "apk",
+      "path": "fixture.android.dup2.apk",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.dup2.apk",
+      "sha256": "3f8d735499b2046cc0839ad305a6c7516663cfc691f2c67c59879520143f3cda"
+    },
+    {
+      "kind": "jar",
+      "path": "absent.jar",
+      "sourceUrl": "https://fixtures.invalid/u11/repo/absent/fixture.android.dup2.jar",
+      "sha256": ""
+    }
+  ]
+}

@@ -3,7 +3,9 @@
 // Integration tests for AidokuPlugin with the mangafire HTML-scraping plugin.
 // Requires the real .aix fixture. Wasmer is bundled via code assets.
 //
-// Tests make live network requests to mangafire and assert on real data.
+// Network requests are served from committed captures in
+// fixtures/source_captures/aidoku/multi.mangafire/ (replay mode); no test
+// reaches a server. Re-record with tool/capture_source_fixtures.dart.
 //
 // Run: dart test packages/aidoku_plugin_loader/test/wasm/aidoku_plugin_mangafire_test.dart --reporter expanded
 @TestOn('vm')
@@ -14,7 +16,10 @@ import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/aidoku_plugin_loader.dart';
 import 'package:checks/checks.dart';
+import 'package:source_runtime/source_runtime.dart';
 import 'package:test/scaffolding.dart';
+
+import '../support/replay.dart';
 
 void main() {
   const fixturePath = 'test/aidoku/fixtures/multi.mangafire-v8.aix';
@@ -27,10 +32,13 @@ void main() {
     skip: !fixture.existsSync() ? 'Missing test/aidoku/fixtures/multi.mangafire-v8.aix' : null,
     () {
       late AidokuPlugin plugin;
+      late ReplayHttpClient replay;
 
       setUpAll(() async {
+        replay = aidokuReplayClient('multi.mangafire');
         plugin = await AidokuPlugin.fromAix(
           Uint8List.fromList(fixture.readAsBytesSync()),
+          httpClient: replay,
         );
       });
 
@@ -39,6 +47,7 @@ void main() {
       tearDown(() {
         final List<String> warnings = plugin.drainWarnings();
         check(because: '[CB] Plugin produced unexpected warnings:\n${warnings.join('\n')}', warnings).isEmpty();
+        check(because: 'requests without a committed capture', replay.misses).isEmpty();
       });
 
       group('searchManga', () {

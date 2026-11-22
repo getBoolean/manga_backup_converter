@@ -1,0 +1,17 @@
+{
+  "repository": "https://paperback-ios.github.io/extensions-default/0.8/",
+  "apiFamily": "paperback-0.8",
+  "retrievedAt": "2026-11-21T00:19:34Z",
+  "licence": "see github.com/Paperback-iOS/extensions-default (catalog only; no bundles pinned)",
+  "catalog": {
+    "path": "versioning.json",
+    "sourceUrl": "https://paperback-ios.github.io/extensions-default/0.8/versioning.json",
+    "sha256": "5e0241dfec4c179ec43a29e03d9652313ea07af70643bf532ec715f94ea800b6",
+    "size": 442,
+    "builtWith": {
+      "toolchain": "0.8.0-alpha.47",
+      "types": "0.8.0-alpha.47"
+    }
+  },
+  "bundles": []
+}

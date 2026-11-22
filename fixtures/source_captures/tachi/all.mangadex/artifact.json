@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "all.mangadex",
+  "recordedAt": "2026-11-20T09:47:00Z",
+  "recordedBy": "U17 Android runtime gate (one manual download; tests never download)",
+  "notes": "Staged read-only and loaded in the :source_runtime process by integration_test/android_runtime_gate_test.dart. Reaches the device only through the source_runtime_android debug asset set.",
+  "repository": {
+    "indexUrl": "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json",
+    "indexSha256AtCapture": "d477bbb98e3aa8257e9b0a13dd91f15120715227d279cf33367a70c1b7aff402",
+    "indexEntry": "index-entry.json",
+    "signingKeyFingerprint": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+  },
+  "artifacts": [
+    {
+      "path": "tachiyomi-all.mangadex-v1.6.4.apk",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/d9420cd/tachiyomi-all.mangadex-v1.6.4.apk",
+      "sha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
+      "size": 103358,
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangadex",
+      "versionName": "1.6.4",
+      "versionCode": 106004,
+      "extensionLib": "1.6",
+      "minSdkVersion": 26,
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": ["v2"],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    }
+  ]
+}

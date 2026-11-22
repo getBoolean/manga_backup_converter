@@ -27,14 +27,14 @@ class LocationHistoryMapper extends ClassMapperBase<LocationHistory> {
     'history',
     _$history,
     opt: true,
-    def: const [],
+    def: const <Uri>[],
   );
   static List<Uri> _$popped(LocationHistory v) => v.popped;
   static const Field<LocationHistory, List<Uri>> _f$popped = Field(
     'popped',
     _$popped,
     opt: true,
-    def: const [],
+    def: const <Uri>[],
   );
 
   @override

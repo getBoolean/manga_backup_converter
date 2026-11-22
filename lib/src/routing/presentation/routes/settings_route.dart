@@ -1,3 +1,5 @@
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:mangabackupconverter/src/features/settings/presentation/screens/settings_screen.dart';
 

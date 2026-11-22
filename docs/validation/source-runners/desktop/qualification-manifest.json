@@ -1,0 +1,206 @@
+{
+  "format": 1,
+  "milestone": "M1 desktop",
+  "unit": "U8",
+  "updated": "2026-11-21",
+  "comment": "One cell per runner, qualification source and desktop OS (plan U8, R11/R12). A cell is passed only for what ran; replayed-capture, live capture-run and restore evidence are recorded separately. Receipts named here live in receipts/ and pass tool/check_evidence_receipts.dart. Blocked and not-run cells stay visible; a MangaFire cell that is not passed keeps M1 open (U8b: Paperback 0.9 passes on Windows; Tachi passes its operations but its browser path was not exercised live; macOS and Linux MangaFire cells stay open; no restore was made).",
+  "publicQueries": [
+    "Onimai",
+    "Oshimai"
+  ],
+  "evidenceKinds": {
+    "replayed": "operations replayed from committed captures by the package test suites on this OS",
+    "live": "a manual, rate-limited capture run against the site (U8b: Paperback 0.9 and Tachi MangaFire on Windows, 2026-11-21; none for the other sources)",
+    "restore": "a generated backup restored in a clean destination app (separate lane; none recorded in U8)"
+  },
+  "cells": [
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "MangaDex all.mangadex 1.6.4",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "tools/tachi-source-runner CapturedProofTest (Gradle suite, U8 verification run); receipts/windows-tachi-two-repositories-one-worker.json"
+    },
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "WeebCentral en.weebcentral 1.6.27",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "CapturedProofTest; receipts/windows-tachi-two-repositories-one-worker.json (conversion Paperback to Mihon through two repositories and one JVM worker)"
+    },
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "MangaFire all.mangafire 1.6.38",
+      "os": "windows",
+      "replayed": "passed (search, details, chapters; no challenge in the capture)",
+      "browserPath": "not exercised live: no WAF challenge fired, so the extension never opened its WebView solver. The solver page replays only from the synthetic fixture (desktop_webview mangafire_solver_replay_test). The Cloudflare challenge window path (CloudflareSolver over host.browser.show) is proven end to end against a loopback simulation through the real helper and JVM worker (CLI tachi_cloudflare_challenge_test), never against real Cloudflare",
+      "live": "passed: 2026-11-21 capture-tool run, JAR path live (3 requests, all 200, no WAF challenge, no cf-mitigated), APK path replayed from it: search 50 hits, details, 86 chapters, identical on both paths; not committed",
+      "evidence": "CapturedProofTest; docs/source-runners.md (MangaFire, Windows, U8b)"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "MangaDex (Inkdex 1.0.0-alpha.28)",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite (U8 verification run)"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "WeebCentral (Inkdex 1.0.0-alpha.25)",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite; CLI six-directions replay test"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "MangaFire (Inkdex 1.0.0-alpha.24)",
+      "os": "windows",
+      "replayed": "passed: search (30 hits, two pages), details, 86 chapters through the real WebView2 helper offline, the page scripts served from the committed browser capture (fixtures/source_captures/paperback/mangafire/browser)",
+      "live": "passed: 2026-11-21 capture_paperback_sources.dart --browser run (worker requests >= 1.5 s apart, one page load per executeInWebView): the same results, replayed offline in the same invocation",
+      "evidence": "receipts/windows-paperback-executeinwebview-helper.json; paperback_plugin_loader source_execution_test; fixtures/source_captures/paperback/mangafire/scenario.json"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "MangaDex (Netsky community 3.0.6)",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "WeebCentral (GabrielCWT 1.1.1, numby 2.0.12)",
+      "os": "windows",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "MangaFire substitute: Mangahub (kittycatgit 4.0.0)",
+      "os": "windows",
+      "replayed": "passed (no Cloudflare challenge in the capture)",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "aidoku",
+      "source": "MangaFire multi.mangafire v8",
+      "os": "windows",
+      "replayed": "passed (HTTP-only replay: aidoku_plugin_mangafire_test, 4 / 0 / 0 in the U8b run)",
+      "browserPath": "none: the compiled import list holds only net, std, env, html and defaults (no js or WebView module)",
+      "live": "not run",
+      "evidence": "packages/aidoku_plugin_loader/test/wasm/aidoku_plugin_mangafire_test.dart; WASM import section"
+    },
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "MangaDex all.mangadex 1.6.4",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "tools/tachi-source-runner CapturedProofTest (Gradle suite on macOS arm64); receipts/macos-tachi-two-repositories-one-worker.json"
+    },
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "WeebCentral en.weebcentral 1.6.27",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "CapturedProofTest; receipts/macos-tachi-two-repositories-one-worker.json (conversion Paperback to Mihon through two repositories and one JVM worker)"
+    },
+    {
+      "runner": "tachi (repository JAR and APK via dex2jar)",
+      "source": "MangaFire all.mangafire 1.6.38",
+      "os": "macos",
+      "replayed": "passed (search, details, chapters; no challenge in the capture)",
+      "browserPath": "not exercised: no WAF challenge fired in the Windows live run; the solver page ran on WKWebView against a loopback copy of its fixture (desktop_webview mangafire_solver_replay_test). The Cloudflare challenge window path was not run on macOS",
+      "live": "not run",
+      "evidence": "CapturedProofTest; packages/desktop_webview/test/mangafire_solver_replay_test.dart"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "MangaDex (Inkdex 1.0.0-alpha.28)",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite (macOS run)"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "WeebCentral (Inkdex 1.0.0-alpha.25)",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite; CLI six-directions replay test"
+    },
+    {
+      "runner": "paperback-0.9",
+      "source": "MangaFire (Inkdex 1.0.0-alpha.24)",
+      "os": "macos",
+      "replayed": "blocked, as on Windows: executeInWebView reaches the real WKWebView helper, the page's site scripts have no capture, so the VRF capture times out in the page",
+      "live": "not run: the browser recorder needs WebView2 (WKWebView has no response observation), and the Windows browser capture cannot replay on WKWebView (no replace tier)",
+      "evidence": "receipts/macos-paperback-executeinwebview-helper.json"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "MangaDex (Netsky community 3.0.6)",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "WeebCentral (GabrielCWT 1.1.1, numby 2.0.12)",
+      "os": "macos",
+      "replayed": "passed",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "paperback-0.8",
+      "source": "MangaFire substitute: Mangahub (kittycatgit 4.0.0)",
+      "os": "macos",
+      "replayed": "passed (no Cloudflare challenge in the capture)",
+      "live": "not run",
+      "evidence": "paperback_plugin_loader suite"
+    },
+    {
+      "runner": "every runner",
+      "source": "every source",
+      "os": "linux",
+      "replayed": "not run",
+      "live": "not run",
+      "evidence": "none: separate lane"
+    }
+  ],
+  "package": [
+    {
+      "os": "windows",
+      "arch": "x64",
+      "smoke": "passed",
+      "evidence": "receipts/windows-package-smoke.json"
+    },
+    {
+      "os": "macos",
+      "arch": "arm64",
+      "smoke": "passed (ad-hoc signatures, no notarization); x64 not built",
+      "evidence": "receipts/macos-package-smoke.json"
+    },
+    {
+      "os": "linux",
+      "arch": "x64",
+      "smoke": "not run (CI wired, non-gating)"
+    }
+  ],
+  "restore": [
+    {
+      "destination": "Paperback, Aidoku, Tachi apps",
+      "status": "not run: needs a disposable app profile or test device and the user's authorization (plan U8, restore prerequisites)"
+    }
+  ]
+}

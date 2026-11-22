@@ -1,0 +1,34 @@
+name: source_loaders
+description: >-
+  The Aidoku, Paperback and Tachi `PluginLoader` adapters over each
+  ecosystem's backend-neutral `SourceProvider` (KTD15). Shared by the CLI and
+  the app composition roots, which inject the concrete backends: desktop
+  workers in the CLI, local runtimes on iOS and Android. Pure Dart; no
+  Flutter dependency.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+resolution: workspace
+
+dependencies:
+  aidoku_plugin_loader:
+    path: ../aidoku_plugin_loader
+  crypto: ^3.0.0
+  http: ^1.2.0
+  manga_backup_core:
+    path: ../manga_backup_core
+  meta: ^1.12.0
+  paperback_plugin_loader:
+    path: ../paperback_plugin_loader
+  source_runtime:
+    path: ../source_runtime
+  tachi_plugin_loader:
+    path: ../tachi_plugin_loader
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  test: ^1.24.0

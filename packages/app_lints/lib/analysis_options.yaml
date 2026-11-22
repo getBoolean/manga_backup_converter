@@ -1,8 +1,44 @@
 include: package:solid_lints/analysis_options.yaml
 
+plugins:
+  solid_lints: ^2.0.0
+  riverpod_lint: ^3.2.0
+
+# solid_lints 2.0 (analysis_server_plugin) enables rules that 0.3.x
+# (custom_lint) did not; disable them to keep the pre-upgrade rule set.
+solid_lints:
+  diagnostics:
+    avoid_duplicate_code: false
+    avoid_multiple_declarations_per_file: false
+    avoid_similar_names: false
+    feature_envy: false
+    prefer_mirror_test_structure: false
+    named_parameters_ordering: false
+    use_nearest_context: false
+    use_descriptive_names_for_type_parameters: false
+    # Before Flutter 3.50 these rules ran only through custom_lint, which CI
+    # never ran; as analyzer plugins they now fail `dart analyze --fatal-infos`.
+    # Existing code violates them, so they stay off until that debt is paid.
+    avoid_final_with_getter: false
+    avoid_late_keyword: false
+    avoid_non_null_assertion: false
+    avoid_returning_widgets: false
+    avoid_unnecessary_setstate: false
+    avoid_unused_parameters: false
+    cyclomatic_complexity: false
+    function_lines_of_code: false
+    member_ordering: false
+    newline_before_return: false
+    no_empty_block: false
+    no_equal_then_else: false
+    no_magic_number: false
+    number_of_parameters: false
+    prefer_conditional_expressions: false
+    prefer_early_return: false
+    prefer_first: false
+    prefer_match_file_name: false
+
 analyzer:
-  plugins:
-    - custom_lint
   language:
     strict-inference: true
 
@@ -13,7 +49,6 @@ analyzer:
   exclude:
     # generated files
     - "**/*.g.dart"
-    -
     # package:dart_mappable
     - "**/*.mapper.dart"
 
@@ -76,9 +111,6 @@ linter:
     unnecessary_constructor_name: true
     # Avoid annotating with dynamic when not required.
     avoid_annotating_with_dynamic: true
-    # Function call will not be in call stack if enabled
-    # https://twitter.com/devangelslondon/status/1666474038540001289
-    unnecessary_await_in_return: false
     unnecessary_late: true
     use_late_for_private_fields_and_variables: true
     use_to_and_as_if_applicable: true
@@ -95,3 +127,20 @@ linter:
     unnecessary_library_name: true
     invalid_runtime_check_with_js_interop_types: true
     sort_pub_dependencies: false
+
+    # Standard rules added by solid_lints 2.0; disabled to keep the
+    # pre-upgrade rule set.
+    always_put_required_named_parameters_first: true
+    avoid_returning_this: false
+    avoid_types_on_closure_parameters: false
+    cascade_invocations: false
+    discarded_futures: false
+    document_ignores: false
+    no_literal_bool_comparisons: false
+    no_wildcard_variable_uses: false
+    unnecessary_ignore: false
+    unnecessary_unawaited: false
+    unnecessary_underscores: false
+    unreachable_from_main: false
+    use_enums: false
+    use_truncating_division: false

@@ -2,6 +2,8 @@ library;
 
 import 'package:accessibility_tools/accessibility_tools.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_flavor/flutter_flavor.dart';
 import 'package:google_fonts/google_fonts.dart';

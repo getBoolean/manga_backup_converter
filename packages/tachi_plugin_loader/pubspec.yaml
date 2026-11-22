@@ -1,0 +1,24 @@
+name: tachi_plugin_loader
+description: >-
+  Tachi extension catalogs, verified artifact preparation and package-level
+  source loading over the shared desktop JVM worker (U4; KTD3, KTD5).
+  Pure Dart; no Flutter dependency.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+resolution: workspace
+
+dependencies:
+  crypto: ^3.0.0
+  meta: ^1.12.0
+  path: ^1.9.0
+  source_runtime:
+    path: ../source_runtime
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  test: ^1.24.0

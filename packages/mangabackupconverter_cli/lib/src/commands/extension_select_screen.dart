@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/extension_entry.dart';
 
 // ---------------------------------------------------------------------------
 // Internal events
@@ -50,13 +50,7 @@ class ExtensionSelectScreen {
         )) {
           return true;
         }
-        final String rating = switch (e.contentRating) {
-          0 => 'safe',
-          1 => 'suggestive',
-          2 => 'nsfw',
-          _ => '',
-        };
-        if (rating.isNotEmpty && rating.contains(lowerQuery)) return true;
+        if (e.contentRating.name.contains(lowerQuery)) return true;
         if (e is AidokuExtensionEntry) {
           if (e.altNames.any(
             (String alt) => alt.toLowerCase().contains(lowerQuery),
@@ -160,12 +154,12 @@ class ExtensionSelectScreen {
           final buf = StringBuffer('$prefix$checkbox ${e.name}');
           if (e is AidokuExtensionEntry) buf.write(' v${e.version}');
           final String rating = switch (e.contentRating) {
-            0 => 'Safe',
-            1 => 'Suggestive',
-            2 => 'NSFW',
-            _ => '',
+            ContentRatingLevel.safe => 'Safe',
+            ContentRatingLevel.suggestive => 'Suggestive',
+            ContentRatingLevel.nsfw => 'NSFW',
+            ContentRatingLevel.unknown => 'Unrated',
           };
-          if (rating.isNotEmpty) buf.write(' · $rating');
+          buf.write(' · $rating');
           lines.add(truncate(buf.toString(), width));
 
           // Detail lines: plugin ID + languages (dimmed, indented, wrapped).

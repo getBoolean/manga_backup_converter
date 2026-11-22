@@ -4,10 +4,6 @@ import 'package:aidoku_plugin_loader/src/source_list/source_entry.dart';
 import 'package:aidoku_plugin_loader/src/source_list/source_list.dart';
 import 'package:http/http.dart' as http;
 
-/// Official Aidoku Community source list URL.
-const String kAidokuCommunitySourceListUrl =
-    'https://raw.githubusercontent.com/Aidoku-Community/sources/refs/heads/gh-pages/index.json';
-
 const Duration _kTimeout = Duration(seconds: 15);
 
 class SourceListManager {

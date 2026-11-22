@@ -1,0 +1,216 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:args/args.dart';
+import 'package:http/http.dart' as http;
+import 'package:paperback_plugin_loader/src/adapter.dart';
+import 'package:paperback_plugin_loader/src/host/browser.dart';
+import 'package:paperback_plugin_loader/src/host/capture_clients.dart';
+import 'package:paperback_plugin_loader/src/host/network.dart';
+import 'package:paperback_plugin_loader/src/runtime/runtime_limits.dart';
+import 'package:paperback_plugin_loader/src/runtime/worker.dart';
+import 'package:source_runtime/source_runtime.dart';
+
+/// Paperback desktop worker process (protocol v1 over stdin/stdout).
+///
+/// Every QuickJS limit is a required argument (KTD25); the supervisor derives
+/// them from the sizing rule for this device:
+///
+///     paperback_source_worker --memory-limit-bytes=N --max-stack-bytes=N
+///         --operation-deadline-ms=N --job-slice-ms=N
+///         --deadline-headroom-ms=N [network mode]
+///
+/// `--operation-deadline-ms` is the engine's deadline (JS interrupt and host
+/// waits). `--deadline-headroom-ms` is the measured time an operation can
+/// still take after that deadline fires (interrupt overshoot plus result
+/// conversion and frame encoding); the handshake reports
+/// `operationDeadlineMs` = engine deadline + headroom, so a supervisor that
+/// adopts it never times out an operation the engine is still stopping.
+///
+/// Network mode (default: the live network):
+///
+///     --replay=<capture dir>           (repeatable) serve committed captures
+///                                      only; any other request fails loudly
+///     --record=<capture dir> --record-source=<name>
+///         --record-min-interval-ms=N --record-licence=<text>
+///         [--record-volatile=<query parameter>]...
+///         [--record-cookie=<name>:<keep|redact>]...
+///                                      manual capture run: forward to the
+///                                      network and write the capture on
+///                                      shutdown (never used by tests)
+///
+/// stdout carries protocol frames only; logs and `print` go to stderr.
+///
+/// `bin/paperback_source_worker.dart` runs this; a host executable (the CLI)
+/// may run it as a hidden subcommand so it ships one binary.
+Future<void> runPaperbackWorker(List<String> args) async {
+  final PaperbackRuntimeLimits limits;
+  final PaperbackNetworkMode network;
+  final Duration headroom;
+  try {
+    final WorkerArguments parsed = parseWorkerArguments(args);
+    limits = parsed.limits;
+    network = parsed.network;
+    headroom = parsed.deadlineHeadroom;
+  } on FormatException catch (e) {
+    stderr.writeln('paperback_source_worker: ${e.message}');
+    exitCode = 64;
+    return;
+  }
+  final (http.Client client, FutureOr<void> Function()? onShutdown) = _client(network);
+  await runZoned(
+    () => PaperbackSourceWorker(
+      input: stdin,
+      output: stdout,
+      limits: limits,
+      deadlineHeadroom: headroom,
+      adapterFactory: (PaperbackBrowserChannel browser) =>
+          PaperbackApiAdapter(http: PaperbackHttp(client), browser: browser, log: stderr.writeln),
+      browserEnabled: true,
+      onShutdown: onShutdown,
+      pid: pid,
+      log: stderr.writeln,
+    ).run(),
+    zoneSpecification: ZoneSpecification(
+      print: (Zone self, ZoneDelegate parent, Zone zone, String line) => stderr.writeln(line),
+    ),
+  );
+  client.close();
+}
+
+(http.Client, FutureOr<void> Function()?) _client(PaperbackNetworkMode mode) {
+  switch (mode) {
+    case LiveNetwork():
+      return (http.Client(), null);
+    case ReplayNetwork(:final List<Directory> dirs):
+      return (MultiReplayHttpClient.load(dirs), null);
+    case final RecordNetwork r:
+      final recorder = RecordingHttpClient(
+        http.Client(),
+        minInterval: r.minInterval,
+        licence: r.licence,
+        volatileQueryParameters: r.volatileQueryParameters,
+        setCookieAllowList: r.setCookieAllowList,
+      );
+      return (
+        recorder,
+        () {
+          r.dir.createSync(recursive: true);
+          recorder.writeTo(
+            r.dir,
+            ecosystem: 'paperback',
+            source: r.source,
+            notes: 'Recorded by paperback_source_worker --record',
+          );
+          stderr.writeln('paperback_source_worker: recorded ${recorder.length} exchanges into ${r.dir.path}');
+        },
+      );
+  }
+}
+
+/// Parsed worker arguments.
+typedef WorkerArguments = ({PaperbackRuntimeLimits limits, Duration deadlineHeadroom, PaperbackNetworkMode network});
+
+const List<String> _limitNames = <String>[
+  'memory-limit-bytes',
+  'max-stack-bytes',
+  'operation-deadline-ms',
+  'job-slice-ms',
+  'deadline-headroom-ms',
+];
+
+const List<String> _networkNames = <String>[
+  'replay',
+  'record',
+  'record-source',
+  'record-min-interval-ms',
+  'record-licence',
+  'record-volatile',
+  'record-cookie',
+];
+
+/// The worker's options: every limit once; the network options may repeat
+/// (and the parser checks how many each mode needs).
+final ArgParser _workerArgs = () {
+  final parser = ArgParser();
+  for (final String name in _limitNames) {
+    parser.addOption(name);
+  }
+  for (final String name in _networkNames) {
+    parser.addMultiOption(name, splitCommas: false);
+  }
+  return parser;
+}();
+
+/// Parses the worker arguments: the QuickJS limits and the deadline headroom
+/// are required positive integers; the network mode is optional (see
+/// [runPaperbackWorker]). Malformed arguments throw [FormatException].
+WorkerArguments parseWorkerArguments(List<String> args) {
+  final ArgResults parsed = _workerArgs.parse(args);
+  if (parsed.rest.isNotEmpty) throw FormatException('Unrecognized argument "${parsed.rest.first}"');
+  final ints = <String, int>{
+    for (final String name in _limitNames)
+      if (parsed.option(name) case final String value)
+        name: RegExp(r'^\d+$').hasMatch(value) ? int.parse(value) : throw FormatException('--$name must be an integer'),
+  };
+  final strings = <String, List<String>>{
+    for (final String name in _networkNames)
+      if (parsed.multiOption(name) case final List<String> values when values.isNotEmpty) name: values,
+  };
+  int required(String name) {
+    final int? value = ints[name];
+    if (value == null) throw FormatException('Missing required --$name');
+    if (value <= 0) throw FormatException('--$name must be positive');
+    return value;
+  }
+
+  String single(String name) {
+    final List<String>? v = strings[name];
+    if (v == null || v.length != 1 || v.single.isEmpty) throw FormatException('--record needs exactly one --$name');
+    return v.single;
+  }
+
+  final limits = PaperbackRuntimeLimits(
+    memoryLimitBytes: required('memory-limit-bytes'),
+    maxStackBytes: required('max-stack-bytes'),
+    operationDeadline: Duration(milliseconds: required('operation-deadline-ms')),
+    jobSlice: Duration(milliseconds: required('job-slice-ms')),
+  );
+  final List<String>? replay = strings['replay'];
+  final List<String>? record = strings['record'];
+  if (replay != null && record != null) throw const FormatException('--replay and --record are exclusive');
+  final PaperbackNetworkMode network;
+  if (record != null) {
+    if (record.length != 1) throw const FormatException('--record may be given once');
+    final int? interval = int.tryParse(single('record-min-interval-ms'));
+    // The capture rules require at least 1.5 s between live requests.
+    if (interval == null || interval < 1500) throw const FormatException('--record-min-interval-ms must be >= 1500');
+    network = RecordNetwork(
+      dir: Directory(record.single),
+      source: single('record-source'),
+      minInterval: Duration(milliseconds: interval),
+      licence: single('record-licence'),
+      volatileQueryParameters: <String>{...?strings['record-volatile']},
+      setCookieAllowList: <String, CapturedCookieValue>{
+        for (final String spec in strings['record-cookie'] ?? const <String>[]) ..._cookieSpec(spec),
+      },
+    );
+  } else if (replay != null) {
+    network = ReplayNetwork(<Directory>[for (final String d in replay) Directory(d)]);
+  } else {
+    if (strings.keys.any((String k) => k.startsWith('record-'))) {
+      throw const FormatException('--record-* options need --record');
+    }
+    network = const LiveNetwork();
+  }
+  return (limits: limits, deadlineHeadroom: Duration(milliseconds: required('deadline-headroom-ms')), network: network);
+}
+
+/// Parses `--record-cookie=<name>:<keep|redact>`.
+Map<String, CapturedCookieValue> _cookieSpec(String spec) {
+  final int colon = spec.lastIndexOf(':');
+  if (colon <= 0) throw FormatException('--record-cookie must be <name>:<keep|redact>, got "$spec"');
+  return <String, CapturedCookieValue>{
+    spec.substring(0, colon): CapturedCookieValue.fromWire(spec.substring(colon + 1)),
+  };
+}

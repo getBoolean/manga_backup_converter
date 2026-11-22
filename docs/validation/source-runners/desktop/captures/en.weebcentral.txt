@@ -1,0 +1,7 @@
+jar search 'Onimai': 1 hits
+jar details 'ONIMAI - I'm Now Your Sister!': 114 chapters; durable-ref details equal: true
+jar path: 3 live requests
+apk search 'Onimai': 1 hits
+apk details 'ONIMAI - I'm Now Your Sister!': 114 chapters; durable-ref details equal: true
+apk path: 5 requests served from the JAR recording; ok
+jar/apk results equal: true

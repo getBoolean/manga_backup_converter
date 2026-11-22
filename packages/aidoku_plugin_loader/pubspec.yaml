@@ -4,7 +4,7 @@ version: 0.0.1
 publish_to: none
 
 environment:
-  sdk: ^3.11.0
+  sdk: ^3.14.0
 resolution: workspace
 
 dependencies:
@@ -18,8 +18,9 @@ dependencies:
     path: ../jsoup
   meta: ^1.12.0
   quickjs:
-    git:
-      url: https://github.com/BooleanExtra/quickjs-dart
+    path: ../quickjs
+  source_runtime:
+    path: ../source_runtime
   universal_ffi: ^1.4.0
   wasm3:
     path: ../wasm3

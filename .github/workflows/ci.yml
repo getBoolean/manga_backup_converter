@@ -29,7 +29,7 @@ concurrency:
 
 env:
   FLUTTER_CHANNEL: "stable"
-  FLUTTER_VERSION: "3.41.1"
+  FLUTTER_VERSION: "3.50.0"
   FLAVOR: ""
   # https://github.com/transferwise/sanitize-branch-name/blob/main/action.yml
   BRANCH_NAME: $(echo -n ${{ github.head_ref || github.ref_name }} | tr "/" "-")
@@ -46,12 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -64,7 +64,7 @@ jobs:
         run: flutter --version
 
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
@@ -78,7 +78,7 @@ jobs:
         run: melos run verify_format
 
       - name: Annotate PR
-        uses: invertase/github-action-dart-analyzer@v2.0.0
+        uses: invertase/github-action-dart-analyzer@1cda5922c6369263b1c7e2fbe281f69704f4d63e # v2.0.0
         with:
           fatal-infos: false
           fatal-warnings: false
@@ -86,6 +86,27 @@ jobs:
 
       - name: Run Dart Analyzer
         run: melos run analyze
+
+      - name: Verify Android Aidoku fixture bundle is current
+        run: dart run tool/generate_android_aidoku_fixtures.dart --check
+
+      # jnigen downloads the pinned Jsoup sources from Maven and needs a JDK.
+      - name: Setup Java JDK
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Verify jsoup JNI bindings are current
+        run: |
+          (cd packages/jsoup_jni && dart run tool/generate_jni_bindings.dart)
+          drift="$(git status --porcelain -- packages/jsoup_jni/lib/src/bindings)"
+          if [ -n "$drift" ]; then
+            echo "::error::jsoup_jni bindings are stale; run 'melos run jnigen' and commit the result."
+            echo "$drift"
+            git diff --stat -- packages/jsoup_jni/lib/src/bindings
+            exit 1
+          fi
 
   test:
     name: Test (${{ matrix.os }})
@@ -108,7 +129,7 @@ jobs:
         run: git config --system core.longpaths true
 
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -122,7 +143,7 @@ jobs:
         shell: bash
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -135,7 +156,7 @@ jobs:
         run: flutter --version
 
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
@@ -144,7 +165,9 @@ jobs:
 
       - name: Install Rust toolchain
         if: runner.os == 'Windows' || runner.os == 'Linux'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
 
       - name: Bootstrap Melos
         run: melos bootstrap
@@ -157,11 +180,114 @@ jobs:
         if: runner.os != 'Linux'
         run: melos run flutter_test && melos run dart_test_no_coverage
 
+      - name: Setup Java JDK (Tachi worker)
+        if: runner.os == 'Linux'
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Run Tachi worker tests
+        if: runner.os == 'Linux'
+        working-directory: tools/tachi-source-runner
+        run: ./gradlew test --no-daemon
+
       - name: Upload Coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && !startsWith(github.event.ref, 'refs/tags/v')
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
         with:
           files: "**/*/lcov.info"
+
+  benchmarks:
+    name: KTD25 benchmarks (${{ matrix.os }}, non-gating)
+    needs: [analyze]
+    runs-on: ${{ matrix.os }}
+    # A report, never a gate: timings depend on the runner. Compare the
+    # uploaded results with the committed ones (docs/CI.md).
+    continue-on-error: true
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            architecture: x64
+          - os: windows-latest
+            architecture: x64
+          - os: macos-14
+            architecture: arm64
+    steps:
+      - name: Enable Git Long Paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - name: Checkout Repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: true
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: ${{ matrix.architecture }}
+
+      - name: Activate Melos
+        run: dart pub global activate melos ${{ env.MELOS_VERSION }}
+
+      - name: Install Rust toolchain
+        if: runner.os == 'Windows' || runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Bootstrap Melos
+        run: melos bootstrap
+
+      - name: Setup Java JDK (Tachi worker)
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Create report directory
+        shell: bash
+        run: mkdir -p build/benchmarks
+
+      - name: Paperback bundle benchmark (JIT)
+        run: flutter test packages/paperback_plugin_loader/benchmark/paperback_bundles_benchmark_test.dart
+        env:
+          QJS_BENCH_OUT: ${{ github.workspace }}/build/benchmarks/paperback-bundles-jit.json
+
+      - name: Paperback bundle benchmark (AOT, as the worker ships)
+        working-directory: packages/paperback_plugin_loader
+        shell: bash
+        run: |
+          dart build cli -t benchmark/bundle_benchmark_main.dart -o ../../build/bench-aot
+          exe=../../build/bench-aot/bundle/bin/bundle_benchmark_main
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          "$exe" ../../fixtures/source_captures/paperback ../../build/benchmarks/paperback-bundles-aot.json
+
+      - name: Tachi worker benchmark (quick)
+        working-directory: tools/tachi-source-runner
+        shell: bash
+        run: ./gradlew --no-daemon --quiet benchmark -PbenchmarkArgs="--quick" > ../../build/benchmarks/tachi-worker-quick.json
+
+      - name: Committed results match the current workers and sizing rules
+        shell: bash
+        run: dart run tool/check_benchmark_results.dart | tee build/benchmarks/committed-results-check.txt
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ktd25-benchmarks-${{ matrix.os }}
+          path: build/benchmarks/
+          if-no-files-found: ignore
 
   test_web:
     name: Test (Web)
@@ -169,7 +295,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -182,7 +308,7 @@ jobs:
           echo "FLAVOR=$flavor" >> $GITHUB_ENV
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -195,7 +321,7 @@ jobs:
         run: flutter --version
 
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
@@ -215,7 +341,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -244,7 +370,7 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -260,21 +386,27 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -288,13 +420,20 @@ jobs:
       # Zip into IPA from here:
       # https://gist.github.com/devhammed/617d920b7ee886591a46c22633ab0093
       - name: Build Flutter IPA
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
           retry_on: error
+          # SOURCE_RELEASE_TAG makes the licence page link this release's
+          # GPL source archive (attached below); other builds say they are
+          # untagged.
           command: |
-            flutter build ios --release --no-codesign
+            tag_define=""
+            if [ "${{ github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v') }}" = "true" ]; then
+              tag_define="--dart-define=SOURCE_RELEASE_TAG=${{ github.ref_name }}"
+            fi
+            flutter build ios --release --no-codesign --dart-define=SOURCE_COMMIT=${{ github.sha }} $tag_define
             cd build/ios/iphoneos
             mkdir Payload
             cd Payload
@@ -303,15 +442,26 @@ jobs:
             zip -r app-release.ipa Payload
             mv app-release.ipa ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-ios.ipa
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-ios
           path: build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
-      - name: Release IPA
+      # GPLv2 section 3(a): the corresponding source of the statically linked
+      # OpenJDK runtime accompanies the iOS build, as an asset of the same
+      # release (built from the pins in tools/tachi-source-runner/ios/
+      # manifest.env at this commit, checked against the runtime receipt).
+      - name: Build the iOS runtime's corresponding-source archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        run: dart run scripts/build_gpl_source_archive.dart --ref ${{ github.sha }} --tag ${{ github.ref_name }} --out build/gpl-source
+
+      - name: Release IPA and its runtime source
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
+          artifacts: |
+            build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
+            build/gpl-source/*-ios-runtime-source.tar.gz
+            build/gpl-source/*-ios-runtime-source.tar.gz.sha256
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -419,7 +569,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -448,13 +598,13 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
       - name: Setup Java JDK
-        uses: actions/setup-java@v4.0.0
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
         with:
-          distribution: "temurin"
-          java-version: "18"
+          distribution: "corretto"
+          java-version: "21"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -470,21 +620,27 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -519,7 +675,7 @@ jobs:
       #     omitBodyDuringUpdate: true
 
       - name: Build Universal APK
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -530,22 +686,54 @@ jobs:
             cd build/app/outputs/flutter-apk
             mv app-release.apk ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal.apk
 
+      # tool/jnigen.dart reads the Kotlin facade classes the APK build compiled.
+      - name: Verify source_runtime_android JNI bindings are current
+        run: |
+          (cd packages/source_runtime_android && dart run tool/jnigen.dart)
+          drift="$(git status --porcelain -- packages/source_runtime_android/lib/src/bindings)"
+          if [ -n "$drift" ]; then
+            echo "::error::source_runtime_android bindings are stale; build the app, run 'melos run jnigen:android' and commit the result."
+            echo "$drift"
+            git diff --stat -- packages/source_runtime_android/lib/src/bindings
+            exit 1
+          fi
+
+      # U14: resolved SDK levels, signing identity, native library hashes
+      # (equal to AGP's stripped outputs), shipped notices, and no extension,
+      # capture or repository configuration in the release APK.
+      - name: Verify the Android third-party notices are current
+        run: dart run scripts/generate_notices.dart android --check
+
+      - name: Check the release APK package
+        run: |
+          python3 -I scripts/android_package_check.py \
+            build/app/outputs/flutter-apk/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal.apk \
+            build/android-package-check.json --build-dir build
+
+      - name: Upload the APK package record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-package-check
+          path: build/android-package-check.json
+          if-no-files-found: ignore
+
       - name: Upload Universal APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal
           path: build/app/outputs/flutter-apk/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal.apk
 
       - name: Release Universal APKs
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: build/app/outputs/flutter-apk/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-universal.apk
           allowUpdates: true
           omitBodyDuringUpdate: true
 
       - name: Build Android App Bundle
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -557,14 +745,14 @@ jobs:
             mv app-release.aab ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-appbundle.aab
 
       - name: Upload Android App Bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-android-appbundle
           path: build/app/outputs/bundle/release/*.aab
 
       - name: Release Android App Bundle
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: build/app/outputs/bundle/release/${{ github.event.repository.name }}-*.aab
           allowUpdates: true
@@ -581,7 +769,7 @@ jobs:
       - name: Enable Git Long Paths
         run: git config --system core.longpaths true
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -612,7 +800,7 @@ jobs:
           Write-Output "Current Flavor: ${{ env.FLAVOR }}"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -628,21 +816,27 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -654,7 +848,7 @@ jobs:
         run: melos bootstrap
 
       - name: Build Windows
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -667,14 +861,14 @@ jobs:
           cd build\windows\x64\runner\Release
           mv mangabackupconverter.msix ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-windows.msix
       - name: Upload MSIX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-windows
           path: build/windows/x64/runner/Release/*.msix
 
       - name: Release MSIX
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: build/windows/x64/runner/Release/${{ github.event.repository.name }}-*.msix
           allowUpdates: true
@@ -687,7 +881,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -716,7 +910,7 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -738,21 +932,27 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -764,7 +964,7 @@ jobs:
         run: melos bootstrap
 
       - name: Build Linux
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -783,14 +983,14 @@ jobs:
           mv *.AppImage build/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-linux.AppImage
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-linux-appimage
           path: build/${{ github.event.repository.name }}-*.AppImage
 
       - name: Release AppImage
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: build/${{ github.event.repository.name }}-*.AppImage
           allowUpdates: true
@@ -805,7 +1005,7 @@ jobs:
       - name: Enable Git Long Paths
         run: git config --system core.longpaths true
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -832,7 +1032,7 @@ jobs:
         shell: pwsh
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -844,14 +1044,20 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -862,33 +1068,68 @@ jobs:
       - name: Bootstrap Melos
         run: melos bootstrap
 
-      - name: Build CLI
-        uses: nick-fields/retry@v2
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
-          timeout_minutes: 30
+          toolchain: stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      # The pinned Corretto archive the package jlinks (tools/tachi-source-runner/runtime/jre-pins.json).
+      - name: Cache runtime downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      # dart build cli bundle + JVM worker + jlinked JRE + WebView helper + licences
+      # (scripts/package_cli.dart); the executable keeps its name so the
+      # installer's PATH entry and the runtime discovery stay stable.
+      - name: Package CLI
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
+        with:
+          timeout_minutes: 45
           max_attempts: 3
           retry_on: error
-          command: |
-            cd packages/mangabackupconverter_cli
-            dart build cli
+          command: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
 
-      - name: Package CLI
+      # Copies the package into a path with spaces, runs it with no system
+      # Java/Dart/Gradle/Rust on PATH, checks manifest hashes and licences,
+      # starts every bundled runtime offline and checks nothing outlives a
+      # close or a killed CLI.
+      - name: Smoke test packaged CLI
+        run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-windows.json
+
+      - name: Check evidence receipts
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/windows_x64/bundle
-          mv bin/mangabackupconverter_cli.exe bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.exe
-        shell: bash
+          dart run tool/check_evidence_receipts.dart build/package-smoke-windows.json
+          dart run tool/check_evidence_receipts.dart
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-smoke-windows
+          path: build/package-smoke-windows.json
+          if-no-files-found: ignore
 
       - name: Upload CLI Bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows
-          path: packages/mangabackupconverter_cli/build/cli/windows_x64/bundle/
+          path: build/package/windows-x64/
 
       - name: Compile Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: Minionguyjpro/Inno-Setup-Action@b8e8eb5936437c243592fda645c96dfc6488c275 # v1.2.2
         with:
           path: packages/mangabackupconverter_cli/installer/windows_setup.iss
-          options: /DBundleDir=${{ github.workspace }}\packages\mangabackupconverter_cli\build\cli\windows_x64\bundle /DAppVersion=${{ env.BRANCH_NAME }} /O${{ github.workspace }}\installer-output
+          options: /DBundleDir=${{ github.workspace }}\build\package\windows-x64 /DAppVersion=${{ env.BRANCH_NAME }} /O${{ github.workspace }}\installer-output
 
       - name: Rename Installer
         run: |
@@ -896,7 +1137,7 @@ jobs:
         shell: bash
 
       - name: Upload Installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows-setup
           path: installer-output/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows-setup.exe
@@ -904,16 +1145,16 @@ jobs:
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/windows_x64
-          Compress-Archive -Path bundle/* -DestinationPath ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
+          cd build/package
+          Compress-Archive -Path windows-x64/* -DestinationPath ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
         shell: pwsh
 
       - name: Release CLI
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: |
-            packages/mangabackupconverter_cli/build/cli/windows_x64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
+            build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows.zip
             installer-output/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-windows-setup.exe
           allowUpdates: true
           omitBodyDuringUpdate: true
@@ -925,7 +1166,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -959,7 +1200,7 @@ jobs:
           sudo apt-get install -y libsqlite3-dev
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -971,14 +1212,20 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -990,7 +1237,7 @@ jobs:
         run: melos bootstrap
 
       - name: Build CLI
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -999,28 +1246,75 @@ jobs:
             cd packages/mangabackupconverter_cli
             dart build cli
 
-      - name: Package CLI
-        run: |
-          cd packages/mangabackupconverter_cli/build/cli/linux_x64/bundle
-          mv bin/mangabackupconverter_cli bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
+      # Packaged build with the bundled runtime (U8). Non-gating: the WebView
+      # helper has not yet been built or run on Linux (docs/source-runners.md).
+      - name: Install WebKitGTK and Xvfb (WebView helper)
+        continue-on-error: true
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev xvfb
+
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        continue-on-error: true
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Cache runtime downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      # Released archives are the packaged bundle (with runtime/), like
+      # Windows: a bare `dart build cli` bundle has no runtime/ and would leave
+      # users to point the CLI at a JVM worker and helper themselves (M1).
+      # Packaging and its smoke test gate tag builds; elsewhere they stay
+      # non-gating until the helper has run on this OS.
+      - name: Package CLI with bundled runtime (gating on tags)
+        id: package_runtime
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
+        run: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Smoke test packaged CLI (gating on tags)
+        id: smoke_runtime
+        if: steps.package_runtime.outcome == 'success'
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
+        run: xvfb-run -a dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-linux-x64.json
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-smoke-linux-x64
+          path: build/package-smoke-linux-x64.json
+          if-no-files-found: ignore
 
       - name: Upload CLI Bundle
-        uses: actions/upload-artifact@v4
+        if: steps.package_runtime.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux
-          path: packages/mangabackupconverter_cli/build/cli/linux_x64/bundle/
+          path: build/package/linux-x64/
 
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/linux_x64
-          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz -C bundle .
+          test -f build/package/linux-x64/runtime/runtime-manifest.json
+          cd build/package
+          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz -C linux-x64 .
 
       - name: Release CLI
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: packages/mangabackupconverter_cli/build/cli/linux_x64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz
+          artifacts: build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-linux.tar.gz
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -1031,7 +1325,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -1056,7 +1350,7 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -1068,14 +1362,20 @@ jobs:
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -1087,7 +1387,7 @@ jobs:
         run: melos bootstrap
 
       - name: Build CLI
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -1096,28 +1396,71 @@ jobs:
             cd packages/mangabackupconverter_cli
             dart build cli
 
-      - name: Package CLI
-        run: |
-          cd packages/mangabackupconverter_cli/build/cli/macos_arm64/bundle
-          mv bin/mangabackupconverter_cli bin/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
+      # Packaged build with the bundled runtime (U8). Non-gating: the WebView
+      # helper has not yet been built or run on macOS (docs/source-runners.md).
+      - name: Install Rust toolchain (WebView helper)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Setup Java JDK (Tachi worker build)
+        continue-on-error: true
+        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        with:
+          distribution: "corretto"
+          java-version: "21"
+
+      - name: Cache runtime downloads
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/runtime-cache
+          key: runtime-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/tachi-source-runner/runtime/jre-pins.json') }}
+
+      # Released archives are the packaged bundle (with runtime/), like
+      # Windows: a bare `dart build cli` bundle has no runtime/ and would leave
+      # users to point the CLI at a JVM worker and helper themselves (M1).
+      # Packaging and its smoke test gate tag builds; elsewhere they stay
+      # non-gating until the helper has run on this OS.
+      - name: Package CLI with bundled runtime (gating on tags)
+        id: package_runtime
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
+        run: dart run scripts/package_cli.dart
+        env:
+          TACHI_JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Smoke test packaged CLI (gating on tags)
+        id: smoke_runtime
+        if: steps.package_runtime.outcome == 'success'
+        continue-on-error: ${{ !(github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')) }}
+        run: dart run scripts/smoke_packaged_cli.dart --receipt build/package-smoke-macos-arm64.json
+
+      - name: Upload smoke receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-smoke-macos-arm64
+          path: build/package-smoke-macos-arm64.json
+          if-no-files-found: ignore
 
       - name: Upload CLI Bundle
-        uses: actions/upload-artifact@v4
+        if: steps.package_runtime.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos
-          path: packages/mangabackupconverter_cli/build/cli/macos_arm64/bundle/
+          path: build/package/macos-arm64/
 
       - name: Create Release Archive
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         run: |
-          cd packages/mangabackupconverter_cli/build/cli/macos_arm64
-          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz -C bundle .
+          test -f build/package/macos-arm64/runtime/runtime-manifest.json
+          cd build/package
+          tar -czf ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz -C macos-arm64 .
 
       - name: Release CLI
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
-          artifacts: packages/mangabackupconverter_cli/build/cli/macos_arm64/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz
+          artifacts: build/package/${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-cli-macos.tar.gz
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -1128,7 +1471,7 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -1157,7 +1500,7 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -1173,21 +1516,27 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Cache build hook artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .dart_tool/hooks_runner/shared/wasm3
@@ -1199,7 +1548,7 @@ jobs:
         run: melos bootstrap
 
       - name: Build MacOS
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -1210,7 +1559,7 @@ jobs:
             flutter build macos --release
 
       - name: Build DMG
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -1220,14 +1569,14 @@ jobs:
             create-dmg --volname ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-macos --window-pos 200 120 --window-size 800 450 --icon-size 100 --app-drop-link 600 185 ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-macos.dmg build/macos/Build/Products/Release/mangabackupconverter.app
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-macos-dmg
           path: "/Users/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/*.dmg"
 
       - name: Release DMG
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1
         with:
           artifacts: /Users/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/${{ github.event.repository.name }}-*.dmg
           allowUpdates: true
@@ -1240,7 +1589,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
@@ -1269,7 +1618,7 @@ jobs:
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
 
       - name: Install and set Flutter version
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -1284,18 +1633,24 @@ jobs:
       #
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
       - name: Activate Melos
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
 
-      - name: Cache QuickJS dylibs
-        uses: actions/cache@v4
+      - name: Read QuickJS-ng submodule commit
+        id: quickjs_rev
+        run: echo "rev=$(git rev-parse HEAD:packages/quickjs/vendor/quickjs)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      # QuickJS is compiled from the vendored QuickJS-ng source by the package build hook.
+      - name: Cache QuickJS build hook output
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: quickjs-${{ runner.os }}-${{ runner.arch }}-${{ steps.quickjs_rev.outputs.rev }}-${{ hashFiles('packages/quickjs/**', '!packages/quickjs/vendor/**') }}
 
       - name: Bootstrap Melos
         run: melos bootstrap
@@ -1308,7 +1663,7 @@ jobs:
           dart run sqflite_common_ffi_web:setup --force
 
       - name: Build Web
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -1318,7 +1673,7 @@ jobs:
             flutter build web --release
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-web
           path: build/web
@@ -1339,13 +1694,13 @@ jobs:
     if: github.event_name == 'push' && !startsWith(github.event.ref, 'refs/tags/v')
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
 
       - name: Install and set Flutter version
         if: github.actor != 'dependabot[bot]'
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: ${{env.FLUTTER_CHANNEL}}
           flutter-version: ${{env.FLUTTER_VERSION}}
@@ -1356,7 +1711,7 @@ jobs:
       - name: Get branch name
         id: branch-name
         if: github.actor != 'dependabot[bot]'
-        uses: tj-actions/branch-names@v8
+        uses: tj-actions/branch-names@dde14ac574a8b9b1cedc59a1cf312788af43d8d8 # v8
 
       - name: Check Flutter Version
         if: github.actor != 'dependabot[bot]'
@@ -1367,7 +1722,7 @@ jobs:
       # The environment variables need to be defined in the repository secrets
       - name: Load Environment Variables
         if: github.actor != 'dependabot[bot]'
-        uses: oNaiPs/secrets-to-env-action@v1
+        uses: oNaiPs/secrets-to-env-action@75f319b3c8c926ac2eabcca34daa6cf531daf32f # v1
         with:
           secrets: ${{ toJSON(secrets) }}
 
@@ -1378,13 +1733,6 @@ jobs:
       - name: Activate Melos
         if: github.actor != 'dependabot[bot]'
         run: dart pub global activate melos ${{ env.MELOS_VERSION }}
-
-      - name: Cache QuickJS dylibs
-        if: github.actor != 'dependabot[bot]'
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/hooks_runner/shared/quickjs
-          key: quickjs-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
       - name: Bootstrap Melos
         if: github.actor != 'dependabot[bot]'
@@ -1399,7 +1747,7 @@ jobs:
 
       - name: Build Web
         if: github.actor != 'dependabot[bot]'
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -1408,7 +1756,7 @@ jobs:
 
       - name: Deploy to GitHub Pages 🚀
         if: github.actor != 'dependabot[bot]'
-        uses: JamesIves/github-pages-deploy-action@releases/v4
+        uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # releases/v4
         id: deployment
         with:
           # PAT required to trigger gh_pages_readme.yml workflow
@@ -1419,7 +1767,7 @@ jobs:
 
       # Ref: https://github.com/orgs/community/discussions/27071
       - name: Find PR Number
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         id: get_pr_number
         if: github.actor != 'dependabot[bot]' && steps.deployment.outputs.deployment-status == 'success'
         with:
@@ -1445,7 +1793,7 @@ jobs:
           result-encoding: string
 
       - name: Get PR State
-        uses: actions/github-script@v6
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
         id: get_pr_state
         if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success'
         with:
@@ -1460,7 +1808,7 @@ jobs:
           result-encoding: string
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
         id: comment
         if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success'
         with:
@@ -1470,7 +1818,7 @@ jobs:
 
       - name: Link Deployment in Pull Request Comment
         if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success' && steps.get_pr_state.outputs.result == 'open' && steps.comment.outputs.comment-id == ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             github.rest.issues.createComment({

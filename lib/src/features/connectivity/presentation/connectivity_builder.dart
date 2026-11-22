@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:constants/constants.dart';
+// Dependencies (e.g. flex_color_scheme) still expose flutter/material types.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 /// Shows the current connectivity status if the user is offline

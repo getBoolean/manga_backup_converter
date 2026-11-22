@@ -1,0 +1,69 @@
+Subject: [PATCH] ios: take java.home from JAVA_HOME and resolve natives from all images
+
+Source:  manga_backup_converter source runners (U16), original work
+Licence: GPLv2 (same as the patched OpenJDK files)
+
+The statically linked VM lives in an app framework. java.home cannot be
+derived from the libjvm image path, and the default process handle must
+search every loaded image (RTLD_DEFAULT) so the JDK's static JNI natives
+and JNI_OnLoad_<lib> entry points resolve from that framework.
+---
+diff --git a/src/hotspot/os/bsd/os_bsd.cpp b/src/hotspot/os/bsd/os_bsd.cpp
+index d860e8234..b07532025 100644
+--- a/src/hotspot/os/bsd/os_bsd.cpp
++++ b/src/hotspot/os/bsd/os_bsd.cpp
+@@ -447,6 +447,28 @@ void os::init_system_properties_values() {
+   char *buf = NEW_C_HEAP_ARRAY(char, bufsize, mtInternal);
+ 
+   // sysclasspath, java_home, dll_dir
++#ifdef __IOS__
++  // source-runner patch: an embedded iOS VM is linked into the app (or one of
++  // its frameworks), so the image containing libjvm says nothing about where
++  // the runtime image lives. The embedder exports JAVA_HOME (the bundled
++  // modular image directory) before JNI_CreateJavaVM.
++  const char* embedder_java_home = ::getenv("JAVA_HOME");
++  if (embedder_java_home == nullptr || embedder_java_home[0] == '\0') {
++    vm_exit_during_initialization("JAVA_HOME must name the bundled runtime image on iOS");
++  }
++  if (strlen(embedder_java_home) + sizeof("/lib") > bufsize) {
++    vm_exit_during_initialization("JAVA_HOME is too long");
++  }
++  {
++    jio_snprintf(buf, bufsize, "%s/lib", embedder_java_home);
++    Arguments::set_dll_dir(buf);
++    jio_snprintf(buf, bufsize, "%s", embedder_java_home);
++    Arguments::set_java_home(buf);
++    if (!set_boot_path('/', ':')) {
++      vm_exit_during_initialization("Failed setting boot class path.", nullptr);
++    }
++  }
++#else
+   {
+     char *pslash;
+     os::jvm_path(buf, bufsize);
+@@ -479,6 +501,7 @@ void os::init_system_properties_values() {
+         vm_exit_during_initialization("Failed setting boot class path.", nullptr);
+     }
+   }
++#endif
+ 
+   // Where to look for native libraries.
+   //
+diff --git a/src/hotspot/os/posix/os_posix.cpp b/src/hotspot/os/posix/os_posix.cpp
+index cf94a7e62..dfc25c778 100644
+--- a/src/hotspot/os/posix/os_posix.cpp
++++ b/src/hotspot/os/posix/os_posix.cpp
+@@ -804,7 +804,12 @@ size_t os::reserve_memory_limit() {
+ }
+ 
+ void* os::get_default_process_handle() {
+-#ifdef __APPLE__
++#ifdef __IOS__
++  // source-runner patch: the statically linked VM and the JDK native
++  // libraries live in an app framework, not the main executable, so search
++  // every loaded image rather than the main executable only (RTLD_FIRST).
++  return RTLD_DEFAULT;
++#elif defined(__APPLE__)
+   // MacOS X needs to use RTLD_FIRST instead of RTLD_LAZY
+   // to avoid finding unexpected symbols on second (or later)
+   // loads of a library.

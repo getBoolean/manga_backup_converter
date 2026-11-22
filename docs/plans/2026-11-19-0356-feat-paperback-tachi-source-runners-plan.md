@@ -54,7 +54,7 @@ The converter currently runs Aidoku WASM sources, but its Paperback and Tachi lo
 - R1. Execute destination extension code to search manga, fetch details, and enumerate chapters; use the extension's returned source, manga, and chapter identities in the output.
 - R2. Provide a dedicated desktop Tachi runner without the Suwayomi server, database, GraphQL service, or user interface. One JVM worker process hosts all selected extension packages and repositories for a conversion.
 - R3. Run supported Paperback JavaScript bundles using their declared host API version; support the 0.8 and 0.9 API families explicitly rather than treating them as interchangeable.
-- R4. Expose extension settings, cookies, language selection, and required host capabilities consistently across search and detail requests within a conversion session.
+- R4. Expose extension settings, cookies, language selection, and required host capabilities consistently across search and detail requests within a conversion session. Repositories, extension choices, and extension settings all come from the user; the product supplies none of them (Key Decisions).
 - R17. Translate source browser use — Tachi sources' `android.webkit` calls and Paperback's `executeInWebView` — to the running platform's native WebView: WebView2 on Windows, WKWebView on macOS and iOS, WebKitGTK on Linux, and Android System WebView on Android. Browser operations a platform WebView cannot express fail with a named capability error.
 
 #### Conversion fidelity
@@ -74,9 +74,9 @@ The converter currently runs Aidoku WASM sources, but its Paperback and Tachi lo
 #### Mobile execution
 
 - R13. Execute Aidoku WASM sources, Paperback bundles, and Tachi sources locally inside the iOS app, including search, details, and chapter enumeration, without a desktop helper, remote runner, or Suwayomi service.
-- R14. Qualify local iOS execution in a signed build on a physical device under ordinary app entitlements; simulator execution, VM startup, or a bridge ping alone does not prove extension compatibility.
+- R14. Qualify local iOS execution in a signed build on a physical device under ordinary app entitlements; simulator execution, VM startup, or a bridge ping alone does not prove extension compatibility. Physical-device runs use development signing; distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup (Key Decisions).
 - R15. Execute Aidoku WASM sources, original Tachi APK sources on Android ART, and Paperback bundles in local QuickJS inside the Android app, without a desktop helper, remote runner, or Suwayomi service. Build the resulting backup on the Android device through the shared conversion core.
-- R18. Keep the iOS build App Store compliant even though it is distributed by sideloading, then TestFlight: extensions run in an interpreter with no JIT, downloaded extensions are data for the app's own runtime and never native code, a distribution-signed build passes App Store Connect validation, and the app ships a privacy manifest covering its runtimes. A committed compliance note maps the design to App Store Review Guidelines 2.5.2 and 4.7: interpreted extensions as plug-ins, the native features exposed to them, age-rating handling for extensions rated above the app's rating, and the precedent relied on.
+- R18. Keep the iOS build App Store compliant even though it is distributed by sideloading, then TestFlight: extensions run in an interpreter with no JIT, downloaded extensions are data for the app's own runtime and never native code, and the app ships a privacy manifest covering its runtimes. A committed compliance note maps the design to App Store Review Guidelines 2.5.2 and 4.7: interpreted extensions as plug-ins, the native features exposed to them, age-rating handling for extensions rated above the app's rating, and the precedent relied on. Within this plan R18 is checked locally on unsigned builds: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Age-rating handling: extensions rated above the app's rating are hidden by default on every platform until the user enables an age-confirming setting, and the app's own rating stays moderate; Tachi 'mixed' content counts as suggestive and is shown (Key Decisions).
 - R16. Qualify Android source execution for all three ecosystems, verified APK loading, service death/recovery, cancellation, browser interaction, and conversion on a physical ARM64 device. Emulator, class-loading, or bridge-only success is insufficient.
 
 For R5, the first Tachi destination is Mihon. Existing recognized fork inputs continue through their own parsers, with unrepresentable fields reported under R6. Advertising SY, J2K, Yokai, or Neko as additional destination apps requires separate serializer and restore receipts; six conversion directions do not imply every fork is qualified.
@@ -95,15 +95,25 @@ For R5, the first Tachi destination is Mihon. Existing recognized fork inputs co
 - **Separate desktop, Android, and iOS milestones** (session-settled: user-directed — chosen over one all-or-nothing delivery). See KTD21.
 - **Include the Aidoku runner on iOS** (session-settled: user-approved — chosen over deferring it to follow-up work). M3 qualifies all three ecosystems and all six directions on iOS. Governs R13; see U18, KTD26.
 - **MangaFire's browser path must pass on every platform** (session-settled: user-directed — chosen over accepting a named blocked-capability receipt on WebKit platforms). A blocked MangaFire receipt keeps that platform's milestone open; workarounds are spike outputs, not plan decisions. Governs R11, R17; see KTD20.
-- **Vendor QuickJS in this repository** (session-settled: user-directed — the user rejected keeping the `BooleanExtra/quickjs-dart` fork; vendoring was chosen over upstreaming its changes to `lindeer/quickjs-dart`). Governs R3; see KTD24.
+- **Vendor QuickJS in this repository** (session-settled: user-directed — the user rejected keeping the `BooleanExtra/quickjs-dart` fork; vendoring was chosen over upstreaming its changes to `lindeer/quickjs-dart`). Governs R3; see KTD24. Done in U5: `packages/quickjs/` builds QuickJS-ng from a pinned submodule, and the fork is no longer a dependency.
 - **Runtime limits come from per-device performance tests** (session-settled: user-directed — chosen over fixed placeholder values and over a single CI-runner baseline). No limit value ships without benchmark evidence; each runtime sizes its limits for the device it runs on. See KTD25.
-- **Android below API 28 is decided by U17** (session-settled: user-directed — chosen over raising minSdk now). Because MangaFire must pass on every advertised device, U17 chooses between single-process WebView confinement and raising minSdk to 28; reporting the browser capability unavailable is not an option while API 23-27 is advertised. See KTD19.
+- **Android minSdk is 28 (Android 9) for all features** (session-settled: user-directed — confirming U17's recommendation, chosen over single-process WebView confinement on API 26/27). U17 decided it on emulator evidence: on API 26 both processes share one WebView data directory without enforcement, and the pinned extensions already need API 26 and `java.time`. U11 applies it in `android/app/build.gradle.kts`. See KTD19.
 - **The iOS app is distributed by sideloading but stays App Store compliant** (session-settled: user-directed — chosen over gating M3 on App Store distribution and over dropping App Store compliance). TestFlight follows once the work is complete and is follow-up work; no App Store or TestFlight review is a gate in this plan, but compliance (R18) is. See KTD11.
+- **App Store Connect validation is deferred to the TestFlight setup** (session-settled: user-directed — chosen over uploading a distribution-signed build for validation inside this plan). Until that follow-up, iOS builds stay unsigned and R18 is checked locally: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest, GPL notices, and the guideline note. Governs R18; see U16, U15.
+- **Hide adult-rated extensions by default** (session-settled: user-directed). Extensions whose content rating is above the app's rating are hidden from source selection on every platform until the user enables an age-confirming setting; the app's own rating stays moderate. Governs R18's age-rating handling.
+- **Tachi 'mixed' content warnings are shown by default** (session-settled: user-approved). A Tachi extension flagged as mixed content counts as suggestive and stays visible; only fully adult sources are hidden until the age-confirming setting is on. Refines the adult-rated decision above for Tachi.
+- **The user supplies repositories, picks extensions, and supplies extension settings** (session-settled: user-directed). Product code has no built-in or default repositories. An unattended run needs an explicit extension list, and nothing is selected implicitly. Settings come from a user settings file or flags in the CLI and from an injected settings provider in the apps. Governs R4; see U4, U6, U7, U14, U15.
+- **The product never provides extensions or repositories** (session-settled: user-directed). No bundled, embedded, or default extensions or repositories ship in the CLI, the apps, runtime images, or release packages. Test fixtures containing real extensions are tolerated for now; replacing them with mocked extensions is follow-up work (Scope Boundaries › Deferred to Follow-Up Work).
+- **Narrow searched sources to the input backup's languages, within user-picked extensions** (session-settled: user-approved). Among the extensions the user picked, searches use sources matching the input backup's languages (from each source manga's language or source) plus 'all'/multi-language sources. A `--languages` option overrides the detected set, and narrowing is skipped when the user names specific sources. Applies to every ecosystem's multi-source packages; implemented in a core/CLI lane after U4 and U6 integrate. Governs R4.
+- **Paperback 0.8 substitutes: kittycatgit Mangahub for MangaFire, and the community MangaDex** (session-settled: user-directed). Paperback 0.8 has no MangaFire source, so the 0.8 complex-source cell uses kittycatgit Mangahub 4.0.0 (user-chosen over Netsky Mangahub and Kagane after a survey). The 0.8 MangaDex cell uses TheNetsky/community-extensions MangaDex 3.0.6, replacing neihc1002 (user-approved). This revises only the Paperback 0.8 cells; MangaFire remains the complex-source gate everywhere else, and the MangaFire browser decision above stands. Governs R11; see U6.
 - **Fix existing-conversion fidelity first** (session-settled: user-directed — chosen over keeping those fixes inside U1 behind the rest of M1). U19 ships as its own CLI release.
 - **Keep interactive chapter matching** (session-settled: user-approved — chosen over reporting ambiguous chapters only). Users resolve ambiguous chapters and collisions through `SelectionPort` (U1); see KTD7.
 - **Retry interrupted work once after a desktop worker restart** (session-settled: user-directed — chosen over failing it with a `worker-restarted` report). The retry count is a fixed rule, not a benchmarked limit. See KTD4.
 - **Make mobile conversions recoverable from saved data, not a foreground service** (session-settled: user-directed — chosen over cancelling on screen recreation and over a foreground service). The job lives at app scope and journals its progress; after the system kills the app, relaunch resumes from the journal. See KTD8, KTD18.
 - **Accept the GPL risk of the iOS Java runtime and comply fully** (session-settled: user-directed — chosen over a legal-review gate and over searching for a non-GPL runtime). The project is fine shipping GPLv2 code in its apps, including through TestFlight later. See KTD11.
+- **Tests never contact a server** (session-settled: user-directed — chosen over live-network tests). A manual capture tool, never run by a test, downloads extension artifacts once and records the sites' responses for the fixed test queries. Captures are committed with each artifact's source URL, SHA-256, and licence, and every test, CI included, replays them offline. Live behaviour is re-checked only by rerunning the capture. Governs R11, R12; see U1.
+- **Mobile evidence: emulator and simulator now, physical devices later** (session-settled: user-directed — chosen over changing the physical-device requirement). Device work runs through T3's device tools on the local Android emulator and the Mac's iOS simulators; R14 and R16 still need physical-device receipts before M2 and M3 close.
+- **Desktop Java runtime: Amazon Corretto 21** (session-settled: user-directed — chosen over Temurin, Zulu, and Microsoft's build, because Corretto shipped a confirmed Java4Shell fix first). Development and the bundled CLI runtime use Corretto at or above 21.0.13.1. See KTD1.
 - **The iOS deployment target follows the runtime** (session-settled: user-approved — chosen over capping it at iOS 15 or 16). U1 reconciles the 12.0/13.0 mismatch now; U16 records the runtime minimum and raises the target to it, and U15 verifies it.
 
 ### Scope Boundaries
@@ -112,9 +122,13 @@ The delivery covers the desktop CLI on Windows, macOS, and Linux plus embeddable
 
 No static source correspondence tables, guessed URLs, scraping reimplementations in Dart, source rewrites to make tests pass, or Suwayomi service deployment are included. Desktop JVM execution stays out of process. Local iOS execution requires an embedded runtime and a platform-specific cancellation contract; local Android execution uses ART in a dedicated service process (KTD17/KTD18). The runners load and execute the selected original bundles.
 
+The product provides no extensions and no repositories: the CLI, the apps, runtime images, and release packages contain none, and no default repository is configured. The user adds repositories, picks extensions, and supplies extension settings (Key Decisions). Real extensions appear only as test fixtures.
+
 #### Deferred to Follow-Up Work
 
 Web-browser execution of the converter, a remote runner service, and a complete Flutter conversion UI are separate projects. iOS store distribution is follow-up work: the app is sideloaded for now, and TestFlight follows once complete. The build stays App Store compliant throughout (R18).
+
+Replace the real extensions in test fixtures with mocked extensions the project authors itself (Tachi, Paperback, and Aidoku), then remove the real ones from fixtures and captures. Until then real-extension fixtures are tolerated as test-only material (Key Decisions).
 
 Desktop browser support is in scope (U2), translated to the operating system's native WebView. A machine with no display or no installed platform WebView returns interaction-required or capability-unavailable failures rather than a bundled browser engine.
 
@@ -152,7 +166,7 @@ Existing integration seams:
 - `packages/aidoku_plugin_loader/lib/src/aidoku/imports/js_imports_native.dart`: existing QuickJS use is a synchronous Aidoku helper, not a complete Paperback host.
 - `packages/jsoup_jni/lib/src/jre_manager.dart`: existing JNI infrastructure is reference material only; do not reuse its embedded JVM lifecycle.
 
-**QuickJS dependency.** `quickjs` currently resolves to `BooleanExtra/quickjs-dart`, a fork of `lindeer/quickjs-dart` that is 24 commits ahead. It carries Android and iOS builds, a macOS arm64 build, Windows MinGW static-linking fixes, 32-bit ARM fixes, and a web hook skip. Its hook downloads prebuilt libraries from a moving `latest` URL; fork CI builds them from a Bellard-derived QuickJS (`quickjs-version` v3.0, cloned from lindeer's mirror) with MinGW on Windows. KTD24 replaces the fork with an in-repo vendored package built from source. Detail: Appendix › QuickJS dependency.
+**QuickJS dependency.** `quickjs` is the in-repo path package `packages/quickjs/` (KTD24, delivered by U5). Its `native_toolchain_c` hook compiles QuickJS-ng from the `vendor/quickjs` submodule, pinned at `dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df`, for Windows (MSVC), macOS, Linux, Android arm/arm64/x64, and iOS, and downloads nothing. Android x86 compiles but is not advertised because Flutter 3.50 has no x86 target. When planning began, `quickjs` resolved to the `BooleanExtra/quickjs-dart` fork, whose hook downloaded prebuilt Bellard-derived libraries from a moving `latest` URL; no reference to that fork remains. Detail: Appendix › QuickJS dependency.
 
 **Tachi artifacts.** The live keiyoushi index publishes a signed JVM JAR beside every APK. For WeebCentral, the JAR's certificate matches the repository's published signing fingerprint. Both paths are first-class under KTD5. Detail: Appendix › Tachi artifacts.
 
@@ -168,7 +182,7 @@ Static inspection of Tachimanga 5.4 build 538 identifies the reference architect
 
 Existing iOS seams include `ios/Runner/AppDelegate.swift`, `ios/Runner/Runner-Bridging-Header.h`, `ios/Podfile`, `ios/Runner.xcodeproj/project.pbxproj`, and `integration_test/example_test.dart`. The project deployment target is 12.0 while the Podfile declares 13.0. U1 aligns both to one value (13.0, or Flutter 3.50's minimum if that is higher) during the toolchain upgrade. U16 then records the embedded runtime's minimum and raises the deployment target to it; U15 verifies the shipped value.
 
-Android currently uses `android/app/build.gradle` with minSdk 23, Flutter-provided compile/target SDK versions, Java/Kotlin target 1.8, and NDK 28.2.13676358. These are existing configuration values, not proof that the new host dependencies support that minimum. U17 makes the first read of the actual resolved SDK/toolchain and source-library minimum, and U11 confirms it before changing support. Android uses its own framework and ART; desktop AndroidCompat classes must not shadow platform `android.*` classes. The Aidoku runtime's native dependencies already target Android: the wasm3 build hook defines `M3_HAS_TAIL_CALL=0` for armv7, and the scraper hook discovers the NDK and cross-compiles. That establishes buildability, not on-device Aidoku source execution (U13).
+Android uses `android/app/build.gradle.kts` (migrated for Flutter 3.50) with minSdk 24, Flutter-provided compile/target SDK versions, Java/Kotlin target 17, and NDK 28.2.13676358; at planning time it was `build.gradle` with minSdk 23 and target 1.8. U17 read the resolved host closure (declared floor 21) and the pinned MangaDex extension (minSdk 26, references `java.time`), and on emulators found that API 26 shares one WebView data directory across processes without enforcement while API 28+ separates them. The app's minSdk therefore becomes 28 for all features (session-settled: user-directed — confirming U17's recommendation); U11 applies it. Evidence: `docs/validation/source-runners/android/README.md`. Android uses its own framework and ART; desktop AndroidCompat classes must not shadow platform `android.*` classes. The Aidoku runtime's native dependencies already target Android: the wasm3 build hook defines `M3_HAS_TAIL_CALL=0` for armv7, and the scraper hook discovers the NDK and cross-compiles. That establishes buildability, not on-device Aidoku source execution (U13).
 
 ### Roadmap
 
@@ -190,7 +204,7 @@ U2, U3, and U5 start when checkpoint U1-C lands; U16 and U17 start when checkpoi
 | U3 steps 1 and 5 | Does a standalone AndroidCompat closure build and verify both JAR and dex2jar artifacts (step 1), and do the qualification extensions then run on it (step 5)? | Stop the Tachi lane (stop condition) |
 | U5 steps 1-2 | Does the vendored QuickJS compile and load for every advertised target, with the existing Aidoku JS tests green after migration? | Stop the Paperback lane until the build is fixed |
 | U16 | Can an independently built interpreter-only JVM run on an iPhone, be driven through FFIgen, and interrupt a CPU loop safely? Does MangaFire's browser behaviour work on iOS WKWebView? | M3 blocked with retained evidence; M1 and M2 continue |
-| U17 | Can a `:source_runtime` process load real APK DEX from read-only staging, be killed and rebound during a CPU loop, and host WebView alongside the app process (with confinement or minSdk 28 below API 28)? | U11 and M2 blocked with retained evidence; U12 and U13 may continue |
+| U17 | Can a `:source_runtime` process load real APK DEX from read-only staging, be killed and rebound during a CPU loop, and host WebView alongside the app process (below API 28 resolved by raising minSdk to 28)? | U11 and M2 blocked with retained evidence; U12 and U13 may continue |
 
 #### Dependency graph
 
@@ -275,6 +289,8 @@ flowchart LR
 
 #### Live-source gates by stage
 
+Every stage replays committed captures (Key Decisions). "Live" below means a real extension run against captured site responses; the captures are refreshed only by a manual capture run.
+
 - **In-lane (U3, U6):** MangaDex and WeebCentral search/details/chapters, and MangaFire whenever no browser challenge fires. A challenge reports interaction-required or capability-unavailable against the fake `BrowserPort`.
 - **Desktop browser join (U8):** MangaFire's browser path through U2's helper, on each desktop OS.
 - **Mobile (U11/U12/U13, U9/U10/U18):** all three qualification sources on device, including MangaFire's browser path on the platform WebView.
@@ -295,7 +311,7 @@ flowchart LR
 
 Do not build a generic Android emulator or a general browser subsystem speculatively; the translation targets the APIs the qualification sources actually call.
 
-MangaFire uses signed API requests and a challenge interceptor that constructs an Android WebView. WeebCentral supplies the required HTML/CSS coverage. A challenge-blocked MangaFire result proves failure handling only; its live success gate, and that platform's milestone, remain open until its browser path passes. Availability of all three sites in a particular Paperback API family must be established from real catalog artifacts in U6, with no fabricated substitute. If absent, record the exact missing cell and seek an explicit coverage revision rather than silently removing the complex-source requirement.
+MangaFire uses signed API requests and a challenge interceptor that constructs an Android WebView. WeebCentral supplies the required HTML/CSS coverage. A challenge-blocked MangaFire result proves failure handling only; its live success gate, and that platform's milestone, remain open until its browser path passes. Availability of all three sites in a particular Paperback API family must be established from real catalog artifacts in U6, with no fabricated substitute. If absent, record the exact missing cell and seek an explicit coverage revision rather than silently removing the complex-source requirement. One such revision is settled: Paperback 0.8 has no MangaFire, so its complex-source cell uses kittycatgit Mangahub 4.0.0, and its MangaDex cell uses TheNetsky/community-extensions MangaDex 3.0.6 (Key Decisions).
 
 ### Key Technical Decisions
 
@@ -324,7 +340,7 @@ KTD numbers are stable IDs. Decisions are grouped by topic, so numbers within a 
     - Runtime type checks use `.isA()`/`.as()`, never Dart `is`/`as`.
   - **Desktop:** desktop keeps the KTD4 process protocol for the JVM worker by deliberate decision. A shared out-of-process worker is the hard-stop and crash boundary, which an in-process JNI JVM would remove (see the existing `jsoup_jni` VEH-conflict history).
   - **Generated bindings:** they are committed, regenerated by a melos script, and checked for drift in CI.
-- KTD24. **Vendor QuickJS as an in-repo package built from source.** Replace the `BooleanExtra/quickjs-dart` git dependency with `packages/quickjs/`, following the `packages/wasm3` pattern.
+- KTD24. **Vendor QuickJS as an in-repo package built from source.** Replace the `BooleanExtra/quickjs-dart` git dependency with `packages/quickjs/`, following the `packages/wasm3` pattern. Delivered by U5: QuickJS-ng pinned at `dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df`, built with MSVC (`/std:c11 /experimental:c11atomics`) on Windows; Android x86 compiles but is not advertised because Flutter 3.50 has no x86 target.
   - **Source:** QuickJS C source as a git submodule pinned to a full commit. Build provenance is that commit; there are no prebuilt downloads, release tags, or digest tables. The pin follows upstream security fixes under KTD1's update rule.
   - **Build:** a `native_toolchain_c` build hook compiles it for every advertised target and registers a bundled `CodeAsset`. Bindings use ffigen `ffi-native` mode and are committed.
   - **Engine:** QuickJS-ng is the expected engine because `native_toolchain_c` uses MSVC on Windows, and the fork's Bellard-derived build needed MinGW there. U5 step 1 confirms by compiling on every target. Choosing Bellard QuickJS instead requires recording the Windows toolchain configuration it needs.
@@ -395,7 +411,7 @@ KTD numbers are stable IDs. Decisions are grouped by topic, so numbers within a 
 
 #### Desktop
 
-- KTD1. **Own one small Kotlin/JVM worker process for all extension packages, speaking a private stdio protocol.** Use JRE 21 as the initial desktop toolchain and a locked Gradle dependency graph. Bundle a JRE at or above 21.0.13.1, the Java4Shell fix (CVE-2026-114938: Base64-decoder memory corruption on x86-64 CPUs with AVX-512 VBMI, reachable from site-supplied Base64). The worker refuses to start on a JRE below its recorded security floor. The bundled JRE and the host's Java libraries track Oracle's quarterly and out-of-band security releases, and the floor is raised with each. The same rule covers the vendored QuickJS submodule (KTD24) and the Android host dependency lock (KTD17): a security fix affecting an advertised target bumps the pin, and qualification receipts record the security baseline. Reuse or extract the narrowly required Android compatibility classes and source API implementations from pinned upstream code with their licenses; do not pull in Suwayomi's server module. Early dependency tracing determines whether AndroidCompat can be consumed independently or needs a small attributed extraction. A conversion starts at most one worker. It loads every selected package from every selected repository into its own child-first class loader, while host API types stay parent-owned. This is one worker implementation, not a second server. Implements R2 (session-settled: user-directed — one worker for all extensions/repos).
+- KTD1. **Own one small Kotlin/JVM worker process for all extension packages, speaking a private stdio protocol.** Use JRE 21 as the initial desktop toolchain and a locked Gradle dependency graph. Bundle Amazon Corretto 21 at or above 21.0.13.1, the Java4Shell fix (CVE-2026-114938: Base64-decoder memory corruption on x86-64 CPUs with AVX-512 VBMI, reachable from site-supplied Base64). The worker refuses to start on a JRE below its recorded security floor. The bundled JRE and the host's Java libraries track Oracle's quarterly and out-of-band security releases, and the floor is raised with each. The same rule covers the vendored QuickJS submodule (KTD24) and the Android host dependency lock (KTD17): a security fix affecting an advertised target bumps the pin, and qualification receipts record the security baseline. Reuse or extract the narrowly required Android compatibility classes and source API implementations from pinned upstream code with their licenses; do not pull in Suwayomi's server module. Early dependency tracing determines whether AndroidCompat can be consumed independently or needs a small attributed extraction. A conversion starts at most one worker. It loads every selected package from every selected repository into its own child-first class loader, while host API types stay parent-owned. This is one worker implementation, not a second server. Implements R2 (session-settled: user-directed — one worker for all extensions/repos).
 - KTD4. **Use bounded, bidirectional frames and generation-fenced sessions.** Protocol version 1 uses UTF-8 JSON lines on stdin/stdout with a maximum encoded frame size of 16 MiB. Logs use stderr only.
   - **Operations:** handshake, artifact preparation, package load/unload, settings, search, details-with-chapters, dispose, and shutdown. Capabilities describe supported API versions and browser needs.
   - **Reverse requests:** the worker sends supervisor-bound `host.browser.*` requests for KTD20 translations. They carry their own request IDs and the originating operation's generation, and late or orphaned replies are discarded. Each envelope carries a request ID and session generation.
@@ -424,7 +440,7 @@ KTD numbers are stable IDs. Decisions are grouped by topic, so numbers within a 
   - **Lifecycle:** the first delivery is foreground, user-driven conversion. Backgrounding pauses new work, bounds active work and fences callbacks; there is no foreground service. The job lives at app scope in Dart, so the manifest's handled configuration changes never touch it. If the system kills the app, relaunch resumes from the KTD8 conversion journal without duplicate publication.
 - KTD19. **Reuse the Paperback host on Android and put each WebView in the process that needs it.**
   - **Paperback:** U12 runs U5/U6's common QuickJS promise/API/parser implementation in an app-owned worker isolate with native interrupt and memory limits, using KTD24's vendored QuickJS built for each advertised ABI. It does not duplicate the host in Kotlin or assume the Tachi service hosts Dart. Paperback `executeInWebView` runs on a WebView in the app process, driven from Dart through JNIgen bindings to `android.webkit` and androidx.webkit (KTD23).
-  - **Tachi:** Tachi extensions construct real `android.webkit.WebView` instances themselves inside the `:source_runtime` service process. That process therefore owns a main looper and an initialized WebView. On API 28+ it calls `WebView.setDataDirectorySuffix` before its first WebView. Below API 28 that call does not exist and Android does not support WebView in more than one process of an app. On those versions, U17 decides, and U11 implements, either confining all app WebView use to one process for the duration of a conversion or raising minSdk to 28. Reporting the Tachi browser capability unavailable is not an option while API 23-27 is advertised, because MangaFire must pass on every advertised device. A challenge Activity declared with `android:process=":source_runtime"` hosts visible challenges in the same process.
+  - **Tachi:** Tachi extensions construct real `android.webkit.WebView` instances themselves inside the `:source_runtime` service process. That process therefore owns a main looper and an initialized WebView. It calls `WebView.setDataDirectorySuffix` before its first WebView. That call does not exist below API 28, where Android does not support WebView in more than one process of an app, so the app's minSdk is 28 for all features (session-settled: user-directed — confirming U17's recommendation, chosen over single-process confinement on API 26/27). U17 decided it on emulator evidence (API 26 shared one WebView data directory across both processes; the pinned extensions need API 26 and `java.time`), and U11 applies it in `android/app/build.gradle.kts`. No single-process confinement path is built. A challenge Activity declared with `android:process=":source_runtime"` hosts visible challenges in the same process.
   - **Isolation:** source-scoped cookie and storage separation uses the androidx.webkit multi-profile API where the installed WebView supports it. Where it does not, source isolation for browser state is unavailable and is reported as a capability failure rather than claimed. Tachi's service-process WebViews do not go through `BrowserPort`, so the service applies KTD20's storage rule itself: at session close and on service restart it deletes the source's cookies and web storage (its profile, or all service-process WebView data without multi-profile), and fails the browser capability if it cannot confirm the deletion (KTD9).
   - **Interaction:** interactive challenges require a visible Activity and return interaction-required while unavailable. Bind callbacks to source/session generation and account revision. Browser waits are bounded and cancelled when the job or worker dies.
   - **Cancellation:** Paperback CPU-loop cancellation is qualified separately from Tachi service termination.
@@ -789,7 +805,7 @@ Keep native-dependent legacy codec/direct-conversion adapters outside the portab
 **Approach:**
 
 1. **Toolchain (checkpoint U1-T).** Upgrade the workspace and CI to Flutter 3.50 / Dart 3.14 (KTD23), in parallel with step 2, and run the full existing test, lint, and format suites on the new toolchain. Regressions from the upgrade are fixed or recorded here, not mixed into later units. The existing `ffigen` users (wasm3, swiftsoup) regenerate cleanly or keep their pinned generator. Align the Xcode project (12.0) and Podfile (13.0) deployment targets to one value: 13.0, or Flutter 3.50's minimum if that is higher.
-2. **Contracts (checkpoint U1-C).** Create `source_runtime` with KTD3/KTD4/KTD9: backend-neutral `SourceProvider`/`SourceSession`, typed outcomes, native references, artifact cache, and the desktop supervisor with injected process launch. The supervisor manages one shared JVM worker plus the Paperback Dart worker. Do not make Aidoku speak an external process protocol. `source_runtime` imports no core library or backup model. Define `BrowserPort` under KTD20: operations, allowed schemes, storage cleanup, typed outcomes (completed, cancelled, interaction-required, capability-unavailable with the named operation, navigation failure), source-scoped session identity, generation fencing, a fake implementation, and the reusable contract suite. Include KTD4's reverse-request framing for `host.browser.*`. Extend the existing Aidoku package with a source-contract adapter over its current loader, so Aidoku satisfies the same injected runtime boundary the new ecosystems will. Worker and helper stderr, and any HTTP or browser trace, pass through a redaction filter before the CLI log sink. It strips `Cookie`, `Set-Cookie`, and `Authorization` values, credential URL components, and the session's secret values (KTD9).
+2. **Contracts (checkpoint U1-C).** Create `source_runtime` with KTD3/KTD4/KTD9: backend-neutral `SourceProvider`/`SourceSession`, typed outcomes, native references, artifact cache, and the desktop supervisor with injected process launch. The supervisor manages one shared JVM worker plus the Paperback Dart worker. Do not make Aidoku speak an external process protocol. `source_runtime` imports no core library or backup model. Define `BrowserPort` under KTD20: operations, allowed schemes, storage cleanup, typed outcomes (completed, cancelled, interaction-required, capability-unavailable with the named operation, navigation failure), source-scoped session identity, generation fencing, a fake implementation, and the reusable contract suite. Include KTD4's reverse-request framing for `host.browser.*`. Extend the existing Aidoku package with a source-contract adapter over its current loader, so Aidoku satisfies the same injected runtime boundary the new ecosystems will. Define the capture format and replay contract: every host HTTP layer and `BrowserPort` implementation has a replay mode that serves committed captures and fails any request without one, and a record mode used only by `tool/capture_source_fixtures.dart`, a manual tool no test runs. Captures live under `fixtures/source_captures/<ecosystem>/<source>/` with each artifact's source URL, SHA-256, and licence. Convert the existing live-network Aidoku tests to replay. Worker and helper stderr, and any HTTP or browser trace, pass through a redaction filter before the CLI log sink. It strips `Cookie`, `Set-Cookie`, and `Authorization` values, credential URL components, and the session's secret values (KTD9).
 3. **Extract.** Once U19 has merged, create `manga_backup_core` and move the existing codecs, models, and orchestration, including U19's reconciler and fixes, without changing their behavior. Move the generated protobuf code and update `update-schemas.yml`, codegen config, and `CLAUDE.md` in the same change (KTD14).
 4. **Single edit pass over shared CLI files.** Extend search results, confirmation callbacks, and detail calls to carry native references rather than handle-only strings. Wire the asynchronous conversion owner into `migration_pipeline.dart` before loading begins, and await close in its encompassing finally block. Then move the pipeline into the core. `migration_dashboard.dart` and `live_search_select.dart` are edited once for the native-reference and typed-failure changes together; U19 already landed the R8 change, so there are no separate competing edits.
 5. **Reporting and chapter confirmation.** Implement KTD8's complete accounting over U19's reconciler. Add chapter-ambiguity decisions to `SelectionPort` so the user can resolve unresolved chapters and collisions (KTD7). Propagate all scanlator values, while keeping output-format constraints in the loss report.
@@ -809,6 +825,7 @@ Keep native-dependent legacy codec/direct-conversion adapters outside the portab
 - The fake `BrowserPort` passes the reusable contract suite, and a late callback after a generation change never resolves a newer request.
 - The reusable contract suite refuses a `file://` load, a redirect to `file://`, and a `file://` base URL, and finds no cookies or web storage left after a session closes or after a mid-session kill and restart, on every implementation.
 - Seeded cookies, tokens, and passwords in worker stderr never appear in the user log file.
+- A test that issues a network request with no matching capture fails, in every host HTTP layer; no test reaches a server.
 - Covers AE5 at the supervisor level, using the fake worker:
   - Cancellation during startup, mid-request, and shutdown never leaks a process, including a startup that completes after cancellation.
   - A deadline first attempts cooperative cancel. Expiry of the grace period restarts the single worker and reloads all packages, and no old handle works in a new generation.
@@ -869,7 +886,7 @@ Keep native-dependent legacy codec/direct-conversion adapters outside the portab
 2. **Host services.** Settings use a host-supplied in-memory `SharedPreferences`, returned by a `Context` wrapper that overrides `getSharedPreferences`, seeded from the conversion's settings snapshot and discarded at session close. AndroidCompat's file-backed implementation is not reused (KTD9). Supply real network/OkHttp/cookie services, settings and `Context` facilities, dependency injection, jsoup, coroutines, serialization, and the JS-engine API required by the selected artifacts. Unsupported APIs fail explicitly; Android SDK stub bodies are not functional implementations.
 3. **WebView translation.** Implement the KTD20 `android.webkit` translation shim over KTD4 reverse requests. Back the main `Looper`/`Handler` with a worker-owned dispatcher so extension code that posts to the main thread and blocks on a latch (as `runWebViewBlocking` does) completes rather than deadlocks.
 4. **Multi-package loading.** Load each package into its own child-first class loader in the single worker. Retain complete manga objects behind KTD3 handles, and serialize per package while running different packages concurrently. Support both current update APIs and the pinned legacy API range through explicit adapters where necessary.
-5. **Live proof.** Prove MangaDex and WeebCentral search/details/chapter operations, and MangaFire whenever no browser challenge fires, before exporter work. Record failure categories without replacing source logic. MangaFire's browser path completes at the U8 join.
+5. **Captured proof.** Capture the qualification sources once with U1's capture tool, then prove from the replayed captures MangaDex and WeebCentral search/details/chapter operations, and MangaFire whenever no browser challenge fires, before exporter work. Record failure categories without replacing source logic. MangaFire's browser path completes at the U8 join.
 6. **Performance tests (KTD25).** Benchmark the worker on each desktop OS across devices of different capability: per-operation latency for the qualification sources, cooperative-cancel settle time, restart-and-rehydrate time, and concurrent-package throughput against cores and memory. Derive the adaptive sizing rule and every KTD4 limit from those results. Commit the harness under `tools/tachi-source-runner/benchmark/` and its results under `docs/validation/source-runners/desktop/`.
 
 **Patterns:** Pinned Suwayomi AndroidCompat and Mihon source loading are implementation references. Tachimanga's dex2jar plus `BytecodeEditor` pipeline is architectural evidence. Extraction retains upstream notices and avoids reimplementing every Android class.
@@ -947,14 +964,14 @@ All three are driven from Dart through JNIgen.
 1. **JNIgen facade.** Bind the service through a minimal Kotlin client facade generated with JNIgen. Dart dispatches a call and receives its reply and death notifications as listener callbacks; no Binder thread waits on Dart.
 2. **Real DEX from read-only staging.** Stage a pinned keiyoushi APK (MangaDex) privately, marking the file read-only before writing on Android 14+. Load its DEX in the service process with the pinned source API on the parent class path, and link its factory class. Constructing sources touches host services (for example, `MangaDex` extends `KeiSource` and builds a helper at construction). If construction succeeds with only the pinned source API, enumerate the source IDs and compare them with the repository index; otherwise record that, and U11 performs the comparison with its real host. U17 does not depend on U3's host code.
 3. **Termination.** Run a fixture CPU-looping call. Kill the service process by the PID it reported at bind time, observe the binder death notification, then rebind while the Flutter app stays responsive.
-4. **Multi-process WebView.** On API 28+, create a WebView in the service process after `setDataDirectorySuffix` while the app process also uses one. Below API 28, decide between single-process confinement and raising minSdk to 28, and record the decision. Reporting the browser capability unavailable is not an option while API 23-27 is advertised, because MangaFire must pass there.
+4. **Multi-process WebView.** On API 28+, create a WebView in the service process after `setDataDirectorySuffix` while the app process also uses one. Below API 28, decide between single-process confinement and raising minSdk to 28, and record the decision. Outcome: U17 recommended minSdk 28 from API 26 and API 36 emulator runs, and the user confirmed it (Key Decisions; KTD19).
 5. **Dependency minimum.** Record the minimum SDK of the pinned source API, Kotlin, and OkHttp closure.
 
 **Test scenarios:**
 
 - The staged APK's factory class loads and links in the service process. Where construction succeeds, source IDs equal the repository index values. A writable or tampered staged file is rejected before loading.
 - A CPU-looping call is terminated and the service rebinds, repeatedly, without killing the app.
-- Service-process and app-process WebViews coexist on API 28+ devices. If minSdk stays below 28, API 26/27 devices confine WebView to one process and never crash on a second-process WebView.
+- Service-process and app-process WebViews coexist on API 28+ devices.
 - No platform channel carries the calls, and JNI global references return to baseline after repeated bind/unbind.
 
 **Verification:** Physical ARM64 receipts, with emulator runs labeled separately. Failure blocks U11 and M2 completion with retained evidence; U12 and U13 may continue so their evidence is preserved.
@@ -977,7 +994,7 @@ All three are driven from Dart through JNIgen.
 2. **Drive it from Dart.** Create the single VM once with interpreter-only options. Load a trivial class and call it through FFIgen bindings to the JNI invocation interface, on an owned native thread, returning through a listener callback. No platform channel is involved.
 3. **Prove interruption.** Run a CPU-looping Java method and a blocked native wait. Show that the deadline interrupts both at safe checkpoints without thread termination and without blocking the main run loop, and that the VM then serves another call. Current Zero polls safepoints only at method return, so measure both KTD11 mechanisms: deadline checks injected into loop back-edges by the bytecode rewrite pass, and a back-edge poll patch to Zero. A call-free loop on one thread must not stall garbage collection or handshakes on others. Also run the loop inside a parent-owned host class called from an extension, a catastrophic `java.util.regex` backtrack, and an extension loop that catches `Throwable` and continues; KTD11 selects only a mechanism that stops all of them.
 4. **WKWebView probe.** Through minimal FFIgen WebKit bindings, replay MangaFire's browser behaviour on a physical iPhone (the same replay as U2's spike). If it fails, find a workaround here; U10 builds on the result.
-5. **App Store compliance check.** Build a distribution-signed Release with the modular image and module-path patch, and pass App Store Connect validation. This uploads for validation only and publishes nothing. Add the privacy manifest entries the runtime needs, and start the R18 guideline-mapping note.
+5. **App Store compliance check.** Build an unsigned Release with the modular image and module-path patch and check R18 locally: interpreter-only execution, no executable memory, no downloaded native code, the privacy manifest entries the runtime needs, and GPL notices. Start the R18 guideline-mapping note. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions); nothing is signed for distribution or uploaded here.
 6. **Decide.** On success, record the runtime identity, minimum iOS version, interruption mechanism, and WKWebView probe result that U9/U10 build on. Raise the Xcode project and Podfile deployment target to that minimum if it is higher than U1's value. On failure, mark M3 blocked with retained evidence. An alternative interpreter is evaluated only behind the same JVM/JNI contract (KTD11), never as a silent switch.
 
 **Test scenarios:**
@@ -987,7 +1004,7 @@ All three are driven from Dart through JNIgen.
 - A CPU-looping method is interrupted within its deadline repeatedly, and the VM keeps serving subsequent calls. A Dart-only timeout cannot make this test pass.
 - A call-free busy loop on one thread is stopped within its deadline and does not stall garbage collection on other threads.
 - Loops inside a host-library class, inside `java.util.regex`, and inside an extension that catches `Throwable` and continues are each stopped within their deadline.
-- The distribution-signed Release build passes App Store Connect validation, and no extension native code is ever loaded.
+- The unsigned Release build passes the local R18 checks (no JIT or executable memory, privacy manifest present, GPL notices bundled), and no extension native code is ever loaded.
 - JNI and Objective-C reference counts return to baseline after repeated calls, and no platform channel is registered.
 - MangaFire's replayed browser flow completes on WKWebView on a physical iPhone, or the receipt records the failing behaviour and the workaround that replaced it.
 
@@ -1005,7 +1022,7 @@ All three are driven from Dart through JNIgen.
 - Create CLI `lib/src/pipeline/plugin_source_tachi.dart` and `test/pipeline/plugin_source_tachi_test.dart`.
 
 **Approach:**
-1. **Catalog parsing.** Parse the actual repository metadata and current JSON/protobuf index formats using fixture-backed adapters. Distinguish repository package identifiers from runtime source IDs, and enumerate factory sources after loading.
+1. **Catalog parsing.** Parse the actual repository metadata and current JSON/protobuf index formats using fixture-backed adapters, for repositories the user supplies; the loader has no built-in or default repository (Key Decisions). Distinguish repository package identifiers from runtime source IDs, and enumerate factory sources after loading.
 2. **Artifact pipeline.** Read both `jarUrl` and `apkUrl` from the index. Select the JAR when present and the APK otherwise, with a per-repository/per-artifact override. Bind the repository's signing fingerprint, approved on first use and stored locally under KTD5, as the trust identity. Connect the catalog and content-addressed cache to U3's preparation under KTD5.
 3. **Loader contract.** Change `loadPluginFromBytes` to return all sources for a package, and update its wrapper and all existing implementations together.
 4. **Shared worker lease.** All selected packages share the single worker lease owned by the conversion. Disposing one selection unloads only its package once no other source in that package is active.
@@ -1023,6 +1040,7 @@ All three are driven from Dart through JNIgen.
 - The stale `index.min.json` stub is not used; the parser follows `repo.json` to the live index.
 - A first-seen repository is not admitted without the user's approval, and a repository whose published fingerprint changes after approval is blocked until the user approves again.
 - A non-interactive run with a first-seen or changed fingerprint refuses admission with a typed trust failure.
+- With no user-supplied repository the catalog is empty, and an unattended run without an explicit extension list selects nothing rather than falling back to a default.
 - Tampered artifact, changed signing identity, incompatible API range, missing assets, or unsupported dex fails before execution and cannot poison a verified cache entry.
 - Loading the same URL with a new artifact digest invalidates old handles and caches.
 - Live runtime search results pass through `PluginSource` without altering native URLs or int64 IDs.
@@ -1044,7 +1062,7 @@ All three are driven from Dart through JNIgen.
 1. Inspect real 0.8 and 0.9 indexes, bundles, declared API ranges, and licenses. Record their actual installation entry points and the qualification-source availability per API family. Apply KTD6 artifact trust and digest checks before evaluation, using the same verification on cached bundles.
 2. Implement request/response interceptors, redirect behavior, cookies, rate limits, binary buffers, timers, state, and API-specific globals under KTD6. Validate parser compatibility with selectors actually used by pinned sources.
 3. Route `executeInWebView` through the injected `BrowserPort`, sharing the source's cookie session in both directions where the platform allows it.
-4. Add optional per-source settings providers to selection; secure-state requests follow KTD9.
+4. Add optional per-source settings providers to selection, fed by the user's settings (a settings file or flags in the CLI, an injected provider in the apps); the product ships no setting values. Secure-state requests follow KTD9. Catalogs come only from user-supplied repositories, and the user picks the bundles (Key Decisions).
 5. Implement search and details-with-chapters through original bundles. Keep version-specific metadata pagination and chapter identities intact in the adapter.
 
 **Patterns:** Existing Aidoku `PluginSource` adapter, Paperback's official host type definitions, and real extension bundles. Do not port a Tachi scraper into Paperback for testing.
@@ -1058,7 +1076,7 @@ All three are driven from Dart through JNIgen.
 - Cheerio selectors including `:has`, `:contains`, and absolute URL handling match pinned HTML expectations.
 - `executeInWebView` completes through a fake `BrowserPort`; the real desktop helper path runs at the U8 join. Unsupported API versions and inexpressible browser operations produce capability failures rather than valid empty results.
 - A substituted bundle, modified cached bytes, or unaccepted trust change fails before any JavaScript initialization or host request; approved immutable bytes retain their artifact identity throughout loading.
-- Both API families have real-artifact search/details/chapter evidence. WeebCentral and MangaFire coverage remains subject to the explicit source matrix gate described under Planning Contract › Roadmap.
+- Both API families have real-artifact search/details/chapter evidence. WeebCentral and MangaFire coverage remains subject to the explicit source matrix gate described under Planning Contract › Roadmap. The 0.8 family uses the approved substitutes: kittycatgit Mangahub 4.0.0 for the missing MangaFire cell and TheNetsky/community-extensions MangaDex 3.0.6 for MangaDex (Key Decisions).
 
 **Verification:** Test fixture scripts validate host contracts, then execute real pinned Paperback sources. Handwritten scripts alone do not establish Paperback compatibility.
 
@@ -1073,10 +1091,11 @@ All three are driven from Dart through JNIgen.
 - CLI: modify compatibility adapters and `lib/src/commands/convert_command.dart`, add a composition module in `lib/src/commands/`, and retain `test/pipeline/migration_pipeline_test.dart` and `test/commands/convert_compatibility_test.dart`.
 - Flutter app: add an injectable application service under `lib/src/features/conversion/application/`, plus explicit root/CLI package dependencies.
 
-The CLI registers its concrete desktop providers in this unit; U8 adds the U2 browser helper. The Flutter service accepts a supplied runtime registry and platform I/O/selection adapters; it does not reference mobile backends. U14 and U15 own final mobile composition. No complete conversion UI is added.
+The CLI registers its concrete desktop providers in this unit; U8 adds the U2 browser helper. The Flutter service accepts a supplied runtime registry, platform I/O/selection adapters, and an injected extension-settings provider; it does not reference mobile backends. Neither the CLI nor the service configures a default repository or extension: the user supplies repositories, picks extensions, and supplies settings (Key Decisions). U14 and U15 own final mobile composition. No complete conversion UI is added.
 
 **Approach:**
 - **Inputs.** Consume KTD7 reconciliation and KTD8 reporting, including U1's typed load/search/detail failures from all destination adapters.
+- **User-supplied sources and settings.** The CLI takes repositories, extensions, and extension settings from the user (a settings file or flags); an unattended run without an explicit extension list fails with a typed error instead of choosing extensions. Language narrowing (Key Decisions) applies only within the picked extensions, is skipped when the user names specific sources, and is overridden by `--languages`.
 - **Paperback writer.** Write Paperback reference graphs using generated backup-local IDs and runtime-native IDs in their correct separate fields.
 - **Tachi writer.** Write Tachi source IDs and native manga/chapter URLs through the selected fork schema, retaining int64 precision and explicit fork identity.
 - **Tracking.** Map tracker services only through verified service semantics; otherwise report the unsupported tracking records.
@@ -1092,6 +1111,8 @@ The CLI registers its concrete desktop providers in this unit; U8 adds the U2 br
 - Partial progress, bookmarks, categories, dates, and history transfer through each representable target; unsupported fields remain in the report.
 - Covers AE3: ambiguous state cannot be published without explicit partial-conversion acceptance.
 - A non-interactive run publishes a partial conversion only with `--accept-partial`.
+- A non-interactive run with no explicit extension list fails before any source loads; no built-in repository or extension is used.
+- Language narrowing keeps sources matching the input backup's languages plus 'all'/multi sources among the picked extensions, is skipped when specific sources are named, and `--languages` replaces the detected set.
 - Covers AE5: runtime failure or invalid output leaves the input and existing destination file unchanged.
 - Aidoku destination detail failure remains an unresolved runtime failure in the report; publication requires explicit partial-conversion acceptance and does not silently create an empty-chapter success.
 - The CLI and the injectable application service run the same core conversion job with different runtime/I-O/selection adapters in contract tests; no source-runtime factory is selected by a backup-format model.
@@ -1114,7 +1135,7 @@ The CLI registers its concrete desktop providers in this unit; U8 adds the U2 br
 
 **Approach:**
 
-1. **Dependency closure.** Resolve the Android host module's dependency closure: pinned source API, Kotlin, OkHttp, jsoup, serialization, and QuickJS for Tachi's JS-engine API. Record the actual minimum SDK it supports. Preserve minSdk 23 only if the complete closure and tests support it; otherwise document the exact minimum change before advertising support.
+1. **Dependency closure.** Resolve the Android host module's dependency closure: pinned source API, Kotlin, OkHttp, jsoup, serialization, and QuickJS for Tachi's JS-engine API. Record the actual minimum SDK it supports. Raise the app's minSdk to 28 in `android/app/build.gradle.kts` for all features (Key Decisions; KTD19).
 2. **Admission and staging.**
    - Check signatures using pinned Android-compatible verifier inputs and trusted signing identities.
    - Privately stage immutable digest-bound artifacts. On targets enforcing Android 14 dynamic-code rules, open the private output and mark it read-only before writing through the held descriptor, then complete and verify it before publishing its lease.
@@ -1128,7 +1149,7 @@ The CLI registers its concrete desktop providers in this unit; U8 adds the U2 br
    - Prove the worker termination/death acknowledgement path, including a wedged source executor and an outstanding browser call.
    - A service restart fences all packages hosted there and reconstructs remaining work from immutable artifacts, durable references and app-held state.
 5. **Service-process WebView.**
-   - Initialize WebView in `:source_runtime` with a main looper, so extension-created `android.webkit.WebView` instances work unmodified. On API 28+, give it its own data directory suffix. Below API 28, apply KTD19's single-process confinement, unless U17 raised minSdk to 28.
+   - Initialize WebView in `:source_runtime` with a main looper, so extension-created `android.webkit.WebView` instances work unmodified. Give it its own data directory suffix; minSdk 28 guarantees the call exists (KTD19).
    - Apply per-source profiles through androidx.webkit where the installed WebView supports multi-profile; otherwise report source browser isolation as unavailable.
    - Route visible challenges to the same-process challenge Activity. When the app has no visible Activity, return interaction-required.
 6. **Performance tests (KTD25).** Benchmark dispatch latency, termination-to-rebind time, and rehydration on physical devices of different capability, and derive the adaptive rule for KTD18's deadlines and rebind bounds.
@@ -1143,7 +1164,7 @@ The CLI registers its concrete desktop providers in this unit; U8 adds the U2 br
 - Covers AE10: a CPU-looping source is terminated by PID, and its death is observed through the binder death notification. All hosted packages rehydrate after rebind, the failed operation is not retried, and the Flutter app stays responsive.
 - Queued requests keep their own deadlines across a restart; configuration changes leave the app-scoped job running; backgrounding pauses new work and fences callbacks.
 - Covers AE11 on Android: MangaFire's `runWebViewBlocking` creates a real WebView in the service process. A visible challenge appears in the challenge Activity, and two sources' cookies stay separate where multi-profile is supported (otherwise the isolation capability is reported unavailable).
-- If minSdk stays below 28, an API 26/27 device or emulator image confines the WebView to one process, MangaFire still completes, and nothing crashes on a second-process WebView.
+- The built app declares minSdk 28, and MangaFire's service-process WebView flow completes on an API 28 emulator image or device alongside an app-process WebView.
 - No platform channel carries source operations; JNI global references return to baseline after repeated package load/unload and stay under the per-session bound.
 - After a source session closes or the service restarts, no cookies or web storage from that source remain in the service-process WebView data.
 - Physical ARM64 evidence exists for MangaDex, WeebCentral and MangaFire; a MangaFire challenge failure keeps M2 open.
@@ -1329,7 +1350,7 @@ Update existing release packaging locations identified during implementation rat
 - **Bundle contents.** Bundle the single JVM worker, a pinned redistributable JRE, the compiled Paperback worker, the `desktop_webview` helper executable from U2's build script, and the vendored QuickJS and other native libraries for each supported desktop architecture.
 - **WebView prerequisites.** Document platform WebView prerequisites rather than bundling a browser: the WebView2 runtime (preinstalled on Windows 11) and WebKitGTK on Linux.
 - **Source artifacts.** Keep source artifacts separate from executables unless redistribution is verified.
-- **Test modes.** Offline CI uses controlled fixtures; live qualification is explicit and rate-limited.
+- **Test modes.** Every test replays committed captures; live calls happen only in manual capture runs, which are rate-limited and produce the live receipts.
 - **Evidence.** Record redacted qualification evidence under the Evidence Identity contract below.
 
 **Restore prerequisites:**
@@ -1369,7 +1390,7 @@ Update existing release packaging locations identified during implementation rat
 - Evidence: redacted receipts under `docs/validation/source-runners/android/`, plus updates to `docs/source-runners.md` and `docs/CI.md`.
 
 **Approach:**
-- **Composition.** Register U11, U12, and U13 only after their backends pass. The harness calls U7's Flutter composition/service with sanitized input and pinned source artifacts staged in the test app.
+- **Composition.** Register U11, U12, and U13 only after their backends pass. The app composition injects the user's repositories, extension choices, and extension settings provider; it registers no default repository or extension. The harness calls U7's Flutter composition/service with sanitized input and pinned source artifacts staged in the test app; those artifacts are test-only, and the packaged APK contains no extension or repository (Key Decisions).
 - **Harness scope.** The harness exercises parsing, local runtime fetches, reconciliation, core building/validation, and app-local output publication. It uses the public core API and does not invoke a desktop CLI.
 - **Build records.** Record the actual resolved min/target/compile SDK values, Gradle dependency locks, native ABI/library hashes, and release signing identity.
 - **Channels and admission.** Qualify the chosen distribution channel explicitly; successful sideloaded execution does not establish store approval. No extension-native executable libraries are admitted implicitly.
@@ -1382,13 +1403,14 @@ Update existing release packaging locations identified during implementation rat
 - Covers AE11: MangaFire's browser path completes inside a real conversion job.
 - The advertised minimum SDK and current target SDK behavior are exercised separately.
 - Shipped licenses/notices and native library hashes match the packaged APK.
+- The release APK contains no extension artifact and no repository configuration.
 - Restore spot checks: an Android-built Mihon backup restores in a clean, pinned Mihon with no duplicates. Android-built Paperback and Aidoku backups match desktop-built output for the same fixture and restore on an iOS test device under U8's restore prerequisites.
 
 **Verification:** Physical-device receipts under the Evidence Identity contract. Device interaction follows the host's device-control tools where available; unavailable physical-device automation is reported explicitly and requires a supported or user-operated evidence path. Do not imply physical-device verification from an emulator run.
 
 ### U15. Qualify iOS on-device conversion and packaging (M3)
 
-**Goal:** Deliver a signed iOS integration build that performs complete local conversions for all six directions with the Aidoku, Tachi, and Paperback runtimes.
+**Goal:** Deliver a development-signed iOS integration build that performs complete local conversions for all six directions with the Aidoku, Tachi, and Paperback runtimes on a physical device. Distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup (Key Decisions).
 
 **Requirements:** R5, R9-R14, R17, R18; AE7, AE8, AE11. **Dependencies:** U7, U9, U10, U18.
 
@@ -1399,10 +1421,11 @@ Update existing release packaging locations identified during implementation rat
 - Scripts and evidence: native-runtime build/manifest scripts under `scripts/`, and redacted receipts under `docs/validation/source-runners/ios/`.
 
 **Approach:**
-- **Packaging.** Package U9's native Tachi runtime/class libraries, U10's QuickJS/parser assets, and U18's wasm3/SwiftSoup libraries into a signed Flutter integration build. Record iPhoneOS and simulator slice identities separately, verify linkage and embedded signatures, and use only native artifacts built from recorded inputs.
+- **Packaging.** Package U9's native Tachi runtime/class libraries, U10's QuickJS/parser assets, and U18's wasm3/SwiftSoup libraries into a development-signed Flutter integration build for physical-device runs (distribution signing for App Store/TestFlight is deferred with App Store Connect validation to the TestFlight setup, Key Decisions). Record iPhoneOS and simulator slice identities separately, verify linkage and embedded signatures, and use only native artifacts built from recorded inputs.
 - **Code boundary.** Native interpreter code ships with the app; selected extension bytecode is data for that runtime, not an unsigned replacement native library.
-- **Deployment target and approval.** Verify that the deployment target U16 set matches the runtime minimum, and record the declared minimum and ordinary entitlements. The build is distributed by sideloading, passes App Store Connect validation with its privacy manifest and GPL notices (R18), and claims no store approval. Finalize the R18 guideline-mapping note at `docs/validation/source-runners/ios/app-store-compliance.md`.
+- **Deployment target and approval.** Verify that the deployment target U16 set matches the runtime minimum, and record the declared minimum and ordinary entitlements. The build is distributed by sideloading, passes the local R18 checks (interpreter-only, no executable memory, no downloaded native code, privacy manifest, GPL notices), and claims no store approval. App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup (Key Decisions). Finalize the R18 guideline-mapping note at `docs/validation/source-runners/ios/app-store-compliance.md`.
 - **Harness scope.** The harness exercises parsing, local runtime fetches, reconciliation, core building/validation, and app-local output publication, without a desktop CLI.
+- **User-supplied sources.** The app composition injects the user's repositories, extension choices, and extension settings provider, with no default repository or extension. Pinned artifacts staged for the harness are test-only; the packaged app contains no extension or repository (Key Decisions).
 - **Directions.** All six R5 directions are qualified on iOS, including Aidoku destinations through U18.
 
 **Test scenarios:**
@@ -1413,6 +1436,7 @@ Update existing release packaging locations identified during implementation rat
 - Covers AE11 on iOS inside a real conversion job.
 - An installed release-profile iPhone build performs source search/details/chapters after a cold launch without debugger/JIT assistance. Simulator-only success cannot satisfy R14.
 - Restore spot checks: iOS-built Paperback, Aidoku, and Tachi backups match desktop-built output for the same fixture and restore under U8's restore prerequisites.
+- The packaged app contains no extension artifact and no repository configuration.
 
 **Verification:** Physical-iPhone receipts identify the build, OS, device architecture, entitlements, native runtime hashes, and actual local source operations. A simulator can validate the bridge and lifecycle but cannot substitute for those receipts.
 
@@ -1430,7 +1454,7 @@ Planning runs no tests, source bundles, JVM workers, or app restores. The follow
    
    These cover process, browser, and host contracts, not websites.
 3. **Affected consumers:** Run existing Aidoku plugin JS/WASM tests and CLI conversion/command tests after shared interfaces, QuickJS revisions, or the Flutter 3.50 toolchain change. Regenerate FFIgen/JNIgen bindings and fail CI on drift. Use the existing `melos run lint` (which runs `analyze` and `custom_lint`) and `melos run verify_format` CI checks.
-4. **Live source gates:** Retain operation-level receipts for the R11 sources per runner and platform. Missing fixture, unavailable site, unsupported challenge, unsupported WebView semantics, and rate-limit outcomes are distinct from successful execution. Offline replay tests remain deterministic; live results do not substitute for them.
+4. **Source gates (replayed):** Tests replay committed captures and never contact a server; manual capture runs refresh them and produce the live receipts. Retain operation-level receipts for the R11 sources per runner and platform. Missing fixture, unavailable site, unsupported challenge, unsupported WebView semantics, and rate-limit outcomes are distinct from successful execution. Offline replay tests remain deterministic; live results do not substitute for them.
 5. **Restore gates:** Every enabled target app/envelope has clean-app restore and refresh evidence. An output that parses in this repository but creates duplicate or unreadable entries fails.
 6. **Desktop release gates (M1):** On each declared desktop target, run the packaged CLI with bundled runtimes, the single JVM worker, and the WebView helper. Check shutdown, manifests, notices, and platform WebView prerequisites. Do not claim a platform based only on cross-compilation.
 7. **Android release gates (M2):**
@@ -1439,7 +1463,7 @@ Planning runs no tests, source bundles, JVM workers, or app restores. The follow
    - **Lifecycle:** test service death/rebind and browser lifecycle during the actual conversion job with helper endpoints unavailable.
    
    Emulator evidence remains separately labeled.
-8. **iOS release gates (M3):** Build the iOS integration host on a Mac with a pinned Xcode/SDK and run `integration_test/ios_runtime_gate_test.dart` (U16, before M3 implementation) and `integration_test/source_runners_ios_test.dart`, including U18's Aidoku cases, against supported devices. Pass App Store Connect validation of a distribution-signed build (R18). Qualify the signed app's bundled interpreter/class libraries, QuickJS and wasm3/SwiftSoup bytes, native linkage, and source operations under R14. Physical-iPhone receipts must identify the build, OS, device architecture, entitlements, native runtime hashes, and actual local source operations. Verify that source-site requests continue while helper-service endpoints are unavailable.
+8. **iOS release gates (M3):** Build the iOS integration host on a Mac with a pinned Xcode/SDK and run `integration_test/ios_runtime_gate_test.dart` (U16, before M3 implementation) and `integration_test/source_runners_ios_test.dart`, including U18's Aidoku cases, against supported devices. Check R18 locally; App Store Connect validation of a distribution-signed build is deferred to the TestFlight setup. Qualify the signed app's bundled interpreter/class libraries, QuickJS and wasm3/SwiftSoup bytes, native linkage, and source operations under R14. Physical-iPhone receipts must identify the build, OS, device architecture, entitlements, native runtime hashes, and actual local source operations. Verify that source-site requests continue while helper-service endpoints are unavailable.
 
 No fixed private-archive counts are CI assertions. Sanitized fixtures encode the relationship and value-shape bugs. Source versions and URLs are test inputs, not timeless assumptions.
 
@@ -1459,7 +1483,7 @@ Platform additions:
 - **iOS:** the signed build identity, SDK, OS/device architecture, entitlement profile, and native library digest.
 - **Android:** the signed app build, resolved SDK levels, device/ABI and WebView version, APK signing identity, ART host dependency profile, and native library digests.
 
-Record local/synthetic, live-network, emulator, and physical-device evidence separately.
+Record local/synthetic, replayed-capture, live capture-run, emulator/simulator, and physical-device evidence separately.
 
 Receipt settings use an allowlist of known non-secret keys. Passwords, tokens, cookies, authorization headers, and anything from secure-state APIs are redacted; do not hash secret values into committed evidence. Live qualification uses a fixed public query list and sanitized fixture libraries. Unresolved entries are counts or fixture IDs, never private library titles or raw user searches. Strip credential-bearing URL components. Worker stdout/stderr, browser traces, and HTTP traces remain private transient diagnostics until checked and redacted. The publication check rejects prohibited fields and seeded secret/title markers before any receipt is retained in the repository.
 
@@ -1474,23 +1498,23 @@ Receipt settings use an allowlist of known non-secret keys. Passwords, tokens, c
 - U5 confirms the vendored engine compiles for every advertised target (and whether Android x86 does) and migrates the Aidoku JS imports. On-device load and interruption behavior remain U10/U12 gates.
 - U3 and U5 produce the KTD25 benchmarks and sizing rules; no limit value is fixed before they exist.
 - U2 proves MangaFire's browser behaviour on WebKitGTK and WKWebView, or finds a workaround, before U8.
-- U6 pins real Paperback 0.8/0.9 catalogs and source bundles; no current three-source matrix is assumed. Missing required source coverage needs an explicit revision before claiming completion.
+- U6 pins real Paperback 0.8/0.9 catalogs and source bundles; no current three-source matrix is assumed. Missing required source coverage needs an explicit revision before claiming completion. The 0.8 MangaFire and MangaDex cells are already revised (kittycatgit Mangahub 4.0.0; community MangaDex 3.0.6; Key Decisions).
 - U7/U8 establish which Paperback app versions restore V4 `.pas4` backups and which Aidoku source ABIs correspond to the selected artifacts. Until verified, those specific targets remain disabled.
 
 #### M2 Android
 
-- U17 proves, before other M2 work, read-only APK staging and DEX loading in the `:source_runtime` process, CPU-loop termination with death acknowledgement and rebind, multi-process WebView behavior including the below-API-28 decision (confinement or minSdk 28), and the host dependency minimum SDK.
+- U17 proves, before other M2 work, read-only APK staging and DEX loading in the `:source_runtime` process, CPU-loop termination with death acknowledgement and rebind, multi-process WebView behavior including the below-API-28 decision (resolved: minSdk 28, Key Decisions), and the host dependency minimum SDK.
 - U11/U12 must prove the following. No claim follows from ART class loading alone.
   - Android host dependency compatibility and immutable APK staging.
   - Bounded service termination/rebind through the JNIgen-bound client facade.
-  - Service-process WebView initialization, including the below-API-28 decision (confinement or minSdk 28).
+  - Service-process WebView initialization at minSdk 28 (Key Decisions).
   - ABI-specific QuickJS interruption.
   - Actual source-scoped browser isolation (androidx.webkit multi-profile availability on tested WebView versions).
 - U13 must prove wasm3 and scraper load and run Aidoku sources on every advertised Android ABI.
 
 #### M3 iOS
 
-- U16 resolves, before other M3 work, a reproducible OpenJDK mobile Zero build, FFIgen-bound JNI invocation, safe CPU-loop interruption (Zero has no back-edge safepoint poll), and App Store Connect validation on a physical iPhone build. The inspected OpenJ9 reference app shows the architecture works; it does not supply the runtime.
+- U16 resolves, before other M3 work, a reproducible OpenJDK mobile Zero build, FFIgen-bound JNI invocation, safe CPU-loop interruption (Zero has no back-edge safepoint poll), and the local R18 checks on a physical iPhone build (App Store Connect validation is deferred to the TestFlight setup). The inspected OpenJ9 reference app shows the architecture works; it does not supply the runtime.
 - U9 resolves required bytecode rewrites, on-device dex2jar time, JAR rewriting and loading, and physical-device source execution.
 - U16 also proves MangaFire's browser behaviour on iOS WKWebView, or finds a workaround.
 - Building on U16's interruption proof, U9/U10 must demonstrate native interpreter deadlines and app-background behavior. Desktop process termination semantics cannot satisfy the iOS cancellation contract.
@@ -1531,7 +1555,7 @@ Each milestone is done independently. A milestone's completion is reported with 
 - U16, U9, U10, U18, and U15 meet their verification outcomes, with R13, R14, and R17 traced to physical-iPhone evidence.
 - Aidoku, Tachi (from verified repository JARs and from APKs via on-device dex2jar), and Paperback sources execute locally in a signed build, with Tachi reached from Dart through FFIgen bindings and no platform channel (KTD23). The shared conversion core builds all six directions on-device.
 - MangaFire's browser path passes on iOS WKWebView.
-- The build is App Store compliant (R18): interpreter-only execution, no downloaded native code, App Store Connect validation, privacy manifest, GPL notices with a source offer, and the committed guideline-mapping note.
+- The build is App Store compliant (R18), checked locally on an unsigned build: interpreter-only execution, no executable memory, no downloaded native code, privacy manifest, GPL notices with a source offer, and the committed guideline-mapping note. App Store Connect validation of a distribution-signed build is not part of M3; it moves to the TestFlight setup (Key Decisions).
 - iOS cancellation follows the proven native interruption and session-cleanup contract.
 - The app contains its pinned runtime artifacts and licenses.
 - This milestone delivers runtimes and an in-app harness, not a user-facing conversion screen; the deferred Flutter conversion UI project delivers the mobile user outcome.
@@ -1550,12 +1574,14 @@ Each milestone is done independently. A milestone's completion is reported with 
 
 #### QuickJS dependency
 
-Checked 2026-11-19. `pubspec.lock` resolves `quickjs` to `BooleanExtra/quickjs-dart` at `b42a1d6134ed97181ae40c1e4f7b56e593b364eb` with `ref: HEAD`. That repository is a fork of `lindeer/quickjs-dart`, 24 commits ahead and 1 behind. Upstream's newest release is `quickjs-v3`; the fork publishes `quickjs-v9`.
+Status 2026-11-20: superseded. U5 replaced the fork with `packages/quickjs/`, which compiles QuickJS-ng from the `vendor/quickjs` submodule pinned at `dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df` and exposes interrupts, memory and stack limits, and pending jobs; `pubspec.lock` no longer references the fork. The rest of this section is the planning-time record.
+
+Checked 2026-11-19. `pubspec.lock` resolved `quickjs` to `BooleanExtra/quickjs-dart` at `b42a1d6134ed97181ae40c1e4f7b56e593b364eb` with `ref: HEAD`. That repository is a fork of `lindeer/quickjs-dart`, 24 commits ahead and 1 behind. Upstream's newest release is `quickjs-v3`; the fork publishes `quickjs-v9`.
 - **What the fork adds:** an unpinned Dart SDK, Android and iOS builds, a macOS arm64 build, 32-bit ARM fixes, a web build-hook skip, and Windows MinGW static-linking fixes.
 - **How its binaries are built:** fork CI clones a Bellard-derived QuickJS (`quickjs-version` v3.0) from lindeer's mirror and builds it with MinGW on Windows, Xcode clang for iOS (`-mios-version-min=13.0`), and NDK clang for Android arm64, armv7, and x64. The hook downloads these from a moving `releases/latest/download` URL, so native bytes are not pinned.
 - **What neither offers:** an exposed interrupt handler for deadlines, memory and stack limits, and pending-job execution for the Paperback host.
 
-KTD24 replaces the fork with a vendored package compiled from a pinned submodule, so none of these prebuilt artifacts are used.
+KTD24 replaced the fork with a vendored package compiled from a pinned submodule, so none of these prebuilt artifacts are used.
 
 #### Tachi artifacts
 
@@ -1611,7 +1637,7 @@ External source code was inspected on 2026-11-19; moving branches must be pinned
 - [keiyoushi `WebView.kt` utilities](https://github.com/keiyoushi/extensions-source/blob/main/core/src/main/kotlin/keiyoushi/utils/WebView.kt): `runWebViewBlocking` constructs `android.webkit.WebView` directly with main-looper semantics; the surface KTD20's shim targets.
 - [QuickJS official embedding documentation](https://bellard.org/quickjs/quickjs.html): runtime ownership, memory limits, interrupts; the implementation binds the vendored engine's actual headers, not an assumed ABI.
 - [QuickJS-ng](https://github.com/quickjs-ng/quickjs): maintained QuickJS fork with MSVC support, the expected KTD24 engine.
-- [`BooleanExtra/quickjs-dart`](https://github.com/BooleanExtra/quickjs-dart) and its [comparison with `lindeer/quickjs-dart`](https://github.com/lindeer/quickjs-dart/compare/main...BooleanExtra:quickjs-dart:main): the current fork, its additions, and its `asset_build.yaml` build, which KTD24 replaces.
+- [`BooleanExtra/quickjs-dart`](https://github.com/BooleanExtra/quickjs-dart) and its [comparison with `lindeer/quickjs-dart`](https://github.com/lindeer/quickjs-dart/compare/main...BooleanExtra:quickjs-dart:main): the former fork, its additions, and its `asset_build.yaml` build, which KTD24 replaced (U5).
 - [Paperback 0.9 Application API](https://github.com/Paperback-iOS/paperback-toolchain/blob/0.9/packages/types/src/impl/Application.ts) and [0.8 Source API](https://github.com/Paperback-iOS/extensions-common/blob/master/src/base/Source.ts): host contracts for KTD6.
 - [Paperback 0.8 compatibility wrapper](https://github.com/Paperback-iOS/paperback-toolchain/blob/0.9/packages/types/src/compat/0.8/wrapper.ts): version adaptation reference, not proof that all legacy bundles work.
 - [WeebCentral Tachi source](https://github.com/keiyoushi/extensions-source/blob/main/src/en/weebcentral/src/eu/kanade/tachiyomi/extension/en/weebcentral/WeebCentral.kt) and [Aidoku source](https://github.com/Aidoku-Community/sources/blob/main/sources/en.weebcentral/src/lib.rs): HTML search/details/chapter coverage.

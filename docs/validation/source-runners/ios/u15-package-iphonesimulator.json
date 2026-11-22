@@ -1,0 +1,574 @@
+{
+  "app": "Runner.app",
+  "bundleId": "dev.getboolean.mangabackupconverter",
+  "version": "0.1.0 (0.1.0)",
+  "minimumOSVersion": "15.0",
+  "runtimeMinimum": "15.0",
+  "projectDeploymentTargets": [
+    "15.0"
+  ],
+  "platform": "IOSSIMULATOR",
+  "entitlements": null,
+  "binaries": [
+    {
+      "binary": "Runner",
+      "sha256": "907212ae251c0324dcfd1c017a09d441bd202222b898f7eecc8e6a802383ab8d",
+      "bytes": 89232,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/Runner.debug.dylib"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": [
+        "_dlopen"
+      ]
+    },
+    {
+      "binary": "App.framework",
+      "sha256": "aeaea48e4bae09369b9aebf78c29c22ef083740646edb665c78e2b15a7e1086a",
+      "bytes": 49568,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/App.framework/App"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "CocoaAsyncSocket.framework",
+      "sha256": "a15cc4067c793b114c562060bf5645800e55ad9939603656f4e5a54482499c2f",
+      "bytes": 838384,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CFNetwork.framework/CFNetwork",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/Security.framework/Security",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "@rpath/CocoaAsyncSocket.framework/CocoaAsyncSocket"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "Flutter.framework",
+      "sha256": "c88f28649d0fd02018ea09cb4c499b220c63cbd9e97f4fe5dd1d468a958eec7e",
+      "bytes": 87350112,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "26.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/Accessibility.framework/Accessibility",
+        "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "/System/Library/Frameworks/CoreMedia.framework/CoreMedia",
+        "/System/Library/Frameworks/CoreServices.framework/CoreServices",
+        "/System/Library/Frameworks/CoreText.framework/CoreText",
+        "/System/Library/Frameworks/CoreVideo.framework/CoreVideo",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit",
+        "/System/Library/Frameworks/IOSurface.framework/IOSurface",
+        "/System/Library/Frameworks/ImageIO.framework/ImageIO",
+        "/System/Library/Frameworks/Metal.framework/Metal",
+        "/System/Library/Frameworks/MetalPerformanceShaders.framework/MetalPerformanceShaders",
+        "/System/Library/Frameworks/MobileCoreServices.framework/MobileCoreServices",
+        "/System/Library/Frameworks/QuartzCore.framework/QuartzCore",
+        "/System/Library/Frameworks/Security.framework/Security",
+        "/System/Library/Frameworks/SwiftUI.framework/SwiftUI",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/System/Library/Frameworks/WebKit.framework/WebKit",
+        "/System/Library/Frameworks/_Translation_SwiftUI.framework/_Translation_SwiftUI",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "/usr/lib/swift/libswiftCore.dylib",
+        "/usr/lib/swift/libswiftCoreAudio.dylib",
+        "/usr/lib/swift/libswiftCoreFoundation.dylib",
+        "/usr/lib/swift/libswiftCoreGraphics.dylib",
+        "/usr/lib/swift/libswiftCoreImage.dylib",
+        "/usr/lib/swift/libswiftCoreMedia.dylib",
+        "/usr/lib/swift/libswiftDarwin.dylib",
+        "/usr/lib/swift/libswiftDispatch.dylib",
+        "/usr/lib/swift/libswiftFoundation.dylib",
+        "/usr/lib/swift/libswiftMetal.dylib",
+        "/usr/lib/swift/libswiftOSLog.dylib",
+        "/usr/lib/swift/libswiftObjectiveC.dylib",
+        "/usr/lib/swift/libswiftQuartzCore.dylib",
+        "/usr/lib/swift/libswiftSpatial.dylib",
+        "/usr/lib/swift/libswiftUIKit.dylib",
+        "/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib",
+        "/usr/lib/swift/libswiftXPC.dylib",
+        "/usr/lib/swift/libswift_Concurrency.dylib",
+        "/usr/lib/swift/libswiftos.dylib",
+        "/usr/lib/swift/libswiftsimd.dylib",
+        "@rpath/Flutter.framework/Flutter"
+      ],
+      "jitImports": [
+        "_sys_icache_invalidate"
+      ],
+      "jitImportsExplained": [
+        "_sys_icache_invalidate"
+      ],
+      "restrictedImports": [
+        "_dlopen",
+        "_mmap",
+        "_mprotect"
+      ]
+    },
+    {
+      "binary": "SwiftSoupWrapper.framework",
+      "sha256": "e28deeb12f59ef6fbbde086ea8fb9e96916547548206589c5c255d0ca4fe753b",
+      "bytes": 4997968,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "15.0",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libc++.1.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "/usr/lib/swift/libswiftCore.dylib",
+        "/usr/lib/swift/libswiftCoreFoundation.dylib",
+        "/usr/lib/swift/libswiftCoreImage.dylib",
+        "/usr/lib/swift/libswiftCoreLocation.dylib",
+        "/usr/lib/swift/libswiftDarwin.dylib",
+        "/usr/lib/swift/libswiftDispatch.dylib",
+        "/usr/lib/swift/libswiftFoundation.dylib",
+        "/usr/lib/swift/libswiftMetal.dylib",
+        "/usr/lib/swift/libswiftOSLog.dylib",
+        "/usr/lib/swift/libswiftObjectiveC.dylib",
+        "/usr/lib/swift/libswiftQuartzCore.dylib",
+        "/usr/lib/swift/libswiftSpatial.dylib",
+        "/usr/lib/swift/libswiftUIKit.dylib",
+        "/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib",
+        "/usr/lib/swift/libswiftXPC.dylib",
+        "/usr/lib/swift/libswiftos.dylib",
+        "/usr/lib/swift/libswiftsimd.dylib",
+        "@rpath/SwiftSoupWrapper.framework/SwiftSoupWrapper"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "device_info_plus.framework",
+      "sha256": "0300f24b9b806a59ac6e15793b53d689cb1cb21c742275858c262c9cd62d49a0",
+      "bytes": 105888,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "@rpath/Flutter.framework/Flutter",
+        "@rpath/device_info_plus.framework/device_info_plus"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "irondash_engine_context.framework",
+      "sha256": "49e8ab318cf913c1f209b4902bef31d35a7915d7d4372fb7718adbe1e6a5404d",
+      "bytes": 109216,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "@rpath/Flutter.framework/Flutter",
+        "@rpath/irondash_engine_context.framework/irondash_engine_context"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "objective_c.framework",
+      "sha256": "e9a0a3bc53bf5840fd16bf35d592af2633e96ed1447c24ba8e966db8906f9193",
+      "bytes": 311088,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/objective_c.framework/objective_c"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "patrol.framework",
+      "sha256": "cb1fb3b88ab0f2d022b3a57b2e0295a7bbe3f26aae27c9a7ba5e0e03268211c4",
+      "bytes": 5496896,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CFNetwork.framework/CFNetwork",
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/CoreServices.framework/CoreServices",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/Security.framework/Security",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libc++.1.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "/usr/lib/swift/libswiftCore.dylib",
+        "/usr/lib/swift/libswiftCoreAudio.dylib",
+        "/usr/lib/swift/libswiftCoreFoundation.dylib",
+        "/usr/lib/swift/libswiftCoreImage.dylib",
+        "/usr/lib/swift/libswiftCoreLocation.dylib",
+        "/usr/lib/swift/libswiftDarwin.dylib",
+        "/usr/lib/swift/libswiftDispatch.dylib",
+        "/usr/lib/swift/libswiftFoundation.dylib",
+        "/usr/lib/swift/libswiftMetal.dylib",
+        "/usr/lib/swift/libswiftOSLog.dylib",
+        "/usr/lib/swift/libswiftObjectiveC.dylib",
+        "/usr/lib/swift/libswiftQuartzCore.dylib",
+        "/usr/lib/swift/libswiftSpatial.dylib",
+        "/usr/lib/swift/libswiftUIKit.dylib",
+        "/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib",
+        "/usr/lib/swift/libswiftXPC.dylib",
+        "/usr/lib/swift/libswiftos.dylib",
+        "/usr/lib/swift/libswiftsimd.dylib",
+        "@rpath/CocoaAsyncSocket.framework/CocoaAsyncSocket",
+        "@rpath/Flutter.framework/Flutter",
+        "@rpath/XCTest.framework/XCTest",
+        "@rpath/patrol.framework/patrol"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "quickjs.framework",
+      "sha256": "aa56dc801f78aa8018dee18c96881cc89da26b45a5c57640babe3c7694126804",
+      "bytes": 2284720,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/quickjs.framework/quickjs"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    },
+    {
+      "binary": "source_runtime_ios.framework",
+      "sha256": "3997633e165329bdefe8a52b0d35fe9fa9aeeee59cb0caa63b34cd657603e174",
+      "bytes": 9542752,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/System/Library/Frameworks/Security.framework/Security",
+        "/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration",
+        "/System/Library/Frameworks/WebKit.framework/WebKit",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libc++.1.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "/usr/lib/libz.1.dylib",
+        "@rpath/source_runtime_ios.framework/source_runtime_ios"
+      ],
+      "jitImports": [
+        "_vm_protect",
+        "_vm_remap"
+      ],
+      "jitImportsExplained": [
+        "_vm_protect",
+        "_vm_remap"
+      ],
+      "restrictedImports": [
+        "_dlopen",
+        "_mmap",
+        "_mprotect"
+      ]
+    },
+    {
+      "binary": "sqlite3.framework",
+      "sha256": "f3bdcc307eb8e75126acceb1312a4a69381594e8b8ff7fb28bfeebf659329272",
+      "bytes": 3341536,
+      "platform": "IOSSIMULATOR",
+      "minos": "12.0",
+      "sdk": "18.5",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/sqlite3.framework/sqlite3"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": [
+        "_dlopen",
+        "_mmap"
+      ]
+    },
+    {
+      "binary": "super_native_extensions.framework",
+      "sha256": "458b55be35ad3dcb79576881c01d4e45ebf9748762d8924c8fe8c8ffb9054d4d",
+      "bytes": 27792512,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "/System/Library/Frameworks/CoreServices.framework/CoreServices",
+        "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "/usr/lib/libSystem.B.dylib",
+        "/usr/lib/libobjc.A.dylib",
+        "@rpath/Flutter.framework/Flutter",
+        "@rpath/super_native_extensions.framework/super_native_extensions"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": [
+        "_dlopen",
+        "_mmap"
+      ]
+    },
+    {
+      "binary": "wasm3.framework",
+      "sha256": "8483f1bb7edf1544c63025bf6bd1c9810273e4b059db861e9d98eb8f6ead3824",
+      "bytes": 284176,
+      "platform": "IOSSIMULATOR",
+      "minos": "15.0",
+      "sdk": "27.2",
+      "archs": [
+        "x86_64",
+        "arm64"
+      ],
+      "signature": "adhoc",
+      "links": [
+        "/usr/lib/libSystem.B.dylib",
+        "@rpath/wasm3.framework/wasm3"
+      ],
+      "jitImports": [],
+      "jitImportsExplained": [],
+      "restrictedImports": []
+    }
+  ],
+  "requiredReasonApis": {
+    "NSPrivacyAccessedAPICategoryFileTimestamp": {
+      "Flutter.framework": [
+        "_fstat",
+        "_lstat",
+        "_stat",
+        "_utimes"
+      ],
+      "source_runtime_ios.framework": [
+        "_fstat",
+        "_fstatat",
+        "_futimens",
+        "_lstat",
+        "_setattrlist",
+        "_stat",
+        "_utimensat",
+        "_utimes"
+      ],
+      "sqlite3.framework": [
+        "_fstat",
+        "_futimes",
+        "_lstat",
+        "_stat",
+        "_utimes"
+      ],
+      "super_native_extensions.framework": [
+        "_fstat",
+        "_fstatat",
+        "_lstat",
+        "_setattrlist",
+        "_stat"
+      ]
+    },
+    "NSPrivacyAccessedAPICategorySystemBootTime": {
+      "Flutter.framework": [
+        "_mach_absolute_time"
+      ],
+      "source_runtime_ios.framework": [
+        "_mach_absolute_time"
+      ]
+    },
+    "NSPrivacyAccessedAPICategoryDiskSpace": {
+      "source_runtime_ios.framework": [
+        "_fstatfs",
+        "_fstatvfs",
+        "_statfs",
+        "_statvfs"
+      ],
+      "sqlite3.framework": [
+        "_fstatfs",
+        "_statfs"
+      ]
+    }
+  },
+  "privacyManifestDeclares": [
+    "NSPrivacyAccessedAPICategoryDiskSpace",
+    "NSPrivacyAccessedAPICategoryFileTimestamp",
+    "NSPrivacyAccessedAPICategorySystemBootTime"
+  ],
+  "payloadTestOnlyFiles": [
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__tachiyomi-all.mangadex-v1.6.4.jar",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__tachiyomi-en.weebcentral-v1.6.27.apk",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__index-entry.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__tachiyomi-en.weebcentral-v1.6.27.jar",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__capture.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__desktop-artifacts.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__capture.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__capture.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__tachiyomi-all.mangadex-v1.6.4.apk",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__desktop-artifacts.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/test-signer.txt",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__index-entry.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__tachiyomi-all.mangafire-v1.6.38.apk",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__index-entry.json",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__tachiyomi-all.mangafire-v1.6.38.jar",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__desktop-artifacts.json",
+    "layout.txt lists ['fixture'] entries"
+  ],
+  "payloadRepositoryReferences": [
+    "Frameworks/App.framework/flutter_assets/kernel_blob.bin: raw.githubusercontent.com/keiyoushi",
+    "Frameworks/App.framework/flutter_assets/kernel_blob.bin: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/kernel_blob.bin: inkdex.github.io",
+    "Frameworks/App.framework/flutter_assets/kernel_blob.bin: aidoku.invalid",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__index-entry.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__desktop-artifacts.json: raw.githubusercontent.com/keiyoushi",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__desktop-artifacts.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__desktop-artifacts.json: raw.githubusercontent.com/keiyoushi",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__en.weebcentral__desktop-artifacts.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__index-entry.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__artifact.json: raw.githubusercontent.com/keiyoushi",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangadex__artifact.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__index-entry.json: keiyoushi/extensions",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__desktop-artifacts.json: raw.githubusercontent.com/keiyoushi",
+    "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime/data__all.mangafire__desktop-artifacts.json: keiyoushi/extensions"
+  ],
+  "runtimeLayoutKinds": [
+    "classpath",
+    "data",
+    "fixture",
+    "home",
+    "stamp"
+  ],
+  "gplNotices": [
+    "home__legal__ADDITIONAL_LICENSE_INFO",
+    "home__legal__ASSEMBLY_EXCEPTION",
+    "home__legal__LICENSE",
+    "home__legal__java.base__aes.md",
+    "home__legal__java.base__c-libutl.md",
+    "home__legal__java.base__cldr.md",
+    "home__legal__java.base__icu.md",
+    "home__legal__java.base__public_suffix.md",
+    "home__legal__java.base__siphash.md",
+    "home__legal__java.base__unicode.md",
+    "home__legal__java.base__zlib.md",
+    "home__legal__java.xml__bcel.md",
+    "home__legal__java.xml__dom.md",
+    "home__legal__java.xml__jcup.md",
+    "home__legal__java.xml__schema10part1.md",
+    "home__legal__java.xml__schema10part2.md",
+    "home__legal__java.xml__xalan.md",
+    "home__legal__java.xml__xerces.md",
+    "home__legal__java.xml__xhtml10.md",
+    "home__legal__java.xml__xhtml10schema.md",
+    "home__legal__java.xml__xhtml11.md",
+    "home__legal__java.xml__xhtml11schema.md",
+    "home__legal__java.xml__xmlspec.md",
+    "home__legal__java.xml__xmlxsd.md"
+  ],
+  "testPayloadAllowed": true,
+  "debugEngine": true,
+  "problems": [],
+  "pass": true,
+  "hostCommit": "b917611"
+}

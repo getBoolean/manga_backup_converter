@@ -1,0 +1,28 @@
+{
+  "kind": "source-runner-conversion",
+  "evidence": "replayed-capture",
+  "recordedAt": "2026-11-22T02:36:13.015099Z",
+  "hostCommit": "0a298169050ecfe137f8b32d9e3b65e215d57f72",
+  "hostDirty": false,
+  "os": "windows",
+  "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
+  "dart": "3.14.0",
+  "webview": {
+    "engine": "webview2",
+    "engineVersion": "157.0.4341.60"
+  },
+  "artifact": {
+    "kind": "paperback-bundle-0.9",
+    "url": "https://inkdex.github.io/extensions/0.9/stable/MangaFire/index.js",
+    "sha256": "193ba19c1f837f1f5a4ac2fe2a378c4546ce8cd048670ae93f684cbd4a280eab"
+  },
+  "apiFamily": "paperback-0.9",
+  "operation": "search, details and chapters (executeInWebView through the desktop helper, offline replay)",
+  "query": "Onimai",
+  "outcome": "passed: 30 search hits, details of the first hit with 86 chapters",
+  "browserCapture": "fixtures/source_captures/paperback/mangafire/browser",
+  "browserRequestsServed": 10,
+  "browserRequestsFailedClosed": 11,
+  "browserSessionsOpened": 2,
+  "helperExitedAfterOwnerClose": true
+}

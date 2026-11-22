@@ -1,0 +1,86 @@
+/// Portable manga backup conversion core (KTD14).
+///
+/// Pure Dart: no Flutter, terminal, concrete source loader, process launcher
+/// or platform storage. Composition roots (the CLI, mobile hosts) inject
+/// sources, selection, and I/O through the contracts exported here.
+library;
+
+// The rating type of every ExtensionEntry.
+export 'package:source_runtime/source_contracts.dart' show ContentRatingLevel;
+
+export 'src/common/aidoku_date_time_mapper.dart';
+export 'src/common/convertable.dart';
+export 'src/common/fix_double_encoding.dart';
+export 'src/common/language_code.dart';
+export 'src/common/legacy_proto_field.dart';
+export 'src/common/normalize_chapter_number.dart';
+export 'src/common/paperback_date_time_mapper.dart';
+export 'src/common/seconds_epoc_date_time_mapper.dart';
+export 'src/conversion/backup_format.dart';
+export 'src/conversion/chapter_data.dart';
+export 'src/conversion/conversion_job.dart';
+export 'src/conversion/conversion_journal.dart';
+export 'src/conversion/conversion_owner.dart';
+export 'src/conversion/conversion_plan.dart';
+export 'src/conversion/conversion_report.dart';
+export 'src/conversion/conversion_session.dart';
+export 'src/conversion/conversion_strategy.dart';
+export 'src/conversion/details_outcome.dart';
+export 'src/conversion/extension_entry.dart';
+export 'src/conversion/extension_resolution.dart';
+export 'src/conversion/extension_settings.dart';
+export 'src/conversion/format_registry.dart';
+export 'src/conversion/manga_details.dart';
+export 'src/conversion/match_confirmation.dart';
+export 'src/conversion/migration_pipeline.dart';
+export 'src/conversion/plugin_loader.dart';
+export 'src/conversion/plugin_source.dart';
+export 'src/conversion/repository_trust.dart';
+export 'src/conversion/runtime_registry.dart';
+export 'src/conversion/search_events.dart';
+export 'src/conversion/selection_port.dart';
+export 'src/conversion/session_plugin_source.dart';
+export 'src/conversion/source_language_policy.dart';
+export 'src/conversion/source_manga_data.dart';
+export 'src/conversion/source_rating_policy.dart';
+export 'src/conversion/stable_keys.dart';
+export 'src/conversion/target_backup_builder.dart';
+export 'src/exceptions/aidoku_exception.dart';
+export 'src/exceptions/base_exception.dart';
+export 'src/exceptions/migration_exception.dart';
+export 'src/exceptions/paperback_exception.dart';
+export 'src/exceptions/tachi_exception.dart';
+export 'src/formats/aidoku/aidoku_backup.dart';
+export 'src/formats/aidoku/aidoku_backup_chapter.dart';
+export 'src/formats/aidoku/aidoku_backup_history.dart';
+export 'src/formats/aidoku/aidoku_backup_library_manga.dart';
+export 'src/formats/aidoku/aidoku_backup_manga.dart';
+export 'src/formats/aidoku/aidoku_backup_track_item.dart';
+export 'src/formats/aidoku/aidoku_enums.dart';
+export 'src/formats/paperback/paperback_backup.dart';
+export 'src/formats/paperback/paperback_backup_chapter.dart';
+export 'src/formats/paperback/paperback_backup_chapter_progress_marker.dart';
+export 'src/formats/paperback/paperback_backup_item_reference.dart';
+export 'src/formats/paperback/paperback_backup_item_type.dart';
+export 'src/formats/paperback/paperback_backup_library_manga.dart';
+export 'src/formats/paperback/paperback_backup_library_tab.dart';
+export 'src/formats/paperback/paperback_backup_manga_info.dart';
+export 'src/formats/paperback/paperback_backup_source_manga.dart';
+export 'src/formats/tachi/neko_backup_merge_manga.dart';
+export 'src/formats/tachi/tachi_backup.dart';
+export 'src/formats/tachi/tachi_backup_category.dart';
+export 'src/formats/tachi/tachi_backup_chapter.dart';
+export 'src/formats/tachi/tachi_backup_extension_repo.dart';
+export 'src/formats/tachi/tachi_backup_history.dart';
+export 'src/formats/tachi/tachi_backup_manga.dart';
+export 'src/formats/tachi/tachi_backup_preference.dart';
+export 'src/formats/tachi/tachi_backup_source.dart';
+export 'src/formats/tachi/tachi_backup_source_preferences.dart';
+export 'src/formats/tachi/tachi_backup_tracking.dart';
+export 'src/formats/tachi/tachi_mihon_encoder.dart';
+export 'src/formats/tachi/tachi_update_strategy.dart';
+export 'src/reconciliation/chapter_decisions.dart';
+export 'src/reconciliation/chapter_reconciler.dart';
+export 'src/writers/aidoku_backup_builder.dart';
+export 'src/writers/paperback_backup_builder.dart';
+export 'src/writers/tachi_backup_builder.dart';

@@ -1,0 +1,39 @@
+{
+  "unit": "U13 native libraries per ABI",
+  "evidence": "Build inspection only; the arm64-v8a and armeabi-v7a libraries were packaged but not loaded on any device.",
+  "command": "flutter build apk --release (Flutter 3.50.0, default target platforms)",
+  "apkSha256": "38acbe0c5e8ef2423fb0207ccafba63e5b072be16e4eb45047eb6a1552fa057a",
+  "libraries": [
+    {
+      "path": "lib/arm64-v8a/libwasm3.so",
+      "bytes": 145640,
+      "elf": "ELF64 AArch64"
+    },
+    {
+      "path": "lib/arm64-v8a/libscraper_bridge.so",
+      "bytes": 2903640,
+      "elf": "ELF64 AArch64"
+    },
+    {
+      "path": "lib/armeabi-v7a/libwasm3.so",
+      "bytes": 129892,
+      "elf": "ELF32 ARM"
+    },
+    {
+      "path": "lib/armeabi-v7a/libscraper_bridge.so",
+      "bytes": 2003352,
+      "elf": "ELF32 ARM"
+    },
+    {
+      "path": "lib/x86_64/libwasm3.so",
+      "bytes": 142664,
+      "elf": "ELF64 x86-64"
+    },
+    {
+      "path": "lib/x86_64/libscraper_bridge.so",
+      "bytes": 3174456,
+      "elf": "ELF64 x86-64"
+    }
+  ],
+  "fixturesInReleaseApk": "none (no .aix or source_captures entries)"
+}

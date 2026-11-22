@@ -1,0 +1,48 @@
+{
+  "site": "mangahub",
+  "query": "Oshimai",
+  "recordedAt": "2026-11-21T07:56:15.888281Z",
+  "runs": [
+    {
+      "bundle": "kittycatgit-0.8/Mangahub",
+      "apiFamily": "paperback-0.8",
+      "sha256": "557bb6eca3576b4f90bab83fb14212c2022b90cb97d740562a9107aece671390",
+      "search": {
+        "hits": 11,
+        "first": {
+          "mangaId": "oshimai",
+          "title": "Oshimai"
+        },
+        "nextCursor": null
+      },
+      "details": {
+        "mangaId": "onii-chan-wa-oshimai",
+        "title": "Onii-Chan wa Oshimai",
+        "authors": [
+          "Nekotoufu"
+        ],
+        "status": "ongoing",
+        "chapters": 176,
+        "firstChapter": {
+          "chapterId": "117",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.8",
+            "sortingIndex": 176,
+            "langCode": "en"
+          },
+          "title": "Chapter 117",
+          "chapterNumber": 117.0,
+          "volumeNumber": null,
+          "scanlators": [],
+          "language": "en",
+          "dateUploaded": "2026-10-31T00:16:54.000Z",
+          "url": null
+        }
+      }
+    }
+  ],
+  "rerecorded": {
+    "kittycatgit-0.8/Mangahub": "2026-11-21T08:39:57.158611Z"
+  }
+}

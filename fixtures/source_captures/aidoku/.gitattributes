@@ -1,0 +1,2 @@
+# Capture bodies and manifests are digest-pinned; never normalise line endings.
+* -text

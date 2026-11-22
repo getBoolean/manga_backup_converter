@@ -30,8 +30,12 @@ typedef _SemDestroyDart = int Function(ffi.Pointer<ffi.Void>);
 // Windows typedefs
 // ---------------------------------------------------------------------------
 
-typedef _CreateSemaphoreC =
-    ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void>, ffi.Int32, ffi.Int32, ffi.Pointer<ffi.Void>);
+typedef _CreateSemaphoreC = ffi.Pointer<ffi.Void> Function(
+  ffi.Pointer<ffi.Void>,
+  ffi.Int32,
+  ffi.Int32,
+  ffi.Pointer<ffi.Void>,
+);
 typedef _CreateSemaphoreDart = ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void>, int, int, ffi.Pointer<ffi.Void>);
 
 typedef _WaitForSingleObjectC = ffi.Uint32 Function(ffi.Pointer<ffi.Void>, ffi.Uint32);

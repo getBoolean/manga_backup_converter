@@ -50,6 +50,26 @@ mangabackuputil convert -b <backup-file> -f <output-format> [-o <output-path>] [
 | `-o, --output` | Output file path (default: `<input>_converted.<ext>`) |
 | `-l, --log-file` | Log file path for interactive mode |
 | `-v, --verbose` | Show additional output |
+| `--webview-helper` | Desktop WebView helper manifest (defaults to the packaged runtime) |
+| `--tachi-runtime` | Tachi worker runtime manifest (defaults to the packaged runtime) |
+
+#### Desktop package and prerequisites
+
+Release packages (`mangabackupconverter-cli-windows.zip`, the Windows installer, and the Linux/macOS archives) carry
+everything the source runners need: the Tachi JVM worker with a bundled Amazon Corretto 21 runtime (at or above the
+21.0.13.1 security floor), the Paperback worker (the CLI executable itself), and the desktop WebView helper. No system
+Java, Dart, Gradle or Rust is needed. Keep the package's `bin/`, `lib/` and `runtime/` directories together.
+
+The WebView helper uses the platform's WebView, which is not bundled:
+
+- **Windows:** Microsoft Edge WebView2 Runtime (preinstalled on Windows 11).
+- **Linux:** WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`) and a graphical session.
+- **macOS:** the system WKWebView.
+
+Interactive runs may open the helper's window when a source needs a person to solve a challenge; unattended runs
+never open a window and report the source as needing interaction. Repositories, extensions and settings are always
+your own: the CLI ships none. Build a package yourself with `dart run scripts/package_cli.dart` (see
+[docs/source-runners.md](docs/source-runners.md#desktop-packaging-u8)).
 
 ### Merge
 
@@ -68,7 +88,7 @@ mangabackuputil merge -f <backup-file> -m <other-backup> [-o <output-folder>]
 
 ## Platforms
 
-- Windows, macOS, Linux (standalone CLI)
+- Windows, macOS, Linux (standalone CLI). Packaged with its runtime on Windows; the macOS and Linux packages are built in CI but not yet qualified
 - Flutter app planned (iOS, Android, macOS, Windows, Linux, Web)
 
 ## Contributing

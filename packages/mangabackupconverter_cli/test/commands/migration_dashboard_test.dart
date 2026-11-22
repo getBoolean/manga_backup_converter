@@ -4,13 +4,12 @@ library;
 import 'dart:async';
 
 import 'package:checks/checks.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/migration_dashboard.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/manga_details.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:test/scaffolding.dart';
+
+import '../support/test_refs.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,7 +29,7 @@ PluginSearchResult _result(
   String? mangaKey,
   List<PluginChapter> chapters = const [],
   PluginMangaDetails? details,
-}) => PluginSearchResult(
+}) => testResult(
   pluginSourceId: pluginId,
   mangaKey: mangaKey ?? title.toLowerCase().replaceAll(' ', '-'),
   title: title,
@@ -72,7 +71,7 @@ Future<List<MangaMatchConfirmation>> _runDashboard({
     pluginNames: pluginNames,
     manga: manga,
     onSearch: onSearch,
-    onFetchDetails: onFetchDetails,
+    onFetchDetails: legacyFetch(onFetchDetails),
   );
 
   // Wait for searches + enrichment to settle.
@@ -85,15 +84,18 @@ Future<List<MangaMatchConfirmation>> _runDashboard({
   input.add([0x79]); // 'y'
   await Future<void>.delayed(const Duration(milliseconds: 50));
 
-  final List<MangaMatchConfirmation> confirmations = await future;
-  context.dispose();
-  await input.close();
-  return confirmations;
+  try {
+    return await future;
+  } finally {
+    context.dispose();
+    await input.close();
+  }
 }
 
 void main() {
   group('MigrationDashboard', () {
-    test('enriches candidates and picks match with most chapters', () async {
+    test('does not auto-confirm by chapter count when several plugins match exactly (R8)', () async {
+      final fetched = <String>[];
       final List<MangaMatchConfirmation> results = await _runDashboard(
         manga: [_source('Naruto', chapters: 100)],
         onSearch: (String query) {
@@ -116,6 +118,7 @@ void main() {
           return controller.stream;
         },
         onFetchDetails: (String pluginSourceId, String mangaKey) async {
+          fetched.add(pluginSourceId);
           final chapterCount = pluginSourceId == 'pluginA' ? 50 : 200;
           return (
             PluginMangaDetails(
@@ -129,10 +132,74 @@ void main() {
         pluginNames: ['pluginA', 'pluginB'],
       );
 
+      // Two equally exact candidates require the user to choose; titles are
+      // all matching needs, so no candidate's details are fetched.
+      check(fetched).isEmpty();
       check(results).length.equals(1);
-      final PluginSearchResult match = results.first.confirmedMatch!;
-      check(match.pluginSourceId).equals('pluginB');
-      check(match.chapters).length.equals(200);
+      check(results.first.confirmedMatch).isNull();
+    });
+
+    test('does not auto-confirm a single candidate whose title is not an exact match', () async {
+      final List<MangaMatchConfirmation> results = await _runDashboard(
+        manga: [_source('Naruto')],
+        onSearch: (String query) {
+          final controller = StreamController<PluginSearchEvent>();
+          scheduleMicrotask(() {
+            controller.add(
+              PluginSearchResults(
+                pluginId: 'pluginA',
+                results: [_result('pluginA', 'Naruto Gaiden')],
+              ),
+            );
+            controller.close();
+          });
+          return controller.stream;
+        },
+        onFetchDetails: (String pluginSourceId, String mangaKey) async => (
+          PluginMangaDetails(key: mangaKey, title: 'Naruto Gaiden'),
+          _chapters(500),
+        ),
+      );
+
+      check(results).length.equals(1);
+      check(results.first.confirmedMatch).isNull();
+    });
+
+    test('auto-confirms the single exact-title candidate among plugins', () async {
+      final List<MangaMatchConfirmation> results = await _runDashboard(
+        manga: [_source('Naruto')],
+        onSearch: (String query) {
+          final controller = StreamController<PluginSearchEvent>();
+          scheduleMicrotask(() {
+            controller.add(
+              PluginSearchResults(
+                pluginId: 'pluginA',
+                results: [_result('pluginA', 'Naruto Gaiden')],
+              ),
+            );
+            controller.add(
+              PluginSearchResults(
+                pluginId: 'pluginB',
+                results: [_result('pluginB', 'naruto')],
+              ),
+            );
+            controller.close();
+          });
+          return controller.stream;
+        },
+        onFetchDetails: (String pluginSourceId, String mangaKey) async => (
+          PluginMangaDetails(key: mangaKey, title: mangaKey),
+          _chapters(pluginSourceId == 'pluginA' ? 900 : 1),
+        ),
+        pluginNames: ['pluginA', 'pluginB'],
+      );
+
+      check(results.first.confirmedMatch)
+          .isNotNull()
+          .has((PluginSearchResult r) => r.pluginSourceId, 'plugin')
+          .equals(
+            'pluginB',
+          );
     });
 
     test('takes only first result per plugin', () async {
@@ -281,6 +348,8 @@ void main() {
 
       check(results).length.equals(1);
       final PluginSearchResult match = results.first.confirmedMatch!;
+      // The confirmation carries the snapshot, so the pipeline reuses it.
+      check(match.fetched).isNotNull();
       check(match.authors).deepEquals(['Author A']);
       check(match.chapters).length.equals(42);
       check(match.details)
@@ -290,6 +359,52 @@ void main() {
             'url',
           )
           .equals('https://example.com/test');
+    });
+
+    test('the next search does not wait for enrichment, but accepting does', () async {
+      final release = Completer<void>();
+      final searched = <String>[];
+      var fetches = 0;
+      final output = StringBuffer();
+      final input = StreamController<List<int>>.broadcast();
+      final context = TerminalContext.test(output: output, inputStream: input.stream, height: 40, width: 120);
+      final Future<List<MangaMatchConfirmation>> future = MigrationDashboard().run(
+        context: context,
+        pluginNames: const ['plugin1'],
+        manga: [_source('Manga 1'), _source('Manga 2')],
+        onSearch: (String query) {
+          searched.add(query);
+          return Stream<PluginSearchEvent>.fromIterable(<PluginSearchEvent>[
+            PluginSearchResults(pluginId: 'plugin1', results: [_result('plugin1', query)]),
+          ]);
+        },
+        onFetchDetails: legacyFetch((String pluginSourceId, String mangaKey) async {
+          fetches++;
+          await release.future;
+          return (PluginMangaDetails(key: mangaKey, title: mangaKey), _chapters(2));
+        }),
+      );
+      var done = false;
+      unawaited(future.then((_) => done = true));
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        check(searched).deepEquals(['Manga 1', 'Manga 2']);
+        input.add([0x79]); // 'y' while details are still being fetched: ignored.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        check(done).isFalse();
+
+        release.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        input.add([0x79]);
+        final List<MangaMatchConfirmation> results = await future;
+        check(fetches).equals(2);
+        for (final r in results) {
+          check(r.confirmedMatch).isNotNull().has((PluginSearchResult m) => m.fetched, 'fetched').isNotNull();
+        }
+      } finally {
+        context.dispose();
+        await input.close();
+      }
     });
 
     test('multiple manga entries searched sequentially', () async {

@@ -1,0 +1,25 @@
+name: source_runtime
+description: >-
+  Backend-neutral source contracts, the desktop worker protocol and supervisor,
+  the BrowserPort contract, artifact cache, redaction, and capture replay.
+  Pure Dart; no Flutter dependency (KTD16).
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+resolution: workspace
+
+dependencies:
+  crypto: ^3.0.0
+  http: ^1.2.0
+  meta: ^1.12.0
+  path: ^1.9.0
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  source_runtime_testing:
+    path: ../source_runtime_testing
+  test: ^1.24.0

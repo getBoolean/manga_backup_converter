@@ -1,0 +1,24 @@
+Subject: [PATCH] ios: report the macos platform to java.base
+
+Source:  manga_backup_converter source runners (U16), original work
+Licence: GPLv2 (same as the patched OpenJDK files)
+
+jdk.internal.util.OperatingSystem has no IOS constant, so initialising it
+on an iOS build throws. iOS compiles the macOS (Darwin) class sources;
+generate PlatformProps with the canonical name macos.
+---
+diff --git a/make/modules/java.base/gensrc/GensrcMisc.gmk b/make/modules/java.base/gensrc/GensrcMisc.gmk
+index edb5e8bc5..018592c23 100644
+--- a/make/modules/java.base/gensrc/GensrcMisc.gmk
++++ b/make/modules/java.base/gensrc/GensrcMisc.gmk
+@@ -68,6 +68,10 @@ endif
+ # Normalize OPENJDK_TARGET_OS operating system name to match jdk.internal.util.OperatingSystem enum
+ ifeq ($(OPENJDK_TARGET_OS), macosx)
+   OPENJDK_TARGET_OS_CANONICAL = macos
++else ifeq ($(OPENJDK_TARGET_OS), ios)
++  # source-runner patch: java.base has no IOS OperatingSystem constant and the
++  # iOS build compiles the macOS (Darwin) class sources, so report macos.
++  OPENJDK_TARGET_OS_CANONICAL = macos
+ else
+   OPENJDK_TARGET_OS_CANONICAL := $(OPENJDK_TARGET_OS)
+ endif

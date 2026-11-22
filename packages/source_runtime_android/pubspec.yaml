@@ -1,0 +1,38 @@
+name: source_runtime_android
+description: >-
+  Android source runtime integration: a private `:source_runtime` service
+  process for Tachi APK sources, driven from Dart through JNIgen bindings.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+  flutter: ">=3.50.0 <4.0.0"
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  jni: ^1.2.1
+  jni_flutter: ^1.1.0
+  source_runtime:
+    path: ../source_runtime
+
+dev_dependencies:
+  app_lints:
+    path: ../app_lints
+  checks: ^0.3.0
+  jnigen: ^1.1.0
+  test: ^1.24.0
+
+flutter:
+  # Generated third-party notices of every library the APK bundles besides
+  # the Dart packages (scripts/generate_notices.dart android); registered with
+  # registerSourceRuntimeLicenses() and checked by
+  # scripts/android_package_check.py.
+  assets:
+    - notices/
+  plugin:
+    platforms:
+      android:
+        ffiPlugin: true

@@ -1,1 +1,4 @@
+analyzer:
+  exclude:
+    - build/**
 include: package:app_lints/analysis_options.yaml

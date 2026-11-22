@@ -1,0 +1,148 @@
+Subject: [PATCH] java.base: source-runner deadline check and error
+
+Source:  manga_backup_converter source runners (U16), original work
+Licence: GPLv2 with the Classpath exception (as java.base)
+
+Adds jdk.internal.misc.SourceRunnerDeadline (the poll target that the
+bytecode rewrite pass inserts before backward branches; KTD11 mechanism A)
+and SourceRunnerDeadlineError (thrown by that poll, and the object the
+embedder passes to JVMTI StopThread for mechanism B).
+---
+diff --git a/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadline.java b/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadline.java
+new file mode 100644
+index 0000000..7e75b6b
+--- /dev/null
++++ b/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadline.java
+@@ -0,0 +1,95 @@
++/*
++ * Copyright (c) 2026, manga_backup_converter contributors.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  The copyright holders designate
++ * this particular file as subject to the "Classpath" exception as provided
++ * in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ */
++
++package jdk.internal.misc;
++
++/**
++ * Cooperative source-runner deadlines (KTD11 mechanism A).
++ *
++ * The source runner's bytecode rewrite pass inserts a call to {@link #poll()}
++ * before every backward branch of extension code, host libraries and the
++ * rewritten class-library packages. The embedder marks a thread expired from
++ * its watchdog with {@link #expire(Thread)}; from then on every poll on that
++ * thread throws, so code that catches the error and loops again is stopped
++ * at its next backward branch. The embedder clears the mark when the call
++ * returns to it.
++ */
++public final class SourceRunnerDeadline {
++    private static final int MAX_EXPIRED = 64;
++    private static final Object LOCK = new Object();
++    private static final Thread[] EXPIRED = new Thread[MAX_EXPIRED];
++    private static volatile int expiredCount;
++
++    private SourceRunnerDeadline() {}
++
++    /** Inserted before backward branches; one static read when nothing is expired. */
++    public static void poll() {
++        if (expiredCount != 0) {
++            slowPoll();
++        }
++    }
++
++    private static void slowPoll() {
++        if (isExpired(Thread.currentThread())) {
++            throw new SourceRunnerDeadlineError();
++        }
++    }
++
++    /** Marks {@code thread} expired. Returns false if the table is full. */
++    public static boolean expire(Thread thread) {
++        synchronized (LOCK) {
++            int free = -1;
++            for (int i = 0; i < MAX_EXPIRED; i++) {
++                if (EXPIRED[i] == thread) {
++                    return true;
++                }
++                if (free < 0 && EXPIRED[i] == null) {
++                    free = i;
++                }
++            }
++            if (free < 0) {
++                return false;
++            }
++            EXPIRED[free] = thread;
++            expiredCount = expiredCount + 1;
++            return true;
++        }
++    }
++
++    /** Clears the expired mark for {@code thread}. */
++    public static void clear(Thread thread) {
++        synchronized (LOCK) {
++            for (int i = 0; i < MAX_EXPIRED; i++) {
++                if (EXPIRED[i] == thread) {
++                    EXPIRED[i] = null;
++                    expiredCount = expiredCount - 1;
++                }
++            }
++        }
++    }
++
++    public static boolean isExpired(Thread thread) {
++        synchronized (LOCK) {
++            for (int i = 0; i < MAX_EXPIRED; i++) {
++                if (EXPIRED[i] == thread) {
++                    return true;
++                }
++            }
++            return false;
++        }
++    }
++}
+diff --git a/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadlineError.java b/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadlineError.java
+new file mode 100644
+index 0000000..9a011fe
+--- /dev/null
++++ b/src/java.base/share/classes/jdk/internal/misc/SourceRunnerDeadlineError.java
+@@ -0,0 +1,31 @@
++/*
++ * Copyright (c) 2026, manga_backup_converter contributors.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  The copyright holders designate
++ * this particular file as subject to the "Classpath" exception as provided
++ * in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ */
++
++package jdk.internal.misc;
++
++/**
++ * Thrown into a source-runner thread whose operation deadline has passed,
++ * either by {@link SourceRunnerDeadline#poll()} or by the embedder through
++ * JVMTI StopThread.
++ */
++public final class SourceRunnerDeadlineError extends Error {
++    private static final long serialVersionUID = 1L;
++
++    public SourceRunnerDeadlineError() {
++        super("source operation deadline exceeded", null, false, false);
++    }
++}

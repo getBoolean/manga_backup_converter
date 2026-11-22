@@ -6,8 +6,8 @@ publish_to: none
 version: 0.1.0
 
 environment:
-  sdk: ^3.11.0
-  flutter: ">=3.29.0 <4.0.0"
+  sdk: ^3.14.0
+  flutter: ">=3.50.0 <4.0.0"
 
 workspace:
   - packages/*
@@ -20,11 +20,18 @@ dependencies:
     path: packages/assets
   scraper:
     path: packages/scraper
+  paperback_plugin_loader:
+    path: packages/paperback_plugin_loader
+  source_loaders:
+    path: packages/source_loaders
+  source_runtime_android:
+    path: packages/source_runtime_android
+  source_runtime_ios:
+    path: packages/source_runtime_ios
   swiftsoup:
     path: packages/swiftsoup
   quickjs:
-    git:
-      url: https://github.com/BooleanExtra/quickjs-dart
+    path: packages/quickjs
   wasm3:
     path: packages/wasm3
   awesome_flutter_extensions: ^1.2.0
@@ -52,14 +59,20 @@ dependencies:
   hooks_riverpod: ^3.0.0
   http: ^1.4.0
   logging: ^1.2.0
+  manga_backup_core:
+    path: packages/manga_backup_core
   package_info_plus: ^8.0.2
   path: ^1.9.0
   path_provider: ^2.1.5
   riverpod: ^3.0.0
-  riverpod_annotation: ^3.0.0
+  riverpod_annotation: ^4.0.0
   shared_preferences: ^2.3.3
   skeletonizer: ^2.1.3
+  source_runtime:
+    path: packages/source_runtime
   super_clipboard: ^0.9.1
+  tachi_plugin_loader:
+    path: packages/tachi_plugin_loader
   universal_html: ^2.2.4
   url_launcher: ^6.2.6
   window_manager: ^0.5.1
@@ -74,24 +87,32 @@ dependency_overrides:
 dev_dependencies:
   app_lints:
     path: packages/app_lints
+  archive: ^4.0.0
+  args: ^2.4.2
   build_runner: any
   build_verify: ^3.1.0
   change_app_package_name: ^1.1.0
-  custom_lint: ^0.8.0
+  checks: ^0.3.0
+  crypto: ^3.0.0
   dart_mappable_builder: ^4.2.3
   flutter_launcher_icons: ^0.14.3
   flutter_test:
     sdk: flutter
-  freezed: ^3.0.0
+  freezed: ^4.0.0
   integration_test:
     sdk: flutter
   mason: ^0.1.0-dev.52
   melos: ^7.4.0
   mocktail: ^1.0.3
   msix: ^3.16.7
+  # U10 iOS device cases (integration_test/source_runners_ios_paperback_browser_test.dart);
+  # dev-only, so nothing of the Paperback host or test captures enters a
+  # shipping build through the root app.
   patrol: ^4.1.1
-  riverpod_generator: ^3.0.0
-  riverpod_lint: ^3.0.0
+  riverpod_generator: ^4.0.0
+  riverpod_lint: ^3.2.0
+  source_runtime_testing:
+    path: packages/source_runtime_testing
   sqflite_common_ffi_web: ^0.4.3+1
 
 flutter:
@@ -147,8 +168,8 @@ melos:
         dependsOn: flutter
 
     lint:
-      run: melos run analyze && melos run custom_lint
-      description: Run `melos run analyze` and `melos run custom_lint` in all packages.
+      run: melos run analyze
+      description: Run `melos run analyze` in all packages (solid_lints and riverpod_lint run as analyzer plugins).
 
     # which use different versions of `path`.
     analyze:
@@ -161,19 +182,6 @@ melos:
         failFast: true
         # concurrency: 1
       description: Run `dart analyze` on all packages.
-
-    custom_lint:
-      run: melos run custom_lint:pkg --no-select
-      description: Run `dart run custom_lint` in all packages with custom lints.
-
-    custom_lint:pkg:
-      run: dart run custom_lint
-      exec:
-        failFast: true
-        # concurrency: 1
-      description: Run `dart run custom_lint` in the selected package.
-      packageFilters:
-        dependsOn: custom_lint
 
     upgrade:
       run: |
@@ -291,6 +299,14 @@ melos:
       description: Generate JNI bindings for jsoup (prepends bundled JRE to PATH).
       packageFilters:
         scope: jsoup_jni
+
+    jnigen:android:
+      exec: dart run tool/jnigen.dart
+      description: >-
+        Generate JNI bindings for the source_runtime_android Kotlin facade.
+        Build the Android app first (flutter build apk --debug).
+      packageFilters:
+        scope: source_runtime_android
 
     jni_setup:
       exec: dart run tool/generate_jni_bindings.dart --jni-setup

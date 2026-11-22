@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "ecosystem": "tachi",
+  "source": "all.mangadex",
+  "recordedAt": "2026-11-20T16:16:00Z",
+  "recordedBy": "U3 desktop Tachi worker (one manual download; tests never download)",
+  "notes": "Repository JAR and APK of the same release. Both verify against the keiyoushi signer (JAR: every entry signed; APK: apksig v2), so they share one trust identity. Loaded by tools/tachi-source-runner tests on both KTD5 paths; site responses for the fixed test query are in capture.json.",
+  "repository": {
+    "indexUrl": "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json",
+    "indexSha256AtCapture": "d477bbb98e3aa8257e9b0a13dd91f15120715227d279cf33367a70c1b7aff402",
+    "indexEntry": "index-entry.json",
+    "signingKeyFingerprint": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+  },
+  "artifacts": [
+    {
+      "path": "tachiyomi-all.mangadex-v1.6.4.jar",
+      "kind": "jar",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/d9420cd/tachiyomi-all.mangadex-v1.6.4.jar",
+      "sha256": "6bba080add3f0ce25622523996bec22bd4828d6fecfbd2b816d420d8af49cb86",
+      "size": 263497,
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangadex",
+      "versionName": "1.6.4",
+      "versionCode": 106004,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "jar"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    },
+    {
+      "path": "tachiyomi-all.mangadex-v1.6.4.apk",
+      "kind": "apk",
+      "sourceUrl": "https://github.com/keiyoushi/extensions/releases/download/d9420cd/tachiyomi-all.mangadex-v1.6.4.apk",
+      "sha256": "611bd20d91cdd4152b6d976081cc0cd4651208f7a153ddbef133f4ebba1688c3",
+      "size": 103358,
+      "packageName": "eu.kanade.tachiyomi.extension.all.mangadex",
+      "versionName": "1.6.4",
+      "versionCode": 106004,
+      "extensionLib": "1.6",
+      "factoryClass": "keiyoushi.source.Generated",
+      "signerCertificateSha256": "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+      "signatureSchemes": [
+        "v2"
+      ],
+      "licence": "Apache-2.0 (keiyoushi/extensions-source). Built and signed by the Keiyoushi project; retained unmodified as an interoperability test fixture."
+    }
+  ]
+}

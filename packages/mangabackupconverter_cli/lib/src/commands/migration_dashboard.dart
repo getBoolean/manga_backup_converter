@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/live_search_select.dart';
 import 'package:mangabackupconverter_cli/src/commands/manga_details_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 // ---------------------------------------------------------------------------
 // State
@@ -21,6 +20,13 @@ class MigrationEntry {
   PluginSearchResult? match;
   List<PluginSearchResult> candidates;
   List<PluginSearchFailure> failures;
+
+  /// The match whose details are being fetched in the background; accepting
+  /// waits for it so the confirmation carries the snapshot.
+  PluginSearchResult? enrichingFor;
+
+  /// Whether this entry still blocks acceptance.
+  bool get busy => selected && (searching || enrichingFor != null);
 }
 
 // ---------------------------------------------------------------------------
@@ -46,9 +52,12 @@ class _SearchDoneEvent extends _DashboardEvent {
 }
 
 class _EnrichmentDoneEvent extends _DashboardEvent {
-  _EnrichmentDoneEvent(this.entry, this.enrichedCandidates);
+  _EnrichmentDoneEvent(this.entry, this.original, this.outcome);
   final MigrationEntry entry;
-  final List<PluginSearchResult> enrichedCandidates;
+
+  /// The match that was sent for enrichment.
+  final PluginSearchResult original;
+  final DetailsOutcome outcome;
 }
 
 class _SpinnerTickEvent extends _DashboardEvent {}
@@ -63,11 +72,7 @@ class MigrationDashboard {
     required List<String> pluginNames,
     required List<SourceMangaData> manga,
     required Stream<PluginSearchEvent> Function(String query) onSearch,
-    required Future<(PluginMangaDetails, List<PluginChapter>)?> Function(
-      String pluginSourceId,
-      String mangaKey,
-    )
-    onFetchDetails,
+    required FetchDetails onFetchDetails,
   }) async {
     if (manga.isEmpty) return [];
 
@@ -82,17 +87,46 @@ class MigrationDashboard {
     // Listen for key events on shared KeyInput (broadcast stream).
     StreamSubscription<KeyEvent> keySub = context.keyInput.stream.listen((KeyEvent key) => events.add(_KeyEvent(key)));
 
-    // Search entries one at a time — each search enriches results with
-    // getMangaDetails which shares the plugin, so we avoid concurrent calls.
+    // Search entries one at a time. A confirmed match's details are fetched
+    // in the background (sessions queue overlapping calls), so the next
+    // search never waits for them.
     var nextSearchIndex = 0;
     StreamSubscription<PluginSearchEvent>? activeSub;
     MigrationEntry? activeEntry;
     final pendingRetries = <MigrationEntry>[];
 
+    // One details fetch per result: background enrichment and Tab share it.
+    // A failed fetch is forgotten so a later Tab retries it.
+    final details = <PluginSearchResult, Future<DetailsOutcome>>{};
+    Future<DetailsOutcome> detailsOf(PluginSearchResult r) {
+      final DetailsOutcome? known = r.fetchedOutcome;
+      if (known != null) return Future<DetailsOutcome>.value(known);
+      return details.putIfAbsent(
+        r,
+        () =>
+            Future<DetailsOutcome>(() => onFetchDetails(r.ref))
+                .onError<Object>((Object e, _) => DetailsFailed(SourceErrorFailure('$e')))
+                .then((DetailsOutcome o) {
+                  if (o is DetailsFailed) details.remove(r);
+                  return o;
+                }),
+      );
+    }
+
+    /// Replaces [entry]'s match with [original] enriched by [outcome], unless
+    /// the match changed meanwhile (a manual pick or a restarted search).
+    void applyDetails(MigrationEntry entry, PluginSearchResult original, DetailsOutcome outcome) {
+      final FetchedManga? fetched = outcome.fetchedOrNull;
+      if (fetched != null && identical(entry.match, original) && original.fetched == null) {
+        entry.match = original.enrichedWith(fetched);
+      }
+    }
+
     void startSearch(MigrationEntry entry) {
       entry.candidates.clear();
       entry.failures.clear();
       entry.match = null;
+      entry.enrichingFor = null;
       entry.searching = true;
       activeEntry = entry;
       final Stream<PluginSearchEvent> stream = onSearch(entry.source.details.title);
@@ -114,7 +148,9 @@ class MigrationDashboard {
       // Continue linear scan.
       while (nextSearchIndex < entries.length) {
         final MigrationEntry entry = entries[nextSearchIndex++];
-        if (!entry.selected) {
+        // Skip deselected entries and entries the user already chose manually
+        // (startSearch would discard the manual choice).
+        if (!entry.selected || entry.match != null) {
           entry.searching = false;
           continue;
         }
@@ -162,7 +198,7 @@ class MigrationDashboard {
       }
 
       lines.add('');
-      final bool allDone = !entries.any((MigrationEntry e) => e.searching && e.selected);
+      final bool allDone = !entries.any((MigrationEntry e) => e.busy);
       final acceptHint = allDone ? 'y to accept selections' : 'searching... ${spinner.frame}';
       lines.add(
         dim(acceptHint) +
@@ -216,22 +252,16 @@ class MigrationDashboard {
             await keySub.cancel();
             screen.clear();
 
+            final PluginSearchResult shown = tabEntry.match!;
+            DetailsOutcome? shownDetails;
             final detailsScreen = MangaDetailsScreen();
             await detailsScreen.run(
               context: context,
-              result: tabEntry.match!,
-              fetchDetails: (String mangaKey) {
-                if (tabEntry.match!.details != null) {
-                  return Future.value(
-                    (tabEntry.match!.details!, tabEntry.match!.chapters),
-                  );
-                }
-                return onFetchDetails(
-                  tabEntry.match!.pluginSourceId,
-                  mangaKey,
-                );
-              },
+              result: shown,
+              // Reuses enriched or in-flight details; otherwise fetches once.
+              fetchDetails: () async => shownDetails = await detailsOf(shown),
             );
+            if (shownDetails case final DetailsOutcome o) applyDetails(tabEntry, shown, o);
 
             keySub = context.keyInput.stream.listen(
               (KeyEvent key) => events.add(_KeyEvent(key)),
@@ -240,7 +270,7 @@ class MigrationDashboard {
             render();
 
           case _KeyEvent(key: CharKey(char: 'y')):
-            if (entries.any((MigrationEntry e) => e.searching && e.selected)) break;
+            if (entries.any((MigrationEntry e) => e.busy)) break;
             accepted = true;
             unawaited(events.close());
 
@@ -261,10 +291,13 @@ class MigrationDashboard {
               initialQuery: entry.source.details.title,
               onSearch: onSearch,
               onFetchDetails: onFetchDetails,
+              onFailure: entry.failures.add,
             );
             if (result != null) {
               entry.match = result;
+              entry.enrichingFor = null;
               entry.selected = true;
+              entry.searching = false;
             }
 
             // Re-queue interrupted search if it didn't complete.
@@ -294,54 +327,34 @@ class MigrationDashboard {
 
           case _SearchDoneEvent(:final entry):
             if (entry != activeEntry) break; // Stale event from cancelled sub.
-            if (entry.candidates.isEmpty) {
-              entry.searching = false;
-              activeEntry = null;
-              startNextSearch();
-              render();
-              break;
-            }
-            // Enrich top candidate from each plugin with details/chapters.
-            unawaited(
-              Future.wait(
-                entry.candidates.map((PluginSearchResult r) async {
-                  try {
-                    final (PluginMangaDetails, List<PluginChapter>)? result = await onFetchDetails(
-                      r.pluginSourceId,
-                      r.mangaKey,
-                    );
-                    if (result == null) return r;
-                    return PluginSearchResult(
-                      pluginSourceId: r.pluginSourceId,
-                      pluginSourceName: r.pluginSourceName,
-                      mangaKey: r.mangaKey,
-                      title: r.title,
-                      coverUrl: r.coverUrl,
-                      authors: result.$1.authors.isNotEmpty ? result.$1.authors : r.authors,
-                      details: result.$1,
-                      chapters: result.$2,
-                    );
-                  } on Object {
-                    return r; // Keep unenriched on failure.
-                  }
-                }),
-              ).then((List<PluginSearchResult> enriched) {
-                if (!events.isClosed) {
-                  events.add(_EnrichmentDoneEvent(entry, enriched));
-                }
-              }),
-            );
-
-          case _EnrichmentDoneEvent(:final entry, :final enrichedCandidates):
-            entry.candidates = enrichedCandidates;
-            entry.match = _findBestMatch(entry.candidates);
+            // R8: auto-confirm only an unambiguous exact-title match; titles
+            // are all it needs, so the next search starts right away.
+            final PluginSearchResult? match = uniqueExactTitleMatch(entry.source.details.title, entry.candidates);
+            entry.match = match;
             entry.searching = false;
             activeEntry = null;
+            if (match != null) {
+              // Fetch the match's details in the background for display; the
+              // enriched match carries the snapshot to the pipeline, which
+              // then does not fetch it again. A failed fetch leaves it
+              // unenriched; the pipeline retries it and reports the failure.
+              entry.enrichingFor = match;
+              unawaited(
+                detailsOf(match).then((DetailsOutcome o) {
+                  if (!events.isClosed) events.add(_EnrichmentDoneEvent(entry, match, o));
+                }),
+              );
+            }
             startNextSearch();
             render();
 
+          case _EnrichmentDoneEvent(:final entry, :final original, :final outcome):
+            if (identical(entry.enrichingFor, original)) entry.enrichingFor = null;
+            applyDetails(entry, original, outcome);
+            render();
+
           case _SpinnerTickEvent():
-            if (entries.any((MigrationEntry e) => e.searching && e.selected)) render();
+            if (entries.any((MigrationEntry e) => e.busy)) render();
 
           case _KeyEvent():
             break; // Unhandled keys.
@@ -365,6 +378,9 @@ class MigrationDashboard {
           (MigrationEntry e) => MangaMatchConfirmation(
             sourceManga: e.source,
             confirmedMatch: e.selected ? e.match : null,
+            // Deselecting is an explicit exclusion, not a loss.
+            excluded: !e.selected,
+            searchFailures: List<PluginSearchFailure>.of(e.failures),
           ),
         )
         .toList();
@@ -443,7 +459,11 @@ List<String> _renderEntry(MigrationEntry entry, bool isCursor, Spinner spinner, 
         if (errorHint.isNotEmpty) errorHint,
       ].join(' \u00B7 ');
       lines.add(infoLine.isNotEmpty ? truncate('$indent  ${dim(infoLine)}', width) : indent);
-    } else if (entry.failures.isNotEmpty && entry.candidates.isEmpty) {
+    } else if (entry.candidates.isNotEmpty) {
+      final int n = entry.candidates.length;
+      lines.add('$indent  ${yellow('$n candidate${n == 1 ? '' : 's'}, none confirmed automatically')}');
+      lines.add('$indent  ${dim('Enter to choose')}');
+    } else if (entry.failures.isNotEmpty) {
       lines.add('$indent  ${yellow('\u26A0 ${entry.failures.length} plugin error(s) (see log)')}');
       lines.add(indent);
     } else {
@@ -455,15 +475,19 @@ List<String> _renderEntry(MigrationEntry entry, bool isCursor, Spinner spinner, 
   return lines;
 }
 
-PluginSearchResult? _findBestMatch(List<PluginSearchResult> results) {
-  if (results.isEmpty) return null;
-  PluginSearchResult? best;
-  var bestChapters = -1;
-  for (final r in results) {
-    if (r.chapters.length > bestChapters) {
-      bestChapters = r.chapters.length;
-      best = r;
-    }
-  }
-  return best;
+/// Returns the single candidate, across all plugins, whose title exactly
+/// matches [title] (case-insensitive, whitespace-normalized), or `null` when
+/// there is none or more than one.
+///
+/// This is the only automatic manga confirmation (R8): chapter counts and
+/// result order are not evidence of identity, so anything else is left for
+/// the user to choose (interactive) or unresolved (non-interactive).
+PluginSearchResult? uniqueExactTitleMatch(String title, Iterable<PluginSearchResult> candidates) {
+  final String? wanted = normalizedChapterTitle(title);
+  if (wanted == null) return null;
+  final List<PluginSearchResult> exact = candidates
+      .where((PluginSearchResult r) => normalizedChapterTitle(r.title) == wanted)
+      .take(2)
+      .toList();
+  return exact.length == 1 ? exact.single : null;
 }

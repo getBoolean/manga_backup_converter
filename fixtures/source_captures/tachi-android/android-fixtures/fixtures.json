@@ -1,0 +1,86 @@
+{
+  "format": 1,
+  "notes": "Synthetic U11 fixture extensions (test-only signer); built by tools/tachi-source-runner/android/fixtures/build_fixtures.sh. No network.",
+  "repository": "https://fixtures.invalid/u11/repo",
+  "signingKeyFingerprint": "a4ae79f5036e7d1ae1644f9745241da16fe8bfba8eb5769a6c09b46744db7f8c",
+  "packages": {
+    "fixture.android.busy": {
+      "fixture": "busy",
+      "sha256": "9195460413a71abe341ddfee19c63167ca3da498df2fd6738a1ed135ca7def4e",
+      "sources": [
+        {
+          "id": "3937397761619167058",
+          "name": "Android Busy",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    },
+    "fixture.android.prefs": {
+      "fixture": "prefs",
+      "sha256": "1c9a05f69b4fbde1d4c0be6cc18d093f1ccfe98bf8711c470a2df42ccefa5c2a",
+      "sources": [
+        {
+          "id": "8474061521052628101",
+          "name": "Android Prefs",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    },
+    "fixture.android.big": {
+      "fixture": "big",
+      "sha256": "11d7556e6d4ca31a0edb4544fcd57bcd14f294311de2df05fc5d71eefdd73cb1",
+      "sources": [
+        {
+          "id": "4299564021742687904",
+          "name": "Android Big",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    },
+    "fixture.android.dup": {
+      "fixture": "dup",
+      "sha256": "db0173fc0d5ed4b9fb53cd6e51e94814097edf235b86eafe28eb575a26b33d8b",
+      "sources": [
+        {
+          "id": "2409223436869060766",
+          "name": "Android Dup",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    },
+    "fixture.android.dup2": {
+      "fixture": "dup2",
+      "sha256": "3f8d735499b2046cc0839ad305a6c7516663cfc691f2c67c59879520143f3cda",
+      "sources": [
+        {
+          "id": "2409223436869060766",
+          "name": "Android Dup",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    },
+    "fixture.android.cookies": {
+      "fixture": "cookies",
+      "sha256": "9d06872aca3aa4307258bc4ba08ff35cd3f79d4ceab77ad8d48b4e419f78a5c8",
+      "sources": [
+        {
+          "id": "799549823167104760",
+          "name": "Android Cookies A",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        },
+        {
+          "id": "2216374031117053527",
+          "name": "Android Cookies B",
+          "language": "en",
+          "homeUrl": "https://fixture.test"
+        }
+      ]
+    }
+  }
+}

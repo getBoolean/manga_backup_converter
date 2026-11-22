@@ -1,0 +1,19 @@
+{
+  "name": "U11 prefs",
+  "packageName": "fixture.android.prefs",
+  "resources": {
+    "apkUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.prefs.apk"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "1",
+  "versionName": "1.6.1",
+  "contentWarning": "CONTENT_WARNING_SAFE",
+  "sources": [
+    {
+      "id": "8474061521052628101",
+      "name": "Android Prefs",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    }
+  ]
+}

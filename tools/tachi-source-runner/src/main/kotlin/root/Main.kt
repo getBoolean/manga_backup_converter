@@ -1,0 +1,94 @@
+package mangabackup.tachi
+
+import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import mangabackup.tachi.host.HostTransport
+import mangabackup.tachi.host.SizingReport
+import mangabackup.tachi.host.replay.ReplayEgressGuard
+import mangabackup.tachi.host.replay.ReplayTransport
+import mangabackup.tachi.protocol.DesktopPlatform
+import mangabackup.tachi.protocol.Worker
+import mangabackup.tachi.protocol.WorkerOptions
+import mangabackup.tachi.webkit.BrowserBridge
+import mangabackup.tachi.webkit.CloudflareSolver
+import java.io.File
+import java.io.FileDescriptor
+import java.io.FileOutputStream
+import java.io.PrintStream
+import java.nio.file.Files
+import kotlin.system.exitProcess
+
+/** KTD1 security floor: Amazon Corretto 21.0.13.1 or later (Java4Shell fix). Raised with each security release. */
+val JRE_FLOOR: Runtime.Version = Runtime.Version.parse("21.0.13.1")
+
+fun jreMeetsFloor(version: Runtime.Version = Runtime.version()): Boolean = version.compareToIgnoreOptional(JRE_FLOOR) >= 0
+
+private fun usage(message: String): Nothing {
+    System.err.println("tachi-source-runner: $message")
+    System.err.println(
+        "usage: tachi-source-runner [--replay CAPTURE_DIR]... " +
+            "[--state-dir DIR] [--limit NAME=VALUE]... [--no-browser] [--interactive-challenges MS]",
+    )
+    exitProcess(64)
+}
+
+fun main(args: Array<String>) {
+    // Protocol frames own stdout. Anything else that prints goes to stderr.
+    val frames = FileOutputStream(FileDescriptor.out)
+    System.setOut(PrintStream(FileOutputStream(FileDescriptor.err), true, Charsets.UTF_8))
+
+    if (!jreMeetsFloor()) {
+        System.err.println("tachi-source-runner: Java ${Runtime.version()} is below the security floor $JRE_FLOOR; refusing to start")
+        exitProcess(3)
+    }
+
+    val replay = ArrayList<File>()
+    val limits = LinkedHashMap<String, Long>()
+    var stateDir: File? = null
+    var browser = true
+    var challengeMs: Long? = null
+    var i = 0
+    fun value(): String = args.getOrNull(++i) ?: usage("${args[i - 1]} needs a value")
+    while (i < args.size) {
+        when (val a = args[i]) {
+            "--replay" -> replay += File(value())
+            "--state-dir" -> stateDir = File(value())
+            "--limit" -> {
+                val (k, v) = value().split('=', limit = 2).takeIf { it.size == 2 } ?: usage("--limit needs NAME=VALUE")
+                limits[k] = v.toLongOrNull() ?: usage("--limit $k needs an integer")
+            }
+            "--no-browser" -> browser = false
+            // Interactive runs: a Cloudflare challenge is shown in the supervisor's browser window for at
+            // most MS (the same flag as the Android service). Without it challenges are interaction-required.
+            "--interactive-challenges" -> challengeMs = value().toLongOrNull()?.takeIf { it > 0 }
+                ?: usage("--interactive-challenges needs a positive millisecond bound")
+            else -> usage("unknown argument $a")
+        }
+        i++
+    }
+    val sizing = SizingReport.resolve(limits)
+        ?: usage("no committed sizing rule (tachi-worker-sizing.json) and --limit does not set every limit")
+    val root = stateDir ?: Files.createTempDirectory("tachi-worker-").toFile()
+    // Replay: block egress that bypasses the worker's OkHttp clients before anything resolves a name (L3).
+    val egressGuard = if (replay.isEmpty()) null else ReplayEgressGuard.install(ReplayEgressGuard.emptyHostsFile(root))
+    val transport: HostTransport = if (replay.isEmpty()) HostTransport.LIVE else ReplayTransport.start(replay)
+    val options = WorkerOptions(
+        sizing = sizing,
+        transport = transport,
+        networkMode = if (replay.isEmpty()) "live" else "replay",
+        stateRoot = root,
+        browser = browser,
+        platform = DesktopPlatform,
+    )
+    if (replay.isNotEmpty()) System.err.println("[worker] network mode: replay from ${replay.joinToString()} (fails closed on any uncaptured request)")
+    val code = try {
+        val worker = Worker(System.`in`, frames, options)
+        val bridge = worker.browser as? BrowserBridge
+        if (challengeMs != null && bridge != null) CloudflareInterceptor.challengeSolver = CloudflareSolver(bridge, challengeMs)
+        worker.run()
+    } finally {
+        (transport as? AutoCloseable)?.close()
+        egressGuard?.close()
+        if (stateDir == null) root.deleteRecursively()
+    }
+    exitProcess(code)
+}

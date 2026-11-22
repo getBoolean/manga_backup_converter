@@ -1,0 +1,373 @@
+{
+  "format": 1,
+  "ecosystem": "aidoku",
+  "source": "multi.mangadex",
+  "recordedAt": "2026-11-20T09:08:34.450014Z",
+  "recordedBy": "tool/capture_source_fixtures.dart",
+  "notes": "Replayed by packages/aidoku_plugin_loader/test/wasm/aidoku_plugin_native_test.dart",
+  "volatileQueryParameters": [
+    "createdAtSince"
+  ],
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/cabcae22ebc43bd8c803288ac61a2215e713e71e792031054a2133f087bdd246.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0",
+        "sha256": "cabcae22ebc43bd8c803288ac61a2215e713e71e792031054a2133f087bdd246",
+        "size": 80930,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0&title=Onimai",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/9a7bb50ebe5e98b3ceea96f7071a83297d6489c4180395f0349c7575fc3c5161.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0&title=Onimai",
+        "sha256": "9a7bb50ebe5e98b3ceea96f7071a83297d6489c4180395f0349c7575fc3c5161",
+        "size": 8818,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d?includes%5B%5D=artist&includes%5B%5D=author&includes%5B%5D=cover_art",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/716abcc33fafd130e83796f04f23850e7eba569d9bae4b439bb82e83aa7356ad.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d?includes%5B%5D=artist&includes%5B%5D=author&includes%5B%5D=cover_art",
+        "sha256": "716abcc33fafd130e83796f04f23850e7eba569d9bae4b439bb82e83aa7356ad",
+        "size": 7048,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includeUnavailable=1&includes%5B%5D=scanlation_group&includes%5B%5D=user&limit=500&order%5Bchapter%5D=desc&order%5Bvolume%5D=desc&translatedLanguage%5B%5D=en",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/670f47fc517419e48e050b07bfd2a09eb6dc4db51c12542fed064faa88382282.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga/ed996855-70de-449f-bba2-e8e24224c14d/feed?contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includeUnavailable=1&includes%5B%5D=scanlation_group&includes%5B%5D=user&limit=500&order%5Bchapter%5D=desc&order%5Bvolume%5D=desc&translatedLanguage%5B%5D=en",
+        "sha256": "670f47fc517419e48e050b07bfd2a09eb6dc4db51c12542fed064faa88382282",
+        "size": 222148,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/at-home/server/6eb2f8ea-3b6c-4bce-a0d0-d9224fad5b64",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/64c8aedfbf3d11883c7a7487bfada4edac340879845b45ac3062a528bc3662ff.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/at-home/server/6eb2f8ea-3b6c-4bce-a0d0-d9224fad5b64",
+        "sha256": "64c8aedfbf3d11883c7a7487bfada4edac340879845b45ac3062a528bc3662ff",
+        "size": 2192,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0&order%5BcreatedAt%5D=desc",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/e0eb6a42f98374c5da48feecd49577d43f3c15820e52ca4b23713f29779bc1c4.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&hasAvailableChapters=true&includes%5B%5D=cover_art&limit=20&offset=0&order%5BcreatedAt%5D=desc",
+        "sha256": "e0eb6a42f98374c5da48feecd49577d43f3c15820e52ca4b23713f29779bc1c4",
+        "size": 55321,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/list/f66ebc10-ef89-46d1-be96-bb704559e04a",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/b16feea461fb38bb04f481bf2028aa95af7ab64fae3e4c4389e8242edafb678d.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/list/f66ebc10-ef89-46d1-be96-bb704559e04a",
+        "sha256": "b16feea461fb38bb04f481bf2028aa95af7ab64fae3e4c4389e8242edafb678d",
+        "size": 993,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/list/805ba886-dd99-4aa4-b460-4bd7c7b71352",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/17a86456adecca32a43cd77c57e846e4ecf356c6424acb34e3561a9eec491426.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/list/805ba886-dd99-4aa4-b460-4bd7c7b71352",
+        "sha256": "17a86456adecca32a43cd77c57e846e4ecf356c6424acb34e3561a9eec491426",
+        "size": 1295,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/list/5c5e6e39-0b4b-413e-be59-27b1ba03d1b9",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/a916cbb8307041d4bce5b84fb8038043688bdd77f01808a6f808d41f84b8a3a0.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/list/5c5e6e39-0b4b-413e-be59-27b1ba03d1b9",
+        "sha256": "a916cbb8307041d4bce5b84fb8038043688bdd77f01808a6f808d41f84b8a3a0",
+        "size": 573,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/user/d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b/list",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/53b1f984ca7e5ec0f33d98d842675d24423b5e51ee6a8621a814ceb464683977.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/user/d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b/list",
+        "sha256": "53b1f984ca7e5ec0f33d98d842675d24423b5e51ee6a8621a814ceb464683977",
+        "size": 37163,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&createdAtSince=%2A&hasAvailableChapters=true&includes%5B%5D=artist&includes%5B%5D=author&includes%5B%5D=cover_art&order%5BfollowedCount%5D=desc",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/8d1a0ab7a4ee27ccd726bc10b51419db2f6a3556d9d84090485145b576d6fb56.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&createdAtSince=2026-10-20T22%3A35%3A06&hasAvailableChapters=true&includes%5B%5D=artist&includes%5B%5D=author&includes%5B%5D=cover_art&order%5BfollowedCount%5D=desc",
+        "sha256": "8d1a0ab7a4ee27ccd726bc10b51419db2f6a3556d9d84090485145b576d6fb56",
+        "size": 49763,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includes%5B%5D=cover_art&limit=15&order%5BcreatedAt%5D=desc",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/a6a881c3608960dc283e471f81e438c9097d41e66abb1349a85c3fb1b87d13c0.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includes%5B%5D=cover_art&limit=15&order%5BcreatedAt%5D=desc",
+        "sha256": "a6a881c3608960dc283e471f81e438c9097d41e66abb1349a85c3fb1b87d13c0",
+        "size": 36429,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/chapter?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includes%5B%5D=scanlation_group&limit=15&order%5BreadableAt%5D=desc&translatedLanguage%5B%5D=en",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/ebd8330e0b54bdf1963c4c7b9ea735d9435898fbb8925a6a24bb46c83b0c901f.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/chapter?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&includes%5B%5D=scanlation_group&limit=15&order%5BreadableAt%5D=desc&translatedLanguage%5B%5D=en",
+        "sha256": "ebd8330e0b54bdf1963c4c7b9ea735d9435898fbb8925a6a24bb46c83b0c901f",
+        "size": 17334,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=5d87d9cf-73ae-469b-80ed-0aaaffc42b03&ids%5B%5D=74ad3ad0-41e2-4919-a3dd-e5061c3444da&ids%5B%5D=a476ce7f-2fb8-4f6f-8337-fa62ce5034fb&ids%5B%5D=c2068513-1e3b-4e44-b8f5-b0ac5567aa2b&ids%5B%5D=c40bf165-81fa-499f-b368-48b353a968df&ids%5B%5D=dc4d5ca0-9c35-4f8d-8683-53fa100ce659&includes%5B%5D=cover_art",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/4c99b5831f95e1c00fbe46b6b3ca9afd63eb5ea2b488cfd9cec80825d418d34c.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=5d87d9cf-73ae-469b-80ed-0aaaffc42b03&ids%5B%5D=74ad3ad0-41e2-4919-a3dd-e5061c3444da&ids%5B%5D=a476ce7f-2fb8-4f6f-8337-fa62ce5034fb&ids%5B%5D=c2068513-1e3b-4e44-b8f5-b0ac5567aa2b&ids%5B%5D=c40bf165-81fa-499f-b368-48b353a968df&ids%5B%5D=dc4d5ca0-9c35-4f8d-8683-53fa100ce659&includes%5B%5D=cover_art",
+        "sha256": "4c99b5831f95e1c00fbe46b6b3ca9afd63eb5ea2b488cfd9cec80825d418d34c",
+        "size": 28296,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=0a857679-768f-4fe7-9026-790a01f03bee&ids%5B%5D=32089bd4-9e96-446a-a6b2-d37296ae348f&ids%5B%5D=396db045-15f2-4227-8cf1-46b7f936a7ac&ids%5B%5D=3e11f43e-3d91-47c8-a2ad-e2f23d36ad4c&ids%5B%5D=42c5d096-3410-4718-be54-aa6b4e903fce&ids%5B%5D=463fa8b3-5ebf-43df-9ed0-773d82157601&ids%5B%5D=6bc92700-2696-4ffe-a64a-6a3b479396e7&ids%5B%5D=76f3f3d6-2cdb-4aba-a80a-907e43bb6d31&ids%5B%5D=90cd8120-74d4-4146-8751-8c0849d1667f&ids%5B%5D=b802b061-8166-42d0-b2e2-7679c121cfb3&ids%5B%5D=d0fef7be-d7e7-4b1d-a30f-23702599bd05&ids%5B%5D=d7e6e960-35aa-4748-9d0a-249c552ed505&includes%5B%5D=cover_art&limit=100",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/f37f21f4467825db27b8df6f8d7d4b824cb9a151aad11bd69b584b268d529a23.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=0a857679-768f-4fe7-9026-790a01f03bee&ids%5B%5D=32089bd4-9e96-446a-a6b2-d37296ae348f&ids%5B%5D=396db045-15f2-4227-8cf1-46b7f936a7ac&ids%5B%5D=3e11f43e-3d91-47c8-a2ad-e2f23d36ad4c&ids%5B%5D=42c5d096-3410-4718-be54-aa6b4e903fce&ids%5B%5D=463fa8b3-5ebf-43df-9ed0-773d82157601&ids%5B%5D=6bc92700-2696-4ffe-a64a-6a3b479396e7&ids%5B%5D=76f3f3d6-2cdb-4aba-a80a-907e43bb6d31&ids%5B%5D=90cd8120-74d4-4146-8751-8c0849d1667f&ids%5B%5D=b802b061-8166-42d0-b2e2-7679c121cfb3&ids%5B%5D=d0fef7be-d7e7-4b1d-a30f-23702599bd05&ids%5B%5D=d7e6e960-35aa-4748-9d0a-249c552ed505&includes%5B%5D=cover_art&limit=100",
+        "sha256": "f37f21f4467825db27b8df6f8d7d4b824cb9a151aad11bd69b584b268d529a23",
+        "size": 43465,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=11ac676c-15c1-48ec-a289-91f798826ac5&ids%5B%5D=178d3cd8-4624-4afc-81b0-b2f260a1b28b&ids%5B%5D=19daf6ef-6d95-46e5-9e1a-f4e5b655902f&ids%5B%5D=4141c5dc-c525-4df5-afd7-cc7d192a832f&ids%5B%5D=6aca5618-378d-42a1-af2e-6f308890ab30&ids%5B%5D=6df29d13-2dab-4ca6-a0b5-74070abf3e1d&ids%5B%5D=78a664a7-2f4e-464b-b925-92984012f00c&ids%5B%5D=792e28fb-27be-425d-b92a-64e2d5474657&ids%5B%5D=84cb7ca0-78a8-4b7a-8a20-6fa9e67809d1&ids%5B%5D=8a9d2ae3-e896-4308-8c65-21e5e037cbef&ids%5B%5D=a711f7e2-d42e-4026-a2ff-03657d5bc6d2&ids%5B%5D=b2aab7a6-59be-4270-b942-5d7965ebcb19&ids%5B%5D=b80ee683-85a7-48ab-b57a-c9a3316653fe&ids%5B%5D=c4b1cb49-46e9-405d-8b48-8104de22e659&ids%5B%5D=d6643b6b-5a2e-4f94-8f30-13d4f5e4299a&ids%5B%5D=dc22c201-a2a8-40aa-a23f-69852b0c8d0f&ids%5B%5D=f7b62193-bdfb-4953-a6c6-0bd1b9a872f9&includes%5B%5D=cover_art&limit=100",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/307b1f657945813a4cb441de535d38580f7ad905829cf98643bf563f69dfb81f.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=11ac676c-15c1-48ec-a289-91f798826ac5&ids%5B%5D=178d3cd8-4624-4afc-81b0-b2f260a1b28b&ids%5B%5D=19daf6ef-6d95-46e5-9e1a-f4e5b655902f&ids%5B%5D=4141c5dc-c525-4df5-afd7-cc7d192a832f&ids%5B%5D=6aca5618-378d-42a1-af2e-6f308890ab30&ids%5B%5D=6df29d13-2dab-4ca6-a0b5-74070abf3e1d&ids%5B%5D=78a664a7-2f4e-464b-b925-92984012f00c&ids%5B%5D=792e28fb-27be-425d-b92a-64e2d5474657&ids%5B%5D=84cb7ca0-78a8-4b7a-8a20-6fa9e67809d1&ids%5B%5D=8a9d2ae3-e896-4308-8c65-21e5e037cbef&ids%5B%5D=a711f7e2-d42e-4026-a2ff-03657d5bc6d2&ids%5B%5D=b2aab7a6-59be-4270-b942-5d7965ebcb19&ids%5B%5D=b80ee683-85a7-48ab-b57a-c9a3316653fe&ids%5B%5D=c4b1cb49-46e9-405d-8b48-8104de22e659&ids%5B%5D=d6643b6b-5a2e-4f94-8f30-13d4f5e4299a&ids%5B%5D=dc22c201-a2a8-40aa-a23f-69852b0c8d0f&ids%5B%5D=f7b62193-bdfb-4953-a6c6-0bd1b9a872f9&includes%5B%5D=cover_art&limit=100",
+        "sha256": "307b1f657945813a4cb441de535d38580f7ad905829cf98643bf563f69dfb81f",
+        "size": 81637,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=2f3fbc84-df09-4913-ad2e-436aa52a7177&ids%5B%5D=4bd059de-e6d2-4aaf-b3d9-a7e5c8196d54&ids%5B%5D=4c20ff54-3dfe-4433-a1e3-274492cdb2fc&ids%5B%5D=8e74e420-b05e-4975-9844-676c7156bd63&ids%5B%5D=922dedaa-26d8-467c-8189-09e84f9a1af1&includes%5B%5D=cover_art&limit=100",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/dd0ecbf17775b589cd932364d3985c85c07a662b4f430172c291715b6717a3d1.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=2f3fbc84-df09-4913-ad2e-436aa52a7177&ids%5B%5D=4bd059de-e6d2-4aaf-b3d9-a7e5c8196d54&ids%5B%5D=4c20ff54-3dfe-4433-a1e3-274492cdb2fc&ids%5B%5D=8e74e420-b05e-4975-9844-676c7156bd63&ids%5B%5D=922dedaa-26d8-467c-8189-09e84f9a1af1&includes%5B%5D=cover_art&limit=100",
+        "sha256": "dd0ecbf17775b589cd932364d3985c85c07a662b4f430172c291715b6717a3d1",
+        "size": 24189,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=162146eb-672a-4a05-b3b2-0c6303f9614e&ids%5B%5D=20331b71-1d3f-4aed-b990-e54298424488&ids%5B%5D=37b87be0-b1f4-4507-affa-06c99ebb27f8&ids%5B%5D=38179337-1640-4927-8851-9bedd8d19e82&ids%5B%5D=39e52698-160c-4f1a-b368-8fa4ac461c03&ids%5B%5D=3e7d016d-43c8-4270-b83e-cbbe9d890505&ids%5B%5D=3fc308c9-4b00-4dc3-943e-1f39242bc708&ids%5B%5D=463b32af-1ddc-48db-a5e4-4799c8a2e412&ids%5B%5D=46663ee4-068c-41d8-a7b5-e4c6e5310c0d&ids%5B%5D=4f81654f-bbac-4519-b1e8-405d8b8734ba&ids%5B%5D=51071f70-a359-44ff-a9bb-c754bbef9231&ids%5B%5D=53afa9e9-6b61-49c2-a92f-a55c78d0f88f&ids%5B%5D=54202943-b55d-45a1-830f-44c9a8a691f0&ids%5B%5D=54e260dc-5519-41c3-853c-d5f2a252b10f&ids%5B%5D=59b36734-f2d6-46d7-97c0-06cfd2380852&ids%5B%5D=5cb6e7dd-0fd8-4aab-be7c-5446b007f9bb&ids%5B%5D=5d58bf5d-20d0-44d8-99d8-ee1f2e535580&ids%5B%5D=5e2bbcd5-e277-4d83-8513-6b15297f9bd1&ids%5B%5D=69aa984a-f5c0-4505-a11f-fe50e5fd16c9&ids%5B%5D=69ddf935-0f05-4030-bc5e-98b051da7904&ids%5B%5D=6a468761-5bd6-4de0-a0cb-47cb456ac2e0&ids%5B%5D=6c079564-363d-4d95-9410-4a841e6a33fb&ids%5B%5D=71ad0a8c-1a51-4f51-9a0a-5d20c1fa3ec5&ids%5B%5D=77fd8118-61b0-4b1f-95a6-2b839d754f81&ids%5B%5D=782211b2-44ca-44ae-89f2-8a1160221b96&ids%5B%5D=7bb7e5ae-a784-4009-98b2-8ad4a7541548&ids%5B%5D=80422e14-b9ad-4fda-970f-de370d5fa4e5&ids%5B%5D=822c9883-385c-4fd0-9523-16e7789cbeae&ids%5B%5D=83c91147-25d7-4fe7-883a-f62acd365fb9&ids%5B%5D=83de5c45-5a7e-4a96-b44f-3259fd7a9a0e&ids%5B%5D=85a99758-de39-471e-9f6d-800547f53d0a&ids%5B%5D=87867b65-90c0-4dc3-b36e-1c151cfa969b&ids%5B%5D=8791c515-0245-4fcc-81cc-22863a0aba6b&ids%5B%5D=8a769c56-f105-47da-9e70-9f7bafe1fd3b&ids%5B%5D=8aa1fb77-c86e-41db-adfb-0737c3438113&ids%5B%5D=944570ea-1b4e-4f80-ada6-8b30aa5b9a2c&ids%5B%5D=95cecdad-de3b-4e47-ade1-57c7add60dc1&ids%5B%5D=9a77c777-57be-4f48-8022-1a44f2619469&ids%5B%5D=9c756e83-1032-4338-82ca-47ae9d7f999a&ids%5B%5D=9d3d594f-c68d-43ff-b392-398cbe62541d&ids%5B%5D=a3f6923a-85c7-4b96-93e6-48c26d27467a&ids%5B%5D=a67996ca-ef48-4fd1-84d5-5319afd49108&ids%5B%5D=a72acc6e-2510-43c3-92e4-695c215fdd76&ids%5B%5D=b14dc351-d47d-4fff-9833-baade8458563&ids%5B%5D=b73371d4-02dd-4db0-b448-d9afa3d698f1&ids%5B%5D=b9c11202-60e0-4442-8960-765ee9460db8&ids%5B%5D=baa96f52-19a3-4fe1-8000-1019a083c088&ids%5B%5D=bb1f528f-de51-4b58-9878-c7ab55dd73c0&ids%5B%5D=c6dc99d1-4b39-4a7e-bfda-ad66fdff235f&ids%5B%5D=ca0797c5-b45c-4489-bd76-1cc82964d78b&ids%5B%5D=cabaab27-e76f-4737-807b-7dc948fca35a&ids%5B%5D=ce330ce2-47bb-414f-a887-d4c07948a2a5&ids%5B%5D=ce7cd7b0-e595-4f0d-98e8-447da10d652d&ids%5B%5D=cf4671b6-1ce0-478d-a9f3-366883bbf373&ids%5B%5D=cf58401e-91ae-452f-b79a-5c83f34f6804&ids%5B%5D=d2d0b8ea-4dfc-4d72-b584-5b26380f9bed&ids%5B%5D=d41bebac-1fd3-45dd-80f4-c371db540a2a&ids%5B%5D=d8beeb52-48c1-4197-8522-f8162c6d7764&ids%5B%5D=d96e32e7-6ffe-4978-9bb6-abab5feb5cbe&ids%5B%5D=d97db976-eeec-4eb4-8868-346fbd7ed1e5&ids%5B%5D=dbc4c472-0355-4a16-a81f-0708b27ad4bd&ids%5B%5D=e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c&ids%5B%5D=e660da42-375c-4fca-80f1-1afbe5342b8f&ids%5B%5D=e6f63437-f862-4084-b6d4-86effeabb6f3&ids%5B%5D=e7eabe96-aa17-476f-b431-2497d5e9d060&ids%5B%5D=ecad68c0-aa99-4148-89ec-07752de7834e&ids%5B%5D=ed5dddc0-999d-4fd2-a702-9fef1ec2c955&ids%5B%5D=fcfb3ec9-147f-4d43-aaea-3a73f42c8318&ids%5B%5D=febd3e05-6300-4105-95cc-2c39c19ce876&ids%5B%5D=fef2e4da-36f9-48e9-8317-2516f4b6ab14&includes%5B%5D=cover_art&limit=100",
+        "bodySha256": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "bodies/9346fe120c6f923238e8057bf2b6fd10c1cab29356ae00baef790c7aea100d71.bin"
+      },
+      "artifact": {
+        "sourceUrl": "https://api.mangadex.org/manga?contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&ids%5B%5D=162146eb-672a-4a05-b3b2-0c6303f9614e&ids%5B%5D=20331b71-1d3f-4aed-b990-e54298424488&ids%5B%5D=37b87be0-b1f4-4507-affa-06c99ebb27f8&ids%5B%5D=38179337-1640-4927-8851-9bedd8d19e82&ids%5B%5D=39e52698-160c-4f1a-b368-8fa4ac461c03&ids%5B%5D=3e7d016d-43c8-4270-b83e-cbbe9d890505&ids%5B%5D=3fc308c9-4b00-4dc3-943e-1f39242bc708&ids%5B%5D=463b32af-1ddc-48db-a5e4-4799c8a2e412&ids%5B%5D=46663ee4-068c-41d8-a7b5-e4c6e5310c0d&ids%5B%5D=4f81654f-bbac-4519-b1e8-405d8b8734ba&ids%5B%5D=51071f70-a359-44ff-a9bb-c754bbef9231&ids%5B%5D=53afa9e9-6b61-49c2-a92f-a55c78d0f88f&ids%5B%5D=54202943-b55d-45a1-830f-44c9a8a691f0&ids%5B%5D=54e260dc-5519-41c3-853c-d5f2a252b10f&ids%5B%5D=59b36734-f2d6-46d7-97c0-06cfd2380852&ids%5B%5D=5cb6e7dd-0fd8-4aab-be7c-5446b007f9bb&ids%5B%5D=5d58bf5d-20d0-44d8-99d8-ee1f2e535580&ids%5B%5D=5e2bbcd5-e277-4d83-8513-6b15297f9bd1&ids%5B%5D=69aa984a-f5c0-4505-a11f-fe50e5fd16c9&ids%5B%5D=69ddf935-0f05-4030-bc5e-98b051da7904&ids%5B%5D=6a468761-5bd6-4de0-a0cb-47cb456ac2e0&ids%5B%5D=6c079564-363d-4d95-9410-4a841e6a33fb&ids%5B%5D=71ad0a8c-1a51-4f51-9a0a-5d20c1fa3ec5&ids%5B%5D=77fd8118-61b0-4b1f-95a6-2b839d754f81&ids%5B%5D=782211b2-44ca-44ae-89f2-8a1160221b96&ids%5B%5D=7bb7e5ae-a784-4009-98b2-8ad4a7541548&ids%5B%5D=80422e14-b9ad-4fda-970f-de370d5fa4e5&ids%5B%5D=822c9883-385c-4fd0-9523-16e7789cbeae&ids%5B%5D=83c91147-25d7-4fe7-883a-f62acd365fb9&ids%5B%5D=83de5c45-5a7e-4a96-b44f-3259fd7a9a0e&ids%5B%5D=85a99758-de39-471e-9f6d-800547f53d0a&ids%5B%5D=87867b65-90c0-4dc3-b36e-1c151cfa969b&ids%5B%5D=8791c515-0245-4fcc-81cc-22863a0aba6b&ids%5B%5D=8a769c56-f105-47da-9e70-9f7bafe1fd3b&ids%5B%5D=8aa1fb77-c86e-41db-adfb-0737c3438113&ids%5B%5D=944570ea-1b4e-4f80-ada6-8b30aa5b9a2c&ids%5B%5D=95cecdad-de3b-4e47-ade1-57c7add60dc1&ids%5B%5D=9a77c777-57be-4f48-8022-1a44f2619469&ids%5B%5D=9c756e83-1032-4338-82ca-47ae9d7f999a&ids%5B%5D=9d3d594f-c68d-43ff-b392-398cbe62541d&ids%5B%5D=a3f6923a-85c7-4b96-93e6-48c26d27467a&ids%5B%5D=a67996ca-ef48-4fd1-84d5-5319afd49108&ids%5B%5D=a72acc6e-2510-43c3-92e4-695c215fdd76&ids%5B%5D=b14dc351-d47d-4fff-9833-baade8458563&ids%5B%5D=b73371d4-02dd-4db0-b448-d9afa3d698f1&ids%5B%5D=b9c11202-60e0-4442-8960-765ee9460db8&ids%5B%5D=baa96f52-19a3-4fe1-8000-1019a083c088&ids%5B%5D=bb1f528f-de51-4b58-9878-c7ab55dd73c0&ids%5B%5D=c6dc99d1-4b39-4a7e-bfda-ad66fdff235f&ids%5B%5D=ca0797c5-b45c-4489-bd76-1cc82964d78b&ids%5B%5D=cabaab27-e76f-4737-807b-7dc948fca35a&ids%5B%5D=ce330ce2-47bb-414f-a887-d4c07948a2a5&ids%5B%5D=ce7cd7b0-e595-4f0d-98e8-447da10d652d&ids%5B%5D=cf4671b6-1ce0-478d-a9f3-366883bbf373&ids%5B%5D=cf58401e-91ae-452f-b79a-5c83f34f6804&ids%5B%5D=d2d0b8ea-4dfc-4d72-b584-5b26380f9bed&ids%5B%5D=d41bebac-1fd3-45dd-80f4-c371db540a2a&ids%5B%5D=d8beeb52-48c1-4197-8522-f8162c6d7764&ids%5B%5D=d96e32e7-6ffe-4978-9bb6-abab5feb5cbe&ids%5B%5D=d97db976-eeec-4eb4-8868-346fbd7ed1e5&ids%5B%5D=dbc4c472-0355-4a16-a81f-0708b27ad4bd&ids%5B%5D=e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c&ids%5B%5D=e660da42-375c-4fca-80f1-1afbe5342b8f&ids%5B%5D=e6f63437-f862-4084-b6d4-86effeabb6f3&ids%5B%5D=e7eabe96-aa17-476f-b431-2497d5e9d060&ids%5B%5D=ecad68c0-aa99-4148-89ec-07752de7834e&ids%5B%5D=ed5dddc0-999d-4fd2-a702-9fef1ec2c955&ids%5B%5D=fcfb3ec9-147f-4d43-aaea-3a73f42c8318&ids%5B%5D=febd3e05-6300-4105-95cc-2c39c19ce876&ids%5B%5D=fef2e4da-36f9-48e9-8317-2516f4b6ab14&includes%5B%5D=cover_art&limit=100",
+        "sha256": "9346fe120c6f923238e8057bf2b6fd10c1cab29356ae00baef790c7aea100d71",
+        "size": 410975,
+        "licence": "Third-party MangaDex API response; not openly licensed; retained only as an interoperability test fixture."
+      }
+    }
+  ]
+}

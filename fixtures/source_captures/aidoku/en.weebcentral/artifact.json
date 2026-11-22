@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "ecosystem": "aidoku",
+  "source": "en.weebcentral",
+  "recordedAt": "2026-11-20T18:45:00Z",
+  "recordedBy": "U13 (manual capture run; tests never download)",
+  "notes": "The .aix was committed on 2026-02-19 by packages/aidoku_plugin_loader/tool/download_aix_fixtures.dart and was not re-downloaded for U13. sourceUrl is that tool's repository base joined with the committed index.json downloadURL. capture.json holds the site responses for the fixed test query (Onimai), recorded once with tool/capture_source_fixtures.dart.",
+  "repository": {
+    "indexUrl": "https://raw.githubusercontent.com/Aidoku-Community/sources/refs/heads/gh-pages/index.json",
+    "indexEntry": "packages/aidoku_plugin_loader/test/aidoku/fixtures/index.json (id en.weebcentral, version 6, contentRating 1)"
+  },
+  "artifacts": [
+    {
+      "path": "packages/aidoku_plugin_loader/test/aidoku/fixtures/en.weebcentral-v6.aix",
+      "kind": "aix",
+      "sourceUrl": "https://raw.githubusercontent.com/Aidoku-Community/sources/refs/heads/gh-pages/sources/en.weebcentral-v6.aix",
+      "sha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "size": 65276,
+      "sourceId": "en.weebcentral",
+      "version": 6,
+      "licence": "Apache-2.0 (Aidoku-Community/sources). Retained unmodified as an interoperability test fixture."
+    }
+  ]
+}

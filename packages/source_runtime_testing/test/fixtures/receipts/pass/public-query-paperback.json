@@ -1,0 +1,10 @@
+{
+  "kind": "source-operation",
+  "evidence": "live capture run",
+  "artifact": {"kind": "paperback-bundle-0.8", "url": "https://paperback.samipmainali.dev/kitty-0.8/Mangahub/source.js", "sha256": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"},
+  "operation": "details",
+  "query": "Oshimai",
+  "title": "Onii-Chan wa Oshimai",
+  "outcome": "completed",
+  "settings": {}
+}

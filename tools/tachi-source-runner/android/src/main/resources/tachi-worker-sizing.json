@@ -1,0 +1,15 @@
+{
+    "source": "docs/validation/source-runners/android/u11-benchmark-emulator-api36-pixel9pro-x86_64.json (2026-11-21, Pixel_9_Pro AVD API 36 x86_64, EMULATOR, PROVISIONAL until the physical ARM64 benchmark). Measured: qualification op p99, cancel settle, shutdown, handshake. Not measured (provisional bounds): pool size and heap per package.",
+    "coresFactor": 0.5,
+    "baseHeapMiB": 64.0,
+    "perPackageHeapMiB": 16.0,
+    "p99OperationMs": 4442.0,
+    "deadlineFactor": 30.0,
+    "maxCancelSettleMs": 7.0,
+    "maxShutdownMs": 415.0,
+    "graceFactor": 5.0,
+    "interactionTimeoutMs": 300000,
+    "maxPoolSize": 2,
+    "maxStartupToHandshakeMs": 2772.0,
+    "handshakeFactor": 5.0
+}

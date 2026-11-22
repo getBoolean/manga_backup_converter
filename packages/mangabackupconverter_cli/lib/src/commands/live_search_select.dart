@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/commands/manga_details_screen.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/migration_pipeline.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/plugin_source.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 // ---------------------------------------------------------------------------
 // Per-plugin status
@@ -17,6 +17,9 @@ class _PluginStatus {
   _PluginSearchState state = _PluginSearchState.searching;
   final String? name;
   final results = <PluginSearchResult>[];
+
+  /// Why the search failed, when it did.
+  SourceFailure? failure;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,11 +57,11 @@ class LiveSearchSelect {
     required TerminalContext context,
     required String initialQuery,
     required Stream<PluginSearchEvent> Function(String query) onSearch,
-    required Future<(PluginMangaDetails, List<PluginChapter>)?> Function(
-      String pluginSourceId,
-      String mangaKey,
-    )
-    onFetchDetails,
+    required FetchDetails onFetchDetails,
+
+    /// Receives every search failure seen while the screen was open, so the
+    /// caller can carry it into final accounting (U1 step 6).
+    void Function(PluginSearchFailure failure)? onFailure,
   }) async {
     final searchInput = SearchInputState(initialQuery);
     var cursorIndex = -1; // -1 = search bar, >= 0 = result index
@@ -215,7 +218,10 @@ class LiveSearchSelect {
           if (entry.value.state == _PluginSearchState.searching) {
             lines.add('  [$label] ${spinner.frame}');
           } else if (entry.value.state == _PluginSearchState.failed) {
-            lines.add('  ${yellow('[$label] ⚠ search failed')}');
+            final SourceFailure? failure = entry.value.failure;
+            lines.add(
+              truncate('  ${yellow('[$label] ⚠ search failed${failure == null ? '' : ' (${failure.code})'}')}', width),
+            );
           } else if (entry.value.state == _PluginSearchState.done && entry.value.results.isEmpty) {
             lines.add('  ${dim('[$label] no results')}');
           }
@@ -268,20 +274,25 @@ class LiveSearchSelect {
               await keySub.cancel();
               screen.clear();
 
+              DetailsOutcome? outcome;
               final detailsScreen = MangaDetailsScreen();
               final bool confirmed = await detailsScreen.run(
                 context: context,
                 result: result,
-                fetchDetails: (String mangaKey) {
-                  if (result.details != null) {
-                    return Future.value((result.details!, result.chapters));
-                  }
-                  return onFetchDetails(result.pluginSourceId, mangaKey);
-                },
+                fetchDetails: () async => outcome = result.fetchedOutcome ?? await onFetchDetails(result.ref),
               );
+              // Keep what was fetched: selecting the enriched result hands its
+              // snapshot to the pipeline, which then does not fetch it again.
+              final PluginSearchResult enriched = _enriched(result, outcome);
+              if (!identical(enriched, result)) {
+                for (final _PluginStatus status in pluginStatuses.values) {
+                  final int at = status.results.indexOf(result);
+                  if (at >= 0) status.results[at] = enriched;
+                }
+              }
 
               if (confirmed) {
-                selected = result;
+                selected = enriched;
                 unawaited(events.close());
                 break;
               }
@@ -326,8 +337,11 @@ class LiveSearchSelect {
             render();
 
           case _PluginResultEvent(:final generation, event: PluginSearchError(:final failure)):
+            onFailure?.call(failure);
             if (generation != searchGeneration) break;
-            pluginStatuses.putIfAbsent(failure.pluginId, _PluginStatus.new).state = _PluginSearchState.failed;
+            pluginStatuses.putIfAbsent(failure.pluginId, _PluginStatus.new)
+              ..state = _PluginSearchState.failed
+              ..failure = failure.failure;
             render();
 
           case _PluginStreamDoneEvent(:final generation):
@@ -359,4 +373,10 @@ class LiveSearchSelect {
 
     return selected;
   }
+}
+
+/// [result] enriched with a successful [outcome], or [result] itself.
+PluginSearchResult _enriched(PluginSearchResult result, DetailsOutcome? outcome) {
+  final FetchedManga? fetched = outcome?.fetchedOrNull;
+  return fetched == null || result.fetched != null ? result : result.enrichedWith(fetched);
 }

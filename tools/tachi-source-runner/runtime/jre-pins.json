@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "comment": "Pinned redistributable JDK archives the packaging script jlinks into the bundled JRE (KTD1). Amazon Corretto 21 at or above the 21.0.13.1 security floor. SHA-256 values were computed from the downloads on 2026-11-21 (trust on first download; Corretto publishes GPG signatures beside each archive, not checked here). Raise the version and every digest together with JRE_FLOOR in src/main/kotlin/root/Main.kt.",
+  "vendor": "Amazon Corretto",
+  "version": "21.0.13.1.2",
+  "securityFloor": "21.0.13.1",
+  "license": "GPL-2.0-only WITH Classpath-exception-2.0 (the archive's legal/ directory ships inside the jlinked image)",
+  "modules": [
+    "java.base",
+    "java.desktop",
+    "java.instrument",
+    "java.logging",
+    "java.management",
+    "java.naming",
+    "java.net.http",
+    "java.sql",
+    "java.xml",
+    "jdk.charsets",
+    "jdk.crypto.ec",
+    "jdk.localedata",
+    "jdk.unsupported",
+    "jdk.zipfs"
+  ],
+  "modulesComment": "jdeps over the worker's installDist classpath gives java.base, java.instrument, java.logging, java.net.http, java.xml and jdk.unsupported. Extensions are loaded at run time and are not visible to jdeps, so the image also carries what scraping code commonly reaches: charsets, locale data (date parsing), EC TLS, zipfs, management, naming, sql and desktop (java.awt image helpers).",
+  "archives": [
+    {
+      "os": "windows",
+      "arch": "x64",
+      "url": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-windows-x64-jdk.zip",
+      "sha256": "e91d8d38fe7af1e13ddde5c65d6c0cdd62d68fe091e9003464f5b45c422fb683"
+    },
+    {
+      "os": "linux",
+      "arch": "x64",
+      "url": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-linux-x64.tar.gz",
+      "sha256": "2aaa2a9a43143b20ff0b28c8d0da27407b97dc40b160d9a2f60a26965815e948"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64",
+      "url": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-linux-aarch64.tar.gz",
+      "sha256": "55751c47c7e3be3b33af43ccdcf3a6f4814d308390b7400477594d421bd16a53"
+    },
+    {
+      "os": "macos",
+      "arch": "x64",
+      "url": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-macosx-x64.tar.gz",
+      "sha256": "83095d9de2fe412151eede49e0373eeb5290bc0b82cc60cedb35e1da2d0a5ecc"
+    },
+    {
+      "os": "macos",
+      "arch": "arm64",
+      "url": "https://corretto.aws/downloads/resources/21.0.13.1.2/amazon-corretto-21.0.13.1.2-macosx-aarch64.tar.gz",
+      "sha256": "3e566c5b2760dc4f2199ac68b09a1b7c5381f228a336f3514a1aad4c113d474a"
+    }
+  ]
+}

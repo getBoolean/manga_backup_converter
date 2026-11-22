@@ -1,18 +1,13 @@
-// ignore_for_file: avoid_print
-
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:mangabackupconverter_cli/src/common/convertable.dart';
-import 'package:mangabackupconverter_cli/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/manga_backup_core.dart';
 import 'package:mangabackupconverter_cli/src/exceptions/tachimanga_exception.dart';
-import 'package:mangabackupconverter_cli/src/formats/tachi/tachi_backup.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_db_models.dart';
 import 'package:mangabackupconverter_cli/src/formats/tachimanga/tachimanga_backup_meta.dart';
-import 'package:mangabackupconverter_cli/src/pipeline/source_manga_data.dart';
 import 'package:propertylistserialization/propertylistserialization.dart';
 import 'package:xcode_parser/xcode_parser.dart';
 
@@ -53,19 +48,18 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
       throw TachimangaException('Could not decode Tachimanga backup "$archiveName", contents.zip not found');
     }
     final Archive contentArchive = ZipDecoder().decodeBytes(contentZipFile.content);
+    // App preferences are optional: a converted backup carries library data
+    // only, and writes neither file (restore without them: verify in U8).
     final ArchiveFile? prefFile = contentArchive.findFile('pref.json');
-    if (prefFile == null) {
-      throw TachimangaException('Could not decode Tachimanga backup "$archiveName", pref.json not found');
-    }
-    final pref = jsonDecode(String.fromCharCodes(prefFile.content)) as Map<String, Object?>;
+    final Map<String, Object?>? pref = prefFile == null
+        ? null
+        : jsonDecode(String.fromCharCodes(prefFile.content)) as Map<String, Object?>;
 
     // This json file is actually a pbxproj file
     final ArchiveFile? prefAllFile = contentArchive.findFile('pref-all.json');
-    if (prefAllFile == null) {
-      throw TachimangaException('Could not decode Tachimanga backup "$archiveName", pref-all.json not found');
-    }
-    final prefAllContent = String.fromCharCodes(prefAllFile.content);
-    final prefAll = Pbxproj.parse(prefAllContent, path: 'pref-all.json');
+    final Pbxproj? prefAll = prefAllFile == null
+        ? null
+        : Pbxproj.parse(String.fromCharCodes(prefAllFile.content), path: 'pref-all.json');
 
     final List<ArchiveFile> prefsFiles = contentArchive.files.where((ArchiveFile file) {
       return file.name.startsWith('prefs/') && file.name.endsWith('.plist');
@@ -184,15 +178,18 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
       return SourceMangaData(
         details: manga.toMangaSearchDetails(),
         sourceId: sourceId,
+        sourceMangaKey: manga.url,
         categories: categoryNames,
         chapters: mangaChapters.map((TachimangaBackupChapter c) {
           return SourceChapter(
             title: c.name,
+            chapterKey: c.url,
             chapterNumber: c.chapterNumber,
             scanlator: c.scanlator,
             isRead: c.read,
             isBookmarked: c.bookmark,
             lastPageRead: c.lastPageRead,
+            totalPages: c.pageCount > 0 ? c.pageCount : null,
             dateUploaded: c.dateUpload > 0 ? DateTime.fromMillisecondsSinceEpoch(c.dateUpload) : null,
             sourceOrder: c.sourceOrder,
           );
@@ -205,6 +202,7 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
               .firstOrNull;
           return SourceHistoryEntry(
             chapterTitle: ch?.name ?? 'Chapter ${h.lastChapterId}',
+            chapterKey: ch?.url,
             chapterNumber: ch?.chapterNumber,
             dateRead: h.lastReadAt > 0 ? DateTime.fromMillisecondsSinceEpoch(h.lastReadAt) : null,
             completed: ch?.read ?? false,
@@ -244,16 +242,20 @@ class TachimangaBackup with TachimangaBackupMappable implements ConvertableBacku
   static const TachimangaBackup Function(String json) fromJson = TachimangaBackupMapper.fromJson;
 
   @override
-  void verbosePrint(bool verbose) {
-    if (!verbose) return;
-    print('Imported Manga: ${db.mangaTable.length}');
-    print('Imported Chapters: ${db.chapterTable.length}');
-    print('Imported Manga History: ${db.historyTable.length}');
-    print('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
-    print('Imported Categories: ${db.categoryTable.length}');
-    print('Imported Sources: ${db.sourceTable.length}');
-    print('Imported Repos: ${db.repoTable.length}');
-    print('Tachimanga Backup Name: $name');
-    print('Tachimanga Version: ${meta.version}');
+  List<ExtractionLoss> get extractionLosses => const <ExtractionLoss>[];
+
+  @override
+  List<String> get diagnostics {
+    final lines = <String>[];
+    lines.add('Imported Manga: ${db.mangaTable.length}');
+    lines.add('Imported Chapters: ${db.chapterTable.length}');
+    lines.add('Imported Manga History: ${db.historyTable.length}');
+    lines.add('Imported Tracked Manga Items: ${db.trackRecordTable.length}');
+    lines.add('Imported Categories: ${db.categoryTable.length}');
+    lines.add('Imported Sources: ${db.sourceTable.length}');
+    lines.add('Imported Repos: ${db.repoTable.length}');
+    lines.add('Tachimanga Backup Name: $name');
+    lines.add('Tachimanga Version: ${meta.version}');
+    return lines;
   }
 }

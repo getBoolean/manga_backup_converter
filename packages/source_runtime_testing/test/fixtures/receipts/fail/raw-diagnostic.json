@@ -1,0 +1,1 @@
+{"operation": "search", "query": "Onimai", "outcome": "failed", "detail": "java.lang.IllegalStateException: boom\n\tat eu.kanade.tachiyomi.Foo.bar(Foo.kt:12)\n\tat java.base/java.lang.Thread.run(Thread.java:1583)"}

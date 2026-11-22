@@ -274,8 +274,7 @@ final class wasm_store_t extends ffi.Opaque {}
 
 enum wasm_mutability_enum {
   WASM_CONST(0),
-  WASM_VAR(1)
-  ;
+  WASM_VAR(1);
 
   final int value;
   const wasm_mutability_enum(this.value);
@@ -302,8 +301,7 @@ enum wasm_valkind_enum {
   WASM_F32(2),
   WASM_F64(3),
   WASM_EXTERNREF(128),
-  WASM_FUNCREF(129)
-  ;
+  WASM_FUNCREF(129);
 
   final int value;
   const wasm_valkind_enum(this.value);
@@ -327,8 +325,7 @@ enum wasm_externkind_enum {
   WASM_EXTERN_FUNC(0),
   WASM_EXTERN_GLOBAL(1),
   WASM_EXTERN_TABLE(2),
-  WASM_EXTERN_MEMORY(3)
-  ;
+  WASM_EXTERN_MEMORY(3);
 
   final int value;
   const wasm_externkind_enum(this.value);

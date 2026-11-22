@@ -1,0 +1,16 @@
+{
+    "source": "docs/validation/source-runners/desktop/benchmark-windows-11-2026-11-20-idle.json (2026-11-20T17:39:10.517983800Z, idle machine) for all limits except the handshake; docs/validation/source-runners/desktop/benchmark-windows-11.json (2026-11-21T04:27:40.191846500Z, loaded machine) for maxStartupToHandshakeMs; docs/validation/source-runners/desktop/browser-close-windows-2026-11-22.json (2026-11-22T10:04:37.714134Z, idle machine, WebView2 157) for p99BrowserCloseMs",
+    "coresFactor": 36.2,
+    "baseHeapMiB": 67.0,
+    "perPackageHeapMiB": 3.0,
+    "p99OperationMs": 4021.1,
+    "deadlineFactor": 50.0,
+    "maxCancelSettleMs": 5.9,
+    "maxShutdownMs": 55.0,
+    "graceFactor": 3.0,
+    "interactionTimeoutMs": 300000,
+    "maxPoolSize": 3,
+    "maxStartupToHandshakeMs": 3112.5,
+    "handshakeFactor": 10.0,
+    "p99BrowserCloseMs": 674.9
+}

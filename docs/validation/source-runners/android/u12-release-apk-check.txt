@@ -1,0 +1,15 @@
+U12 release APK check (flutter build apk --release, R8), 2026-11-21, feat/source-runners-u12 on feat/source-runners 28b44470 (head 5b584a5b)
+sha256: 4b2af8657ed77111853a576d88da8fef9a330bc49b8559c20bef79beae3b922b
+
+QuickJS per advertised ABI:
+  lib/arm64-v8a/libquickjs.so 1165048 bytes
+  lib/armeabi-v7a/libquickjs.so 1104344 bytes
+  lib/x86_64/libquickjs.so 1198600 bytes
+
+Fixture entries (source_captures/, capture.json, .aix): 0
+networkSecurityConfig in the release manifest: 0
+BrowserInteractionActivity in the release manifest: 1
+
+Facade class descriptors kept by name (dexdump): Ldev/getboolean/sourceruntime/browser/AppBrowserHost; Ldev/getboolean/sourceruntime/browser/AppBrowserListener; Ldev/getboolean/sourceruntime/browser/BrowserInteractionActivity; Ldev/getboolean/sourceruntime/browser/ProfileProbe; 
+
+Only the x86_64 build ran (emulator, debug); arm64-v8a and armeabi-v7a are verified by presence only. The release APK was not run.

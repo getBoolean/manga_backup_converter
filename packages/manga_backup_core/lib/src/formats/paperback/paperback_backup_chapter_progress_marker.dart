@@ -1,0 +1,31 @@
+import 'package:dart_mappable/dart_mappable.dart';
+import 'package:manga_backup_core/src/common/paperback_date_time_mapper.dart';
+import 'package:manga_backup_core/src/common/seconds_epoc_date_time_mapper.dart';
+import 'package:manga_backup_core/src/formats/paperback/paperback_backup_item_reference.dart';
+
+part 'paperback_backup_chapter_progress_marker.mapper.dart';
+
+@MappableClass(includeCustomMappers: <MapperBase<Object>>[SecondsEpochDateTimeMapper()])
+class PaperbackBackupChapterProgressMarker with PaperbackBackupChapterProgressMarkerMappable {
+  final int totalPages;
+  final bool completed;
+  final PaperbackBackupItemReference chapter;
+  final int lastPage;
+  @MappableField(hook: PaperbackDateHook())
+  final DateTime time;
+  final bool hidden;
+
+  PaperbackBackupChapterProgressMarker({
+    required this.totalPages,
+    required this.completed,
+    required this.chapter,
+    required this.lastPage,
+    required this.time,
+    required this.hidden,
+  });
+
+  static const PaperbackBackupChapterProgressMarker Function(Map<String, dynamic> map) fromMap =
+      PaperbackBackupChapterProgressMarkerMapper.fromMap;
+  static const PaperbackBackupChapterProgressMarker Function(String json) fromJson =
+      PaperbackBackupChapterProgressMarkerMapper.fromJson;
+}

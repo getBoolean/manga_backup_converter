@@ -5,6 +5,8 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:aidoku_plugin_loader/src/aidoku/_aidoku_decode.dart';
+import 'package:aidoku_plugin_loader/src/aidoku/aidoku_isolate_exited_exception.dart';
+import 'package:aidoku_plugin_loader/src/aidoku/aidoku_user_agent.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/aix_parser.dart';
 import 'package:aidoku_plugin_loader/src/aidoku/libs/host_store.dart';
 import 'package:aidoku_plugin_loader/src/codec/postcard_reader.dart';
@@ -30,17 +32,16 @@ import 'package:wasm_runner/wasm_runner.dart';
 /// POSIX/Win32 semaphore while the main isolate performs the async operation.
 class AidokuPlugin {
   AidokuPlugin._({
-    required SendPort wasmCmdPort,
-    required ReceivePort asyncPort,
-    required WasmSemaphore semaphore,
-    required WasmSharedState sharedState,
+    required this._wasmCmdPort,
+    required this._asyncPort,
+    required this._semaphore,
+    required this._sharedState,
     required this.sourceInfo,
     required this.settings,
     required this.filterDefinitions,
-  }) : _wasmCmdPort = wasmCmdPort,
-       _asyncPort = asyncPort,
-       _semaphore = semaphore,
-       _sharedState = sharedState;
+    required this._httpClient,
+    required this._exit,
+  });
 
   final SendPort _wasmCmdPort;
   final ReceivePort _asyncPort;
@@ -76,17 +77,30 @@ class AidokuPlugin {
     return result;
   }
 
-  // Shared HTTP client reused for the plugin's lifetime.
-  static final http.Client _httpClient = http.Client();
+  // Shared HTTP client reused for every plugin that is not given its own.
+  static final http.Client _sharedHttpClient = http.Client();
+
+  // HTTP client used for this plugin's `net::send` requests.
+  final http.Client _httpClient;
+
+  // Completes when the WASM isolate exits, for any reason (shutdown, an
+  // uncaught error, or a kill). Every reply wait races it, so a dead isolate
+  // fails the call instead of leaving `port.first` waiting forever.
+  final _IsolateExit _exit;
 
   // ---------------------------------------------------------------------------
   // Factory
   // ---------------------------------------------------------------------------
 
   /// Load a plugin from raw .aix file bytes.
+  ///
+  /// [httpClient] replaces the shared client used for the plugin's network
+  /// requests (for example a capture-replay client in tests). The caller owns
+  /// it; [dispose] does not close it.
   static Future<AidokuPlugin> fromAix(
     Uint8List aixBytes, {
     Map<String, dynamic>? defaults,
+    http.Client? httpClient,
   }) async {
     final AixBundle bundle = AixParser.parse(aixBytes);
 
@@ -140,6 +154,9 @@ class AidokuPlugin {
     // handshakePort: receives the WASM isolate's command port on startup.
     final handshakePort = ReceivePort();
 
+    // One port for both notifications keeps them ordered: an uncaught error
+    // is delivered before the exit that it causes.
+    final exit = _IsolateExit();
     await Isolate.spawn(
       wasmIsolateMain,
       WasmIsolateInit(
@@ -156,10 +173,11 @@ class AidokuPlugin {
         sourceId: sourceId,
         initialDefaults: initialDefaults,
       ),
+      onExit: exit.port.sendPort,
+      onError: exit.port.sendPort,
     );
 
-    final wasmCmdPort = await handshakePort.first as SendPort;
-    handshakePort.close();
+    final wasmCmdPort = await exit.race(handshakePort, 'start') as SendPort;
 
     final plugin = AidokuPlugin._(
       wasmCmdPort: wasmCmdPort,
@@ -169,6 +187,8 @@ class AidokuPlugin {
       sourceInfo: bundle.sourceInfo,
       settings: settings,
       filterDefinitions: filterDefinitions,
+      httpClient: httpClient ?? _sharedHttpClient,
+      exit: exit,
     );
 
     asyncPort.listen((Object? msg) async {
@@ -229,6 +249,12 @@ class AidokuPlugin {
         print('[wasm/net] $methodStr ${msg.url}');
         final request = http.Request(methodStr, uri);
         request.headers.addAll(msg.headers);
+        // Aidoku's own host adds its WebView user agent when the source sets
+        // none (WasmNet.swift, AidokuRunner.swift). Some sites (Weeb Central)
+        // refuse the Dart client's default `Dart/<version> (dart:io)`.
+        if (!request.headers.keys.any((String k) => k.toLowerCase() == 'user-agent')) {
+          request.headers['User-Agent'] = aidokuDefaultUserAgent;
+        }
         if (msg.body != null) {
           request.bodyBytes = Uint8List.fromList(msg.body!);
         }
@@ -286,7 +312,7 @@ class AidokuPlugin {
       ),
     );
     final (Uint8List? data, String? error, List<String> warnings) =
-        await port.first as (Uint8List?, String?, List<String>);
+        await _exit.race(port, 'WasmSearchCmd') as (Uint8List?, String?, List<String>);
     port.close();
     _recentWarnings.addAll(warnings);
     if (error != null) throw WasmRuntimeException(error);
@@ -309,7 +335,7 @@ class AidokuPlugin {
       ),
     );
     final (Uint8List? data, String? error, List<String> warnings) =
-        await port.first as (Uint8List?, String?, List<String>);
+        await _exit.race(port, 'WasmMangaDetailsCmd') as (Uint8List?, String?, List<String>);
     port.close();
     _recentWarnings.addAll(warnings);
     if (error != null) throw WasmRuntimeException(error);
@@ -331,7 +357,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmPageListCmd') as Uint8List?;
     port.close();
     if (data == null) return <Page>[];
     try {
@@ -348,7 +374,7 @@ class AidokuPlugin {
         : null;
     final port = ReceivePort();
     _wasmCmdPort.send(WasmMangaListCmd(listingBytes: listingBytes, page: page, replyPort: port.sendPort));
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmMangaListCmd') as Uint8List?;
     port.close();
     if (data == null) return const MangaPageResult(manga: <Manga>[], hasNextPage: false);
     try {
@@ -396,7 +422,7 @@ class AidokuPlugin {
     _wasmCmdPort.send(
       WasmAlternateCoversCmd(mangaBytes: encodeManga(manga), replyPort: port.sendPort),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmAlternateCoversCmd') as Uint8List?;
     port.close();
     if (data == null) return const <String>[];
     return decodeStringVecResult(data);
@@ -412,7 +438,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmImageRequestCmd') as Uint8List?;
     port.close();
     if (data == null) return null;
     return decodeImageRequestResult(data);
@@ -431,7 +457,7 @@ class AidokuPlugin {
     _wasmCmdPort.send(
       WasmPageDescriptionCmd(pageBytes: encodePage(page), replyPort: port.sendPort),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmPageDescriptionCmd') as Uint8List?;
     port.close();
     if (data == null) return null;
     return decodeStringResult(data);
@@ -450,7 +476,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmProcessPageImageCmd') as Uint8List?;
     port.close();
     return data;
   }
@@ -461,7 +487,7 @@ class AidokuPlugin {
     _wasmCmdPort.send(
       WasmNotificationCmd(notifBytes: encodeStringBytes(notification), replyPort: port.sendPort),
     );
-    await port.first;
+    await _exit.race(port, 'WasmNotificationCmd');
     port.close();
   }
 
@@ -469,7 +495,7 @@ class AidokuPlugin {
   Future<DeepLinkResult?> handleDeepLink(String url) async {
     final port = ReceivePort();
     _wasmCmdPort.send(WasmDeepLinkCmd(urlBytes: encodeStringBytes(url), replyPort: port.sendPort));
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmDeepLinkCmd') as Uint8List?;
     port.close();
     if (data == null) return null;
     return decodeDeepLinkResultFromBytes(data);
@@ -486,7 +512,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final Object? result = await port.first;
+    final Object? result = await _exit.race(port, 'WasmBasicLoginCmd');
     port.close();
     return result is bool && result;
   }
@@ -501,7 +527,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final Object? result = await port.first;
+    final Object? result = await _exit.race(port, 'WasmWebLoginCmd');
     port.close();
     return result is bool && result;
   }
@@ -512,7 +538,7 @@ class AidokuPlugin {
     _wasmCmdPort.send(
       WasmMangaMigrationCmd(keyBytes: encodeStringBytes(key), replyPort: port.sendPort),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmMangaMigrationCmd') as Uint8List?;
     port.close();
     if (data == null) return null;
     return decodeStringResult(data);
@@ -528,7 +554,7 @@ class AidokuPlugin {
         replyPort: port.sendPort,
       ),
     );
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, 'WasmChapterMigrationCmd') as Uint8List?;
     port.close();
     if (data == null) return null;
     return decodeStringResult(data);
@@ -541,6 +567,9 @@ class AidokuPlugin {
   /// Shut down the WASM background isolate and free native resources.
   void dispose() {
     _wasmCmdPort.send(const WasmShutdownCmd());
+    // Stop watching: later calls fail at once, and the open port no longer
+    // keeps this isolate alive if the WASM isolate is slow to exit.
+    _exit.close();
     _asyncPort.close();
     _semaphore.dispose();
     _sharedState.dispose();
@@ -554,9 +583,56 @@ class AidokuPlugin {
   Future<Uint8List?> _rawGet(String funcName) async {
     final port = ReceivePort();
     _wasmCmdPort.send(WasmRawGetCmd(funcName: funcName, replyPort: port.sendPort));
-    final data = await port.first as Uint8List?;
+    final data = await _exit.race(port, funcName) as Uint8List?;
     port.close();
     return data;
+  }
+}
+
+/// Watches the WASM isolate's exit and error notifications.
+final class _IsolateExit {
+  _IsolateExit() {
+    port.handler = (Object? message) {
+      if (message is List && message.isNotEmpty) {
+        // onError: [error, stackTrace] as strings.
+        _error ??= '${message.first}';
+        return;
+      }
+      // onExit: null.
+      close();
+    };
+  }
+
+  /// Treats the isolate as gone from now on.
+  void close() {
+    port.close();
+    if (!_exited.isCompleted) _exited.complete();
+  }
+
+  final RawReceivePort port = RawReceivePort();
+  final Completer<void> _exited = Completer<void>();
+  String? _error;
+
+  /// Waits for the first message on [reply], or fails with
+  /// [AidokuIsolateExitedException] once the isolate has exited. Closes
+  /// [reply] either way.
+  ///
+  /// Returns `dynamic`, like `ReceivePort.first`, so call sites keep their
+  /// existing reply casts.
+  Future<dynamic> race(ReceivePort reply, String operation) async {
+    final Future<dynamic> first = reply.first;
+    // The loser of the race must not surface as an unhandled error.
+    first.ignore();
+    try {
+      return await Future.any(<Future<dynamic>>[
+        first,
+        _exited.future.then<dynamic>(
+          (_) => throw AidokuIsolateExitedException(operation, error: _error),
+        ),
+      ]);
+    } finally {
+      reply.close();
+    }
   }
 }
 

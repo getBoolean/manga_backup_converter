@@ -1,0 +1,910 @@
+{
+  "unit": "U14 Android on-device conversion (M2)",
+  "evidence": "EMULATOR EVIDENCE (not a physical-device receipt; does not satisfy R16/AE9)",
+  "device": {
+    "avd": "Pixel_9_Pro",
+    "android": "16",
+    "sdkInt": 36,
+    "abi": "x86_64",
+    "webView": "com.google.android.webview 134.0.6998.135"
+  },
+  "build": "debug (JIT), android-x64, Flutter 3.50.0, branch feat/source-runners-u14",
+  "networkMode": "replayed captures only; WebViews behind the loopback refuser; no request reached a server",
+  "runs": [
+    {
+      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --reporter expanded (whole file: U13, U11, U12, U14) on branch head a8c4057d",
+      "result": {
+        "passed": 105,
+        "skipped": 3,
+        "failed": 0
+      },
+      "skips": [
+        "U12 KTD25 benchmark (opt-in, SRT_BENCH)",
+        "U12 contract case that applies only without a display",
+        "U14 manual backgrounding (SRT_MANUAL)"
+      ],
+      "cases": [
+        {
+          "case": "start",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "paperbackSizing": {
+            "rule": "quickjs-sizing-v2",
+            "limits": {
+              "memoryLimitBytes": 19420946,
+              "maxStackBytes": 433936,
+              "operationDeadlineMicros": 195619235,
+              "jobSliceMicros": 192384
+            },
+            "device": {
+              "physicalMemoryBytes": 4104826880,
+              "threadStackBytes": 1062839,
+              "processors": 4,
+              "calibrationMicros": 122982
+            },
+            "profile": {
+              "source": "U6 real Paperback bundles (14 workloads, replayed captures), windows AOT",
+              "peakHeapBytes": 9710473,
+              "peakStackBytes": 216968,
+              "slowestOperationMicros": 2389048,
+              "referenceCalibrationMicros": 122176
+            },
+            "policy": {
+              "heapHeadroom": 2.0,
+              "stackHeadroom": 2.0,
+              "deadlineHeadroom": 4.0,
+              "maxMemoryShare": 0.25,
+              "maxThreadStackShare": 0.5,
+              "slicesPerDeadline": 50
+            },
+            "concurrentRuntimes": 1,
+            "hostWaitAllowanceMicros": 186000000,
+            "warnings": []
+          },
+          "aidokuRegistered": true,
+          "browserPort": {
+            "multiProfile": true,
+            "features": {
+              "MULTI_PROFILE": true,
+              "WEB_MESSAGE_LISTENER": true,
+              "DOCUMENT_START_SCRIPT": true,
+              "PROXY_OVERRIDE": true,
+              "GET_COOKIE_INFO": true
+            },
+            "webViewPackage": "com.google.android.webview 134.0.6998.135",
+            "startedActivities": 1,
+            "offlineProxy": "127.0.0.1:45725"
+          },
+          "browserUnavailable": null,
+          "webViewOfflineUnavailable": null,
+          "tachiArguments": [
+            "--replay",
+            "all.mangadex",
+            "--replay",
+            "en.weebcentral",
+            "--replay",
+            "all.mangafire",
+            "--offline-browser"
+          ],
+          "tachiHandshakeDeadlineMs": 13860,
+          "dart": "3.14.0 (stable) (Wed Nov 4 16:28:39 2026 -0800) on \"android_x64\"",
+          "foreignServicePids": 1
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "paperback -> aidoku",
+          "runtime": "aidoku",
+          "emittedSourceId": "en.weebcentral",
+          "runtimeSourceId": "en.weebcentral",
+          "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+          "artifactKind": "aix",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 12667,
+          "outputSha256": "20e6487600db08c6ab40a68345598ab87662024ecad4b900f987972d66e788e3",
+          "publishedInAppStorage": true,
+          "elapsedMs": 1120,
+          "maxMainLoopGapMs": 508,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": [
+              11472
+            ]
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "mihon -> aidoku",
+          "runtime": "aidoku",
+          "emittedSourceId": "en.weebcentral",
+          "runtimeSourceId": "en.weebcentral",
+          "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+          "artifactKind": "aix",
+          "chapters": 114,
+          "statefulChapters": 3,
+          "transferred": 3,
+          "losses": 0,
+          "outputBytes": 12651,
+          "outputSha256": "fd6506a435109e0196388599e65a8061be3ad538c2a6ed3f89bbb89dbe815d4d",
+          "publishedInAppStorage": true,
+          "elapsedMs": 508,
+          "maxMainLoopGapMs": 227,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": [
+              11472
+            ]
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> paperback",
+          "runtime": "paperback",
+          "emittedSourceId": "WeebCentral",
+          "runtimeSourceId": "WeebCentral",
+          "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+          "artifactKind": "paperback-bundle-0.9",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 8231,
+          "outputSha256": "2fc192990bc739fd61f5f0f7175dbb8e6b2d7316c0686439f23d1c1363443051",
+          "publishedInAppStorage": true,
+          "elapsedMs": 3979,
+          "maxMainLoopGapMs": 391,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": [
+              11472
+            ]
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "mihon -> paperback",
+          "runtime": "paperback",
+          "emittedSourceId": "WeebCentral",
+          "runtimeSourceId": "WeebCentral",
+          "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+          "artifactKind": "paperback-bundle-0.9",
+          "chapters": 114,
+          "statefulChapters": 3,
+          "transferred": 3,
+          "losses": 0,
+          "outputBytes": 8230,
+          "outputSha256": "afb1aead7dda26220a81b1f7103d39008891d1d3d3eeae9d8f19344cef8c6802",
+          "publishedInAppStorage": true,
+          "elapsedMs": 3388,
+          "maxMainLoopGapMs": 102,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": [
+              11472
+            ]
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3155,
+          "outputSha256": "e9b7b49e892769db49709f918fe37e2547c74a248601e6439529662a9949d04d",
+          "publishedInAppStorage": true,
+          "elapsedMs": 9596,
+          "maxMainLoopGapMs": 72,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "paperback -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3150,
+          "outputSha256": "d09653ab0b68ab1fa690dee5476312ec5a790d8046811dacdd58e120e9ccbebd",
+          "publishedInAppStorage": true,
+          "elapsedMs": 8238,
+          "maxMainLoopGapMs": 110,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "six-directions-summary",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          },
+          "replayMisses": 0
+        },
+        {
+          "case": "ae10-death-and-deadline",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3159,
+          "outputSha256": "bde4821524848401fc671f77f26789807dd01fecd1e8474346c4f616db2ae74b",
+          "publishedInAppStorage": true,
+          "elapsedMs": 49445,
+          "maxMainLoopGapMs": 109,
+          "firstServicePidKilled": true,
+          "restarts": [
+            {
+              "reason": "tachi-android worker exited unexpectedly with code 137",
+              "requeued": [
+                "fixture.android.busy"
+              ],
+              "failed": [],
+              "reloadFailures": []
+            },
+            {
+              "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+              "requeued": [],
+              "failed": [],
+              "reloadFailures": []
+            },
+            {
+              "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+              "requeued": [],
+              "failed": [],
+              "reloadFailures": []
+            }
+          ],
+          "searchEvents": [
+            "error:source-error:HttpException: HTTP error 599",
+            "kill",
+            "error:timeout:search exceeded its deadline; worker restarted",
+            "after-kill",
+            "error:source-error:HttpException: HTTP error 599",
+            "error:timeout:search exceeded its deadline; worker restarted",
+            "after-deadline",
+            "onimai-hits:[3937397761619167058, 2131019126180322627]"
+          ],
+          "pickedExtensions": [
+            "eu.kanade.tachiyomi.extension.en.weebcentral",
+            "fixture.android.busy"
+          ],
+          "serviceAfterJob": []
+        },
+        {
+          "case": "ae11-mangafire-paperback",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "browserSessionsOpened": 1,
+          "failures": [
+            {
+              "code": "source-error",
+              "message": "Error: VRF capture timed out matching /api/titles\\?"
+            }
+          ],
+          "outcome": "blocked-offline (named source error); live path open",
+          "published": false
+        },
+        {
+          "case": "ae11-mangafire-tachi",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "pickedExtensions": [
+            "eu.kanade.tachiyomi.extension.all.mangafire"
+          ],
+          "failures": [
+            {
+              "code": "source-error",
+              "message": "IOException: Shape-selecting captcha detected. Open in WebView to solve manually or turn on the setting to solve automatically. (cause IOException: Shape-selecting captcha detected. Open in WebView to solve manually or turn on the setting to solve automatically.)"
+            }
+          ],
+          "outcome": "blocked-offline (named source error); live path open",
+          "published": false
+        }
+      ]
+    },
+    {
+      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --name U14 --reporter expanded",
+      "result": {
+        "passed": 9,
+        "skipped": 1,
+        "failed": 0
+      },
+      "cases": [
+        {
+          "case": "start",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "paperbackSizing": {
+            "rule": "quickjs-sizing-v2",
+            "limits": {
+              "memoryLimitBytes": 19420946,
+              "maxStackBytes": 433936,
+              "operationDeadlineMicros": 194640980,
+              "jobSliceMicros": 172819
+            },
+            "device": {
+              "physicalMemoryBytes": 4104826880,
+              "threadStackBytes": 1062839,
+              "processors": 4,
+              "calibrationMicros": 110475
+            },
+            "profile": {
+              "source": "U6 real Paperback bundles (14 workloads, replayed captures), windows AOT",
+              "peakHeapBytes": 9710473,
+              "peakStackBytes": 216968,
+              "slowestOperationMicros": 2389048,
+              "referenceCalibrationMicros": 122176
+            },
+            "policy": {
+              "heapHeadroom": 2.0,
+              "stackHeadroom": 2.0,
+              "deadlineHeadroom": 4.0,
+              "maxMemoryShare": 0.25,
+              "maxThreadStackShare": 0.5,
+              "slicesPerDeadline": 50
+            },
+            "concurrentRuntimes": 1,
+            "hostWaitAllowanceMicros": 186000000,
+            "warnings": []
+          },
+          "aidokuRegistered": true,
+          "browserPort": {
+            "multiProfile": true,
+            "features": {
+              "MULTI_PROFILE": true,
+              "WEB_MESSAGE_LISTENER": true,
+              "DOCUMENT_START_SCRIPT": true,
+              "PROXY_OVERRIDE": true,
+              "GET_COOKIE_INFO": true
+            },
+            "webViewPackage": "com.google.android.webview 134.0.6998.135",
+            "startedActivities": 1,
+            "offlineProxy": "127.0.0.1:37733"
+          },
+          "browserUnavailable": null,
+          "tachiArguments": [
+            "--replay",
+            "all.mangadex",
+            "--replay",
+            "en.weebcentral",
+            "--replay",
+            "all.mangafire",
+            "--offline-browser"
+          ],
+          "tachiHandshakeDeadlineMs": 13860,
+          "dart": "3.14.0 (stable) (Wed Nov 4 16:28:39 2026 -0800) on \"android_x64\""
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "paperback -> aidoku",
+          "runtime": "aidoku",
+          "emittedSourceId": "en.weebcentral",
+          "runtimeSourceId": "en.weebcentral",
+          "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+          "artifactKind": "aix",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 12667,
+          "outputSha256": "ac06d01d2da10e57acf108846e72a317a389dc19888e226bafd3c7e5f5a4f1b0",
+          "publishedInAppStorage": true,
+          "elapsedMs": 1714,
+          "maxMainLoopGapMs": 699,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "mihon -> aidoku",
+          "runtime": "aidoku",
+          "emittedSourceId": "en.weebcentral",
+          "runtimeSourceId": "en.weebcentral",
+          "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+          "artifactKind": "aix",
+          "chapters": 114,
+          "statefulChapters": 3,
+          "transferred": 3,
+          "losses": 0,
+          "outputBytes": 12651,
+          "outputSha256": "25759d332d8390aaeece98701aab7dedb4a537d0e1ea0bc039eb93c7970d648d",
+          "publishedInAppStorage": true,
+          "elapsedMs": 392,
+          "maxMainLoopGapMs": 148,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> paperback",
+          "runtime": "paperback",
+          "emittedSourceId": "WeebCentral",
+          "runtimeSourceId": "WeebCentral",
+          "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+          "artifactKind": "paperback-bundle-0.9",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 8231,
+          "outputSha256": "9b5fa364e3232a0364b312c6d969bab63691441bb428609ba863ff76674376c9",
+          "publishedInAppStorage": true,
+          "elapsedMs": 3765,
+          "maxMainLoopGapMs": 193,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "mihon -> paperback",
+          "runtime": "paperback",
+          "emittedSourceId": "WeebCentral",
+          "runtimeSourceId": "WeebCentral",
+          "artifactSha256": "bd62583ec530eec19d4e742626eee3c5f2bebda405c76a3f339f6681c2aeb966",
+          "artifactKind": "paperback-bundle-0.9",
+          "chapters": 114,
+          "statefulChapters": 3,
+          "transferred": 3,
+          "losses": 0,
+          "outputBytes": 8230,
+          "outputSha256": "425b6219f0a5e35879a531f5ec50d8cd82dc94ac9933ac46c8edee60d0cfe57b",
+          "publishedInAppStorage": true,
+          "elapsedMs": 3280,
+          "maxMainLoopGapMs": 61,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3161,
+          "outputSha256": "4ddb5bf80449bef15c9922203d7a727f4ea962dc8ef7245a33042e2f7e7dd9c4",
+          "publishedInAppStorage": true,
+          "elapsedMs": 7671,
+          "maxMainLoopGapMs": 92,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "r5",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "paperback -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3143,
+          "outputSha256": "89c6219aaf7bb10a917347ddcb1893a9bd8b2464b9d5496626050e2498ccc636",
+          "publishedInAppStorage": true,
+          "elapsedMs": 7092,
+          "maxMainLoopGapMs": 38,
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          }
+        },
+        {
+          "case": "six-directions-summary",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "resources": {
+            "browserSessions": 0,
+            "tachiScopeOpen": false,
+            "paperbackScopeOpen": false,
+            "servicePids": []
+          },
+          "replayMisses": 0
+        },
+        {
+          "case": "ae10-death-and-deadline",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "aidoku -> mihon",
+          "runtime": "tachi",
+          "emittedSourceId": "2131019126180322627",
+          "runtimeSourceId": "2131019126180322627",
+          "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+          "artifactKind": "apk",
+          "chapters": 114,
+          "statefulChapters": 2,
+          "transferred": 2,
+          "losses": 0,
+          "outputBytes": 3160,
+          "outputSha256": "6cbe3d8fc2c5723e167a2e23bc20661269a247293d2767dde69a5b437c08422a",
+          "publishedInAppStorage": true,
+          "elapsedMs": 24267,
+          "maxMainLoopGapMs": 52,
+          "firstServicePidKilled": true,
+          "restarts": [
+            {
+              "reason": "tachi-android worker exited unexpectedly with code 137",
+              "requeued": [
+                "fixture.android.busy"
+              ],
+              "failed": [],
+              "reloadFailures": []
+            },
+            {
+              "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+              "requeued": [],
+              "failed": [],
+              "reloadFailures": []
+            },
+            {
+              "reason": "search for fixture.android.busy did not settle after cooperative cancel",
+              "requeued": [],
+              "failed": [],
+              "reloadFailures": []
+            }
+          ],
+          "searchEvents": [
+            "error:source-error:HttpException: HTTP error 599",
+            "kill",
+            "error:timeout:search exceeded its deadline; worker restarted",
+            "after-kill",
+            "error:source-error:HttpException: HTTP error 599",
+            "error:timeout:search exceeded its deadline; worker restarted",
+            "after-deadline"
+          ],
+          "pickedExtensions": [
+            "eu.kanade.tachiyomi.extension.en.weebcentral",
+            "fixture.android.busy"
+          ],
+          "serviceAfterJob": []
+        },
+        {
+          "case": "ae11-mangafire-paperback",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "browserSessionsOpened": 1,
+          "failures": [
+            {
+              "code": "source-error",
+              "message": "Error: VRF capture timed out matching /api/titles\\?"
+            }
+          ],
+          "outcome": "blocked-offline (named source error); live path open",
+          "published": false
+        },
+        {
+          "case": "ae11-mangafire-tachi",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "pickedExtensions": [
+            "eu.kanade.tachiyomi.extension.all.mangafire"
+          ],
+          "failures": [
+            {
+              "code": "source-error",
+              "message": "IOException: Shape-selecting captcha detected. Open in WebView to solve manually or turn on the setting to solve automatically. (cause IOException: Shape-selecting captcha detected. Open in WebView to solve manually or turn on the setting to solve automatically.)"
+            }
+          ],
+          "outcome": "blocked-offline (named source error); live path open",
+          "published": false
+        }
+      ]
+    },
+    {
+      "command": "flutter test integration_test/source_runners_android_test.dart -d emulator-5554 --name \"U14 background\" --dart-define=SRT_MANUAL=true",
+      "drivenBy": "T3 device tools: agent-device home, then open",
+      "result": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "cases": [
+        {
+          "case": "real-background",
+          "evidenceClass": "emulator",
+          "sdk": 36,
+          "release": "16",
+          "abi": "x86_64",
+          "buildType": "debug",
+          "direction": "mihon -> aidoku",
+          "runtime": "aidoku",
+          "emittedSourceId": "en.weebcentral",
+          "runtimeSourceId": "en.weebcentral",
+          "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+          "artifactKind": "aix",
+          "chapters": 114,
+          "statefulChapters": 3,
+          "transferred": 3,
+          "losses": 0,
+          "outputBytes": 12651,
+          "outputSha256": "2677572d0f8e69aeb9ceea08caed332c3d4d143fe19e66853223afced4ddbdaf",
+          "publishedInAppStorage": true,
+          "elapsedMs": 86630,
+          "maxMainLoopGapMs": 24648,
+          "events": [
+            "backgrounded",
+            "openSession:BrowserInteractionRequired<BrowserSession>",
+            "aidokuInFlight:1",
+            "foregrounded",
+            "held:null"
+          ],
+          "drivenBy": "T3 device tools (agent-device home / open)"
+        }
+      ]
+    },
+    {
+      "command": "flutter build apk --debug -t integration_test/source_runners_android_test.dart --dart-define=SRT_PHASE=relaunch --target-platform android-x64; launch 1 via agent-device open; adb shell run-as <package> kill -9 <app pid> at U14_INTERRUPT_READY; launch 2 via agent-device open",
+      "interruption": "SIGKILL of the app process (logcat: 'exited due to signal 9')",
+      "receipt": {
+        "ok": true,
+        "path": "relaunch-resumed",
+        "direction": "aidoku -> mihon",
+        "runtime": "tachi",
+        "emittedSourceId": "2131019126180322627",
+        "runtimeSourceId": "2131019126180322627",
+        "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+        "artifactKind": "apk",
+        "chapters": 114,
+        "statefulChapters": 2,
+        "transferred": 2,
+        "losses": 0,
+        "outputBytes": 3161,
+        "outputSha256": "45bb7edcaf4565397a804ac38be84c213395c364e05554f8bc04c07520b7af70",
+        "publishedInAppStorage": false,
+        "elapsedMs": 6151,
+        "maxMainLoopGapMs": 471,
+        "interruptedAt": {
+          "phase": "relaunch",
+          "appPid": 8138,
+          "servicePids": [],
+          "journalBytes": 53579,
+          "journalKeys": [
+            "version",
+            "inputIdentity",
+            "sourceFormat",
+            "targetFormat",
+            "sources",
+            "sessions",
+            "confirmations",
+            "chapterDecisions",
+            "acceptedReportDigest"
+          ],
+          "outputBytesNotWritten": 3161
+        },
+        "servicePidsAtInterrupt": [],
+        "servicePidsAtRelaunch": [],
+        "journaledDecisionsReused": 1,
+        "mangaAskedAgain": 0,
+        "outputs": 1,
+        "appPid": 8586
+      }
+    },
+    {
+      "command": "same build with --dart-define=SRT_PHASE=recreate; Developer options > Don't keep activities ON (Settings UI via agent-device); launch; agent-device home at U14_INTERRUPT_READY; agent-device open; setting turned OFF afterwards",
+      "interruption": "MainActivity destroyed and recreated; the process (pid unchanged) survived, FlutterActivity destroyed its engine, the new engine re-ran main and resumed from the journal (U14_SURVIVED never printed)",
+      "receipt": {
+        "ok": true,
+        "path": "relaunch-resumed",
+        "direction": "aidoku -> mihon",
+        "runtime": "tachi",
+        "emittedSourceId": "2131019126180322627",
+        "runtimeSourceId": "2131019126180322627",
+        "artifactSha256": "7a53282bdf852e58fc1da2fe3c4f4058e7df500be763f0a3037bf48f4c298dc9",
+        "artifactKind": "apk",
+        "chapters": 114,
+        "statefulChapters": 2,
+        "transferred": 2,
+        "losses": 0,
+        "outputBytes": 3164,
+        "outputSha256": "7e3fc0b7ac4be68e1338bc15015a23d727010d18ecb69d97540ea861d950d40f",
+        "publishedInAppStorage": false,
+        "elapsedMs": 4480,
+        "maxMainLoopGapMs": 264,
+        "interruptedAt": {
+          "phase": "recreate",
+          "appPid": 10807,
+          "servicePids": [],
+          "journalBytes": 53579,
+          "journalKeys": [
+            "version",
+            "inputIdentity",
+            "sourceFormat",
+            "targetFormat",
+            "sources",
+            "sessions",
+            "confirmations",
+            "chapterDecisions",
+            "acceptedReportDigest"
+          ],
+          "outputBytesNotWritten": 3163
+        },
+        "servicePidsAtInterrupt": [],
+        "servicePidsAtRelaunch": [],
+        "journaledDecisionsReused": 1,
+        "mangaAskedAgain": 0,
+        "outputs": 1,
+        "appPid": 10807
+      }
+    }
+  ],
+  "note": "runs[0] is the final full-file run (AE10 with operationDeadlineMs=15000); the later entries were recorded earlier on the branch (AE10 with 4000 ms).",
+  "identity": {
+    "hostCommit": "a8c4057d (runs[0]); earlier runs at 35c331fa-e362a025",
+    "testedApk": {
+      "variant": "debug (flutter test, android-x64); built-app phases used a debug APK built with -t integration_test/... and SRT_PHASE",
+      "signer": "CN=Android Debug, O=Android, C=US (38f73b527d22675ccad2379bda776416b27429ab026f93984676aaacd88d1892)",
+      "sha256": "not recorded for the API 36 runs"
+    },
+    "tachiWorkerProtocol": "1.3",
+    "quickjsSubmodule": "dce8c0bb3b5ddbfbae05c4cd5c1345b05719c0df (v0.18.0-26)",
+    "wasm3Submodule": "79d412ea5fcf92f0efe658d52827a0e0a96ff442",
+    "flutter": "3.50.0 (framework ab2912035e), Dart 3.14",
+    "jni": "1.2.1",
+    "jnigen": "1.1.0",
+    "jni_flutter": "1.1.0",
+    "ffigen": "20.1.1",
+    "paperbackSizingRule": "quickjs-sizing-v2 (limits per run in the start receipt)",
+    "tachiSizing": "committed Android rule (tachi-worker-sizing.json), handshake deadline 13,860 ms"
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "unit": "U18",
+  "evidenceClass": "simulator",
+  "satisfiesR14": false,
+  "branch": "feat/source-runners-u18",
+  "base": "origin/feat/source-runners 758d411",
+  "device": {
+    "name": "iPad Pro 13-inch (M5) Simulator",
+    "udid": "9D31271B-BEA5-4B9B-8073-4648789A5D9C",
+    "os": "iOS 26.5 (23F77)",
+    "abi": "ios_arm64"
+  },
+  "toolchain": {
+    "xcode": "Xcode 27.2 Build version 27B52",
+    "flutter": "Flutter 3.50.0 \u2022 channel stable \u2022 https://github.com/flutter/flutter.git"
+  },
+  "command": "flutter test integration_test/source_runners_ios_aidoku_test.dart -d 9D31271B-BEA5-4B9B-8073-4648789A5D9C --dart-define=SRT_MANUAL=true",
+  "result": "10 passed, 0 failed (case 8 backgrounded with agent-device home, foregrounded with agent-device open)",
+  "nativeLibraries": {
+    "iphoneos-release": {
+      "wasm3.framework/wasm3": {
+        "sha256": "75184e9c4a2fa31a45343220977d08bca963bb4830b8c81213c1dd6e202a3aff",
+        "bytes": 145536,
+        "archs": "arm64",
+        "build": "platform IOS minos 15.0",
+        "jitOrExecMemoryImports": []
+      },
+      "SwiftSoupWrapper.framework/SwiftSoupWrapper": {
+        "sha256": "b7308e332bc003be11e735b3fd6217dac290bc1e33bc278d482a0bf2e3579a37",
+        "bytes": 1676240,
+        "archs": "arm64",
+        "build": "platform IOS minos 15.0",
+        "jitOrExecMemoryImports": []
+      }
+    },
+    "iphonesimulator-debug": {
+      "wasm3.framework/wasm3": {
+        "sha256": "3524145b12e5fb2c885d1b80f698d3f7e97c5201a59637dd300c223a448ff36c",
+        "bytes": 153104,
+        "archs": "arm64",
+        "build": "platform IOSSIMULATOR minos 15.0",
+        "jitOrExecMemoryImports": []
+      },
+      "SwiftSoupWrapper.framework/SwiftSoupWrapper": {
+        "sha256": "1767b42c900aa8285b3c97636e2251e737121581b3bc82d13282c6007f8ff729",
+        "bytes": 2458448,
+        "archs": "arm64",
+        "build": "platform IOSSIMULATOR minos 15.0",
+        "jitOrExecMemoryImports": []
+      }
+    }
+  },
+  "browserImports": {
+    "multi.mangadex-v12.aix": [],
+    "en.weebcentral-v6.aix": [],
+    "multi.mangafire-v8.aix": []
+  },
+  "browserImportsNote": "WASM import sections list no js/webview imports for any qualification source; Aidoku browser imports stay capability failures and nothing is routed to a BrowserPort",
+  "receipts": [
+    {
+      "scenario": "native-libraries",
+      "evidence": "simulator",
+      "abi": "ios_arm64",
+      "os": "Version 26.5 (Build 23F77)",
+      "loaded": [
+        "wasm3.framework/wasm3",
+        "SwiftSoupWrapper.framework/SwiftSoupWrapper"
+      ],
+      "bundledFrameworks": [
+        "App.framework",
+        "CocoaAsyncSocket.framework",
+        "Flutter.framework",
+        "SwiftSoupWrapper.framework",
+        "device_info_plus.framework",
+        "irondash_engine_context.framework",
+        "objective_c.framework",
+        "patrol.framework",
+        "quickjs.framework",
+        "source_runtime_ios.framework",
+        "sqlite3.framework",
+        "super_native_extensions.framework",
+        "wasm3.framework"
+      ],
+      "pid": 49867
+    },
+    {
+      "scenario": "source",
+      "evidence": "simulator",
+      "sourceId": "multi.mangadex",
+      "artifact": "multi.mangadex-v12.aix",
+      "artifactSha256": "83b28ef41c910117ebd45a699510fcdc9deb0b5e0ae319ff4d5aff0d8889e9ad",
+      "hits": 2,
+      "title": "Onii-chan wa Oshimai!",
+      "chapters": 223,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 40,
+      "searchMs": 63,
+      "detailsMs": 44
+    },
+    {
+      "scenario": "source",
+      "evidence": "simulator",
+      "sourceId": "en.weebcentral",
+      "artifact": "en.weebcentral-v6.aix",
+      "artifactSha256": "0b5e67a671742127fc8e5c135170df816fe2cc3e921a4f6e4c66e7d58169bfcd",
+      "hits": 1,
+      "title": "ONIMAI - I'm Now Your Sister!",
+      "chapters": 114,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 3,
+      "searchMs": 506,
+      "detailsMs": 52
+    },
+    {
+      "scenario": "source",
+      "evidence": "simulator",
+      "sourceId": "multi.mangafire",
+      "artifact": "multi.mangafire-v8.aix",
+      "artifactSha256": "5caf557a0bab317215fd35c69ed3d5253f2256480a5c74fe1389d7dce6aaa541",
+      "hits": 50,
+      "title": "Highschool ONIMAI",
+      "chapters": 86,
+      "requestsServed": 3,
+      "replayMisses": 0,
+      "hostWarnings": 0,
+      "openMs": 4,
+      "searchMs": 3,
+      "detailsMs": 16
+    },
+    {
+      "scenario": "cancel-in-flight",
+      "evidence": "simulator",
+      "failure": "cancelled",
+      "answeredAfterMs": 305,
+      "nextCallHits": 2
+    },
+    {
+      "scenario": "wasm-trap",
+      "evidence": "simulator",
+      "failures": [
+        "source-error",
+        "source-error"
+      ]
+    },
+    {
+      "scenario": "isolate-death",
+      "evidence": "simulator",
+      "failures": [
+        "runtime-unavailable",
+        "runtime-unavailable"
+      ],
+      "elapsedMs": 3
+    },
+    {
+      "scenario": "headers-rate-limit",
+      "evidence": "simulator",
+      "headerValues": [
+        "value-1",
+        "value-2",
+        "value-3",
+        "value-4",
+        "value-5"
+      ],
+      "rateLimit": "2/1s",
+      "windowGapsMs": [
+        1004,
+        1007,
+        1001
+      ]
+    },
+    {
+      "scenario": "background-gate",
+      "evidence": "simulator",
+      "inFlight": "app-backgrounded",
+      "answeredAfterMs": 303,
+      "refusedCall": "cancelled",
+      "refusedOpen": "cancelled",
+      "foregroundHits": 2
+    },
+    {
+      "scenario": "background-lifecycle",
+      "evidence": "simulator",
+      "inFlight": "app-backgrounded",
+      "answeredAfterBackgroundMs": 0,
+      "foregroundHits": 2
+    }
+  ]
+}

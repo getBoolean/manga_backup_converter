@@ -6,7 +6,7 @@ class SourceEntry {
     required this.iconUrl,
     required this.downloadUrl,
     required this.languages,
-    this.contentRating = 0,
+    this.contentRating,
     this.baseUrl,
     this.altNames = const <String>[],
   });
@@ -19,7 +19,8 @@ class SourceEntry {
   final List<String> languages;
 
   /// 0 = safe, 1 = moderate, 2 = mature.
-  final int contentRating;
+  /// 0 safe, 1 suggestive, 2 NSFW; `null` when the list publishes none.
+  final int? contentRating;
 
   final String? baseUrl;
   final List<String> altNames;
@@ -32,7 +33,7 @@ class SourceEntry {
       iconUrl: json['iconURL'] as String,
       downloadUrl: json['downloadURL'] as String,
       languages: List<String>.from(json['languages'] as List<dynamic>? ?? const <dynamic>[]),
-      contentRating: json['contentRating'] as int? ?? 0,
+      contentRating: json['contentRating'] as int?,
       baseUrl: json['baseURL'] as String?,
       altNames: List<String>.from(json['altNames'] as List<dynamic>? ?? const <dynamic>[]),
     );

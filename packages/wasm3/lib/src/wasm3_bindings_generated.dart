@@ -396,8 +396,7 @@ enum M3ValueType {
   c_m3Type_i64(2),
   c_m3Type_f32(3),
   c_m3Type_f64(4),
-  c_m3Type_unknown(5)
-  ;
+  c_m3Type_unknown(5);
 
   final int value;
   const M3ValueType(this.value);

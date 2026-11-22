@@ -1,0 +1,19 @@
+{
+  "name": "U11 busy",
+  "packageName": "fixture.android.busy",
+  "resources": {
+    "apkUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.busy.apk"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "1",
+  "versionName": "1.6.1",
+  "contentWarning": "CONTENT_WARNING_SAFE",
+  "sources": [
+    {
+      "id": "3937397761619167058",
+      "name": "Android Busy",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    }
+  ]
+}

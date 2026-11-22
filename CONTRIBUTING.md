@@ -12,7 +12,7 @@
 melos bootstrap              # Install deps + generate env files
 melos run generate           # Run all code generation
 melos run test               # Run all tests with coverage
-melos run lint               # Run dart analyze + custom_lint
+melos run lint               # Run dart analyze (solid_lints + riverpod_lint run as analyzer plugins)
 melos run format             # Format all packages
 melos run cli                # Run the CLI (args forwarded)
 ```

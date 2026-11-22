@@ -11,7 +11,7 @@ jobs:
     if: github.event.ref_type == 'branch'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@v8
+        uses: tj-actions/branch-names@dde14ac574a8b9b1cedc59a1cf312788af43d8d8 # v8
       - name: Remove deleted branch from gh-pages
         if: steps.branch-name.outputs.is_default == 'true'
         run: |
@@ -39,7 +39,7 @@ jobs:
             echo "Folder $BASE_REF does not exist"
           fi
       - name: Push changes
-        uses: ad-m/github-push-action@v0.8.0
+        uses: ad-m/github-push-action@d91a481090679876dfc4178fef17f286781251df # v0.8.0
         with:
           # PAT required to trigger gh_pages_readme.yml workflow
           github_token: ${{ secrets.PAT }}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Test fixture extension for tachi-source-runner. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="fixture.legacy" android:versionCode="1" android:versionName="1.5.3">
+    <uses-feature android:name="tachiyomi.extension" />
+    <application android:label="Tachiyomi: legacy">
+        <meta-data android:name="tachiyomi.extension.class" android:value="fixture.legacy.LegacySource" />
+    </application>
+</manifest>

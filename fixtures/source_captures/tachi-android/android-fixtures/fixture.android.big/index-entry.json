@@ -1,0 +1,19 @@
+{
+  "name": "U11 big",
+  "packageName": "fixture.android.big",
+  "resources": {
+    "apkUrl": "https://fixtures.invalid/u11/repo/apk/fixture.android.big.apk"
+  },
+  "extensionLib": "1.6",
+  "versionCode": "1",
+  "versionName": "1.6.1",
+  "contentWarning": "CONTENT_WARNING_SAFE",
+  "sources": [
+    {
+      "id": "4299564021742687904",
+      "name": "Android Big",
+      "language": "en",
+      "homeUrl": "https://fixture.test"
+    }
+  ]
+}

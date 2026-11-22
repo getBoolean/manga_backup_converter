@@ -10,7 +10,7 @@ part of 'prefs.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(prefs)
-const prefsProvider = PrefsProvider._();
+final prefsProvider = PrefsProvider._();
 
 final class PrefsProvider
     extends
@@ -22,7 +22,7 @@ final class PrefsProvider
     with
         $FutureModifier<SharedPreferences>,
         $FutureProvider<SharedPreferences> {
-  const PrefsProvider._()
+  PrefsProvider._()
     : super(
         from: null,
         argument: null,

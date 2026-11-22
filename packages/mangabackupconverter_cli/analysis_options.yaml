@@ -11,7 +11,7 @@ analyzer:
   exclude:
     # generated files
     - "**/*.g.dart"
-    -
+
     # package:dart_mappable
     - "**/*.mapper.dart"
 
