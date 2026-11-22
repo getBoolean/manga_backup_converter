@@ -1,3 +1,4 @@
+import 'package:manga_backup_core/src/common/language_code.dart';
 import 'package:manga_backup_core/src/conversion/plugin_source.dart';
 import 'package:manga_backup_core/src/conversion/source_manga_data.dart';
 
@@ -16,20 +17,6 @@ double? knownChapterNumber(double? number) => number != null && number.isFinite 
 /// `0` and negative values are unknown: Paperback and several sources write
 /// `0` for "no volume".
 double? knownVolumeNumber(double? volume) => volume != null && volume.isFinite && volume > 0 ? volume : null;
-
-/// A comparable language (lower-case primary subtag), or `null` when unknown.
-///
-/// Only language codes count: a value that is not a code (a Paperback
-/// bundle reporting a flag emoji such as `🇬🇧`) is unknown, so it never
-/// conflicts with a real code.
-String? knownLanguage(String? language) {
-  if (language == null) return null;
-  final String primary = language.trim().toLowerCase().split(RegExp('[-_]')).first;
-  if (primary == 'unknown' || primary == 'und' || !_languageCode.hasMatch(primary)) return null;
-  return primary;
-}
-
-final RegExp _languageCode = RegExp(r'^[a-z]{2,3}$');
 
 /// A comparable title (case-folded, whitespace-collapsed), or `null` if empty.
 String? normalizedChapterTitle(String? title) {
@@ -174,15 +161,15 @@ List<PluginChapter> _candidatesFor(
   }
 
   final double? volume = knownVolumeNumber(source.volumeNumber);
-  final String? language = knownLanguage(source.language);
+  final LanguageCode? language = LanguageCode.tryParse(source.language);
   final double? number = knownChapterNumber(source.chapterNumber);
   final String? title = normalizedChapterTitle(source.title);
 
   List<PluginChapter> candidates = destinations.where((PluginChapter d) {
     final double? dVolume = knownVolumeNumber(d.volumeNumber);
     if (volume != null && dVolume != null && volume != dVolume) return false;
-    final String? dLanguage = knownLanguage(d.language);
-    if (language != null && dLanguage != null && language != dLanguage) return false;
+    final LanguageCode? dLanguage = LanguageCode.tryParse(d.language);
+    if (language != null && dLanguage != null && !language.admits(dLanguage)) return false;
     return true;
   }).toList();
 

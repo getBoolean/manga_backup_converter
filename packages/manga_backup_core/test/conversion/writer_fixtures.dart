@@ -19,6 +19,7 @@ MangaMatchConfirmation fetchedConfirmation(
   String title = 'Destination Title',
   String sourceName = 'Destination',
   List<String> tags = const <String>['Comedy'],
+  List<String> artists = const <String>['Artist B'],
 }) {
   final ref = NativeMangaRef(
     source: identity,
@@ -37,7 +38,7 @@ MangaMatchConfirmation fetchedConfirmation(
         metadata: MangaMetadata(
           title: title,
           authors: const <String>['Author A'],
-          artists: const <String>['Artist B'],
+          artists: artists,
           description: 'Desc',
           tags: tags,
           status: PublishingStatus.ongoing,

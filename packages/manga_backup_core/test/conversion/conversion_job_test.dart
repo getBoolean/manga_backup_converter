@@ -164,6 +164,37 @@ void main() {
     }
   });
 
+  test('one host-lifetime job runs each conversion with its own session', () async {
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('aidoku', <String>[])]);
+    final job = ConversionJob(formats: FormatRegistry.portable(), runtimes: runtimes);
+    final Uint8List input = await _input(const Mihon());
+    final ConversionRequest request = _request(input, const Mihon(), const Aidoku());
+    await check(job.run(request, MemoryOutput())).throws<ArgumentError>();
+
+    for (final run in <int>[1, 2]) {
+      final progress = <String>[];
+      final journal = InMemoryJournalStore();
+      final output = MemoryOutput();
+      final ConversionResult result = await job.run(
+        request,
+        output,
+        ConversionSession(
+          selection: CallbackSelectionPort(
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onConfirmMatches: confirmExactTitle,
+            acceptPartial: true,
+          ),
+          journalStore: journal,
+          onProgress: (_, _, String message) => progress.add(message),
+        ),
+      );
+      check(because: 'run $run', output.publishes).equals(1);
+      check(result.report.count(RecordKind.manga, RecordDisposition.transferred)).equals(1);
+      check(progress).isNotEmpty();
+      check(journal.json).isNull(); // cleared after publishing
+    }
+  });
+
   test('AE3: an ambiguous destination is not published without explicit acceptance', () async {
     final ambiguous = <NativeChapter>[
       const NativeChapter(chapterId: 'a', sourceOrder: 0, chapterNumber: 1, title: 'Chapter 1'),
@@ -260,6 +291,45 @@ void main() {
       job.run(_request(await _input(const Aidoku()), const Aidoku(), const Mihon()), output),
     ).throws<DestinationUnavailable>();
     check(output.publishes).equals(0);
+  });
+
+  test('forceMigration takes the plugin path for a direct-conversion pair', () async {
+    final calls = <String>[];
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('tachi', calls)]);
+    final ConvertableBackup mihon = await FormatRegistry.portable().codecFor(const Mihon())!(
+      await _input(const Mihon()),
+    );
+    final formats = FormatRegistry.portable()
+      ..registerCodec(const Tachimanga(), (Uint8List bytes, {String? name}) async => mihon);
+    final ConversionResult result = await _job(runtimes, formats: formats).run(
+      ConversionRequest(
+        input: Uint8List(1),
+        sourceFormat: const Tachimanga(),
+        targetFormat: const Mihon(),
+        forceMigration: true,
+      ),
+      MemoryOutput(),
+    );
+    check(calls).deepEquals(<String>['tachi']);
+    check(result.draft.backup).isA<TachiBackup>();
+  });
+
+  test('forcing migration onto a format with no writer is a typed failure before any source work', () async {
+    final calls = <String>[];
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('tachi', calls)]);
+    final DestinationUnavailable caught = await _caught<DestinationUnavailable>(
+      _job(runtimes).run(
+        ConversionRequest(
+          input: await _input(const Mihon()),
+          sourceFormat: const Mihon(),
+          targetFormat: const Tachimanga(),
+          forceMigration: true,
+        ),
+        MemoryOutput(),
+      ),
+    );
+    check(caught.failure.code).equals('capability-unavailable');
+    check(calls).isEmpty();
   });
 
   group('language narrowing', () {
@@ -407,19 +477,17 @@ void main() {
       check(r.report.notes).any((Subject<String> it) => it.contains('records no content language'));
     });
 
-    test('entries are narrowed by their listed languages; unrecognised codes are kept', () {
+    test('sources match by primary subtag; multi-language and unrecognised languages are kept', () {
       final policy = SourceLanguagePolicy.parse('pt');
-      const entries = <ExtensionEntry>[
-        StubExtensionEntry(id: 'br', name: 'BR', languages: <String>['pt-BR']),
-        StubExtensionEntry(id: 'en', name: 'EN', languages: <String>['en']),
-        StubExtensionEntry(id: 'multi', name: 'Multi', languages: <String>['multi']),
-        StubExtensionEntry(id: 'flag', name: 'Flag', languages: <String>['🇬🇧']),
+      final allowed = <String>[
+        for (final String language in <String>['pt-BR', 'en', 'multi', 'mul', 'all', '🇬🇧'])
+          if (policy.allowsLanguage(language)) language,
       ];
-      final ({int hidden, List<ExtensionEntry> visible}) r = policy.apply(entries);
-      check(r.visible.map((ExtensionEntry e) => e.id)).deepEquals(<String>['br', 'multi', 'flag']);
-      check(r.hidden).equals(1);
+      check(allowed).deepEquals(<String>['pt-BR', 'multi', 'mul', 'all', '🇬🇧']);
       check(() => SourceLanguagePolicy.parse('not a code!')).throws<FormatException>();
       check(SourceLanguagePolicy.parse('all').languages).isNull();
+      check(SourceLanguagePolicy.parse('mul').languages).isNull();
+      check(SourceLanguagePolicy.parse('PT_br, ja').languages).isNotNull().deepEquals(<String>{'pt-br', 'ja'});
     });
   });
 }

@@ -24,18 +24,6 @@ void main() {
       check(knownVolumeNumber(2)).equals(2);
     });
 
-    test('languages compare by primary subtag', () {
-      check(knownLanguage('en-US')).equals('en');
-      check(knownLanguage('pt_BR')).equals('pt');
-      check(knownLanguage('')).isNull();
-      check(knownLanguage('unknown')).isNull();
-    });
-
-    test('a value that is not a language code (a flag emoji) is unknown, not a conflicting language', () {
-      check(knownLanguage('🇬🇧')).isNull();
-      check(knownLanguage('English')).isNull();
-    });
-
     test('scanlator groups are split', () {
       check(scanlatorGroups('Alpha & Beta, Gamma')).deepEquals(<String>{'alpha', 'beta', 'gamma'});
       check(scanlatorGroups(null)).isEmpty();
@@ -43,6 +31,18 @@ void main() {
   });
 
   group('reconcileChapters', () {
+    test('a multi-language destination chapter does not reject an en source chapter', () {
+      for (final multi in <String>['all', 'mul', 'multi']) {
+        final ChapterReconciliation r = reconcileChapters(
+          sourceChapters: <SourceChapter>[
+            SourceChapter(title: 'Step 1', chapterNumber: 1, language: 'en', isRead: true),
+          ],
+          destinationChapters: <PluginChapter>[PluginChapter(chapterId: 'd1', chapterNumber: 1, language: multi)],
+        );
+        check(because: multi, r.matches.map((ChapterMatch m) => m.destination.chapterId)).deepEquals(<String>['d1']);
+      }
+    });
+
     test('a flag-emoji destination language does not reject an en source chapter', () {
       final ChapterReconciliation r = reconcileChapters(
         sourceChapters: <SourceChapter>[SourceChapter(title: 'Step 1', chapterNumber: 1, language: 'en', isRead: true)],

@@ -11,7 +11,38 @@ import '../support/fakes.dart';
 
 const List<String> _repos = <String>['https://repo.invalid/index.json'];
 
-MigrationPipeline _pipeline({
+/// A pipeline and the destination loader its migration route uses.
+final class _Pipe {
+  _Pipe(this.pipeline, this.loader);
+
+  final MigrationPipeline pipeline;
+  final PluginLoader loader;
+
+  /// A copy whose session reports resumed journals to [onResume].
+  _Pipe copyWithResume(void Function(int decisions) onResume) {
+    final ConversionSession s = pipeline.session;
+    return _Pipe(
+      MigrationPipeline(
+        session: ConversionSession(
+          selection: s.selection,
+          onProgress: s.onProgress,
+          journalStore: s.journalStore,
+          ratingPolicy: s.ratingPolicy,
+          languagePolicy: s.languagePolicy,
+          onResume: onResume,
+        ),
+        repoUrls: pipeline.repoUrls,
+        formats: pipeline.formats,
+        trustStore: pipeline.trustStore,
+        redact: pipeline.redact,
+        onOwnerOpened: pipeline.onOwnerOpened,
+      ),
+      loader,
+    );
+  }
+}
+
+_Pipe _pipeline({
   required PluginLoader loader,
   SelectionPort? selection,
   OnConfirmMatches onConfirmMatches = confirmExactTitle,
@@ -20,38 +51,40 @@ MigrationPipeline _pipeline({
   SourceRatingPolicy ratingPolicy = const SourceRatingPolicy(),
   TrustStore? trustStore,
   FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened,
-  DirectConverter? directConverter,
   FormatRegistry? formats,
   SourceLanguagePolicy? languagePolicy,
   String Function(String)? redact,
-}) => MigrationPipeline(
-  repoUrls: _repos,
-  pluginLoader: loader,
-  selection:
-      selection ??
-      CallbackSelectionPort(
-        onSelectExtensions: (List<ExtensionEntry> e) async => e,
-        onConfirmMatches: onConfirmMatches,
-        acceptPartial: acceptPartial,
-      ),
-  onProgress: (_, _, _) {},
-  journalStore: journalStore,
-  ratingPolicy: ratingPolicy,
-  trustStore: trustStore,
-  onOwnerOpened: onOwnerOpened,
-  directConverter: directConverter,
-  formats: formats,
-  languagePolicy: languagePolicy,
-  redact: redact ?? (String s) => s,
+}) => _Pipe(
+  MigrationPipeline(
+    session: ConversionSession(
+      selection:
+          selection ??
+          CallbackSelectionPort(
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onConfirmMatches: onConfirmMatches,
+            acceptPartial: acceptPartial,
+          ),
+      journalStore: journalStore,
+      ratingPolicy: ratingPolicy,
+      languagePolicy: languagePolicy,
+    ),
+    repoUrls: _repos,
+    trustStore: trustStore,
+    onOwnerOpened: onOwnerOpened,
+    formats: formats,
+    redact: redact ?? (String s) => s,
+  ),
+  loader,
 );
 
-Future<ConversionDraft> _run(MigrationPipeline pipeline, ConvertableBackup backup, {String? inputIdentity}) =>
-    pipeline.run(
-      sourceBackup: backup,
-      sourceFormat: const Mihon(),
-      targetFormat: const Aidoku(),
-      inputIdentity: inputIdentity,
-    );
+/// Migrates [backup] from Mihon to Aidoku through [p]'s loader.
+Future<ConversionDraft> _run(_Pipe p, ConvertableBackup backup, {String? inputIdentity}) => p.pipeline.execute(
+  MigrationRoute(writer: const AidokuBackupBuilder(), loader: p.loader),
+  sourceBackup: backup,
+  sourceFormat: const Mihon(),
+  targetFormat: const Aidoku(),
+  inputIdentity: inputIdentity,
+);
 
 void main() {
   group('MigrationPipeline', () {
@@ -80,65 +113,18 @@ void main() {
       check(draft.report.isPartial).isFalse();
     });
 
-    test('direct conversion uses the injected converter and needs one', () async {
+    test('a direct route uses its converter and re-reads the output', () async {
       final input = FakeBackup(const <SourceMangaData>[]);
       final output = FakeBackup(const <SourceMangaData>[]);
       final formats = FormatRegistry.portable()
         ..registerCodec(const Tachimanga(), (Uint8List bytes, {String? name}) async => output);
-      final ConversionDraft draft = await _pipeline(
-        loader: FakePluginLoader(),
-        formats: formats,
-        directConverter: (ConvertableBackup s, BackupFormat t, ConversionReport r) => output,
-      ).run(sourceBackup: input, sourceFormat: const Mihon(), targetFormat: const Tachimanga());
+      final ConversionDraft draft = await _pipeline(loader: FakePluginLoader(), formats: formats).pipeline.execute(
+        DirectRoute((ConvertableBackup s, BackupFormat t, ConversionReport r) => output),
+        sourceBackup: input,
+        sourceFormat: const Mihon(),
+        targetFormat: const Tachimanga(),
+      );
       check(identical(draft.backup, output)).isTrue();
-      await check(
-        _pipeline(
-          loader: FakePluginLoader(),
-        ).run(sourceBackup: input, sourceFormat: const Mihon(), targetFormat: const Tachimanga()),
-      ).throws<DestinationUnavailable>();
-    });
-
-    test('forceMigration takes the plugin path for a direct-conversion pair', () async {
-      var migrated = false;
-      final ConversionDraft draft =
-          await _pipeline(
-            loader: FakePluginLoader(sources: <PluginSource>[FakePluginSource('dest')]),
-            onConfirmMatches: (_, List<SourceMangaData> manga, _, _) async {
-              migrated = true;
-              return const <MangaMatchConfirmation>[];
-            },
-            acceptPartial: true,
-          ).run(
-            sourceBackup: FakeBackup(<SourceMangaData>[sourceManga('A')]),
-            sourceFormat: const Tachimanga(),
-            targetFormat: const Mihon(),
-            forceMigration: true,
-          );
-      check(migrated).isTrue();
-      check(draft.backup).isA<TachiBackup>();
-    });
-
-    test('forcing migration onto a format with no writer is a typed failure before any source work', () async {
-      var migrated = false;
-      DestinationUnavailable? caught;
-      try {
-        await _pipeline(
-          loader: FakePluginLoader(sources: <PluginSource>[FakePluginSource('dest')]),
-          onConfirmMatches: (_, List<SourceMangaData> manga, _, _) async {
-            migrated = true;
-            return const <MangaMatchConfirmation>[];
-          },
-        ).run(
-          sourceBackup: FakeBackup(<SourceMangaData>[sourceManga('A')]),
-          sourceFormat: const Mihon(),
-          targetFormat: const Tachimanga(),
-          forceMigration: true,
-        );
-      } on DestinationUnavailable catch (e) {
-        caught = e;
-      }
-      check(caught?.failure.code).equals('capability-unavailable');
-      check(migrated).isFalse();
     });
 
     test('streams search start and results per plugin', () async {
@@ -621,6 +607,42 @@ void main() {
       check((draft.backup as AidokuBackup).history!.single.chapterId).equals('d1');
     });
 
+    test('a match the selection UI already enriched is fetched exactly once and journaled', () async {
+      final store = InMemoryJournalStore();
+      final FakePluginSource dest = destination(settings());
+      Future<List<MangaMatchConfirmation>> confirmEnriched(
+        List<String> names,
+        List<SourceMangaData> manga,
+        Stream<PluginSearchEvent> Function(String) onSearch,
+        FetchDetails onFetch,
+      ) async => <MangaMatchConfirmation>[
+        for (final MangaMatchConfirmation c in await confirmExactTitle(names, manga, onSearch, onFetch))
+          if (c.confirmedMatch case final PluginSearchResult match?)
+            // As the dashboard does: fetch for display, confirm the enriched
+            // result, and hand over no destination.
+            MangaMatchConfirmation(
+              sourceManga: c.sourceManga,
+              confirmedMatch: match.enrichedWith((await onFetch(match.ref)).fetchedOrNull!),
+            )
+          else
+            c,
+      ];
+
+      final ConversionDraft draft = await _run(
+        _pipeline(
+          loader: FakePluginLoader(sources: <PluginSource>[dest]),
+          journalStore: store,
+          onConfirmMatches: confirmEnriched,
+        ),
+        input,
+        inputIdentity: 'enriched-input',
+      );
+      check(dest.fetches).equals(2); // Alpha and Beta, once each.
+      check((draft.backup as AidokuBackup).history!.single.chapterId).equals('d1');
+      final Iterable<Object?> confirmations = (store.json!['confirmations']! as Map<String, Object?>).values;
+      check(confirmations.every((Object? c) => (c! as Map<String, Object?>)['snapshot'] != null)).isTrue();
+    });
+
     test('a changed non-secret setting reopens the affected decisions', () async {
       final store = InMemoryJournalStore();
       await _run(
@@ -721,7 +743,7 @@ void main() {
       final store = InMemoryJournalStore();
       final backup = FakeBackup(<SourceMangaData>[...input.entries, sourceManga('Nowhere')]);
       var asked = 0;
-      MigrationPipeline pipeline() => _pipeline(
+      _Pipe pipeline() => _pipeline(
         loader: FakePluginLoader(sources: <PluginSource>[destination(settings())]),
         journalStore: store,
         selection: CallbackSelectionPort(
@@ -786,21 +808,4 @@ void main() {
       check(draft.report.failures.single.message).contains('[REDACTED]');
     });
   });
-}
-
-extension on MigrationPipeline {
-  /// A copy with an [MigrationPipeline.onResume] callback.
-  MigrationPipeline copyWithResume(void Function(int decisions) onResume) => MigrationPipeline(
-    repoUrls: repoUrls,
-    selection: selection,
-    onProgress: onProgress,
-    pluginLoader: pluginLoader,
-    directConverter: directConverter,
-    onOwnerOpened: onOwnerOpened,
-    journalStore: journalStore,
-    onResume: onResume,
-    ratingPolicy: ratingPolicy,
-    trustStore: trustStore,
-    redact: redact,
-  );
 }

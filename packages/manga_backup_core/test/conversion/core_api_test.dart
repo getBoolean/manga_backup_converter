@@ -27,14 +27,18 @@ void main() {
     final ConversionDraft draft =
         await MigrationPipeline(
           repoUrls: const <String>['https://repo.invalid'],
-          pluginLoader: FakePluginLoader(sources: <PluginSource>[source]),
-          selection: CallbackSelectionPort(
-            onSelectExtensions: (List<ExtensionEntry> e) async => e,
-            onConfirmMatches: confirmExactTitle,
+          session: ConversionSession(
+            selection: CallbackSelectionPort(
+              onSelectExtensions: (List<ExtensionEntry> e) async => e,
+              onConfirmMatches: confirmExactTitle,
+            ),
+            journalStore: journal,
           ),
-          journalStore: journal,
-          onProgress: (_, _, _) {},
-        ).run(
+        ).execute(
+          MigrationRoute(
+            writer: const AidokuBackupBuilder(),
+            loader: FakePluginLoader(sources: <PluginSource>[source]),
+          ),
           sourceBackup: PaperbackBackup.fromData(fx.libraryLinkageArchive()),
           sourceFormat: const Paperback(),
           targetFormat: const Aidoku(),

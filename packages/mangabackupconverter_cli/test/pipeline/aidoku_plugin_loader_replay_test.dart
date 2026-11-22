@@ -142,24 +142,25 @@ void main() {
       final ConversionDraft draft =
           await MigrationPipeline(
             repoUrls: const <String>['https://repo.invalid'],
-            pluginLoader: _FixtureLoader(loader, aix.readAsBytesSync()),
-            selection: CallbackSelectionPort(
-              onSelectExtensions: (List<ExtensionEntry> e) async => e,
-              onConfirmMatches: (_, List<SourceMangaData> manga, onSearch, _) async {
-                final results = <PluginSearchResult>[];
-                await for (final PluginSearchEvent e in onSearch('Onimai')) {
-                  if (e is PluginSearchResults) results.addAll(e.results);
-                }
-                return <MangaMatchConfirmation>[
-                  MangaMatchConfirmation(
-                    sourceManga: manga.single,
-                    confirmedMatch: results.firstWhere((PluginSearchResult r) => r.mangaKey == _mangaId),
-                  ),
-                ];
-              },
+            session: ConversionSession(
+              selection: CallbackSelectionPort(
+                onSelectExtensions: (List<ExtensionEntry> e) async => e,
+                onConfirmMatches: (_, List<SourceMangaData> manga, onSearch, _) async {
+                  final results = <PluginSearchResult>[];
+                  await for (final PluginSearchEvent e in onSearch('Onimai')) {
+                    if (e is PluginSearchResults) results.addAll(e.results);
+                  }
+                  return <MangaMatchConfirmation>[
+                    MangaMatchConfirmation(
+                      sourceManga: manga.single,
+                      confirmedMatch: results.firstWhere((PluginSearchResult r) => r.mangaKey == _mangaId),
+                    ),
+                  ];
+                },
+              ),
             ),
-            onProgress: (_, _, _) {},
-          ).run(
+          ).execute(
+            MigrationRoute(writer: const AidokuBackupBuilder(), loader: _FixtureLoader(loader, aix.readAsBytesSync())),
             sourceBackup: _OneManga(),
             sourceFormat: const Mihon(),
             targetFormat: const Aidoku(),

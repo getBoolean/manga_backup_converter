@@ -274,15 +274,25 @@ class LiveSearchSelect {
               await keySub.cancel();
               screen.clear();
 
+              DetailsOutcome? outcome;
               final detailsScreen = MangaDetailsScreen();
               final bool confirmed = await detailsScreen.run(
                 context: context,
                 result: result,
-                fetchDetails: () async => result.fetchedOutcome ?? await onFetchDetails(result.ref),
+                fetchDetails: () async => outcome = result.fetchedOutcome ?? await onFetchDetails(result.ref),
               );
+              // Keep what was fetched: selecting the enriched result hands its
+              // snapshot to the pipeline, which then does not fetch it again.
+              final PluginSearchResult enriched = _enriched(result, outcome);
+              if (!identical(enriched, result)) {
+                for (final _PluginStatus status in pluginStatuses.values) {
+                  final int at = status.results.indexOf(result);
+                  if (at >= 0) status.results[at] = enriched;
+                }
+              }
 
               if (confirmed) {
-                selected = result;
+                selected = enriched;
                 unawaited(events.close());
                 break;
               }
@@ -363,4 +373,10 @@ class LiveSearchSelect {
 
     return selected;
   }
+}
+
+/// [result] enriched with a successful [outcome], or [result] itself.
+PluginSearchResult _enriched(PluginSearchResult result, DetailsOutcome? outcome) {
+  final FetchedManga? fetched = outcome?.fetchedOrNull;
+  return fetched == null || result.fetched != null ? result : result.enrichedWith(fetched);
 }
