@@ -37,6 +37,7 @@ import 'package:tachi_plugin_loader/testing.dart';
 import 'aidoku_fixture_bundle.g.dart';
 import 'android_u12_cases.dart';
 import 'android_u14_cases.dart';
+import 'support/android_conversion_harness.dart' show webViewOfflineUnavailable;
 
 const Duration _noHang = Duration(seconds: 60);
 const ArtifactProfile _profile = ArtifactProfile(
@@ -575,7 +576,9 @@ final class _TachiStack {
     backend = AndroidTachiBackend(
       arguments: <String>[
         for (final String name in _tachiPackages) ...<String>['--replay', name],
-        '--offline-browser',
+        // The worker refuses it where WebViews cannot be blocked (U14); the
+        // WebView cases skip there.
+        if (_webViewOffline == null) '--offline-browser',
         ...extraArguments,
       ],
     );
@@ -682,8 +685,22 @@ final class _TachiStack {
 /// Worker start, reloads and replayed rate limits take longer than the default 30 s.
 const Timeout _tachiTimeout = Timeout(Duration(minutes: 4));
 
+/// See [webViewOfflineUnavailable]; set by the Tachi group.
+String? _webViewOffline;
+
+/// Skips a case that loads pages in a WebView where they cannot be kept off
+/// the network.
+bool _skipWithoutOfflineWebView() {
+  final String? reason = _webViewOffline;
+  if (reason == null) return false;
+  markTestSkipped('WebView network cannot be blocked here: $reason');
+  return true;
+}
+
 void _tachiCases() {
   late Directory root;
+
+  setUpAll(() async => _webViewOffline = await webViewOfflineUnavailable());
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('u11_tachi');
@@ -1111,6 +1128,7 @@ void _tachiCases() {
   }, timeout: _tachiTimeout);
 
   test('tachi: extension WebViews run in the service; cookies and web storage are wiped at session close and on service start', () async {
+    if (_skipWithoutOfflineWebView()) return;
     final stack = _TachiStack(root, fixtures: true);
     try {
       final TachiSourcePackage cookies = await stack.openId(
@@ -1254,6 +1272,7 @@ void _tachiCases() {
   }, timeout: _tachiTimeout);
 
   test('tachi AE11: MangaFire runWebViewBlocking builds a real WebView in the service process (replayed challenge)', () async {
+    if (_skipWithoutOfflineWebView()) return;
     final stack = _TachiStack(
       root,
       extraArguments: <String>['--challenge-once', '/api/titles'],
@@ -1395,6 +1414,7 @@ void _tachiCases() {
   }, timeout: const Timeout(Duration(minutes: 10)));
 
   test('tachi: a visible challenge opens in the :source_runtime challenge Activity; non-web URLs are refused', () async {
+    if (_skipWithoutOfflineWebView()) return;
     final stack = _TachiStack(root);
     try {
       final WorkerSupervisor supervisor = await stack.supervisor();

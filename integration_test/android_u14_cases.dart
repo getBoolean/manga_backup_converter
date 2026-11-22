@@ -114,6 +114,7 @@ void registerU14Cases() {
         'aidokuRegistered': h.runtimes.aidoku != null,
         'browserPort': h.runtimes.browserPort?.info,
         'browserUnavailable': h.runtimes.browserUnavailable?.message,
+        'webViewOfflineUnavailable': h.webViewOfflineUnavailableReason,
         'tachiArguments': h.runtimes.tachi.arguments,
         'tachiHandshakeDeadlineMs':
             h.runtimes.tachi.handshakeDeadline.inMilliseconds,
@@ -273,6 +274,12 @@ void registerU14Cases() {
       final AndroidConversionHarness h = await AndroidConversionHarness.create(
         label: 'u14-ae11-pb',
       );
+      if (h.webViewOfflineUnavailableReason case final String reason) {
+        await h.close();
+        _receipt('ae11-skipped', <String, Object?>{'reason': reason});
+        markTestSkipped('WebView network cannot be blocked here: $reason');
+        return;
+      }
       var maxSessions = 0;
       final poll = Timer.periodic(const Duration(milliseconds: 20), (_) {
         final int n = h.runtimes.browserPort?.sessions.length ?? 0;
@@ -324,6 +331,12 @@ void registerU14Cases() {
         label: 'u14-ae11-tachi',
         tachiArguments: const <String>['--challenge-once', '/api/titles'],
       );
+      if (h.webViewOfflineUnavailableReason case final String reason) {
+        await h.close();
+        _receipt('ae11-skipped', <String, Object?>{'reason': reason});
+        markTestSkipped('WebView network cannot be blocked here: $reason');
+        return;
+      }
       try {
         final selection = ScriptedSelection(pick: 'mangafire');
         Object? error;

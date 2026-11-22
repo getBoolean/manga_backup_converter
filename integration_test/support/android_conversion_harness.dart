@@ -82,6 +82,32 @@ List<int> processIds(String name) {
 /// The live `:source_runtime` service processes.
 List<int> servicePids() => processIds(serviceProcessName);
 
+Future<String?>? _offlineProbe;
+
+/// Why this device's WebViews cannot be kept off the network in replay mode
+/// (the WebView lacks `PROXY_OVERRIDE`, as API 28's image WebView 69 does),
+/// or `null` when they can. Probed once, by starting a replay-mode port.
+///
+/// When it is not `null`, no case may load anything in a WebView: the
+/// browser port refuses replay mode, the Tachi worker refuses
+/// `--offline-browser`, and WebView cases skip with this reason.
+Future<String?> webViewOfflineUnavailable() => _offlineProbe ??= () async {
+  final SourceOutcome<AndroidWebViewBrowserPort> started =
+      await AndroidWebViewBrowserPort.start(
+        config: const AndroidBrowserConfig(
+          allowInteraction: false,
+          offline: true,
+        ),
+      );
+  if (started case SourceSuccess<AndroidWebViewBrowserPort>(
+    :final AndroidWebViewBrowserPort value,
+  )) {
+    await value.dispose();
+    return null;
+  }
+  return started.failureOrNull!.message;
+}();
+
 /// The app's Android runtimes wired to replayed captures.
 final class AndroidConversionHarness extends ConversionHarness {
   AndroidConversionHarness._(
@@ -90,6 +116,7 @@ final class AndroidConversionHarness extends ConversionHarness {
     this.aidokuSite,
     this.logs,
     this.fixtureRepositoryUrl,
+    this.webViewOfflineUnavailableReason,
   ) : super(root, 'U14');
 
   final AndroidSourceRuntimes runtimes;
@@ -98,6 +125,9 @@ final class AndroidConversionHarness extends ConversionHarness {
 
   /// The synthetic fixture repository, when the harness serves it.
   final String? fixtureRepositoryUrl;
+
+  /// See [webViewOfflineUnavailable].
+  final String? webViewOfflineUnavailableReason;
 
   @override
   late final ConversionService service = runtimes.service();
@@ -163,6 +193,7 @@ final class AndroidConversionHarness extends ConversionHarness {
         ),
       );
     }
+    final String? offlineUnavailable = await webViewOfflineUnavailable();
     void log(String line) {
       logs.add(line);
       print('U14_LOG $line');
@@ -189,7 +220,9 @@ final class AndroidConversionHarness extends ConversionHarness {
           '--replay',
           name,
         ],
-        '--offline-browser',
+        // Refused by the worker where WebViews cannot be blocked; then no
+        // case loads an extension that uses a WebView.
+        if (offlineUnavailable == null) '--offline-browser',
         ...tachiArguments,
       ],
       browser: AndroidBrowserConfig(
@@ -210,6 +243,7 @@ final class AndroidConversionHarness extends ConversionHarness {
       aidokuSite,
       logs,
       fixtureUrl,
+      offlineUnavailable,
     );
   }
 
