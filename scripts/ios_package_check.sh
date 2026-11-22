@@ -30,7 +30,15 @@
 #     repo.json/index*.json, test signer, gate fixtures) or names a known
 #     repository host in the Dart snapshot or assets, unless
 #     --allow-test-payload (a test build staged with --test);
-#   - the GPL notices of the embedded runtime are absent.
+#   - the GPL notices of the embedded runtime are absent;
+#   - a shipped library has no entry with its full licence text in the
+#     generated notices asset (packages/source_runtime_ios/notices/
+#     third_party_notices.json, scripts/generate_notices.dart ios): every
+#     Tachi host class path JAR in the runtime payload (by artifact and
+#     version), the vendored code of each framework, and every Rust crate of
+#     a Rust-based plugin framework (cargo metadata for the slice's
+#     triple); frameworks of Dart packages need their notice in Flutter's
+#     NOTICES.Z, and a framework without a rule fails.
 set -euo pipefail
 
 app="${1:?usage: ios_package_check.sh <Runner.app> <out.json> [--allow-test-payload]}"
@@ -209,10 +217,100 @@ if (payload_hits or host_hits) and not allow_test:
     problems.extend(f"payload: {x}" for x in payload_hits + host_hits)
 
 legal = os.path.join(app, "Frameworks/App.framework/flutter_assets/packages/source_runtime_ios/runtime")
-notices = sorted(f for f in os.listdir(legal) if f.startswith("home__legal__")) if os.path.isdir(legal) else []
+gpl_notices = sorted(f for f in os.listdir(legal) if f.startswith("home__legal__")) if os.path.isdir(legal) else []
 for need in ("home__legal__LICENSE", "home__legal__ASSEMBLY_EXCEPTION", "home__legal__ADDITIONAL_LICENSE_INFO"):
-    if need not in notices:
+    if need not in gpl_notices:
         problems.append(f"GPL notice {need} missing from the runtime payload")
+
+# Third-party notices: the expected set comes from what the bundle ships.
+import zlib
+assets = os.path.join(app, "Frameworks/App.framework/flutter_assets")
+notices_text = ""
+if os.path.exists(os.path.join(assets, "NOTICES.Z")):
+    notices_text = zlib.decompress(open(os.path.join(assets, "NOTICES.Z"), "rb").read(), zlib.MAX_WBITS | 32).decode("utf-8", "replace")
+else:
+    problems.append("Flutter NOTICES.Z missing")
+notices_path = os.path.join(assets, "packages/source_runtime_ios/notices/third_party_notices.json")
+notices = json.load(open(notices_path, encoding="utf-8")) if os.path.exists(notices_path) else None
+if notices is None:
+    problems.append("packages/source_runtime_ios/notices/third_party_notices.json missing (generated third-party notices)")
+with_text = set()
+for c in (notices or {}).get("components", []):
+    keys, texts = c.get("texts", []), notices.get("texts") or {}
+    # Every named text exists and at least one is a full licence.
+    if keys and all(k in texts for k in keys) and any(len(texts[k].strip()) >= 200 for k in keys):
+        with_text.add(c["id"])
+    else:
+        problems.append(f"notices: {c.get('id')} has no full licence text")
+expected = {}
+# Tachi host class path: <artifact>-<version>.jar from the worker's installDist
+# (ios-host.jar and tachi-source-runner-*.jar are this repository's code).
+jar_names = {}
+for cid in with_text:
+    if cid.startswith("maven:"):
+        _, g, a, v = cid.split(":")
+        jar_names[f"{a}-{v}.jar"] = cid
+classpath = [l.split("\t")[1] for l in open(layout) if l.startswith("classpath\t")] if os.path.exists(layout) else []
+for flat in classpath:
+    jar = flat[len("cp__"):]
+    if jar == "ios-host.jar" or jar.startswith("tachi-source-runner-"):
+        continue
+    if jar not in jar_names:
+        problems.append(f"no notices entry with text for class path JAR {jar}")
+if classpath:
+    expected["vendored:mihon-source-api"] = "tachi-source-runner JAR (extracted Mihon source API)"
+# Frameworks: vendored components, NOTICES.Z phrases, Rust trees.
+FRAMEWORK_NOTICES = {
+    "Runner": {}, "App.framework": {},  # this application's code
+    "Flutter.framework": {"flutter": "flutter"},
+    "source_runtime_ios.framework": {"components": ["vendored:libffi", "vendored:zstd"]},  # + GPL notices above
+    "quickjs.framework": {"components": ["vendored:quickjs-ng"]},
+    "wasm3.framework": {"components": ["vendored:wasm3"]},
+    "SwiftSoupWrapper.framework": {"components": ["vendored:swiftsoup", "vendored:swift-atomics", "vendored:lrucache"]},
+    "CocoaAsyncSocket.framework": {"components": ["vendored:cocoaasyncsocket"]},
+    "objective_c.framework": {"flutter": "objective_c"},
+    "sqlite3.framework": {"flutter": "sqlite"},
+    "device_info_plus.framework": {"flutter": "device_info_plus"},
+    "patrol.framework": {"flutter": "patrol"},
+    "irondash_engine_context.framework": {"flutter": "irondash"},
+    "super_native_extensions.framework": {"flutter": "super_native_extensions", "rust": ("super_native_extensions", "rust/Cargo.toml")},
+}
+TRIPLES = {"IOS": "aarch64-apple-ios", "IOSSIMULATOR": "aarch64-apple-ios-sim"}
+def pub_root(name):
+    import urllib.parse, urllib.request
+    for pkg in json.load(open(os.path.join(repo, ".dart_tool/package_config.json")))["packages"]:
+        if pkg["name"] == name:
+            u = urllib.parse.urlparse(pkg["rootUri"])
+            return urllib.request.url2pathname(u.path) if u.scheme == "file" else os.path.normpath(os.path.join(repo, ".dart_tool", pkg["rootUri"]))
+    raise RuntimeError(f"{name} not in .dart_tool/package_config.json")
+notice_report = {}
+for label, _ in binaries:
+    rule = FRAMEWORK_NOTICES.get(label)
+    if rule is None:
+        problems.append(f"{label}: no notice rule for this framework")
+        continue
+    ok = True
+    if "flutter" in rule and rule["flutter"].lower() not in notices_text.lower():
+        problems.append(f"no NOTICES.Z notice for {label} (expected '{rule['flutter']}')"); ok = False
+    for cid in rule.get("components", []):
+        if cid not in with_text:
+            problems.append(f"no notices entry with text for {label} ({cid})"); ok = False
+    if "rust" in rule:
+        manifest = os.path.join(pub_root(rule["rust"][0]), rule["rust"][1])
+        r = subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform",
+                            TRIPLES.get(platform_expected, "aarch64-apple-ios"), "--manifest-path", manifest],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            problems.append(f"cannot list the Rust crates of {label}: {r.stderr.strip()[:300]}"); ok = False
+        else:
+            meta = json.loads(r.stdout)
+            nodes = {n["id"] for n in meta["resolve"]["nodes"]}
+            for p in meta["packages"]:
+                if p["id"] in nodes:
+                    expected.setdefault(f"crate:{p['name']}@{p['version']}", label)
+    notice_report[label] = ok
+missing_notices = sorted(i for i in expected if i not in with_text)
+problems.extend(f"no notices entry with text for {i} (shipped: {expected[i]})" for i in missing_notices)
 
 ent = subprocess.run(["codesign", "-d", "--entitlements", ":-", exe], capture_output=True, text=True).stdout
 result = {
@@ -224,7 +322,9 @@ result = {
     "binaries": records,
     "requiredReasonApis": {k: v for k, v in categories_needed.items()}, "privacyManifestDeclares": sorted(declared),
     "payloadTestOnlyFiles": payload_hits, "payloadRepositoryReferences": host_hits,
-    "runtimeLayoutKinds": layout_kinds, "gplNotices": notices,
+    "runtimeLayoutKinds": layout_kinds, "gplNotices": gpl_notices,
+    "thirdPartyNotices": {"components": len((notices or {}).get("components", [])), "withText": len(with_text),
+                          "classPathJars": len(classpath), "frameworks": notice_report, "missing": missing_notices},
     "testPayloadAllowed": allow_test, "debugEngine": debug_engine, "problems": problems, "pass": not problems,
 }
 os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

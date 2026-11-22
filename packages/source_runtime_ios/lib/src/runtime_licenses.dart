@@ -1,5 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:source_runtime/third_party_notices.dart';
+
+/// The generated notices of every library the iOS app ships besides the
+/// Dart packages and the runtime's own GPL notices
+/// (`scripts/generate_notices.dart ios`).
+const String iosThirdPartyNoticesAsset = 'packages/source_runtime_ios/notices/third_party_notices.json';
 
 /// The embedded runtime's notices as staged in the package assets.
 const List<String> _runtimeNotices = <String>[
@@ -26,9 +32,10 @@ repository at commit ad8bb1b065bf230d193a1dfd0ebd39a8b1fedf53, libffi
 tools/tachi-source-runner/ios/ in the app's source repository, and the native
 dispatcher under packages/source_runtime_ios/src/.''';
 
-/// Adds the embedded runtime's GPL notices and the written source offer to
-/// Flutter's [LicenseRegistry] (shown by `showLicensePage`). Notices missing
-/// from the bundle are skipped; the offer is always registered.
+/// Adds the embedded runtime's GPL notices, the written source offer and each
+/// library in [iosThirdPartyNoticesAsset] to Flutter's [LicenseRegistry]
+/// (shown by `showLicensePage`). Runtime notices missing from the bundle are
+/// skipped; the offer is always registered.
 void registerSourceRuntimeLicenses({AssetBundle? bundle}) {
   LicenseRegistry.addLicense(() async* {
     yield const LicenseEntryWithLineBreaks(<String>['OpenJDK (source runtime)'], sourceRuntimeSourceOffer);
@@ -40,6 +47,9 @@ void registerSourceRuntimeLicenses({AssetBundle? bundle}) {
       } on Object {
         // Not staged in this build.
       }
+    }
+    for (final ThirdPartyNotice n in parseThirdPartyNotices(await assets.loadString(iosThirdPartyNoticesAsset))) {
+      yield LicenseEntryWithLineBreaks(<String>[n.name], n.text);
     }
   });
 }

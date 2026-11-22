@@ -24,7 +24,13 @@ SDK), the APK signing identity (apksigner), every native library per ABI
   - an advertised ABI (arm64-v8a, armeabi-v7a, x86_64) lacks a runtime
     library (QuickJS, wasm3, scraper), or a library's ELF machine does not
     match its ABI directory;
-  - a native library or bundled host library has no notice in the APK;
+  - a shipped library has no entry with its full licence text in the
+    generated notices asset (third_party_notices.json): every artifact of
+    the release runtime classpath (android/app/gradle.lockfile, without
+    platform BOMs and the Flutter engine), every Rust crate linked into a
+    Rust library in the APK (cargo metadata for the APK's ABIs) and the
+    vendored code of each native library; the Dart packages' native
+    libraries need their notice in Flutter's NOTICES.Z;
   - the APK holds an extension artifact or repository configuration
     (nested .apk/.aix/.jar, Paperback bundles, capture files, repo.json,
     index*.json, fixture manifests, the test signer, the debug fixture asset
@@ -39,6 +45,8 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
+import urllib.request
 import zipfile
 import zlib
 
@@ -48,37 +56,36 @@ ELF_MACHINES = {"arm64-v8a": 183, "armeabi-v7a": 40, "x86_64": 62}
 MIN_SDK = 28
 CURRENT_SDK = 36
 
-# Each shipped native library and bundled host library, and a phrase its
-# notice must contain in the APK's notices (Flutter's NOTICES.Z, or the
-# Android host notices asset).
+# What each shipped native library needs in the notices:
+#   flutter: a phrase its Dart package's notice contains in NOTICES.Z;
+#   components: notices-asset component ids (a trailing ':' matches a prefix);
+#   rust: the Cargo tree it is built from (a repository path, or
+#         ("pub", package, manifest)); every crate cargo resolves for the
+#         APK's ABIs needs a component.
 NATIVE_NOTICES = {
-    "libapp.so": None,  # this application's code
-    "libflutter.so": "flutter",
-    "libquickjs.so": "QuickJS",
-    "libwasm3.so": "Wasm3",
-    "libscraper_bridge.so": "html5ever",
-    "libzstd-kmp.so": "Zstandard",
-    "libdartjni.so": "jni",
-    "libdatastore_shared_counter.so": "AndroidX",
-    "libsqlite3.so": "sqlite",
-    "libirondash_engine_context_native.so": "irondash",
-    "libsuper_native_extensions.so": "super_native_extensions",
+    "libapp.so": {},  # this application's code
+    "libflutter.so": {"flutter": "flutter"},
+    "libquickjs.so": {"components": ["vendored:quickjs-ng"]},
+    "libwasm3.so": {"components": ["vendored:wasm3"]},
+    "libscraper_bridge.so": {"rust": "packages/scraper/rust/Cargo.toml"},
+    "libzstd-kmp.so": {"components": ["vendored:zstd", "maven:com.squareup.zstd:zstd-kmp-android:"]},
+    "libdartjni.so": {"flutter": "jni"},
+    "libdatastore_shared_counter.so": {"components": ["maven:androidx.datastore:datastore-core-android:"]},
+    "libsqlite3.so": {"flutter": "sqlite"},
+    "libirondash_engine_context_native.so": {
+        "flutter": "irondash", "rust": ("pub", "irondash_engine_context", "android/rust/Cargo.toml")},
+    "libsuper_native_extensions.so": {
+        "flutter": "super_native_extensions", "rust": ("pub", "super_native_extensions", "rust/Cargo.toml")},
 }
-HOST_NOTICES = {
-    "OkHttp": "OkHttp",
-    "Okio": "Okio",
-    "jsoup": "jsoup",
-    "RxJava": "RxJava",
-    "Kotlin": "Kotlin",
-    "kotlinx.coroutines": "kotlinx.coroutines",
-    "kotlinx.serialization": "kotlinx.serialization",
-    "Injekt": "Injekt",
-    "apksig": "apksig",
-    "AndroidX": "AndroidX",
-    "Mihon source API": "Mihon",
-    "zstd-kmp": "zstd-kmp",
-}
-HOST_NOTICES_ASSET = "assets/flutter_assets/packages/source_runtime_android/notices/android-host-notices.txt"
+# Shipped in every APK: the Tachi source host's extracted Mihon source API.
+ALWAYS_COMPONENTS = ["vendored:mihon-source-api"]
+ABI_TRIPLES = {"arm64-v8a": "aarch64-linux-android", "armeabi-v7a": "armv7-linux-androideabi",
+               "x86_64": "x86_64-linux-android", "x86": "i686-linux-android"}
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCKFILE = os.path.join(REPO, "android", "app", "gradle.lockfile")
+NOTICES_ASSET = "assets/flutter_assets/packages/source_runtime_android/notices/third_party_notices.json"
+# A licence text shorter than this is a reference, not the text.
+MIN_TEXT = 200
 
 FORBIDDEN_NAMES = [
     (re.compile(r"\.(apk|aix|jar)$"), "extension artifact"),
@@ -120,6 +127,50 @@ def build_tool(name):
 
 def run(*cmd):
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+
+
+def lockfile_coordinates(path, configuration="releaseRuntimeClasspath"):
+    """The shipped Maven coordinates: the configuration's lockfile entries
+    without platform BOMs (no code) and the Flutter engine (NOTICES.Z)."""
+    out = []
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        coords, confs = line.split("=", 1)
+        parts = coords.split(":")
+        if len(parts) != 3:  # "empty=<configurations>"
+            continue
+        g, a, _ = parts
+        if configuration in confs.split(",") and not a.endswith("-bom") and g != "io.flutter":
+            out.append(coords)
+    return sorted(out)
+
+
+def pub_package_root(name):
+    config = json.load(open(os.path.join(REPO, ".dart_tool", "package_config.json"), encoding="utf-8"))
+    for pkg in config["packages"]:
+        if pkg["name"] == name:
+            uri = urllib.parse.urlparse(pkg["rootUri"])
+            if uri.scheme == "file":
+                return urllib.request.url2pathname(uri.path)
+            return os.path.normpath(os.path.join(REPO, ".dart_tool", urllib.parse.unquote(pkg["rootUri"])))
+    raise RuntimeError(f"{name} is not in .dart_tool/package_config.json (run flutter pub get)")
+
+
+def cargo_crates(tree, triples):
+    """crate:<name>@<version> of every crate cargo resolves for the triples."""
+    manifest = os.path.join(pub_package_root(tree[1]), tree[2]) if isinstance(tree, tuple) else os.path.join(REPO, tree)
+    crates = set()
+    for triple in sorted(triples):
+        r = subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform", triple,
+                            "--manifest-path", manifest], capture_output=True, text=True, encoding="utf-8")
+        if r.returncode != 0:
+            raise RuntimeError(f"cargo metadata {manifest} ({triple}): {r.stderr.strip()[:300]}")
+        meta = json.loads(r.stdout)
+        nodes = {n["id"] for n in meta["resolve"]["nodes"]}
+        crates |= {f"crate:{p['name']}@{p['version']}" for p in meta["packages"] if p["id"] in nodes}
+    return crates
 
 
 def elf_identity(data):
@@ -180,7 +231,7 @@ def main(argv):
 
     libraries = []
     notices_text = ""
-    host_notices = ""
+    notices_asset = None
     payload = []
     forbidden_hits = []
     with zipfile.ZipFile(apk) as z:
@@ -210,31 +261,68 @@ def main(argv):
             notices_text = zlib.decompress(z.read("assets/flutter_assets/NOTICES.Z"), zlib.MAX_WBITS | 32).decode("utf-8", "replace")
         else:
             problems.append("assets/flutter_assets/NOTICES.Z missing")
-        if HOST_NOTICES_ASSET in names:
-            host_notices = z.read(HOST_NOTICES_ASSET).decode("utf-8", "replace")
+        if NOTICES_ASSET in names:
+            notices_asset = json.loads(z.read(NOTICES_ASSET).decode("utf-8"))
         else:
-            problems.append(f"{HOST_NOTICES_ASSET} missing (notices of the bundled Android host libraries)")
+            problems.append(f"{NOTICES_ASSET} missing (generated third-party notices)")
 
     for abi in ADVERTISED_ABIS:
         for lib in RUNTIME_LIBRARIES:
             if not any(l["path"] == f"lib/{abi}/{lib}" for l in libraries):
                 problems.append(f"lib/{abi}/{lib} missing")
 
-    all_notices = notices_text + "\n" + host_notices
+    # Components that carry a full text in the notices asset.
+    with_text = set()
+    texts = (notices_asset or {}).get("texts") or {}
+    for c in (notices_asset or {}).get("components", []):
+        keys = c.get("texts", [])
+        # Every named text exists, and at least one is a full licence (a crate
+        # may add a short COPYING pointer beside its LICENSE-MIT/UNLICENSE).
+        if keys and all(k in texts for k in keys) and any(len(texts[k].strip()) >= MIN_TEXT for k in keys):
+            with_text.add(c["id"])
+        else:
+            problems.append(f"notices: {c.get('id')} has no full licence text")
+
+    def has(component_id):
+        if component_id.endswith(":"):
+            return any(i.startswith(component_id) for i in with_text)
+        return component_id in with_text
+
+    # The expected set comes from what ships, never from the asset.
+    expected = {f"maven:{c}": "release runtime classpath" for c in lockfile_coordinates(LOCKFILE)}
+    expected.update({c: "every APK" for c in ALWAYS_COMPONENTS})
     notice_report = {}
     for lib in sorted({l["path"].split("/")[-1] for l in libraries}):
-        phrase = NATIVE_NOTICES.get(lib)
-        if phrase is None:
+        rule = NATIVE_NOTICES.get(lib)
+        if rule is None:
             continue
-        found = phrase.lower() in all_notices.lower()
-        notice_report[lib] = found
-        if not found:
-            problems.append(f"no notice for {lib} (expected '{phrase}')")
-    for name, phrase in HOST_NOTICES.items():
-        found = phrase.lower() in host_notices.lower()
-        notice_report[name] = found
-        if not found:
-            problems.append(f"no notice for bundled host library {name} (expected '{phrase}' in {HOST_NOTICES_ASSET})")
+        ok = True
+        if "flutter" in rule and rule["flutter"].lower() not in notices_text.lower():
+            problems.append(f"no NOTICES.Z notice for {lib} (expected '{rule['flutter']}')")
+            ok = False
+        for cid in rule.get("components", []):
+            if not has(cid):
+                problems.append(f"no notices entry with text for {lib} ({cid})")
+                ok = False
+        if "rust" in rule:
+            abis = {l["abi"] for l in libraries if l["path"].endswith("/" + lib)}
+            try:
+                for crate in cargo_crates(rule["rust"], {ABI_TRIPLES[a] for a in abis if a in ABI_TRIPLES}):
+                    expected.setdefault(crate, lib)
+            except (RuntimeError, OSError) as e:
+                problems.append(f"cannot list the Rust crates of {lib}: {e}")
+                ok = False
+        notice_report[lib] = ok
+    missing = sorted(i for i in expected if i not in with_text)
+    for i in missing:
+        problems.append(f"no notices entry with text for {i} (shipped: {expected[i]})")
+    listed_by_rule = {cid for r in NATIVE_NOTICES.values() for cid in r.get("components", [])}
+    notice_report["components"] = {
+        "expected": len(expected),
+        "withText": len(with_text),
+        "missing": missing,
+        "notExpected": sorted(i for i in with_text - set(expected) if i not in listed_by_rule),
+    }
 
     if (payload or forbidden_hits) and not allow_test:
         for p in payload:
@@ -283,7 +371,7 @@ def main(argv):
         "buildOutputs": build_outputs,
         "notices": notice_report,
         "noticesBytes": len(notices_text),
-        "hostNoticesBytes": len(host_notices),
+        "thirdPartyNotices": len((notices_asset or {}).get("components", [])),
         "testPayload": {"allowed": allow_test, "entries": len(payload), "kinds": sorted({p["kind"] for p in payload}), "repositoryStrings": forbidden_hits},
         "problems": problems,
         "ok": not problems,

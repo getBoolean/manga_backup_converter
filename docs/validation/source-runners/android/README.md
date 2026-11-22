@@ -426,12 +426,24 @@ Two gaps existed before this unit:
 - Flutter's `NOTICES.Z` covered the Dart packages but not QuickJS-ng, Wasm3 or the scraper's Rust crates: those path packages carry no LICENSE.
 - Nothing in the APK carried the notices of the Kotlin/Java host libraries; they were only in `tools/tachi-source-runner/THIRD_PARTY.md`.
 
-`packages/source_runtime_android/notices/android-host-notices.txt` now ships as a package asset. On Android it is registered with `LicenseRegistry` (`registerSourceRuntimeLicenses`). It contains:
-- the host libraries, with the licences their POMs declare (the Apache-2.0 text, jsoup's MIT licence, Zstandard's BSD-3-Clause);
-- the licences of QuickJS-ng and Wasm3, taken from the vendored sources;
-- the scraper's 80 runtime crates with their declared licences, including the ISC, MPL-2.0 and Unicode-3.0 texts.
+U14 shipped a hand-written host notices file. Since the licensing follow-up it is generated:
+`scripts/generate_notices.dart android` writes `packages/source_runtime_android/notices/third_party_notices.json`
+(a package asset), and `registerSourceRuntimeLicenses` registers each component on the licence page with its full
+licence texts. It covers:
+- every artifact of the release runtime classpath, as Gradle resolves it (`scripts/licenses/license-inputs.gradle`):
+  the licence and notice files inside the JAR/AAR, else the canonical text of a POM-declared licence that names no
+  holder (Apache-2.0), else a committed upstream LICENSE with its real copyright line (Brotli, Injekt and
+  the repackaged protobuf in datastore), recorded with URL and SHA-256 in `scripts/licenses/components.json`;
+- every Rust crate of the scraper bridge, `super_native_extensions` and `irondash_engine_context` for the three ABIs
+  (the U8b mechanism, now shared: `scripts/licenses/notices.dart`);
+- QuickJS-ng, Wasm3, Zstandard (statically linked in `libzstd-kmp.so`) and the extracted Mihon source API.
 
-The package check requires a notice for every native library and for each host library group.
+The generator fails when any component has no text. `scripts/android_package_check.py` derives the expected set from
+what ships, not from the asset: the lockfile's `releaseRuntimeClasspath` (without platform BOMs and the Flutter engine),
+`cargo metadata` for each Rust library's ABIs in the APK, and a rule per native library; it fails on any shipped library
+without an entry carrying a full text (200+ characters), and on a native library without a rule. CI runs
+`generate_notices.dart android --check` before the package check. `u14-release-apk-check.json` predates this format
+(see the licensing follow-up below).
 
 ## U14: still open
 
@@ -441,7 +453,7 @@ The package check requires a notice for every native library and for each host l
 - **Activity recreation ends the job.** `MainActivity` is a plain `FlutterActivity` that owns its engine, so destroying the Activity destroys the Dart isolate and the conversion; the journal makes the next launch resume. Keeping a job alive across recreation would need an engine that outlives the Activity (a cached engine or a foreground service). That is a product decision, not taken here.
 - **Requeue after service death.** The supervisor re-sends a call that was in flight when the service died (AE10 receipt). If that call itself killed the service (for example, a native crash), it gets one more attempt before it fails. The deadline path does not re-send.
 - **Restore.** Restoring Android-built Paperback and Aidoku backups is iOS-device work under U8's restore prerequisites. The Mihon check refreshed through Mihon's own live traffic (outside the test suite, as authorised).
-- **Host notices.** The copyright holders of the MIT crates, Brotli and Injekt are referenced, not reproduced, because their artifacts carry no licence file. A generated per-crate attribution (for example, `cargo about`) would close that.
+- **Host notices.** Closed by the licensing follow-up: every crate, artifact and vendored library now has its full text (see Notices).
 - **Not wired into the UI.** No app screen creates `AndroidSourceRuntimes` yet (the iOS branch is in the same state); the harness is the only caller.
 - **Device actions outside agent-device.** Taps, Home, reopen, Settings and the Mihon UI went through agent-device. These went through adb instead: `run-as … kill -9` (the real process kill), `am force-stop` (once, which interrupted the first API 28 run), copying the backup into `/sdcard` and a media-scan broadcast, `settings get` (read-only checks), installs and logcat.
 - **`--interactive-challenges` ran only in a host test** (`test/features/conversion/android_conversion_config_test.dart`); no device job ran with `interactive: true`.

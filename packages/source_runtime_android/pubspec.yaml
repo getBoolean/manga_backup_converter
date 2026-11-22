@@ -26,7 +26,8 @@ dev_dependencies:
   test: ^1.24.0
 
 flutter:
-  # Notices of the Android host libraries the APK bundles; registered with
+  # Generated third-party notices of every library the APK bundles besides
+  # the Dart packages (scripts/generate_notices.dart android); registered with
   # registerSourceRuntimeLicenses() and checked by
   # scripts/android_package_check.py.
   assets:

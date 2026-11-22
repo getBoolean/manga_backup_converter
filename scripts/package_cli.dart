@@ -25,6 +25,8 @@ import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
+import 'licenses/notices.dart';
+
 final String _root = p.normalize(
   p.join(p.dirname(Platform.script.toFilePath()), '..'),
 );
@@ -483,137 +485,46 @@ String get _rustHost => switch ((_os, _arch)) {
   _ => throw StateError('No Rust host triple for $_os-$_arch'),
 };
 
-/// Licence and notice files a crate publishes (`LICENSE-MIT`, `COPYING`, ...).
-final RegExp _licenseFile = RegExp(
-  r'^(licen[cs]e|copying|notice|unlicense|copyright)([-._].*)?$',
-  caseSensitive: false,
-);
-
-/// The crates of [label]'s tree linked for this host (`cargo metadata
-/// --filter-platform`), listed with their declared licences, and each crate's
-/// licence texts copied to `licenses/rust/<label>/<crate>-<version>/`: the
-/// files the crate publishes, or, for a crate that publishes none, the
-/// canonical text of each licence in its SPDX expression
-/// (`scripts/licenses/`; MIT with the crate's authors as holders). This
-/// repository's own crates get its `LICENSE.md`. Fails when a declared
-/// licence has no text.
+/// The crates of [label]'s tree linked for this host
+/// (`scripts/licenses/notices.dart`, the mechanism the app notices use too),
+/// listed with their declared licences, and each crate's licence texts
+/// copied to `licenses/rust/<label>/<crate>-<version>/`: the files the crate
+/// publishes, or, for a crate that publishes none, the canonical text of each
+/// licence in its SPDX expression (`scripts/licenses/`; MIT with the crate's
+/// authors as holders). This repository's own crates get its `LICENSE.md`.
+/// Fails when a declared licence has no text.
 Future<String> _crateLicenses(
   String label,
   String manifest,
   Directory licenses,
 ) async {
-  final ProcessResult r = await Process.run('cargo', <String>[
-    'metadata',
-    '--locked',
-    '--format-version',
-    '1',
-    '--filter-platform',
-    _rustHost,
-    '--manifest-path',
-    p.join(_root, manifest),
-  ]);
-  if (r.exitCode != 0) {
-    throw StateError('cargo metadata failed for $manifest: ${r.stderr}');
-  }
-  final meta = jsonDecode(r.stdout as String) as Map<String, Object?>;
-  final linked = <String>{
-    for (final Object? n
-        in (meta['resolve']! as Map<String, Object?>)['nodes']!
-            as List<Object?>)
-      (n! as Map<String, Object?>)['id']! as String,
-  };
-  final List<Map<String, Object?>> packages =
-      (meta['packages']! as List<Object?>)
-          .cast<Map<String, Object?>>()
-          .where((Map<String, Object?> pkg) => linked.contains(pkg['id']))
-          .toList()
-        ..sort(
-          (Map<String, Object?> a, Map<String, Object?> b) =>
-              '${a['name']} ${a['version']}'.compareTo(
-                '${b['name']} ${b['version']}',
-              ),
-        );
-  final String local = p.join(_root, 'packages');
+  final List<Component> crates = await rustComponents(
+    root: _root,
+    manifest: p.join(_root, manifest),
+    triples: <String>[_rustHost],
+  );
   final lines = <String>[
     'Crates linked into $label for $_rustHost (from ${p.dirname(manifest)}/Cargo.lock), with their',
     "declared licences. Each crate's licence texts are in rust/$label/<crate>-<version>/.",
     '',
   ];
-  for (final pkg in packages) {
-    final name = pkg['name']! as String;
-    final version = pkg['version']! as String;
-    final declared = pkg['license'] as String?;
-    final String crateDir = p.dirname(pkg['manifest_path']! as String);
+  for (final crate in crates) {
     final dest = Directory(
-      p.join(licenses.path, 'rust', label, '$name-$version'),
+      p.join(licenses.path, 'rust', label, '${crate.name}-${crate.version}'),
     )..createSync(recursive: true);
-    final String how;
-    final published = <File>[
-      for (final FileSystemEntity e in Directory(crateDir).listSync())
-        if (e is File && _licenseFile.hasMatch(p.basename(e.path))) e,
-    ];
-    if (p.isWithin(local, crateDir)) {
-      File(p.join(_root, 'LICENSE.md'))
-          .copySync(p.join(dest.path, 'LICENSE.md'));
-      how = "this repository's LICENSE.md";
-    } else if (published.isNotEmpty) {
-      for (final f in published) {
-        f.copySync(p.join(dest.path, p.basename(f.path)));
+    for (final LicenseText t in crate.texts) {
+      final String to = p.join(dest.path, t.fileName);
+      if (t.source case final File source) {
+        source.copySync(to);
+      } else {
+        File(to).writeAsStringSync(t.content);
       }
-      how = published.map((File f) => p.basename(f.path)).join(', ');
-    } else {
-      final List<String> ids = _licencesToShip(declared, name, version);
-      for (final id in ids) {
-        final canonical = File(p.join(_root, 'scripts', 'licenses', '$id.txt'));
-        final String authors =
-            (pkg['authors'] as List<Object?>? ?? const <Object?>[])
-                .map((Object? a) => '$a'.replaceAll(RegExp(r'\s*<[^>]*>'), ''))
-                .join(', ');
-        File(p.join(dest.path, 'LICENSE-$id')).writeAsStringSync(
-          canonical.readAsStringSync().replaceAll(
-            '{{holders}}',
-            authors.isEmpty ? 'the $name authors' : authors,
-          ),
-        );
-      }
-      how =
-          'canonical ${ids.join(', ')} text (the crate publishes no licence file)';
     }
-    lines.add('$name $version: ${declared ?? 'UNDECLARED'} ($how)');
-  }
-  return '${lines.join('\n')}\n';
-}
-
-/// The licences whose canonical texts ship for a crate that publishes no
-/// licence file: every `AND` term of its SPDX expression, and for each term
-/// that offers a choice (`OR`, or Cargo's older `/`) the first option with a
-/// text in `scripts/licenses/` (the recipient may take any one). Fails when a
-/// term has no option with a text.
-List<String> _licencesToShip(String? declared, String name, String version) {
-  final String expression = (declared ?? '').replaceAll(RegExp('[()]'), ' ');
-  final terms = <String>[
-    for (final String t in expression.split(RegExp(r'\s+AND\s+')))
-      if (t.trim().isNotEmpty) t.trim(),
-  ];
-  if (terms.isEmpty) {
-    throw StateError(
-      '$name $version declares no licence and publishes no licence file',
+    lines.add(
+      '${crate.name} ${crate.version}: ${crate.license} (${crate.origin})',
     );
   }
-  bool hasText(String id) =>
-      File(p.join(_root, 'scripts', 'licenses', '$id.txt')).existsSync();
-  return <String>[
-    for (final String term in terms)
-      <String>[
-        for (final String option in term.split(RegExp(r'\s*(?:/|\bOR\b)\s*')))
-          if (option.trim().isNotEmpty) option.trim(),
-      ].firstWhere(
-        hasText,
-        orElse: () => throw StateError(
-          '$name $version: no canonical text in scripts/licenses/ for any of "$term"',
-        ),
-      ),
-  ];
+  return '${lines.join('\n')}\n';
 }
 
 String _notice(
