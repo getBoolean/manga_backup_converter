@@ -230,13 +230,33 @@ define_class!(
     fn did_receive(&self, _controller: &WKUserContentController, msg: &WKScriptMessage) {
       unsafe {
         let Ok(body) = msg.body().downcast::<NSString>() else { return };
-        let uri = msg.frameInfo().request().URL().and_then(|u| u.absoluteString()).map(|s| s.to_string()).unwrap_or_default();
+        // The posting frame's security origin, not its request URL: a
+        // frame's request URL can differ from the origin its document runs
+        // in (about:blank, srcdoc, data: and sandboxed frames), and only the
+        // origin is what the message's claimed `o` must match (L1).
+        let uri = security_origin_uri(&msg.frameInfo().securityOrigin());
         let ivars = self.ivars();
         let _ = ivars.proxy.send_event(UserEvent::Ipc { session: ivars.session.clone(), uri, body: body.to_string() });
       }
     }
   }
 );
+
+/// `scheme://host[:port]` of a WebKit security origin (port 0 = the
+/// scheme's default), or `""` for an opaque origin, which no http(s) origin
+/// check accepts.
+fn security_origin_uri(origin: &objc2_web_kit::WKSecurityOrigin) -> String {
+  let (scheme, host, port) = unsafe { (origin.protocol().to_string(), origin.host().to_string(), origin.port()) };
+  if scheme.is_empty() || host.is_empty() {
+    return String::new();
+  }
+  let host = if host.contains(':') && !host.starts_with('[') { format!("[{host}]") } else { host };
+  if port == 0 {
+    format!("{scheme}://{host}/")
+  } else {
+    format!("{scheme}://{host}:{port}/")
+  }
+}
 
 pub struct NavDelegateIvars {
   shared: Rc<RefCell<Shared>>,

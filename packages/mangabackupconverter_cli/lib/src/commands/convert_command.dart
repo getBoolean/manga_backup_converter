@@ -22,7 +22,8 @@ import 'package:mangabackupconverter_cli/src/commands/redacting_log.dart';
 import 'package:mangabackupconverter_cli/src/commands/terminal_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
-import 'package:source_runtime/source_runtime.dart' show Redactor, SettingsSnapshot, SourceFailure;
+import 'package:source_runtime/source_runtime.dart'
+    show Redactor, SettingsSnapshot, SourceFailure, isSecretLikeSettingKey;
 import 'package:tachi_plugin_loader/tachi_plugin_loader.dart' show TachiArtifactPolicy, TachiWorkerLocation;
 
 class ConvertCommand extends Command<void> {
@@ -368,15 +369,24 @@ class ConvertCommand extends Command<void> {
     final FormatRegistry formats = cliFormatRegistry();
     // One session redactor for every log line and user-visible error (KTD9).
     final redactor = Redactor();
+    // Every secret the user supplied (settings file and --setting flags,
+    // including values under secret-like keys) is registered now, before any
+    // worker, helper or plugin can log, not only when a loader opens it.
+    registerUserSettingSecrets(userSettings, redactor);
     RedactingLog? activeLog;
     // One desktop WebView helper per conversion serves both workers' browser
     // requests (KTD20). Interactive runs may show its window for a challenge;
     // unattended runs never open a window (interaction-required).
-    final io.Directory searchFrom = io.File(io.Platform.script.toFilePath()).parent;
+    // Development build outputs only when running from source or with an
+    // explicit development root; a compiled CLI never searches for them.
+    final io.Directory? developmentRoot = developmentRepositoryRoot();
     final (DesktopBrowserPort? browser, String? browserUnavailable) = createCliBrowserPort(
       interactive: interactive,
       dataRoot: io.Directory(p.join(userConfigDirectory(), 'cache', 'webview')),
-      manifest: locateWebViewHelperManifest(explicit: results.option('webview-helper'), searchFrom: searchFrom),
+      manifest: locateWebViewHelperManifest(
+        explicit: results.option('webview-helper'),
+        developmentRoot: developmentRoot,
+      ),
       onLog: (String line) => activeLog?.writeln(line),
     );
     if (browserUnavailable != null && verbose) {
@@ -390,7 +400,7 @@ class ConvertCommand extends Command<void> {
       locate: () => TachiWorkerLocation.resolve(
         manifestPath: results.option('tachi-runtime') ?? packagedTachiManifest(),
         handshakeDeadline: tachiHandshakeDeadline,
-        searchFrom: searchFrom,
+        developmentRoot: developmentRoot,
       ),
       cacheDirectory: io.Directory(p.join(userConfigDirectory(), 'cache', 'tachi')),
       fetch: httpTachiFetch,
@@ -751,6 +761,16 @@ UserExtensionSettings _readUserSettings(String? path, List<String> flags) {
     return settings;
   } on FormatException catch (e) {
     throw UsageException('Invalid extension settings: ${e.message}', '');
+  }
+}
+
+/// Registers every secret in [settings] with [redactor]: each extension's
+/// package-wide and source-scoped secrets and the string values of
+/// secret-like value keys ([isSecretLikeSettingKey]).
+@visibleForTesting
+void registerUserSettingSecrets(UserExtensionSettings settings, Redactor redactor) {
+  for (final String id in settings.extensionIds) {
+    settings.snapshotFor(StubExtensionEntry(id: id, name: id)).allSecretValues.forEach(redactor.addSecret);
   }
 }
 

@@ -47,8 +47,9 @@ final class TachiWorkerLocation {
   ///
   /// Sources, in order: the manifest at [manifestPath] (relative paths are
   /// relative to it); then [installDirectory] (an `installDist` output) or,
-  /// failing that, the development install found by walking up from
-  /// [searchFrom]; `java` from [javaHome], else `TACHI_JAVA_HOME`, else
+  /// failing that, the development install directly under [developmentRoot]
+  /// (a repository checkout the caller vouches for: nothing is searched, so a
+  /// manifest planted in a parent folder is never read); `java` from [javaHome], else `TACHI_JAVA_HOME`, else
   /// `JAVA_HOME` in [environment]. [handshakeDeadline] overrides the
   /// manifest's `handshakeDeadlineMs`.
   ///
@@ -60,7 +61,7 @@ final class TachiWorkerLocation {
     String? installDirectory,
     String? javaHome,
     Duration? handshakeDeadline,
-    Directory? searchFrom,
+    Directory? developmentRoot,
     Map<String, String>? environment,
   }) {
     final Map<String, String> env = environment ?? Platform.environment;
@@ -69,9 +70,7 @@ final class TachiWorkerLocation {
     String mainClass = tachiWorkerMainClass;
     var deadline = handshakeDeadline;
 
-    final String? install = manifestPath == null
-        ? installDirectory ?? _developmentInstall(searchFrom ?? Directory.current)
-        : null;
+    final String? install = manifestPath == null ? installDirectory ?? _developmentInstall(developmentRoot) : null;
     final String? manifestFile =
         manifestPath ??
         switch (install) {
@@ -166,17 +165,12 @@ final class TachiWorkerLocation {
   /// worker's handshake; only the handshake deadline comes from here.
   AdoptWorkerLimits get limits => AdoptWorkerLimits(handshakeDeadline: handshakeDeadline);
 
-  /// The development install directory (holding `lib/`), walking up from
-  /// [from].
-  static String? _developmentInstall(Directory from) {
-    Directory dir = from.absolute;
-    while (true) {
-      final String install = p.join(dir.path, tachiWorkerDevelopmentInstall);
-      if (Directory(p.join(install, 'lib')).existsSync()) return install;
-      final Directory parent = dir.parent;
-      if (parent.path == dir.path) return null;
-      dir = parent;
-    }
+  /// The development install directory (holding `lib/`) of the checkout at
+  /// [root], or `null` without one.
+  static String? _developmentInstall(Directory? root) {
+    if (root == null) return null;
+    final String install = p.join(root.absolute.path, tachiWorkerDevelopmentInstall);
+    return Directory(p.join(install, 'lib')).existsSync() ? p.normalize(install) : null;
   }
 }
 

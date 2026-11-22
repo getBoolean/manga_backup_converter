@@ -257,10 +257,22 @@ Future<void> main(List<String> args) async {
       javaLine,
     );
 
+    // M1: plant a development layout (workspace markers, a helper manifest
+    // and a Tachi install) in the package's parent folder, as another local
+    // user could; the packaged CLI must not adopt it as a development root.
+    _plantDevelopmentLayout(temp);
+
     // Start and close everything.
     final ({int code, Map<String, Object?>? report, String stderr}) check =
         await _runtimeCheck(cli, env, hold: false);
     final Map<String, Object?>? report = check.report;
+    _record(
+      'a development layout planted in a parent folder is not used',
+      report != null &&
+          report.containsKey('developmentRoot') &&
+          report['developmentRoot'] == null,
+      <String, Object?>{'reported': report?.containsKey('developmentRoot')},
+    );
     _record(
       'runtime check starts the JVM worker, Paperback worker and WebView helper',
       check.code == 0 && report?['ok'] == true,
@@ -388,6 +400,43 @@ Map<String, String> _scrubbedEnvironment() {
     'WAYLAND_DISPLAY': ?get('WAYLAND_DISPLAY'),
     'XDG_RUNTIME_DIR': ?get('XDG_RUNTIME_DIR'),
   };
+}
+
+/// Writes a development checkout layout into [dir]: what a compiled CLI
+/// below it must ignore (M1).
+void _plantDevelopmentLayout(Directory dir) {
+  for (final parts in <List<String>>[
+    <String>['pubspec.yaml'],
+    <String>['packages', 'mangabackupconverter_cli', 'pubspec.yaml'],
+    <String>[
+      'packages',
+      'desktop_webview',
+      'build',
+      'helper',
+      'runtime-artifacts.json',
+    ],
+    <String>[
+      'tools',
+      'tachi-source-runner',
+      'build',
+      'install',
+      'tachi-source-runner',
+      'tachi-runtime.json',
+    ],
+  ]) {
+    File(p.joinAll(<String>[dir.path, ...parts])).createSync(recursive: true);
+  }
+  Directory(
+    p.join(
+      dir.path,
+      'tools',
+      'tachi-source-runner',
+      'build',
+      'install',
+      'tachi-source-runner',
+      'lib',
+    ),
+  ).createSync(recursive: true);
 }
 
 Future<({int code, Map<String, Object?>? report, String stderr})> _runtimeCheck(

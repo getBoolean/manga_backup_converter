@@ -23,8 +23,9 @@ class RedactingLog {
   /// lines, redacts them, and writes them here.
   RedactingLineSink lineSink() => RedactingLineSink(redactor, writeln);
 
-  /// Registers the secret values of a source's settings.
-  void addSecrets(SettingsSnapshot settings) => settings.secrets.values.forEach(redactor.addSecret);
+  /// Registers the secret values of a source's settings: package-wide and
+  /// source-scoped secrets and the string values of secret-like keys.
+  void addSecrets(SettingsSnapshot settings) => settings.allSecretValues.forEach(redactor.addSecret);
 
   /// Stops writing (the underlying sink is closed by its owner).
   void unmount() => _closed = true;

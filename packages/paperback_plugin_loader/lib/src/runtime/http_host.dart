@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:paperback_plugin_loader/src/runtime/bounded_body.dart';
 import 'package:paperback_plugin_loader/src/runtime/promise_bridge.dart';
 import 'package:paperback_plugin_loader/src/runtime/quickjs_runtime.dart';
 
@@ -13,7 +14,9 @@ import 'package:paperback_plugin_loader/src/runtime/quickjs_runtime.dart';
 /// bytes. The promise resolves to `{status, url, headers, body, text}`:
 /// `body` is a `Uint8Array`, `text` its UTF-8 decoding. Any HTTP status
 /// resolves; transport failures reject with a `HostCallError` whose
-/// `details` carry the method and URL.
+/// `details` carry the method and URL. The body is bounded by half the
+/// runtime's JS memory limit ([readBoundedBody]): it enters the heap twice,
+/// as `body` and as `text`.
 void installHttpHost(SourceJsRuntime runtime, http.Client client, {String name = '__paperbackHost.request'}) {
   runtime.bridge.registerAsync(name, (List<Object?> args) async {
     final Object? spec = args.isEmpty ? null : args.first;
@@ -47,9 +50,13 @@ void installHttpHost(SourceJsRuntime runtime, http.Client client, {String name =
       default:
         throw HostCallError('request.body must be a string or bytes', details: <String, Object?>{'url': url});
     }
-    final http.Response response;
+    final http.StreamedResponse response;
+    final Uint8List bodyBytes;
     try {
-      response = await http.Response.fromStream(await client.send(request));
+      response = await client.send(request);
+      bodyBytes = await readBoundedBody(response, runtime.limits.memoryLimitBytes ~/ 2, url: url);
+    } on HostCallError {
+      rethrow;
     } on Object catch (e) {
       throw HostCallError(
         'Request failed: $e',
@@ -60,8 +67,8 @@ void installHttpHost(SourceJsRuntime runtime, http.Client client, {String name =
       'status': response.statusCode,
       'url': response.request?.url.toString() ?? url,
       'headers': response.headers,
-      'body': response.bodyBytes,
-      'text': utf8.decode(response.bodyBytes, allowMalformed: true),
+      'body': bodyBytes,
+      'text': utf8.decode(bodyBytes, allowMalformed: true),
     };
   });
 }

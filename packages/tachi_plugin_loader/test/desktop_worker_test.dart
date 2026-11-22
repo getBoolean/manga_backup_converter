@@ -76,13 +76,13 @@ void main() {
     check(configured.handshakeDeadline).equals(const Duration(milliseconds: 4321));
     check(configured.classpathDirectory).equals(p.join(install.path, 'lib'));
 
-    // The development install, found by walking up from a nested directory.
-    final devInstall = Directory(p.join(temp.path, 'repo', tachiWorkerDevelopmentInstall));
+    // The development install directly under the configured checkout.
+    final repo = Directory(p.join(temp.path, 'repo'));
+    final devInstall = Directory(p.join(repo.path, tachiWorkerDevelopmentInstall));
     Directory(p.join(devInstall.path, 'lib')).createSync(recursive: true);
     File(p.join(install.path, 'tachi-runtime.json')).copySync(p.join(devInstall.path, 'tachi-runtime.json'));
-    final nested = Directory(p.join(temp.path, 'repo', 'packages', 'cli'))..createSync(recursive: true);
     final TachiWorkerLocation discovered = (TachiWorkerLocation.resolve(
-      searchFrom: nested,
+      developmentRoot: repo,
       environment: <String, String>{'JAVA_HOME': javaHome.path},
     ) as SourceSuccess<TachiWorkerLocation>).value;
     check(discovered.handshakeDeadline).equals(const Duration(milliseconds: 4321));
@@ -90,11 +90,37 @@ void main() {
 
     // An explicit deadline still overrides the discovered manifest.
     final TachiWorkerLocation overridden = (TachiWorkerLocation.resolve(
-      searchFrom: nested,
+      developmentRoot: repo,
       handshakeDeadline: const Duration(seconds: 9),
       environment: <String, String>{'JAVA_HOME': javaHome.path},
     ) as SourceSuccess<TachiWorkerLocation>).value;
     check(overridden.handshakeDeadline).equals(const Duration(seconds: 9));
+  });
+
+  test('a development install in a parent folder of the development root is never used', () {
+    // Another local user plants a manifest whose java/classpath would run as
+    // the victim in a folder above the checkout (or above a released CLI).
+    final planted = Directory(p.join(temp.path, 'shared', tachiWorkerDevelopmentInstall));
+    Directory(p.join(planted.path, 'lib')).createSync(recursive: true);
+    File(p.join(planted.path, 'tachi-runtime.json')).writeAsStringSync(
+      jsonEncode(<String, Object?>{
+        'format': 1,
+        'worker': 'tachi-jvm',
+        'java': javaHome.path,
+        'classpath': 'lib',
+        'handshakeDeadlineMs': 1,
+      }),
+    );
+    final nested = Directory(p.join(temp.path, 'shared', 'victim', 'checkout'))..createSync(recursive: true);
+    for (final root in <Directory?>[nested, null]) {
+      final SourceOutcome<TachiWorkerLocation> outcome = TachiWorkerLocation.resolve(
+        developmentRoot: root,
+        environment: <String, String>{'JAVA_HOME': javaHome.path},
+      );
+      final SourceFailure failure = (outcome as SourceFailed<TachiWorkerLocation>).failure;
+      check(failure).isA<RuntimeUnavailableFailure>();
+      check(failure.message).contains('worker classpath');
+    }
   });
 
   test('without a handshake deadline the location is a typed failure naming it', () {

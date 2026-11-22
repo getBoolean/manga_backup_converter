@@ -33,8 +33,8 @@ class MultiPackageTest {
     fun `identically named classes do not collide, host API types are shared, unloading frees the loader`() {
         val envA = TestSupport.environment("fixture.a")
         val envB = TestSupport.environment("fixture.b")
-        var a: mangabackup.tachi.extensions.ExtensionPackage? = ExtensionLoader.load(jar("a"), envA)
-        val b = ExtensionLoader.load(jar("b"), envB)
+        var a: mangabackup.tachi.extensions.ExtensionPackage? = jar("a").let { ExtensionLoader.load(it, envA, mangabackup.tachi.extensions.Digests.sha256(it)) }
+        val b = jar("b").let { ExtensionLoader.load(it, envB, mangabackup.tachi.extensions.Digests.sha256(it)) }
         checkNamespaces(a!!, b)
         val loaderRef = closeAndForget(a)
         a = null

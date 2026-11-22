@@ -14,8 +14,22 @@ export JAVA_HOME="/c/Program Files/Amazon Corretto/jdk21.0.13_1"
 ./gradlew installDist   # build/install/tachi-source-runner/{bin,lib,tachi-runtime.json}
 ```
 
-After changing dependencies: `./gradlew resolveAll --write-locks` (updates `gradle.lockfile`), and
-update `THIRD_PARTY.md`.
+After changing dependencies: `./gradlew resolveAll --write-locks` (updates `gradle.lockfile`), then
+regenerate the checksums Gradle verifies every artifact against (`gradle/verification-metadata.xml`, M2):
+
+```bash
+./gradlew --write-verification-metadata sha256 resolveAll test installDist fixtureJar_prefs fixtureJar_cloudflare androidFixtureJar
+```
+
+and update `THIRD_PARTY.md`. The wrapper checks the Gradle distribution against
+`distributionSha256Sum` (Gradle's published `.sha256` for the exact `distributionUrl`); change both together.
+Checksums only, no PGP: signature verification would need a committed keyring (offline builds cannot fetch
+keys), which is left as a follow-up.
+
+The app's Android build (`android/`, which includes `:tachi_source_host`) checks its wrapper checksum but has
+no `verification-metadata.xml`: metadata written on one OS lacks the other OSes' `aapt2` classifier artifacts,
+and the `io.flutter` engine artifacts change with every Flutter SDK (they are already excluded from
+`android/app/gradle.lockfile`), so a committed file would break Linux CI or every Flutter upgrade.
 
 ## Run
 

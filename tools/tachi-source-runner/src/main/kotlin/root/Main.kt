@@ -3,6 +3,7 @@ package mangabackup.tachi
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import mangabackup.tachi.host.HostTransport
 import mangabackup.tachi.host.SizingReport
+import mangabackup.tachi.host.replay.ReplayEgressGuard
 import mangabackup.tachi.host.replay.ReplayTransport
 import mangabackup.tachi.protocol.DesktopPlatform
 import mangabackup.tachi.protocol.Worker
@@ -66,8 +67,10 @@ fun main(args: Array<String>) {
     }
     val sizing = SizingReport.resolve(limits)
         ?: usage("no committed sizing rule (tachi-worker-sizing.json) and --limit does not set every limit")
-    val transport: HostTransport = if (replay.isEmpty()) HostTransport.LIVE else ReplayTransport.start(replay)
     val root = stateDir ?: Files.createTempDirectory("tachi-worker-").toFile()
+    // Replay: block egress that bypasses the worker's OkHttp clients before anything resolves a name (L3).
+    val egressGuard = if (replay.isEmpty()) null else ReplayEgressGuard.install(ReplayEgressGuard.emptyHostsFile(root))
+    val transport: HostTransport = if (replay.isEmpty()) HostTransport.LIVE else ReplayTransport.start(replay)
     val options = WorkerOptions(
         sizing = sizing,
         transport = transport,
@@ -84,6 +87,7 @@ fun main(args: Array<String>) {
         worker.run()
     } finally {
         (transport as? AutoCloseable)?.close()
+        egressGuard?.close()
         if (stateDir == null) root.deleteRecursively()
     }
     exitProcess(code)

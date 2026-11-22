@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:checks/checks.dart';
+import 'package:manga_backup_core/manga_backup_core.dart' show UserExtensionSettings;
 import 'package:mangabackupconverter_cli/src/commands/convert_command.dart';
 import 'package:mangabackupconverter_cli/src/commands/file_stores.dart';
 import 'package:mangabackupconverter_cli/src/commands/redacting_log.dart';
@@ -55,6 +56,29 @@ void main() {
       }
       check(text).contains(redactedPlaceholder);
       check(text).contains('[jvm] using');
+    });
+  });
+
+  group('settings secrets registered at startup (L4)', () {
+    test('every secret in the settings file is redacted before any loader opens it', () {
+      final UserExtensionSettings settings = UserExtensionSettings.fromJson(const <String, Object?>{
+        'extensions': <String, Object?>{
+          'a': <String, Object?>{
+            'values': <String, Object?>{'lang': 'en', 'authToken': 'tok_in_values'},
+            'secrets': <String, Object?>{'password': 'pw_package'},
+            'sources': <String, Object?>{
+              's1': <String, Object?>{
+                'secrets': <String, Object?>{'cookie': 'ck_scoped'},
+              },
+            },
+          },
+        },
+      }).withFlag('b=passphrase=from_flag');
+      final redactor = Redactor();
+      registerUserSettingSecrets(settings, redactor);
+      check(
+        redactor.redact('tok_in_values pw_package ck_scoped from_flag en'),
+      ).equals('[REDACTED] [REDACTED] [REDACTED] [REDACTED] en');
     });
   });
 

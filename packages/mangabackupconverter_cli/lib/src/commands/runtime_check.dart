@@ -27,6 +27,10 @@ Future<void> runRuntimeCheck(List<String> args) async {
   final report = <String, Object?>{'executable': Platform.resolvedExecutable};
   final Directory? runtime = packagedRuntimeDirectory();
   report['runtimeDirectory'] = runtime?.path;
+  // M1: a compiled CLI adopts no development checkout (the smoke test plants
+  // one in the package's parent folder and expects null).
+  final Directory? developmentRoot = developmentRepositoryRoot();
+  report['developmentRoot'] = developmentRoot?.path;
   final scopes = <ConversionRuntimeScope>[];
   DesktopBrowserPort? browser;
   var ok = true;
@@ -35,7 +39,7 @@ Future<void> runRuntimeCheck(List<String> args) async {
     final String? tachiManifest = packagedTachiManifest();
     final SourceOutcome<TachiWorkerLocation> located = TachiWorkerLocation.resolve(
       manifestPath: tachiManifest,
-      searchFrom: File(Platform.script.toFilePath()).parent,
+      developmentRoot: developmentRoot,
     );
     switch (located) {
       case SourceFailed<TachiWorkerLocation>(:final SourceFailure failure):
@@ -94,7 +98,7 @@ Future<void> runRuntimeCheck(List<String> args) async {
     final (DesktopBrowserPort? port, String? why) = createCliBrowserPort(
       interactive: false,
       dataRoot: dataRoot,
-      manifest: locateWebViewHelperManifest(searchFrom: File(Platform.script.toFilePath()).parent),
+      manifest: locateWebViewHelperManifest(developmentRoot: developmentRoot),
       offline: true,
     );
     browser = port;

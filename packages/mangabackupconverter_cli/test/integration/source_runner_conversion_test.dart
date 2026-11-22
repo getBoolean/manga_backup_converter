@@ -52,7 +52,7 @@ Directory _repoDir(String relative) {
 /// with [_helperSkip] when cargo cannot build it.
 String? _helperSkip;
 Future<File?> _helperManifest() async {
-  File? manifest = locateWebViewHelperManifest(searchFrom: Directory.current);
+  File? manifest = locateWebViewHelperManifest(developmentRoot: repositoryRoot());
   if (manifest == null) {
     final Directory pkg = _repoDir('packages/desktop_webview');
     final ProcessResult built = await Process.run(
@@ -65,7 +65,7 @@ Future<File?> _helperManifest() async {
       _helperSkip = 'desktop WebView helper not built: ${built.stderr}';
       return null;
     }
-    manifest = locateWebViewHelperManifest(searchFrom: Directory.current);
+    manifest = locateWebViewHelperManifest(developmentRoot: repositoryRoot());
   }
   return manifest;
 }

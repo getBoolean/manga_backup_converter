@@ -155,7 +155,7 @@ Future<void> main() async {
   final String? skip =
       _worker.skip ??
       (_fixtureJar().existsSync() ? null : 'fixture-cloudflare.jar not built: run ./gradlew fixtureJar_cloudflare');
-  final File? manifest = locateWebViewHelperManifest(searchFrom: Directory.current);
+  final File? manifest = locateWebViewHelperManifest(developmentRoot: repositoryRoot());
   final String? helperSkip = manifest == null
       ? 'desktop WebView helper not built: dart run tool/build_helper.dart'
       : null;

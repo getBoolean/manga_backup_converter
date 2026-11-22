@@ -291,6 +291,12 @@ Future<void> main() async {
       check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
       check(await s.loadUrl(server.url('/same-framed'))).isA<BrowserCompleted<BrowserPage>>();
       const frame = 'document.querySelector("iframe").contentWindow';
+      if (port.helperInfo!.engine == 'webkitgtk') {
+        // WebKitGTK cannot attest the posting frame, so channels are injected
+        // into the top frame only (L1).
+        check((await s.evaluate('typeof $frame.bridge')).valueOrNull).equals('"undefined"');
+        return;
+      }
       check((await s.evaluate('typeof $frame.bridge')).valueOrNull).equals('"object"');
       // The frame's own script context posts (eval in the frame's realm).
       await s.evaluate('$frame.eval(\'bridge.postMessage("from child")\')');
@@ -299,6 +305,56 @@ Future<void> main() async {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       }
       check(messages).deepEquals(<String>['from child']);
+    });
+
+    test('neither a cross-origin frame nor the page can read the session key (L1)', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      final messages = <String>[];
+      check(await s.setMessageHandler('bridge', messages.add)).isA<BrowserCompleted<void>>();
+      // Steals any `k` that passes through toJSON or a replaced
+      // JSON.stringify, then posts through the channel (if it has one).
+      const thief =
+          "var got=null;Object.prototype.toJSON=function(){if(this&&typeof this.k==='string')got=this.k;return this}; "
+          "var J=JSON.stringify;JSON.stringify=function(v){if(v&&typeof v.k==='string')got=v.k;return J.apply(JSON,arguments)}; "
+          "try{bridge.postMessage('{who}')}catch(e){}";
+      final String frameScript = thief.replaceAll('{who}', 'from-frame');
+      final String topScript = thief.replaceAll('{who}', 'from-top');
+      // A sandboxed srcdoc frame runs in an opaque origin: cross-origin to
+      // the page, with no network. It reports what it stole to the page.
+      final String srcdoc = '<script>$frameScript parent.postMessage("frame:"+(typeof bridge)+":"+got,"*")</script>'
+          .replaceAll('&', '&amp;')
+          .replaceAll('"', '&quot;');
+      check(
+        await s.loadData(
+          '<html><body><script>window.report=null;addEventListener("message",function(e){window.report=e.data})'
+          '</script><iframe sandbox="allow-scripts" srcdoc="$srcdoc"></iframe></body></html>',
+          baseUrl: Uri.parse('https://example.org/page'),
+        ),
+      ).isA<BrowserCompleted<BrowserPage>>();
+      String? report;
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (DateTime.now().isBefore(deadline)) {
+        report = (await s.evaluate('window.report')).valueOrNull;
+        if (report != null && report != 'null') break;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      check(report).isNotNull().endsWith(':null"');
+      // The page itself, after hijacking both, still cannot read the key,
+      // and its own message is still delivered (the envelope is built
+      // without them).
+      await s.evaluate(topScript);
+      check((await s.evaluate('got')).valueOrNull).equals('null');
+      // The current-document channel install runs after the page replaced
+      // JSON.stringify: still no key.
+      check(await s.setMessageHandler('late', messages.add)).isA<BrowserCompleted<void>>();
+      await s.evaluate("late.postMessage('late-top')");
+      check((await s.evaluate('got')).valueOrNull).equals('null');
+      final DateTime until = DateTime.now().add(const Duration(seconds: 10));
+      while (messages.length < 2 && DateTime.now().isBefore(until)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      check(messages).deepEquals(<String>['from-top', 'late-top']);
     });
 
     test('channels exist at document start of later pages', () async {

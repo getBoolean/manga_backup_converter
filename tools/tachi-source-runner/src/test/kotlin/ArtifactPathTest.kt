@@ -5,6 +5,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import mangabackup.tachi.extensions.ApkConverter
 import mangabackup.tachi.extensions.ArtifactException
 import mangabackup.tachi.extensions.ArtifactVerifier
+import mangabackup.tachi.extensions.Digests
 import mangabackup.tachi.extensions.ExtensionLoader
 import mangabackup.tachi.extensions.ExtensionManifest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -44,7 +45,7 @@ class ArtifactPathTest {
                 it["id"]!!.jsonPrimitive.content to (it["name"]!!.jsonPrimitive.content to it["language"]!!.jsonPrimitive.content)
             }
             for ((label, staged) in listOf("jar" to TestSupport.stagedJar(q), "apk" to TestSupport.convertedApk(q))) {
-                val pkg = ExtensionLoader.load(staged, TestSupport.environment(q.packageId))
+                val pkg = ExtensionLoader.load(staged, TestSupport.environment(q.packageId), Digests.sha256(staged))
                 try {
                     val actual = pkg.sources.associate { s -> s.id.toString() to (s.name to (s as HttpSource).lang) }
                     assertEquals(expected, actual, "${q.dir} $label sources")

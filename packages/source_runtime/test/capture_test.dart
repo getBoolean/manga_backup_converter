@@ -240,6 +240,19 @@ void main() {
       check(json['format']).equals(captureFormatVersion);
     });
 
+    test('a manifest cannot name a body outside bodies/<sha256>.bin (L5)', () {
+      final Directory dir = findCaptureDir('aidoku', 'multi.mangadex')!;
+      final json =
+          jsonDecode(File(p.join(dir.path, captureManifestFileName)).readAsStringSync()) as Map<String, Object?>;
+      final exchange = (json['exchanges']! as List<Object?>).first! as Map<String, Object?>;
+      final response = exchange['response']! as Map<String, Object?>;
+      final body = response['body']! as String;
+      for (final bad in <String>['../$body', 'bodies/../$body', body.toUpperCase(), 'capture.json']) {
+        response['body'] = bad;
+        check(() => CaptureExchange.fromJson(exchange)).throws<FormatException>();
+      }
+    });
+
     test('every committed capture loads, verifies and re-encodes unchanged', () {
       final Directory root = findCaptureDir('aidoku', 'multi.mangadex')!.parent.parent;
       final dirs = <Directory>[

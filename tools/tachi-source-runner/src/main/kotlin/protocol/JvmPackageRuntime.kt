@@ -53,7 +53,7 @@ object JvmPackageRuntime : PackageRuntime {
     }
 
     override fun load(path: File, artifact: ArtifactBinding, environment: PackageEnvironment): ExtensionPackage =
-        ExtensionLoader.load(path, environment)
+        ExtensionLoader.load(path, environment, artifact.sha256)
 }
 
 /** The desktop worker process: deadlines are the supervisor's, and prepared JARs are not rewritten. */

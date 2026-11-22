@@ -146,15 +146,20 @@ pub fn configure_builder<'a>(
   let b = b.with_profile_name(profile_name(sid));
   if offline {
     // Backstop for traffic WebResourceRequested never sees (WebSockets,
-    // some service-worker fetches): no host other than loopback resolves.
-    // Every session of a helper uses the same arguments, as WebView2
+    // some service-worker fetches): no host other than loopback resolves,
+    // and no proxy is used (L3): a system proxy on loopback is excluded from
+    // the resolver rules and would otherwise resolve and fetch every host
+    // itself. Every session of a helper uses the same arguments, as WebView2
     // requires for a shared data directory.
-    b.with_additional_browser_args(format!(
-      "{WRY_DEFAULT_ARGS} --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost\""
-    ))
+    b.with_additional_browser_args(offline_browser_args())
   } else {
     b
   }
+}
+
+/// WebView2 arguments of an offline helper.
+pub fn offline_browser_args() -> String {
+  format!("{WRY_DEFAULT_ARGS} --no-proxy-server --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost\"")
 }
 
 pub fn build(b: WebViewBuilder<'_>, window: &Window) -> wry::Result<WebView> {
@@ -607,40 +612,50 @@ const FAIL_URI: &str = "http://127.0.0.1:1/desktop-webview-failed-request";
 
 /// Answers a held request (replace tier). [Answer::Proceed] lets it proceed,
 /// unless the helper runs offline, where unanswered requests are blocked.
+/// A replacement or block that cannot be built or set fails the request
+/// (L3): it never falls through to the original request.
 pub fn respond(rid: u64, answer: Answer) {
   let Some(d) = DEFERRED.with(|m| m.borrow_mut().remove(&rid)) else { return };
   unsafe {
     match answer {
       Answer::Replace(r) => {
-        if let Ok(resp) = make_response(&d.env, &r) {
-          let _ = d.args.SetResponse(&resp);
+        if let Err(e) = set_response(&d, &r) {
+          fail_request(&d, &format!("cannot set the replacement response: {e}"));
         }
       }
       Answer::Proceed if d.offline => {
-        if let Ok(resp) = make_response(&d.env, &blocked(&d.url)) {
-          let _ = d.args.SetResponse(&resp);
+        if let Err(e) = set_response(&d, &blocked(&d.url)) {
+          fail_request(&d, &format!("cannot set the offline block response: {e}"));
         }
       }
       Answer::Proceed => {}
-      Answer::Fail(reason) => {
-        eprintln!("[helper] failing held request {}: {reason}", d.url);
-        let rewritten = d.args.Request().and_then(|req| req.SetUri(&HSTRING::from(FAIL_URI)));
-        if let Err(e) = rewritten {
-          // Fail closed: never let the original request go out.
-          eprintln!("[helper] cannot rewrite failed request ({e}); answering 502");
-          let r = ReplacementResponse {
-            status: 502,
-            reason: "Request failed".into(),
-            headers: vec![("Content-Type".into(), "text/plain".into())],
-            body: format!("desktop_webview failed this request: {reason}").into_bytes(),
-          };
-          if let Ok(resp) = make_response(&d.env, &r) {
-            let _ = d.args.SetResponse(&resp);
-          }
-        }
-      }
+      Answer::Fail(reason) => fail_request(&d, &reason),
     }
     let _ = d.deferral.Complete();
+  }
+}
+
+unsafe fn set_response(d: &Deferred, r: &ReplacementResponse) -> windows::core::Result<()> {
+  let resp = make_response(&d.env, r)?;
+  unsafe { d.args.SetResponse(&resp) }
+}
+
+/// Fails a held request: rewritten to [FAIL_URI], or answered 502 when the
+/// rewrite is refused. Never lets the original request go out.
+unsafe fn fail_request(d: &Deferred, reason: &str) {
+  eprintln!("[helper] failing held request {}: {reason}", d.url);
+  let rewritten = unsafe { d.args.Request() }.and_then(|req| unsafe { req.SetUri(&HSTRING::from(FAIL_URI)) });
+  if let Err(e) = rewritten {
+    eprintln!("[helper] cannot rewrite failed request ({e}); answering 502");
+    let r = ReplacementResponse {
+      status: 502,
+      reason: "Request failed".into(),
+      headers: vec![("Content-Type".into(), "text/plain".into())],
+      body: format!("desktop_webview failed this request: {reason}").into_bytes(),
+    };
+    if let Err(e) = unsafe { set_response(d, &r) } {
+      eprintln!("[helper] cannot answer the failed request either ({e})");
+    }
   }
 }
 
@@ -735,3 +750,17 @@ pub fn clear_data(webview: &WebView) -> Result<(), String> {
   }
 }
 
+
+#[cfg(test)]
+mod tests {
+  /// An offline helper uses no proxy (a loopback system proxy would resolve
+  /// and fetch hosts the resolver rules refuse) and maps every host but
+  /// loopback to NOTFOUND (L3).
+  #[test]
+  fn offline_arguments_refuse_proxies_and_hosts() {
+    let args = super::offline_browser_args();
+    assert!(args.contains("--no-proxy-server"), "{args}");
+    assert!(args.contains("MAP * ~NOTFOUND"), "{args}");
+    assert!(args.starts_with(super::WRY_DEFAULT_ARGS), "{args}");
+  }
+}

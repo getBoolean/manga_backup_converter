@@ -259,7 +259,7 @@ class ExtensionHostTest {
     private fun runAndClose(transport: mangabackup.tachi.host.HostTransport): java.lang.ref.WeakReference<ClassLoader> {
         val env = mangabackup.tachi.host.PackageEnvironment("fixture.a", TestSupport.tempDir("unload"), transport, "UA", HostSettings.EMPTY)
         mangabackup.tachi.host.HostInjekt.install()
-        val pkg = mangabackup.tachi.host.PackageScope.bind(env) { mangabackup.tachi.extensions.ExtensionLoader.load(File(TestSupport.fixtureJars, "fixture-a.jar"), env) }
+        val pkg = mangabackup.tachi.host.PackageScope.bind(env) { File(TestSupport.fixtureJars, "fixture-a.jar").let { mangabackup.tachi.extensions.ExtensionLoader.load(it, env, mangabackup.tachi.extensions.Digests.sha256(it)) } }
         val source = pkg.sources.single() as eu.kanade.tachiyomi.source.CatalogueSource
         kotlinx.coroutines.runBlocking {
             mangabackup.tachi.host.PackageScope.bind(env) {

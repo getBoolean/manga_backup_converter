@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:paperback_plugin_loader/src/runtime/bounded_body.dart';
 import 'package:paperback_plugin_loader/src/runtime/promise_bridge.dart';
 import 'package:source_runtime/source_runtime.dart' show CaptureMissException;
 
@@ -34,7 +35,10 @@ final class PaperbackHttp {
   /// and fails the operation rather than let a miss look like source data.
   final List<String> captureMisses = <String>[];
 
-  Future<Map<String, Object?>> exchange(Map<String, Object?> wire) async {
+  /// Sends one request. The response body is bounded by [maxBodyBytes]
+  /// (the source's JS memory limit, see [readBoundedBody]); a larger body
+  /// rejects with a `[resource-limit]` [HostCallError].
+  Future<Map<String, Object?>> exchange(Map<String, Object?> wire, {required int maxBodyBytes}) async {
     final Object? url = wire['url'];
     if (url is! String) throw const HostCallError('fetch: url must be a string');
     final String method = (wire['method'] as String? ?? 'GET').toUpperCase();
@@ -77,7 +81,7 @@ final class PaperbackHttp {
     final Uint8List body;
     try {
       streamed = await client.send(request).timeout(timeout);
-      body = await streamed.stream.toBytes().timeout(timeout);
+      body = await readBoundedBody(streamed, maxBodyBytes, url: url).timeout(timeout);
     } on CaptureMissException catch (e) {
       captureMisses.add(e.key.toString());
       throw HostCallError('[capture-miss] No committed capture for ${e.key}', details: <String, Object?>{'url': url});
@@ -89,6 +93,8 @@ final class PaperbackHttp {
           'method': method,
         },
       );
+    } on HostCallError {
+      rethrow;
     } on Object catch (e) {
       throw HostCallError('Request failed: $e', details: <String, Object?>{'url': url, 'method': method});
     }

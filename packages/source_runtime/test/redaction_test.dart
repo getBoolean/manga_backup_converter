@@ -57,5 +57,38 @@ void main() {
       sink.close();
       check(lines).deepEquals(<String>['pass=$redactedPlaceholder done', 'next line', 'tail']);
     });
+
+    test('caps a line without a newline and never emits part of a straddling secret (L2)', () {
+      final lines = <String>[];
+      final sink = RedactingLineSink(
+        Redactor(secrets: <String>['correct horse battery', 'tok_ABCDEFGH']),
+        lines.add,
+        maxLineBytes: 32,
+      );
+      // The cap (32 bytes) falls inside the first secret, and inside the
+      // second on the next line: neither half may be emitted.
+      sink.add(utf8.encode('${'a' * 20} correct horse battery and more and more'));
+      sink.add(utf8.encode(' still the same line\n'));
+      sink.add(utf8.encode('${'b' * 26}tok_ABCDEFGH tail\nshort\n'));
+      sink.close();
+      check(lines).deepEquals(<String>[
+        '${'a' * 20}$truncatedLineMarker',
+        '${'b' * 26}$truncatedLineMarker',
+        'short',
+      ]);
+      for (final line in lines) {
+        for (final part in <String>['correct', 'horse', 'tok_']) {
+          check(line).not((Subject<String> it) => it.contains(part));
+        }
+      }
+    });
+
+    test('a line of exactly the cap is kept whole', () {
+      final lines = <String>[];
+      RedactingLineSink(Redactor(), lines.add, maxLineBytes: 4)
+        ..add(utf8.encode('abcd\nabcde\n'))
+        ..close();
+      check(lines).deepEquals(<String>['abcd', 'abcd$truncatedLineMarker']);
+    });
   });
 }
