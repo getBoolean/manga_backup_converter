@@ -13,6 +13,9 @@ const String captureManifestFileName = 'capture.json';
 /// Directory (relative to the capture directory) holding response bodies.
 const String captureBodiesDirName = 'bodies';
 
+/// The only body path a capture manifest may name.
+final RegExp captureBodyFilePattern = RegExp(r'^bodies/[0-9a-f]{64}\.bin$');
+
 /// Lowercase hex SHA-256 of [bytes].
 String sha256Hex(List<int> bytes) => sha256.convert(bytes).toString();
 
@@ -235,6 +238,12 @@ final class CaptureExchange {
   factory CaptureExchange.fromJson(Map<String, Object?> json, {Set<String> volatile = const <String>{}}) {
     final request = json['request']! as Map<String, Object?>;
     final response = json['response']! as Map<String, Object?>;
+    final bodyFile = response['body']! as String;
+    // Only `bodies/<sha256 hex>.bin`, as every capture writer names them: a
+    // manifest cannot point the loader at another file (L5).
+    if (!captureBodyFilePattern.hasMatch(bodyFile)) {
+      throw FormatException('Capture body path $bodyFile is not $captureBodiesDirName/<sha256>.bin');
+    }
     return CaptureExchange(
       key: CaptureKey(
         method: request['method']! as String,
@@ -244,7 +253,7 @@ final class CaptureExchange {
       ),
       status: response['status']! as int,
       headers: (response['headers']! as Map<String, Object?>).cast<String, String>(),
-      bodyFile: response['body']! as String,
+      bodyFile: bodyFile,
       artifact: CaptureArtifact.fromJson(json['artifact']! as Map<String, Object?>),
       setCookies: <CapturedCookie>[
         for (final Object? c in response['setCookies'] as List<Object?>? ?? const <Object?>[])
