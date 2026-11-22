@@ -83,6 +83,44 @@ void main() {
       check(jsonEncode(a.toJson())).not((Subject<String> it) => it.contains('one'));
     });
 
+    test('values under secret-like keys stay out of the revision and toJson but are redacted (L4)', () {
+      final a = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'apiToken': 'hunter2', 'showAuthor': true},
+        sources: <String, SourceScopedSettings>{
+          's1': SourceScopedSettings(values: const <String, Object>{'Session_Cookie': 'c=1', 'Password': 'pw'}),
+        },
+      );
+      final b = SettingsSnapshot(
+        values: const <String, Object>{'lang': 'en', 'apiToken': 'other', 'showAuthor': true},
+        sources: <String, SourceScopedSettings>{
+          's1': SourceScopedSettings(values: const <String, Object>{'Session_Cookie': 'c=2', 'Password': 'pw2'}),
+        },
+      );
+      // The digest is over key names only, so it is neither a hash of the
+      // secret nor changed when the secret is re-entered.
+      check(b.revision).equals(a.revision);
+      check(
+        SettingsSnapshot(values: const <String, Object>{'lang': 'en', 'showAuthor': true}).revision,
+      ).not((Subject<String> it) => it.equals(a.revision));
+      final String json = jsonEncode(a.toJson());
+      for (final secret in <String>['hunter2', 'c=1', '"pw"']) {
+        check(json).not((Subject<String> it) => it.contains(secret));
+      }
+      check(a.toJson()['secretKeys']).isA<List<String>>().deepEquals(<String>['apiToken']);
+      check(a.toJson()['values'])
+          .isA<Map<String, Object>>()
+          .deepEquals(<String, Object>{'lang': 'en', 'showAuthor': true});
+      check(a.allSecretValues.toSet()).deepEquals(<String>{'hunter2', 'c=1', 'pw'});
+      // Delivery is unchanged: the source still reads the value.
+      check(a.valuesFor('s1')['Password']).equals('pw');
+      // `author` is not a credential; bools and ints are never redacted.
+      check(isSecretLikeSettingKey('showAuthor')).isFalse();
+      check(isSecretLikeSettingKey('authKey')).isTrue();
+      check(
+        SettingsSnapshot(values: const <String, Object>{'useAuth': true, 'tokenTtl': 3}).allSecretValues,
+      ).isEmpty();
+    });
+
     test('revision covers only allowlisted non-secret keys', () {
       final a = SettingsSnapshot(
         values: const <String, Object>{'lang': 'en', 'lastSync': '1'},

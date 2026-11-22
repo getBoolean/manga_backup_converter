@@ -137,6 +137,25 @@ final class SourceIdentity {
 /// Effective per-source settings, shared by [SettingsSnapshot] and the wire
 /// `SettingsPayload` so supervisors and workers resolve a source's settings
 /// with one rule: package-wide entries overlaid with that source's scope.
+/// Setting keys that name a credential: `pass`, `token`, `secret`, `cookie`
+/// or `auth` anywhere in the key, case-insensitively (`password`,
+/// `apiToken`, `sessionCookie`, `authKey`). `author` is not one: author
+/// display toggles are common non-secret settings.
+final RegExp secretLikeSettingKey = RegExp('pass|token|secret|cookie|auth(?!or)', caseSensitive: false);
+
+/// Whether a setting [key] names a credential (see [secretLikeSettingKey]).
+///
+/// A value placed under `values` with such a key is treated as a secret
+/// everywhere except delivery (L4): it keeps its type and still reaches the
+/// source as a value, so a source reading it from its preferences is
+/// unaffected, but it is left out of the durable [SettingsSnapshot.revision]
+/// and of [SettingsSnapshot.toJson] (only its name is kept, with the secret
+/// keys), and its string forms are registered for redaction through
+/// [ScopedSettingsView.allSecretValues]. Booleans and integers are not
+/// registered for redaction: redacting `true` or `1` would mangle every log
+/// line, and neither is a credential on its own.
+bool isSecretLikeSettingKey(String key) => secretLikeSettingKey.hasMatch(key);
+
 mixin ScopedSettingsView {
   /// Package-wide non-secret values.
   Map<String, Object> get values;
@@ -155,11 +174,27 @@ mixin ScopedSettingsView {
   /// by that source's scope.
   Map<String, String> secretsFor(String sourceId) => <String, String>{...secrets, ...?sources[sourceId]?.secrets};
 
-  /// Every secret value, package-wide and source-scoped, for redaction.
+  /// Every secret value, package-wide and source-scoped, for redaction:
+  /// the secrets, plus the string values (and string-set members) of
+  /// secret-like value keys ([isSecretLikeSettingKey]).
   Iterable<String> get allSecretValues sync* {
     yield* secrets.values;
+    yield* _secretLikeStrings(values);
     for (final SourceScopedSettings scope in sources.values) {
       yield* scope.secrets.values;
+      yield* _secretLikeStrings(scope.values);
+    }
+  }
+
+  static Iterable<String> _secretLikeStrings(Map<String, Object> values) sync* {
+    for (final MapEntry<String, Object> e in values.entries) {
+      if (!isSecretLikeSettingKey(e.key)) continue;
+      switch (e.value) {
+        case final String s:
+          yield s;
+        case final List<String> l:
+          yield* l;
+      }
     }
   }
 
@@ -272,9 +307,12 @@ final class SettingsSnapshot with ScopedSettingsView {
   final Set<String>? revisionAllowlist;
 
   /// Durable, secret-free revision: a digest over the allowlisted non-secret
-  /// values plus the names (never the values) of the supplied secrets, for
-  /// the package and every source scope. Re-entering secrets for the same
-  /// keys keeps the revision.
+  /// values plus the names (never the values) of the supplied secrets and of
+  /// secret-like value keys ([isSecretLikeSettingKey]), for the package and
+  /// every source scope. Re-entering secrets for the same keys keeps the
+  /// revision. A value under a secret-like key never enters the digest: an
+  /// unsalted hash of a low-entropy password could be brute-forced from a
+  /// journal or report that records the revision.
   String get revision {
     // Each value keeps its JSON type, so `true` and `'true'` differ while a
     // string-only snapshot keeps the digest it had before values were typed.
@@ -291,8 +329,10 @@ final class SettingsSnapshot with ScopedSettingsView {
   }
 
   Map<String, Object?> _canonicalScope(Map<String, Object> values, Map<String, String> secrets) {
-    final List<String> keys = values.keys.where((String k) => revisionAllowlist?.contains(k) ?? true).toList()..sort();
-    final List<String> secretKeys = secrets.keys.toList()..sort();
+    final List<String> keys =
+        values.keys.where((String k) => !isSecretLikeSettingKey(k) && (revisionAllowlist?.contains(k) ?? true)).toList()
+          ..sort();
+    final List<String> secretKeys = _secretKeyNames(values, secrets);
     return <String, Object?>{
       'values': <List<Object>>[
         for (final k in keys) <Object>[k, values[k]!],
@@ -301,14 +341,27 @@ final class SettingsSnapshot with ScopedSettingsView {
     };
   }
 
-  /// Secret-free serialised form.
+  /// Names of [secrets] and of secret-like keys in [values], sorted.
+  static List<String> _secretKeyNames(Map<String, Object> values, Map<String, String> secrets) =>
+      <String>{...secrets.keys, ...values.keys.where(isSecretLikeSettingKey)}.toList()..sort();
+
+  static Map<String, Object> _publicValues(Map<String, Object> values) => <String, Object>{
+    for (final MapEntry<String, Object> e in values.entries)
+      if (!isSecretLikeSettingKey(e.key)) e.key: e.value,
+  };
+
+  /// Secret-free serialised form: values under secret-like keys are listed
+  /// by name with the secret keys.
   Map<String, Object?> toJson() => <String, Object?>{
-    'values': values,
-    'secretKeys': secrets.keys.toList()..sort(),
+    'values': _publicValues(values),
+    'secretKeys': _secretKeyNames(values, secrets),
     if (sources.isNotEmpty)
       'sources': <String, Object?>{
         for (final MapEntry<String, SourceScopedSettings> e in sources.entries)
-          e.key: <String, Object?>{'values': e.value.values, 'secretKeys': e.value.secrets.keys.toList()..sort()},
+          e.key: <String, Object?>{
+            'values': _publicValues(e.value.values),
+            'secretKeys': _secretKeyNames(e.value.values, e.value.secrets),
+          },
       },
     'revision': revision,
   };

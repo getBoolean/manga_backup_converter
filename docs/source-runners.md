@@ -98,6 +98,12 @@ Settings: `SettingsPayload.values`/`secrets` seed every preference store the pac
 override the package-wide keys in the store the source opens (`source_<id>`). Keys are plain; no key
 carries a store or source prefix. Values keep their JSON types (string, bool, int, and an array of
 strings for a string set read through `getStringSet`).
+Secret-like keys (L4): a key matching `pass|token|secret|cookie|auth` case-insensitively (`author` excepted) is
+treated as a secret even when placed under `values`. It is still delivered as a typed value, so the source reads
+it unchanged, but its value never enters `SettingsSnapshot.revision` or `toJson` (only its name, with the secret
+keys: the revision stays durable and is never an unsalted hash of a password), and its string forms are
+registered for redaction. The CLI registers every secret of the settings file and `--setting` flags with the
+session redactor before any worker, helper or plugin starts.
 
 Unsupported Android APIs throw a named `UnsupportedHostApi`, reported as `capability-unavailable` with
 `operation = host.api:<Class.member>`. A missing host class is `capability-unavailable` with
