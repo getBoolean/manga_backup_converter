@@ -22,54 +22,51 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
-import 'package:crypto/crypto.dart' as crypto;
+import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 
 import 'licenses/notices.dart';
-
-final String _root = p.normalize(
-  p.join(p.dirname(Platform.script.toFilePath()), '..'),
-);
+import 'src/common.dart';
 
 String get _os => Platform.operatingSystem;
 
-String get _arch {
-  final String v = Platform.version;
-  if (v.contains('arm64')) return 'arm64';
-  if (v.contains('x64')) return 'x64';
-  throw StateError('Unsupported host architecture: $v');
-}
-
-String get _exe => Platform.isWindows ? '.exe' : '';
-
 /// The `dart build cli` bundle directory name for this host.
-String get _cliTarget => '${_os}_$_arch';
+String get _cliTarget => '${_os}_$hostArch';
+
+final ArgParser _parser = ArgParser()
+  ..addOption('out', help: 'Package directory.', defaultsTo: defaultPackageDir)
+  ..addOption(
+    'cache',
+    help: 'JDK archive cache.',
+    defaultsTo: p.join(repoRoot, 'build', 'runtime-cache'),
+  )
+  ..addFlag(
+    'offline-gradle',
+    help: 'Run Gradle with --offline.',
+    negatable: false,
+  );
 
 Future<void> main(List<String> args) async {
-  String option(String name, String fallback) {
-    final int i = args.indexOf(name);
-    return i >= 0 && i + 1 < args.length ? args[i + 1] : fallback;
-  }
-
-  final out = Directory(
-    option('--out', p.join(_root, 'build', 'package', '$_os-$_arch')),
+  final ArgResults options = parseScriptArgs(
+    _parser,
+    args,
+    'dart run scripts/package_cli.dart [options]',
   );
-  final cache = Directory(
-    option('--cache', p.join(_root, 'build', 'runtime-cache')),
-  );
-  final bool offlineGradle = args.contains('--offline-gradle');
+  final out = Directory(options.option('out')!);
+  final cache = Directory(options.option('cache')!);
+  final bool offlineGradle = options.flag('offline-gradle');
 
   if (out.existsSync()) out.deleteSync(recursive: true);
   out.createSync(recursive: true);
   cache.createSync(recursive: true);
 
   print('== dart build cli');
-  final String cli = p.join(_root, 'packages', 'mangabackupconverter_cli');
+  final String cli = p.join(repoRoot, 'packages', 'mangabackupconverter_cli');
   await _run(Platform.resolvedExecutable, <String>['build', 'cli'], cwd: cli);
   final bundle = Directory(p.join(cli, 'build', 'cli', _cliTarget, 'bundle'));
-  await _copyTree(bundle, out);
+  _copyBuildOutput(bundle, out);
 
-  final String runner = p.join(_root, 'tools', 'tachi-source-runner');
+  final String runner = p.join(repoRoot, 'tools', 'tachi-source-runner');
   print('== pinned Corretto JDK');
   final pins = jsonDecode(
     File(p.join(runner, 'runtime', 'jre-pins.json')).readAsStringSync(),
@@ -77,9 +74,9 @@ Future<void> main(List<String> args) async {
   final Map<String, Object?> archive = (pins['archives']! as List<Object?>)
       .cast<Map<String, Object?>>()
       .firstWhere(
-        (Map<String, Object?> a) => a['os'] == _os && a['arch'] == _arch,
+        (Map<String, Object?> a) => a['os'] == _os && a['arch'] == hostArch,
         orElse: () => throw StateError(
-          'No pinned JDK archive for $_os-$_arch in jre-pins.json',
+          'No pinned JDK archive for $_os-$hostArch in jre-pins.json',
         ),
       );
   final File archiveFile = await _download(
@@ -105,7 +102,7 @@ Future<void> main(List<String> args) async {
     p.join(runner, 'build', 'install', 'tachi-source-runner'),
   );
   final tachiOut = Directory(p.join(out.path, 'runtime', 'tachi'));
-  await _copyTree(
+  _copyBuildOutput(
     Directory(p.join(install.path, 'lib')),
     Directory(p.join(tachiOut.path, 'lib')),
   );
@@ -115,7 +112,7 @@ Future<void> main(List<String> args) async {
   // The packaged manifest points at the bundled JRE, relative to itself.
   final packagedManifest = <String, Object?>{
     ...devManifest,
-    'java': p.join('..', 'jre', 'bin', 'java$_exe').replaceAll(r'\', '/'),
+    'java': p.join('..', 'jre', 'bin', 'java$exeSuffix').replaceAll(r'\', '/'),
     'classpath': 'lib',
   };
   File(p.join(tachiOut.path, 'tachi-runtime.json')).writeAsStringSync(
@@ -124,7 +121,7 @@ Future<void> main(List<String> args) async {
 
   print('== JRE (jlink from the pinned Corretto archive)');
   final String jreOut = p.join(out.path, 'runtime', 'jre');
-  await _run(p.join(extractedJdk, 'bin', 'jlink$_exe'), <String>[
+  await _run(p.join(extractedJdk, 'bin', 'jlink$exeSuffix'), <String>[
     '--module-path',
     p.join(extractedJdk, 'jmods'),
     '--add-modules',
@@ -138,7 +135,7 @@ Future<void> main(List<String> args) async {
     jreOut,
   ]);
   final ProcessResult version = await Process.run(
-    p.join(jreOut, 'bin', 'java$_exe'),
+    p.join(jreOut, 'bin', 'java$exeSuffix'),
     <String>['-version'],
   );
   final String javaVersion = (version.stderr as String)
@@ -148,7 +145,7 @@ Future<void> main(List<String> args) async {
   print('   $javaVersion');
 
   print('== desktop WebView helper (cargo --release)');
-  final helperBuild = Directory(p.join(_root, 'build', 'package-helper'));
+  final helperBuild = Directory(p.join(repoRoot, 'build', 'package-helper'));
   if (helperBuild.existsSync()) helperBuild.deleteSync(recursive: true);
   await _run(Platform.resolvedExecutable, <String>[
     'run',
@@ -156,9 +153,9 @@ Future<void> main(List<String> args) async {
     '--release',
     '--out',
     helperBuild.path,
-  ], cwd: p.join(_root, 'packages', 'desktop_webview'));
+  ], cwd: p.join(repoRoot, 'packages', 'desktop_webview'));
   final helperOut = Directory(p.join(out.path, 'runtime', 'desktop_webview'));
-  await _copyTree(helperBuild, helperOut);
+  _copyBuildOutput(helperBuild, helperOut);
 
   print('== licences and notices');
   final licenses = Directory(p.join(out.path, 'licenses'))
@@ -174,7 +171,7 @@ Future<void> main(List<String> args) async {
   };
   final missing = <String>[];
   for (final MapEntry<String, String> c in copies.entries) {
-    final source = File(p.join(_root, c.key));
+    final source = File(p.join(repoRoot, c.key));
     if (source.existsSync()) {
       source.copySync(p.join(licenses.path, c.value));
     } else {
@@ -219,7 +216,7 @@ Future<void> main(List<String> args) async {
   final manifest = <String, Object?>{
     'format': 1,
     'os': _os,
-    'arch': _arch,
+    'arch': hostArch,
     'hostCommit': await _git(<String>['rev-parse', 'HEAD']),
     'hostDirty': (await _git(<String>['status', '--porcelain'])).isNotEmpty,
     'jre': <String, Object?>{
@@ -250,7 +247,8 @@ String _buildJdk(String pinned) {
     if (Platform.isWindows) r'C:\Program Files\Amazon Corretto\jdk21.0.13_1',
     pinned,
   ]) {
-    if (home != null && File(p.join(home, 'bin', 'java$_exe')).existsSync()) {
+    if (home != null &&
+        File(p.join(home, 'bin', 'java$exeSuffix')).existsSync()) {
       return home;
     }
   }
@@ -283,7 +281,7 @@ Future<String> _git(List<String> args) async {
   final ProcessResult r = await Process.run(
     'git',
     args,
-    workingDirectory: _root,
+    workingDirectory: repoRoot,
   );
   return (r.stdout as String).trim();
 }
@@ -291,7 +289,7 @@ Future<String> _git(List<String> args) async {
 /// Downloads [url] into [cache] once; the file must hash to [sha256].
 Future<File> _download(Uri url, String sha256, Directory cache) async {
   final file = File(p.join(cache.path, url.pathSegments.last));
-  if (!file.existsSync() || _sha256(file) != sha256) {
+  if (!file.existsSync() || sha256Of(file) != sha256) {
     print('   downloading $url');
     final client = HttpClient();
     try {
@@ -307,7 +305,7 @@ Future<File> _download(Uri url, String sha256, Directory cache) async {
       client.close();
     }
   }
-  final String actual = _sha256(file);
+  final String actual = sha256Of(file);
   if (actual != sha256) {
     file.deleteSync();
     throw StateError(
@@ -317,8 +315,6 @@ Future<File> _download(Uri url, String sha256, Directory cache) async {
   print('   ${p.basename(file.path)} sha256 ok');
   return file;
 }
-
-String _sha256(File f) => crypto.sha256.convert(f.readAsBytesSync()).toString();
 
 /// Extracts the JDK archive once into the cache; returns the JDK home.
 Future<String> _extractJdk(File archive, Directory cache) async {
@@ -334,7 +330,7 @@ Future<String> _extractJdk(File archive, Directory cache) async {
   // The JDK home is the directory holding bin/java (macOS: Contents/Home).
   for (final FileSystemEntity e in dest.listSync(recursive: true)) {
     if (e is File &&
-        p.basename(e.path) == 'jlink$_exe' &&
+        p.basename(e.path) == 'jlink$exeSuffix' &&
         p.basename(p.dirname(e.path)) == 'bin') {
       final String home = p.dirname(p.dirname(e.path));
       if (!Platform.isWindows) {
@@ -344,19 +340,6 @@ Future<String> _extractJdk(File archive, Directory cache) async {
     }
   }
   throw StateError('No jlink in ${archive.path}');
-}
-
-Future<void> _copyTree(Directory from, Directory to) async {
-  if (!from.existsSync()) throw StateError('Missing build output ${from.path}');
-  for (final FileSystemEntity e in from.listSync(recursive: true)) {
-    final String target = p.join(to.path, p.relative(e.path, from: from.path));
-    if (e is Directory) {
-      Directory(target).createSync(recursive: true);
-    } else if (e is File) {
-      Directory(p.dirname(target)).createSync(recursive: true);
-      e.copySync(target);
-    }
-  }
 }
 
 /// Apple silicon refuses to run unsigned code: every Mach-O file must carry a
@@ -402,7 +385,7 @@ Future<Map<String, String>> _hashTree(Directory dir) async {
   for (final f in all) {
     final String rel = p.relative(f.path, from: dir.path).replaceAll(r'\', '/');
     if (rel == 'runtime/runtime-manifest.json') continue;
-    files[rel] = _sha256(f);
+    files[rel] = sha256Of(f);
   }
   return files;
 }
@@ -416,7 +399,7 @@ Map<String, String?> _nativeLicences(List<String> libs) {
   final result = <String, String?>{};
   if (libs.any((String l) => l.contains('objective_c'))) {
     final config = jsonDecode(
-      File(p.join(_root, '.dart_tool', 'package_config.json'))
+      File(p.join(repoRoot, '.dart_tool', 'package_config.json'))
           .readAsStringSync(),
     ) as Map<String, Object?>;
     final Map<String, Object?>? pkg = (config['packages']! as List<Object?>)
@@ -430,10 +413,10 @@ Map<String, String?> _nativeLicences(List<String> libs) {
         license != null && File(license).existsSync() ? license : null;
   }
   if (libs.any((String l) => l.contains('SwiftSoup'))) {
-    final triple = _arch == 'arm64' ? 'arm64' : 'x86_64';
+    final triple = hostArch == 'arm64' ? 'arm64' : 'x86_64';
     final build = Directory(
       p.join(
-        _root,
+        repoRoot,
         '.dart_tool',
         'hooks_runner',
         'shared',
@@ -475,14 +458,14 @@ const List<(String, String)> _rustTrees = <(String, String)>[
 ];
 
 /// The Rust host triple of this machine.
-String get _rustHost => switch ((_os, _arch)) {
+String get _rustHost => switch ((_os, hostArch)) {
   ('windows', 'x64') => 'x86_64-pc-windows-msvc',
   ('windows', 'arm64') => 'aarch64-pc-windows-msvc',
   ('linux', 'x64') => 'x86_64-unknown-linux-gnu',
   ('linux', 'arm64') => 'aarch64-unknown-linux-gnu',
   ('macos', 'arm64') => 'aarch64-apple-darwin',
   ('macos', 'x64') => 'x86_64-apple-darwin',
-  _ => throw StateError('No Rust host triple for $_os-$_arch'),
+  _ => throw StateError('No Rust host triple for $_os-$hostArch'),
 };
 
 /// The crates of [label]'s tree linked for this host
@@ -499,8 +482,8 @@ Future<String> _crateLicenses(
   Directory licenses,
 ) async {
   final List<Component> crates = await rustComponents(
-    root: _root,
-    manifest: p.join(_root, manifest),
+    root: repoRoot,
+    manifest: p.join(repoRoot, manifest),
     triples: <String>[_rustHost],
   );
   final lines = <String>[
@@ -566,3 +549,7 @@ void _checkNoFixtures(Directory out) {
   ];
   if (bad.isNotEmpty) throw StateError('Test fixtures in the package: $bad');
 }
+
+/// Copies a build output directory into the package.
+void _copyBuildOutput(Directory from, Directory to) =>
+    copyTree(from, to, missing: 'Missing build output ${from.path}');

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/src/adapter.dart';
 import 'package:paperback_plugin_loader/src/host/browser.dart';
@@ -110,43 +111,52 @@ Future<void> runPaperbackWorker(List<String> args) async {
 /// Parsed worker arguments.
 typedef WorkerArguments = ({PaperbackRuntimeLimits limits, Duration deadlineHeadroom, PaperbackNetworkMode network});
 
-/// Parses `--name=value` arguments: the QuickJS limits and the deadline
-/// headroom are required positive integers; the network mode is optional
-/// (see [runPaperbackWorker]).
-WorkerArguments parseWorkerArguments(List<String> args) {
-  final ints = <String, int>{};
-  final strings = <String, List<String>>{};
-  const limitNames = <String>{
-    'memory-limit-bytes',
-    'max-stack-bytes',
-    'operation-deadline-ms',
-    'job-slice-ms',
-    'deadline-headroom-ms',
-  };
-  const networkNames = <String>{
-    'replay',
-    'record',
-    'record-source',
-    'record-min-interval-ms',
-    'record-licence',
-    'record-volatile',
-    'record-cookie',
-  };
-  for (final arg in args) {
-    final Match? m = RegExp(r'^--([a-z-]+)=(.*)$', dotAll: true).firstMatch(arg);
-    if (m == null) throw FormatException('Unrecognized argument "$arg"');
-    final String name = m.group(1)!;
-    final String value = m.group(2)!;
-    if (limitNames.contains(name)) {
-      final int? v = RegExp(r'^\d+$').hasMatch(value) ? int.parse(value) : null;
-      if (v == null) throw FormatException('--$name must be an integer');
-      ints[name] = v;
-    } else if (networkNames.contains(name)) {
-      (strings[name] ??= <String>[]).add(value);
-    } else {
-      throw FormatException('Unrecognized argument "$arg"');
-    }
+const List<String> _limitNames = <String>[
+  'memory-limit-bytes',
+  'max-stack-bytes',
+  'operation-deadline-ms',
+  'job-slice-ms',
+  'deadline-headroom-ms',
+];
+
+const List<String> _networkNames = <String>[
+  'replay',
+  'record',
+  'record-source',
+  'record-min-interval-ms',
+  'record-licence',
+  'record-volatile',
+  'record-cookie',
+];
+
+/// The worker's options: every limit once; the network options may repeat
+/// (and the parser checks how many each mode needs).
+final ArgParser _workerArgs = () {
+  final parser = ArgParser();
+  for (final String name in _limitNames) {
+    parser.addOption(name);
   }
+  for (final String name in _networkNames) {
+    parser.addMultiOption(name, splitCommas: false);
+  }
+  return parser;
+}();
+
+/// Parses the worker arguments: the QuickJS limits and the deadline headroom
+/// are required positive integers; the network mode is optional (see
+/// [runPaperbackWorker]). Malformed arguments throw [FormatException].
+WorkerArguments parseWorkerArguments(List<String> args) {
+  final ArgResults parsed = _workerArgs.parse(args);
+  if (parsed.rest.isNotEmpty) throw FormatException('Unrecognized argument "${parsed.rest.first}"');
+  final ints = <String, int>{
+    for (final String name in _limitNames)
+      if (parsed.option(name) case final String value)
+        name: RegExp(r'^\d+$').hasMatch(value) ? int.parse(value) : throw FormatException('--$name must be an integer'),
+  };
+  final strings = <String, List<String>>{
+    for (final String name in _networkNames)
+      if (parsed.multiOption(name) case final List<String> values when values.isNotEmpty) name: values,
+  };
   int required(String name) {
     final int? value = ints[name];
     if (value == null) throw FormatException('Missing required --$name');

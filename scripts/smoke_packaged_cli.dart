@@ -23,13 +23,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
-final String _root = p.normalize(
-  p.join(p.dirname(Platform.script.toFilePath()), '..'),
-);
-String get _exe => Platform.isWindows ? '.exe' : '';
+import 'src/common.dart';
+
+final ArgParser _parser = ArgParser()
+  ..addOption(
+    'package',
+    help: 'Package to test.',
+    defaultsTo: defaultPackageDir,
+  )
+  ..addOption('receipt', help: 'Write a JSON receipt here.');
 
 final List<Map<String, Object?>> _checks = <Map<String, Object?>>[];
 
@@ -39,20 +45,21 @@ void _record(String name, bool ok, [Object? detail]) {
 }
 
 Future<void> main(List<String> args) async {
-  String? option(String name) {
-    final int i = args.indexOf(name);
-    return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
-  }
-
-  final arch = Platform.version.contains('arm64') ? 'arm64' : 'x64';
-  final source = Directory(
-    option('--package') ??
-        p.join(_root, 'build', 'package', '${Platform.operatingSystem}-$arch'),
+  final ArgResults options = parseScriptArgs(
+    _parser,
+    args,
+    'dart run scripts/smoke_packaged_cli.dart [options]',
   );
+  final source = Directory(options.option('package')!);
   final Directory temp = await Directory.systemTemp.createTemp('mbc smoke ');
   final pkg = Directory(p.join(temp.path, 'Manga Backup Converter'));
   try {
-    await _copyTree(source, pkg);
+    copyTree(
+      source,
+      pkg,
+      missing:
+          'No package at ${source.path}; run scripts/package_cli.dart first',
+    );
     _record('copied into a path with spaces', pkg.path.contains(' '));
 
     // Manifest, licences, fixtures.
@@ -233,7 +240,11 @@ Future<void> main(List<String> args) async {
       },
     );
 
-    final String cli = p.join(pkg.path, 'bin', 'mangabackupconverter_cli$_exe');
+    final String cli = p.join(
+      pkg.path,
+      'bin',
+      'mangabackupconverter_cli$exeSuffix',
+    );
     final ProcessResult help = await Process.run(
       cli,
       <String>['--help'],
@@ -243,7 +254,7 @@ Future<void> main(List<String> args) async {
     _record('--help runs', help.exitCode == 0, 'exit ${help.exitCode}');
 
     final ProcessResult java = await Process.run(
-      p.join(pkg.path, 'runtime', 'jre', 'bin', 'java$_exe'),
+      p.join(pkg.path, 'runtime', 'jre', 'bin', 'java$exeSuffix'),
       <String>['-version'],
       environment: env,
       includeParentEnvironment: false,
@@ -331,7 +342,7 @@ Future<void> main(List<String> args) async {
   }
 
   final bool ok = _checks.every((Map<String, Object?> c) => c['ok'] == true);
-  final String? receipt = option('--receipt');
+  final String? receipt = options.option('receipt');
   if (receipt != null) {
     final manifest = jsonDecode(
       File(p.join(source.path, 'runtime', 'runtime-manifest.json'))
@@ -608,20 +619,3 @@ Object? _strip(Object? value, String pkg) {
 
 String _tail(String text) =>
     text.length > 2000 ? text.substring(text.length - 2000) : text;
-
-Future<void> _copyTree(Directory from, Directory to) async {
-  if (!from.existsSync()) {
-    throw StateError(
-      'No package at ${from.path}; run scripts/package_cli.dart first',
-    );
-  }
-  for (final FileSystemEntity e in from.listSync(recursive: true)) {
-    final String target = p.join(to.path, p.relative(e.path, from: from.path));
-    if (e is Directory) {
-      Directory(target).createSync(recursive: true);
-    } else if (e is File) {
-      Directory(p.dirname(target)).createSync(recursive: true);
-      e.copySync(target);
-    }
-  }
-}
