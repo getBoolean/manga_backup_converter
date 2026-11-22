@@ -38,7 +38,7 @@ Add the ability to **read and import** a backup file.
 
 - [ ] **A4. Create exception class** — `lib/src/exceptions/<format>_exception.dart` extending `MangaConverterException`. Follow the pattern: constructor with optional `super.message`, `toString()` override.
 
-- [ ] **A5. Add import method to MangaBackupConverter** — In `lib/src/converter.dart`, add an `import<Format>Backup(Uint8List bytes)` method that calls `<Format>Backup.fromData(bytes)`.
+- [ ] **A5. Register the codec** — Register `<Format>Backup.fromData` as the format's codec in `FormatRegistry` (core `FormatRegistry.portable()`, or `cliFormatRegistry()` in `commands/conversion_composition.dart` for native-dependent codecs).
 
 - [ ] **A6. Export from barrel file** — Add all new public files to `lib/mangabackupconverter_lib.dart`. Group format exports together (models), then exception. Follow existing grouping convention.
 
@@ -70,7 +70,7 @@ Add the ability to **build/export** a backup in this format from migration resul
 
 - [ ] **C3. Wire into BackupFormat** — Replace `UnimplementedBackupBuilder()` with `const <Format>BackupBuilder()` in the format's `backupBuilder` getter.
 
-- [ ] **C4. Optionally implement PluginLoader/PluginSource** — For real migration support, implement a `PluginLoader` subclass and `PluginSource` subclass that can fetch extension lists and search for manga. Otherwise, use `StubPluginSource` (returns stubs, throws on search).
+- [ ] **C4. Optionally implement PluginLoader/PluginSource** — For real migration support, implement a `PluginLoader` subclass and `PluginSource` subclass that can fetch extension lists and search for manga. Otherwise register no runtime: the destination is reported unavailable with a typed failure.
 
 ## Part D: Testing
 
@@ -105,7 +105,6 @@ Key source files:
 - `lib/src/pipeline/plugin_source.dart` — `PluginSource` interface, search result types
 - `lib/src/pipeline/plugin_loader.dart` — `PluginLoader` sealed class
 - `lib/src/pipeline/conversion_strategy.dart` — `determineStrategy()`
-- `lib/src/converter.dart` — `MangaBackupConverter`
 - `lib/mangabackupconverter_lib.dart` — barrel exports
 
 All paths relative to `packages/mangabackupconverter_cli/`.

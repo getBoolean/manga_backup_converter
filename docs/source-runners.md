@@ -279,7 +279,7 @@ also failed the start-up wipe test below. macOS cells come from runs on 2026-11-
 | Failed-navigation detection | pass | pass: `didFail(Provisional)Navigation` settles the load as `navigation-failed` (a dropped connection checked); completions of a superseded navigation are dropped | `load-failed` wired, not run |
 | Offline replay (helper blocks unanswered non-loopback requests) | pass: interception over all request source kinds (a cross-origin iframe request is seen and blocked). A `--host-resolver-rules` DNS backstop for traffic interception misses (WebSockets) is configured but not verified by a test | pass: a WebKit content rule list blocks every http(s) and ws(s) load whose host is not `127.0.0.1`, `localhost` or `[::1]` (every frame, every resource type). Shown without request observation on a host that would reach the fixture server (`[::ffff:127.0.0.1]`): a control session without `--offline` reaches it, the offline session's fetch, iframe and navigation do not. A rule list that fails to compile is fatal (`offline-unsupported`) | refuses to start with `--offline` (`offline-unsupported`) |
 | Typed failures: missing WebView runtime, no display | pass via `--simulate-fatal`, mapped to capability-unavailable; a real missing runtime is not reproduced | pass via `--simulate-fatal`; a real missing runtime cannot happen (WKWebView is part of the OS) | `no-display` check written, not run |
-| MangaFire browser-behaviour replay | pass (below), through `browserCaptureReplayReplacer` (method, URL and body hash); a desktop test serves a recorded POST body and answers a different body with 599 | pass on a loopback copy (below): WKWebView has no replace tier to answer `https://mangafire.to`, so the page's origin and OpenCV URL are rewritten to a loopback server serving the same fixture | not run |
+| MangaFire browser-behaviour replay | pass (below), through `BrowserCaptureReplay.serve` (method, URL and body hash); a desktop test serves a recorded POST body and answers a different body with 599 | pass on a loopback copy (below): WKWebView has no replace tier to answer `https://mangafire.to`, so the page's origin and OpenCV URL are rewritten to a loopback server serving the same fixture | not run |
 
 **MangaFire replay (Windows).** `mangafire_solver_replay_test.dart` loads the real `assets/solver.html` from the
 committed `all.mangafire` 1.6.38 JAR with base URL `https://mangafire.to/@waf/solver`. It does what keiyoushi's
@@ -506,8 +506,8 @@ JavaScript:
 1. `PaperbackSourceProvider.admit` computes the digest, requires the bundle's shape to declare the catalog's
    family, asks for the trust decision, then stages the bytes in the `ArtifactCache` under a profile whose host
    compatibility is the family.
-2. Cache hits re-hash and re-ask trust. This covers `cached` and the CLI's `CachingPluginLoader`, which re-enters
-   `loadPluginFromBytes`. Changed cached bytes present a changed fingerprint (asked again, refusable) or are
+2. Cache hits re-hash and re-ask trust. This covers the CLI's byte cache, whose hits re-enter
+   `loadPluginFromBytes` (`ProviderPluginLoader`) and so `admit`. Changed cached bytes present a changed fingerprint (asked again, refusable) or are
    dropped.
 3. The supervisor re-hashes the leased file before `package.load`, which carries the trusted family as
    `apiFamily` (protocol 1.3).

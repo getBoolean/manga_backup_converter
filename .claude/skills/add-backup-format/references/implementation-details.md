@@ -321,26 +321,7 @@ sealed class PluginLoader {
 }
 ```
 
-Stub loaders (for formats without real plugin support) return empty extension lists and map entries to `StubPluginSource`:
-
-```dart
-class <Format>PluginLoader extends PluginLoader {
-  const <Format>PluginLoader();
-
-  @override
-  Future<List<ExtensionEntry>> fetchExtensionLists(
-    List<String> repoUrls, {void Function(String)? onWarning}
-  ) async => <ExtensionEntry>[];
-
-  @override
-  Future<List<PluginSource>> loadPlugins(
-    List<ExtensionEntry> extensions, {
-    void Function(int, int, String)? onProgress,
-  }) async => extensions
-      .map((e) => StubPluginSource(sourceId: e.id, sourceName: e.name))
-      .toList();
-}
-```
+A format without a source runtime registers no `DestinationRuntime`: the destination is then reported unavailable with a typed failure (KTD15). There are no stub loaders or stub sources. A real loader extends `ProviderPluginLoader<E>` in `packages/source_loaders/`.
 
 ### PluginSource (interface)
 
@@ -353,18 +334,6 @@ abstract interface class PluginSource {
   Future<PluginSearchPageResult> search(String query, int page);
   Future<(PluginMangaDetails, List<PluginChapter>)?> getMangaWithChapters(String mangaKey);
   void dispose();
-}
-```
-
-### StubPluginSource
-
-From `lib/src/pipeline/plugin_source_stub.dart` — implements `PluginSource`, throws `UnimplementedError` on search/details calls:
-
-```dart
-class StubPluginSource implements PluginSource {
-  const StubPluginSource({required this.sourceId, required this.sourceName});
-  // search() and getMangaWithChapters() throw UnimplementedError
-  // dispose() is a no-op
 }
 ```
 
@@ -383,25 +352,9 @@ class StubExtensionEntry extends ExtensionEntry { ... }
 
 Create a format-specific `ExtensionEntry` subclass if the format's repo provides additional metadata (like `AidokuExtensionEntry` with `downloadUrl`, `iconUrl`, `version`).
 
-## 8. MangaBackupConverter
+## 8. Codec registration
 
-From `lib/src/converter.dart`. Add one import method per format:
-
-```dart
-class MangaBackupConverter {
-  // Sync for simple formats:
-  <Format>Backup import<Format>Backup(Uint8List bytes) {
-    return <Format>Backup.fromData(bytes);
-  }
-
-  // Async if fromData needs I/O:
-  Future<<Format>Backup> import<Format>Backup(Uint8List bytes) async {
-    return await <Format>Backup.fromData(bytes);
-  }
-}
-```
-
-Some import methods accept additional parameters (e.g. `name`, `overrideName`, `format`).
+There is no per-format import class: register the format's codec (`(Uint8List bytes, {String? name}) => <Format>Backup.fromData(bytes)`) in `FormatRegistry` (`FormatRegistry.portable()` in the core, or `cliFormatRegistry()` for native-dependent codecs).
 
 ## 9. Exception Class Pattern
 
