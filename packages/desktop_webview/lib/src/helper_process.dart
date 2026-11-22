@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:source_runtime/source_contracts.dart';
+import 'package:source_runtime/source_runtime.dart' show RedactingLineSink, Redactor;
 
 /// Maximum encoded frame size in either direction (KTD4); the helper uses the
 /// same bound.
@@ -189,7 +190,13 @@ class HelperProcess {
     } on ProcessException catch (e) {
       return HelperLaunchFailed('cannot launch $executable: ${e.message}');
     }
-    process.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen((String l) => onLog?.call(l));
+    // stderr lines are bounded like protocol frames (L2): a helper that
+    // never writes a newline cannot grow this buffer past the sink's default
+    // cap, the protocol frame cap (= [helperMaxFrameBytes]). A longer line is
+    // cut, its head kept back to the last whitespace, and marked. The
+    // caller's log redacts every line.
+    final stderrLines = RedactingLineSink(Redactor(), (String l) => onLog?.call(l));
+    process.stderr.listen(stderrLines.add, onDone: stderrLines.close, onError: (Object _) {});
     final lines = StreamIterator<Map<String, Object?>>(_frames(process.stdout));
     final Future<bool> first = lines.moveNext().timeout(startupTimeout, onTimeout: () => false);
     bool got;
