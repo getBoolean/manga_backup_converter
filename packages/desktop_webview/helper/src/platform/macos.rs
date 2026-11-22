@@ -332,7 +332,14 @@ define_class!(
       };
       // A navigation without a target frame would open a new window.
       let main_frame = unsafe { action.targetFrame() }.map(|f| unsafe { f.isMainFrame() });
-      let allowed = policy::is_navigable(&uri) && main_frame.is_some();
+      // A child frame may also load its `srcdoc` (as on WebView2, whose
+      // scheme check sees main-frame navigations only); its document runs in
+      // the parent's or an opaque origin, which the channel check handles.
+      let allowed = match main_frame {
+        Some(true) => policy::is_navigable(&uri),
+        Some(false) => policy::is_navigable(&uri) || uri == "about:srcdoc",
+        None => false,
+      };
       if main_frame == Some(true) {
         let session = ivars.shared.borrow().id.clone();
         let _ = ivars.proxy.send_event(UserEvent::NavStarting { session: session.clone(), uri: uri.clone(), rejected: !allowed });
