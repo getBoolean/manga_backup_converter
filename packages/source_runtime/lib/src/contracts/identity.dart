@@ -139,9 +139,10 @@ final class SourceIdentity {
 /// with one rule: package-wide entries overlaid with that source's scope.
 /// Setting keys that name a credential: `pass`, `token`, `secret`, `cookie`
 /// or `auth` anywhere in the key, case-insensitively (`password`,
-/// `apiToken`, `sessionCookie`, `authKey`). `author` is not one: author
-/// display toggles are common non-secret settings.
-final RegExp secretLikeSettingKey = RegExp('pass|token|secret|cookie|auth(?!or)', caseSensitive: false);
+/// `apiToken`, `sessionCookie`, `authKey`, `authorization`). `author`
+/// (`authors`, `showAuthor`) is not one: author display toggles are common
+/// non-secret settings.
+final RegExp secretLikeSettingKey = RegExp('pass|token|secret|cookie|auth(?!or(?!i[sz]))', caseSensitive: false);
 
 /// Whether a setting [key] names a credential (see [secretLikeSettingKey]).
 ///

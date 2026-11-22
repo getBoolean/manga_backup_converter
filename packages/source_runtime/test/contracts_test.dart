@@ -116,6 +116,12 @@ void main() {
       // `author` is not a credential; bools and ints are never redacted.
       check(isSecretLikeSettingKey('showAuthor')).isFalse();
       check(isSecretLikeSettingKey('authKey')).isTrue();
+      for (final key in <String>['Authorization', 'authorized', 'authorisation', 'AUTH_TOKEN', 'passcode']) {
+        check(because: key, isSecretLikeSettingKey(key)).isTrue();
+      }
+      for (final key in <String>['authors', 'authorName', 'lang', 'compassDirection']) {
+        check(because: key, isSecretLikeSettingKey(key)).equals(key == 'compassDirection');
+      }
       check(
         SettingsSnapshot(values: const <String, Object>{'useAuth': true, 'tokenTtl': 3}).allSecretValues,
       ).isEmpty();
