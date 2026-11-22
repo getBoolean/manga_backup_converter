@@ -54,17 +54,21 @@ void _expectBaseline(AndroidConversionHarness h) {
   expect(r['paperbackScopeOpen'], isFalse, reason: '$r');
 }
 
-/// Waits until the service process of a closed worker has exited.
+/// Service processes that earlier cases of the same file left bound (U11
+/// and U12 diagnostics bindings); they are not the conversions'.
+List<int> _foreignServicePids = const <int>[];
+
+/// Waits until the service process of a closed worker has exited, and
+/// returns the service processes still alive besides the foreign ones.
 Future<List<int>> _serviceGone() async {
+  List<int> ours() =>
+      servicePids().where((int p) => !_foreignServicePids.contains(p)).toList();
   try {
-    await until(
-      () => servicePids().isEmpty,
-      timeout: const Duration(seconds: 15),
-    );
+    await until(() => ours().isEmpty, timeout: const Duration(seconds: 15));
   } on TimeoutException {
     // Reported by the caller.
   }
-  return servicePids();
+  return ours();
 }
 
 /// The Tachi WeebCentral hit among [hits] (a fixture package may also
@@ -99,13 +103,19 @@ void registerU14Cases() {
 
   group('U14 R5: six directions on the local Android runtimes', () {
     late AndroidConversionHarness h;
+    var started = false;
 
     setUpAll(() async {
       _device = await deviceFacts();
-      expect(servicePids(), isEmpty, reason: 'nothing runs before a job');
+      // Earlier cases in the same file (U11 diagnostics bindings) may leave
+      // a service process that ends on its own; starting the runtimes must
+      // not add one.
+      _foreignServicePids = const <int>[];
+      _foreignServicePids = await _serviceGone();
       h = await AndroidConversionHarness.create();
+      started = true;
       expect(
-        servicePids(),
+        servicePids().where((int p) => !_foreignServicePids.contains(p)),
         isEmpty,
         reason: 'starting the runtimes binds no service',
       );
@@ -119,10 +129,12 @@ void registerU14Cases() {
         'tachiHandshakeDeadlineMs':
             h.runtimes.tachi.handshakeDeadline.inMilliseconds,
         'dart': Platform.version,
+        'foreignServicePids': _foreignServicePids.length,
       });
     });
 
     tearDownAll(() async {
+      if (!started) return;
       _receipt('six-directions-summary', <String, Object?>{
         'resources': h.resources(),
         'replayMisses': h.replayMisses,
@@ -171,8 +183,11 @@ void registerU14Cases() {
               label: 'u14-ae10',
               fixtureRepository: true,
               tachiArguments: const <String>[
+                // Above the replayed qualification p99 (U11 benchmark:
+                // 4442 ms), so WeebCentral details fit; the busy loop still
+                // runs into it.
                 '--limit',
-                'operationDeadlineMs=4000',
+                'operationDeadlineMs=15000',
                 '--limit',
                 'cancelGraceMs=500',
               ],
@@ -203,7 +218,7 @@ void registerU14Cases() {
               Process.killPid(victim, ProcessSignal.sigkill);
               await killed;
               events.add('after-kill');
-              // 2. A hung call: the loop runs into the 4 s operation
+              // 2. A hung call: the loop runs into the 15 s operation
               //    deadline, cooperative cancel cannot settle it, and the
               //    supervisor kills the PID and restarts.
               await _collect(onSearch('busy'), events);
@@ -213,17 +228,28 @@ void registerU14Cases() {
                 onSearch('Onimai'),
                 events,
               );
+              events.add(
+                'onimai-hits:${hits.map((PluginSearchResult r) => r.ref.source.sourceId).toList()}',
+              );
               restarts = h.tachiSupervisor!.events
                   .whereType<WorkerRestartedEvent>()
                   .toList();
               return _weebCentralHit(hits);
             },
           );
-          final HarnessRun run = await h.convert(
-            const Aidoku(),
-            const Mihon(),
-            selection: selection,
-          );
+          final HarnessRun run;
+          try {
+            run = await h.convert(
+              const Aidoku(),
+              const Mihon(),
+              selection: selection,
+            );
+          } on PartialConversionDeclined catch (e) {
+            print(
+              'U14_AE10_PARTIAL ${e.report.failures.map((f) => '${f.stage.name} ${f.sourceId} ${f.code}: ${f.message}').toList()}',
+            );
+            rethrow;
+          }
           final Map<String, Object?> data = h.checkRun(run);
           expect(
             h.tachiSupervisor,

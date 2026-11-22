@@ -380,7 +380,7 @@
         "serviceAfterJob": []
       }
     ],
-    "note": "The AE10 case failed in the full run (job declined as partial: no WeebCentral match after the restarts; its search events were not logged then) and passed on this rerun with the same restart sequence. Cause of the full-run failure not identified."
+    "note": "The AE10 case failed in the full run and passed on this rerun. Root cause, found on API 36 (2 of 3 reruns failed, with the report printing 'details 2131019126180322627 timeout: details exceeded its deadline'): the test's operationDeadlineMs=4000 also bounds WeebCentral's replayed details call, which runs near the U11 qualification p99 of 4442 ms. The job correctly declined a partial backup. The test now uses 15000 ms."
   },
   "u11Cases": [
     {
