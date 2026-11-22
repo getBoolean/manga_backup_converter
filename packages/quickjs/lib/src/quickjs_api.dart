@@ -446,7 +446,25 @@ final class JsContext {
   /// to `null`, `ArrayBuffer` and typed arrays to a [Uint8List] copy, errors
   /// to `{name, message, stack}`. Functions, symbols and promises throw
   /// [JsConversionException], as does nesting deeper than [maxDepth].
-  Object? toDart(JsValue value, {int maxDepth = 64}) {
+  ///
+  /// The conversion is bounded by a budget of [maxUnits] (default: the
+  /// runtime's [JsRuntime.memoryLimit]): every array element and object
+  /// entry costs one unit, every string one unit per UTF-16 code unit (keys
+  /// included) and every byte buffer one unit per byte. Units are counted
+  /// per visit, so a node reachable along many paths is paid for each time,
+  /// and an array's length is paid before any element is read. A JS heap of
+  /// N bytes cannot hold a tree-shaped value of more than N such units, so
+  /// only values the heap could not hold as a tree fail: sparse arrays with
+  /// a huge `length` and graphs that share nodes (which expand into a Dart
+  /// tree). Exceeding it throws [JsConversionBudgetExceeded]. A runtime
+  /// with no memory limit (tests) converts without a budget unless
+  /// [maxUnits] is given.
+  Object? toDart(JsValue value, {int maxDepth = 64, int? maxUnits}) {
+    final int? limit = maxUnits ?? runtime.memoryLimit;
+    return _toDart(value, maxDepth, _ConversionBudget(limit));
+  }
+
+  Object? _toDart(JsValue value, int maxDepth, _ConversionBudget budget) {
     if (maxDepth < 0) throw const JsConversionException('JS value nests too deeply to convert');
     switch (value.kind) {
       case JsValueKind.undefined || JsValueKind.nullValue:
@@ -460,14 +478,18 @@ final class JsContext {
       case JsValueKind.string:
       case JsValueKind.bigInt:
         final String s = value.toDartString();
+        budget.spend(s.length);
         return value.kind == JsValueKind.bigInt ? BigInt.parse(s) : s;
       case JsValueKind.arrayBuffer || JsValueKind.typedArray:
-        return value.bytes();
+        final Uint8List? bytes = value.bytes();
+        budget.spend(bytes?.length ?? 0);
+        return bytes;
       case JsValueKind.array:
         final int length = value.length;
+        budget.spend(length);
         return <Object?>[
           for (var i = 0; i < length; i++)
-            _withValue(value.getIndex(i), (JsValue v) => toDart(v, maxDepth: maxDepth - 1)),
+            _withValue(value.getIndex(i), (JsValue v) => _toDart(v, maxDepth - 1, budget)),
         ];
       case JsValueKind.error:
         return <String, Object?>{
@@ -480,9 +502,13 @@ final class JsContext {
           _wrap(b.qjsd_object_keys(_checked, value._ptr)),
           (JsValue k) => <String>[for (var i = 0; i < k.length; i++) _withValue(k.getIndex(i), _string)],
         );
+        budget.spend(keys.length);
+        for (final key in keys) {
+          budget.spend(key.length);
+        }
         return <String, Object?>{
           for (final String key in keys)
-            key: _withValue(value.getProperty(key), (JsValue v) => toDart(v, maxDepth: maxDepth - 1)),
+            key: _withValue(value.getProperty(key), (JsValue v) => _toDart(v, maxDepth - 1, budget)),
         };
       case JsValueKind.function ||
           JsValueKind.symbol ||
@@ -864,4 +890,28 @@ final class JsConversionException implements Exception {
 
   @override
   String toString() => 'JsConversionException: $message';
+}
+
+/// [JsContext.toDart] exceeded its conversion budget ([limit] units).
+final class JsConversionBudgetExceeded extends JsConversionException {
+  const JsConversionBudgetExceeded(this.limit)
+    : super('JS value exceeds the conversion budget of $limit units (sparse array or shared nodes)');
+
+  /// The budget that was exceeded.
+  final int limit;
+}
+
+/// Units left for one [JsContext.toDart] call; `null` limit = unbounded.
+final class _ConversionBudget {
+  _ConversionBudget(this.limit) : _remaining = limit;
+
+  final int? limit;
+  int? _remaining;
+
+  void spend(int units) {
+    final int? left = _remaining;
+    if (left == null) return;
+    if (units > left) throw JsConversionBudgetExceeded(limit!);
+    _remaining = left - units;
+  }
 }

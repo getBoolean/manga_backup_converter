@@ -100,6 +100,23 @@ void main() {
       check(context.stringifyJson(context.parseJson('{"a":[1,2]}'))).equals('{"a":[1,2]}');
     });
 
+    test('toDart is bounded by a budget derived from the memory limit (L2)', () {
+      // A sparse array: a huge length in a few bytes of heap.
+      check(
+        () => context.toDart(context.eval('const a = []; a.length = 1e9; a'), maxUnits: 1 << 20),
+      ).throws<JsConversionBudgetExceeded>().has((JsConversionBudgetExceeded e) => e.limit, 'limit').equals(1 << 20);
+      // Shared nodes: 2^40 paths through 40 tiny objects.
+      const shared = 'let n = {}; for (let i = 0; i < 40; i++) n = {a: n, b: n}; n';
+      check(() => context.toDart(context.eval(shared), maxUnits: 1 << 20)).throws<JsConversionBudgetExceeded>();
+      // Without an explicit budget, the runtime's memory limit is the budget.
+      runtime.memoryLimit = 64 * 1024 * 1024;
+      check(() => context.toDart(context.eval('const b = []; b.length = 1e9; b'))).throws<JsConversionBudgetExceeded>();
+      // A value the heap holds as a tree converts within the budget.
+      check(context.toDart(context.eval('({k: "abc", l: [1, 2, 3]})'), maxUnits: 10)).isA<Map<String, Object?>>();
+      check(() => context.toDart(context.eval('({k: "abc", l: [1, 2, 3]})'), maxUnits: 9))
+          .throws<JsConversionException>();
+    });
+
     test('calls host functions and turns Dart exceptions into JS errors', () {
       final JsValue global = context.global;
       global.setProperty(
