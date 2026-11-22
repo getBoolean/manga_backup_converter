@@ -1,10 +1,10 @@
 {
   "unit": "U14 release APK record and package check",
-  "evidence": "Build inspection; the release APK was installed and launched on the API 36 emulator (x86_64) only",
+  "evidence": "Build inspection of the final branch build; an earlier release build of the same sources (before the Gradle lock excluded io.flutter) was installed and launched on the API 36 emulator (x86_64)",
   "command": "flutter build apk --release; python3 -I scripts/android_package_check.py build/app/outputs/flutter-apk/app-release.apk <out> --build-dir build",
   "flutter": "3.50.0 (Dart 3.14)",
   "apk": "app-release.apk",
-  "apkSha256": "47b81bcd768c5d3ea73b890ce3b8051fd49b9ba2c348773f460eef1cf16a190e",
+  "apkSha256": "fec5272073ac2d888d9d8263c7e19fc0dc7d4f4b2241c380a354ee2db79010e5",
   "apkBytes": 81393923,
   "identity": {
     "package": "dev.getboolean.mangabackupconverter",

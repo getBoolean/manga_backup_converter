@@ -353,7 +353,7 @@ Plan: U14 (R5, R9-R12, R15-R17; AE9-AE11). **Emulator evidence only.** Nothing h
 |---|---|---|
 | [`u14-conversion-emulator-api36-pixel9pro-x86_64.json`](u14-conversion-emulator-api36-pixel9pro-x86_64.json) | AVD `Pixel_9_Pro`, Android 16 (API 36), x86_64, WebView 134.0.6998.135, debug build | U14 cases 9 pass, 1 manual skip; manual backgrounding 1/1; kill-and-relaunch and Activity recreation pass |
 | [`u14-conversion-emulator-api28-x86_64.json`](u14-conversion-emulator-api28-x86_64.json) | AVD `U14_API28_x86_64` (`system-images;android-28;google_apis;x86_64` r11, installed for this unit), Android 9 (API 28) | 33 pass, 7 skip, 68 fail: WebView cases fail closed or skip (no `PROXY_OVERRIDE`); see "Minimum SDK (API 28)" |
-| [`u14-release-apk-check.json`](u14-release-apk-check.json) | `flutter build apk --release` | package check passes; the APK was installed and launched on the API 36 AVD only |
+| [`u14-release-apk-check.json`](u14-release-apk-check.json) | `flutter build apk --release` | package check passes on the final build (native libraries identical to the earlier build, which was installed and launched on the API 36 AVD) |
 | [`u14-mihon-restore-emulator-api36-pixel9pro-x86_64.json`](u14-mihon-restore-emulator-api36-pixel9pro-x86_64.json) | Mihon 0.21.3 (official x86_64 release APK) on the API 36 AVD | restore ok, no duplicates after a repeated restore; refresh and chapter open not exercised |
 
 Commands:
