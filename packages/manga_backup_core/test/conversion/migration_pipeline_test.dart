@@ -472,9 +472,17 @@ void main() {
 
   group('adult-source policy', () {
     const extensions = <ExtensionEntry>[
-      StubExtensionEntry(id: 'safe', name: 'Safe'),
-      AidokuExtensionEntry(id: 'adult', name: 'Adult', version: 1, iconUrl: '', downloadUrl: '', contentRating: 2),
-      AidokuExtensionEntry(id: 'odd', name: 'Unknown', version: 1, iconUrl: '', downloadUrl: '', contentRating: 7),
+      StubExtensionEntry(id: 'safe', name: 'Safe', contentRating: ContentRatingLevel.safe),
+      AidokuExtensionEntry(
+        id: 'adult',
+        name: 'Adult',
+        version: 1,
+        iconUrl: '',
+        downloadUrl: '',
+        contentRating: ContentRatingLevel.nsfw,
+      ),
+      // A repository that publishes no rating.
+      AidokuExtensionEntry(id: 'odd', name: 'Unknown', version: 1, iconUrl: '', downloadUrl: ''),
     ];
 
     Future<SourceSelectionRequest> offered(SourceRatingPolicy policy, {List<String>? pick}) async {
@@ -510,12 +518,25 @@ void main() {
 
     test('the policy holds even when a selection UI returns a hidden source', () {
       const policy = SourceRatingPolicy();
-      check(policy.allows(2)).isFalse();
-      check(policy.allows(-1)).isFalse();
+      check(policy.allows(ContentRatingLevel.nsfw)).isFalse();
+      check(policy.allows(ContentRatingLevel.unknown)).isFalse();
+      check(policy.allows(ContentRatingLevel.suggestive)).isTrue();
       check(policy.requestsUnconfirmedAdult).isFalse();
-      check(const SourceRatingPolicy(maxRating: 2).requestsUnconfirmedAdult).isTrue();
-      check(const SourceRatingPolicy(adultContentConfirmed: true, maxRating: 0).allows(1)).isFalse();
-      check(SourceRatingPolicy.ratingOf(ContentRatingLevel.unknown)).equals(SourceRatingPolicy.nsfw);
+      check(const SourceRatingPolicy(maxRating: ContentRatingLevel.nsfw).requestsUnconfirmedAdult).isTrue();
+      check(
+        const SourceRatingPolicy(
+          adultContentConfirmed: true,
+          maxRating: ContentRatingLevel.safe,
+        ).allows(ContentRatingLevel.suggestive),
+      ).isFalse();
+      check(const SourceRatingPolicy(adultContentConfirmed: true).allows(ContentRatingLevel.unknown)).isTrue();
+      // A ceiling below NSFW keeps unrated sources hidden even when confirmed.
+      check(
+        const SourceRatingPolicy(
+          adultContentConfirmed: true,
+          maxRating: ContentRatingLevel.suggestive,
+        ).allows(ContentRatingLevel.unknown),
+      ).isFalse();
     });
   });
 

@@ -138,7 +138,9 @@ class FakePluginSource implements PluginSource {
 /// A loader that offers [extensions] and loads [sources] (or runs [load]).
 class FakePluginLoader extends PluginLoader {
   FakePluginLoader({
-    this.extensions = const <ExtensionEntry>[StubExtensionEntry(id: 'ext', name: 'Ext')],
+    this.extensions = const <ExtensionEntry>[
+      StubExtensionEntry(id: 'ext', name: 'Ext', contentRating: ContentRatingLevel.safe),
+    ],
     this.sources = const <PluginSource>[],
     this.load,
     this.signedRepository,

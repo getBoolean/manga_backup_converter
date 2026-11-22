@@ -104,7 +104,7 @@ class TachiPluginLoader extends ProviderPluginLoader<TachiExtensionEntry> {
               versionCode: listing.versionCode,
               artifactKind: choice.kind.name,
               languages: listing.languages,
-              contentRating: SourceRatingPolicy.ratingOf(listing.contentRating),
+              contentRating: listing.contentRating,
               sourceIds: <String>[for (final TachiIndexSource s in listing.sources) s.id.decimal],
             );
             _admitted[_keyOf(entry)] = _Admitted(listing, choice, trustIdentity);

@@ -277,6 +277,8 @@ http.Client fixtureCatalogClient({
             'iconURL': 'icon.png',
             'downloadURL': 'sources/en.weebcentral-v6.aix',
             'languages': <String>['en'],
+            // An unrated source is hidden until the age confirmation.
+            'contentRating': 0,
           },
         ],
       }),

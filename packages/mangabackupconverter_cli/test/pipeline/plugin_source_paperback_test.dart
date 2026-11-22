@@ -119,7 +119,12 @@ void main() {
 
     final ({List<ExtensionEntry> visible, int hidden}) shown = const SourceRatingPolicy().apply(entries);
     check(shown.hidden).isGreaterThan(0);
-    check(shown.visible.every((ExtensionEntry e) => e.contentRating <= SourceRatingPolicy.suggestive)).isTrue();
+    check(
+      shown.visible.every(
+        (ExtensionEntry e) =>
+            <ContentRatingLevel>[ContentRatingLevel.safe, ContentRatingLevel.suggestive].contains(e.contentRating),
+      ),
+    ).isTrue();
     check(shown.visible.any((ExtensionEntry e) => e.id.endsWith('#DynastyScans'))).isFalse();
     check(
       const SourceRatingPolicy(adultContentConfirmed: true)

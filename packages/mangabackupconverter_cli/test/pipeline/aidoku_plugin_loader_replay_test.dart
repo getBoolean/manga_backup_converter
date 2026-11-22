@@ -52,7 +52,7 @@ const _entry = AidokuExtensionEntry(
   version: 12,
   iconUrl: '',
   downloadUrl: '',
-  contentRating: 1,
+  contentRating: ContentRatingLevel.suggestive,
 );
 
 const String _mangaId = 'ed996855-70de-449f-bba2-e8e24224c14d';

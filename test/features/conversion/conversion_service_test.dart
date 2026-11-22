@@ -96,6 +96,7 @@ final class _DeviceLoader extends PluginLoader {
       id: 'wc',
       name: 'Weeb Central',
       languages: <String>['en'],
+      contentRating: ContentRatingLevel.safe,
     ),
   ];
 

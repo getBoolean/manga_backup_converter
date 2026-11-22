@@ -107,7 +107,23 @@ final class SearchPage {
 
 enum PublishingStatus { unknown, ongoing, completed, cancelled, hiatus }
 
-enum ContentRatingLevel { unknown, safe, suggestive, nsfw }
+/// A source's or manga's content rating. [unknown] is never guessed into
+/// another level; the adult-source policy treats it like [nsfw].
+enum ContentRatingLevel {
+  unknown,
+  safe,
+  suggestive,
+  nsfw;
+
+  /// The level of the 0 safe / 1 suggestive / 2 NSFW scale Aidoku
+  /// repositories publish; a missing or out-of-range value is [unknown].
+  static ContentRatingLevel fromScale(int? rating) => switch (rating) {
+    0 => safe,
+    1 => suggestive,
+    2 => nsfw,
+    _ => unknown,
+  };
+}
 
 /// Manga metadata as fetched from the destination source.
 @immutable

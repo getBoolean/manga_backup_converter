@@ -310,9 +310,9 @@ class ConvertCommand extends Command<void> {
     final ratingPolicy = SourceRatingPolicy(
       adultContentConfirmed: results.flag('confirm-adult'),
       maxRating: switch (results.option('max-rating')) {
-        'safe' => SourceRatingPolicy.safe,
-        'suggestive' => SourceRatingPolicy.suggestive,
-        'nsfw' => SourceRatingPolicy.nsfw,
+        'safe' => ContentRatingLevel.safe,
+        'suggestive' => ContentRatingLevel.suggestive,
+        'nsfw' => ContentRatingLevel.nsfw,
         _ => null,
       },
     );

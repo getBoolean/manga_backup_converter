@@ -58,7 +58,7 @@ class AidokuPluginLoader extends ProviderPluginLoader<AidokuExtensionEntry> {
               version: s.version,
               iconUrl: iconUrl,
               downloadUrl: downloadUrl,
-              contentRating: s.contentRating,
+              contentRating: ContentRatingLevel.fromScale(s.contentRating),
               baseUrl: s.baseUrl,
               altNames: s.altNames,
             );

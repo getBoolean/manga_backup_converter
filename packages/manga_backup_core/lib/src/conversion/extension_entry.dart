@@ -1,15 +1,20 @@
+import 'package:source_runtime/source_contracts.dart';
+
 sealed class ExtensionEntry {
   const ExtensionEntry({
     required this.id,
     required this.name,
     this.languages = const <String>[],
-    this.contentRating = 0,
+    this.contentRating = ContentRatingLevel.unknown,
   });
 
   final String id;
   final String name;
   final List<String> languages;
-  final int contentRating;
+
+  /// The rating the repository published; [ContentRatingLevel.unknown] when
+  /// it published none (hidden like adult sources until the user confirms).
+  final ContentRatingLevel contentRating;
 
   String get cacheKey;
 }
@@ -109,6 +114,7 @@ class StubExtensionEntry extends ExtensionEntry {
     required super.id,
     required super.name,
     super.languages,
+    super.contentRating,
   });
 
   @override

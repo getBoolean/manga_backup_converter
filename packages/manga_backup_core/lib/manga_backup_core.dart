@@ -5,6 +5,9 @@
 /// sources, selection, and I/O through the contracts exported here.
 library;
 
+// The rating type of every ExtensionEntry.
+export 'package:source_runtime/source_contracts.dart' show ContentRatingLevel;
+
 export 'src/common/aidoku_date_time_mapper.dart';
 export 'src/common/convertable.dart';
 export 'src/common/fix_double_encoding.dart';

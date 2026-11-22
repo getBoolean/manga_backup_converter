@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'package:checks/checks.dart';
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
+import 'package:source_runtime/source_contracts.dart';
 import 'package:test/scaffolding.dart';
 
 import 'support/paperback_scenarios.dart';
@@ -59,16 +60,20 @@ void main() {
     }
   });
 
-  test('content ratings map onto the SourceRatingPolicy scale; unknown is adult', () {
-    check(PaperbackCatalog.ratingOf('EVERYONE')).equals(0);
-    check(PaperbackCatalog.ratingOf('SAFE')).equals(0);
-    check(PaperbackCatalog.ratingOf('MATURE')).equals(1);
-    check(PaperbackCatalog.ratingOf('ADULT')).equals(2);
-    check(PaperbackCatalog.ratingOf(null)).equals(2);
+  test('content ratings map onto ContentRatingLevel; a missing or unnamed rating stays unknown', () {
+    check(PaperbackCatalog.ratingOf('EVERYONE')).equals(ContentRatingLevel.safe);
+    check(PaperbackCatalog.ratingOf('SAFE')).equals(ContentRatingLevel.safe);
+    check(PaperbackCatalog.ratingOf('MATURE')).equals(ContentRatingLevel.suggestive);
+    check(PaperbackCatalog.ratingOf('ADULT')).equals(ContentRatingLevel.nsfw);
+    check(PaperbackCatalog.ratingOf(null)).equals(ContentRatingLevel.unknown);
+    check(PaperbackCatalog.ratingOf('TEEN')).equals(ContentRatingLevel.unknown);
     final PaperbackCatalog netsky = PinnedRepository.load('netsky-0.8').catalog;
-    check(netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'DynastyScans').contentRating).equals(2);
-    check(netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'ReadAllComics').contentRating)
-        .equals(0);
+    check(
+      netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'DynastyScans').contentRating,
+    ).equals(ContentRatingLevel.nsfw);
+    check(
+      netsky.entries.firstWhere((PaperbackCatalogEntry e) => e.sourceId == 'ReadAllComics').contentRating,
+    ).equals(ContentRatingLevel.safe);
   });
 
   test('a catalog for another API version is refused', () {

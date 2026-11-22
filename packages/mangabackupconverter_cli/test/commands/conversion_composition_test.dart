@@ -122,8 +122,9 @@ void main() {
       sources: const <TachiIndexSource>[],
       contentWarning: warning,
     );
-    int rating(String? warning) => SourceRatingPolicy.ratingOf(listing(warning).contentRating);
-    check(rating('CONTENT_WARNING_MIXED')).equals(SourceRatingPolicy.suggestive);
+    ContentRatingLevel rating(String? warning) => listing(warning).contentRating;
+    check(rating('CONTENT_WARNING_MIXED')).equals(ContentRatingLevel.suggestive);
+    check(rating('CONTENT_WARNING_NSFW')).equals(ContentRatingLevel.unknown);
     check(const SourceRatingPolicy().allows(rating('CONTENT_WARNING_MIXED'))).isTrue();
     check(const SourceRatingPolicy().allows(rating('CONTENT_WARNING_SAFE'))).isTrue();
     check(const SourceRatingPolicy().allows(rating('CONTENT_WARNING_NSFW'))).isFalse();

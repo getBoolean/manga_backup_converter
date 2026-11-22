@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:paperback_plugin_loader/src/admission.dart';
+import 'package:source_runtime/source_contracts.dart';
 
 /// One source listed in a Paperback repository's `versioning.json`.
 final class PaperbackCatalogEntry {
@@ -27,9 +28,8 @@ final class PaperbackCatalogEntry {
   /// The installation entry point: `<repository>/<sourceId>/<entry file>`.
   final Uri bundleUrl;
 
-  /// 0 safe, 1 suggestive, 2 adult (unknown ratings count as adult), the
-  /// scale `SourceRatingPolicy` uses.
-  final int contentRating;
+  /// The published rating; unknown when the catalog gives none it names.
+  final ContentRatingLevel contentRating;
   final List<String> languages;
   final String? description;
 
@@ -119,12 +119,13 @@ final class PaperbackCatalog {
     );
   }
 
-  /// Paperback ratings on the `SourceRatingPolicy` scale: EVERYONE (0.8) and
-  /// SAFE (0.9) are safe, MATURE suggestive, ADULT and anything unknown
-  /// adult.
-  static int ratingOf(String? rating) => switch (rating?.toUpperCase()) {
-    'EVERYONE' || 'SAFE' => 0,
-    'MATURE' => 1,
-    _ => 2,
+  /// A catalog `contentRating`: EVERYONE (0.8) and SAFE (0.9) are safe,
+  /// MATURE suggestive, ADULT NSFW; any other or missing value is unknown
+  /// (which the adult-source policy hides like NSFW).
+  static ContentRatingLevel ratingOf(String? rating) => switch (rating?.toUpperCase()) {
+    'EVERYONE' || 'SAFE' => ContentRatingLevel.safe,
+    'MATURE' => ContentRatingLevel.suggestive,
+    'ADULT' => ContentRatingLevel.nsfw,
+    _ => ContentRatingLevel.unknown,
   };
 }

@@ -54,6 +54,9 @@ final class _AidokuFixtureLoader extends PluginLoader {
     version: 6,
     iconUrl: '',
     downloadUrl: '',
+    // As a repository listing it would publish it; an unrated entry is
+    // hidden until the age confirmation.
+    contentRating: ContentRatingLevel.safe,
     languages: <String>['en'],
   );
 
