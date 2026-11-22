@@ -14,6 +14,7 @@
 |---|---|
 | `--data-root <dir>` | Parent of per-process data directories (`h-<pid>`). Stale `h-*` directories are removed at start-up before any session opens (KTD20 start-up wipe, one attempt). Each is renamed first, so a directory a live helper's browser still holds is skipped rather than partly deleted. On Windows the helper runs in a kill-on-close job object for its WebView2 processes; after a kill, the browser process can still take 1-110 s (measured, WebView2 157, cause not identified) to finish terminating and release the directory, which the `wipe` request's retry budget covers. The helper tries to remove its own directory at exit; the next wipe removes what is left. Only WebView2 uses it. |
 | `--offline` | Replay mode. Every non-loopback request that no `respond` answers is blocked with a 502 (`X-Desktop-Webview-Blocked: 1`). On WebView2, interception covers all request source kinds, and `--host-resolver-rules` keeps every host except loopback from resolving, as a backstop for traffic interception misses (WebSockets). On WKWebView a WebKit content rule list (compiled at start-up into `<data dir>/content-rules`, or a private temporary directory without `--data-root`) blocks every http(s) and ws(s) load whose host is not `127.0.0.1`, `localhost` or `[::1]`, in every frame and for every resource type; nothing answers those requests (WKWebView has no replace tier), so they fail. Engines that cannot block requests refuse to start (`fatal` `offline-unsupported`) instead of falling through to the network, and a rule list that does not compile is the same fatal. |
+| `--record` | Record mode, for manual capture runs only (never tests): every response a session receives is reported as an `exchange` event with its request and decoded body. WebView2 only (`WebResourceResponseReceived` and `GetContent`); other engines refuse to start (`fatal` `record-unsupported`). With `--offline` as well, only loopback traffic is recorded (the helper's own tests); a capture run records without it. |
 | `--test-hooks` | Enables `debugRequestClose`. |
 | `--simulate-fatal <code>` | Test hook: report `fatal` with this code at start-up. |
 | `--version` | Prints the helper and protocol versions. |
@@ -23,9 +24,9 @@
 The first frame is either:
 
 - `{"ev":"ready","protocol":1,"helperVersion","engine":"webview2"|"wkwebview"|"webkitgtk","engineVersion","pid","maxFrameBytes","capabilities":{…},"wipe":{"removed","failed"}}`, or
-- `{"ev":"fatal","code","message"}`, after which the helper exits with code 3. Codes: `runtime-missing` (no WebView runtime installed), `no-display` (Linux without `DISPLAY`/`WAYLAND_DISPLAY`), `offline-unsupported`, `init-failed`, `invalid-arguments`. The client maps each one to `BrowserCapabilityUnavailable`.
+- `{"ev":"fatal","code","message"}`, after which the helper exits with code 3. Codes: `runtime-missing` (no WebView runtime installed), `no-display` (Linux without `DISPLAY`/`WAYLAND_DISPLAY`), `offline-unsupported`, `record-unsupported`, `init-failed`, `invalid-arguments`. The client maps each one to `BrowserCapabilityUnavailable`.
 
-`capabilities` reports what the engine supports: `browser`, the protocol 1.2 `BrowserCapabilities` of every session (`{"available": [feature], "unavailable": {feature: reason}}`, each reason naming the engine; the client uses it as `BrowserSession.capabilities`), plus `requestObserve` (`all` | `main-frame` | `none`), `requestReplace`, `statusCodes`, `navigationFailures`, `storage`, `offlineEnforced`, `loadDataBaseUrl`, `startScripts`, `messageChannels`, and `syncScriptInterface` (always `false`). A feature is listed available only once it has run on that engine.
+`capabilities` reports what the engine supports: `browser`, the protocol 1.2 `BrowserCapabilities` of every session (`{"available": [feature], "unavailable": {feature: reason}}`, each reason naming the engine; the client uses it as `BrowserSession.capabilities`), plus `requestObserve` (`all` | `main-frame` | `none`), `requestReplace`, `statusCodes`, `navigationFailures`, `storage`, `offlineEnforced`, `loadDataBaseUrl`, `startScripts`, `messageChannels`, `record` (whether `--record` can run), and `syncScriptInterface` (always `false`). A feature is listed available only once it has run on that engine.
 
 ## Requests
 
@@ -34,14 +35,14 @@ The first frame is either:
 | op | Fields | Reply |
 |---|---|---|
 | `open` | `session`, `userAgent?`, `title?`, `intercept?` (`none`/`observe`/`replace`) | `{}` |
-| `load` | `session`, `url`, `headers?` | `finalUrl`, `status?` once the navigation completes |
+| `load` | `session`, `url`, `headers?` | `finalUrl`, `status?` once the navigation completes. An HTTP error page (a 403 or 503 challenge, a 404) is a completed load with its status, as on Android; WebView2 reports it as unsuccessful, and the helper maps it back |
 | `loadData` | `session`, `html`, `baseUrl` (http/https) | `finalUrl`, `status?` |
 | `stop` | `session` | `{}`; drops the pending load |
 | `eval` | `session`, `script` | `result`: the completion value as JSON text (a promise is awaited, `undefined` becomes `null`); `script-error` only if it throws, `no-script-bridge` or `navigated` otherwise |
 | `channel` | `session`, `name`, `enabled` | `{}` |
 | `startScript` | `session`, `script` | `{}`; runs at document start in later documents |
 | `intercept` | `session`, `mode` | `{}` |
-| `respond` | `rid`, `response?` (`status`, `reason?`, `headers?`, `bodyBase64?`), `fail?: string` | `{}`; answers a held request with the response, or `null` to let it proceed. `fail` (a reason) fails it: the page sees a network error. A `response` that is not a valid protocol 1.2 `BrowserReplacement` (status outside 100-599 or 300-399, a reason that is not one non-empty line, a multi-line header) also fails the request, and the reply is `invalid` |
+| `respond` | `rid`, `response?` (`status`, `reason?`, `headers?`, `bodyBase64?`), `fail?: string` | `{}`; answers a held request with the response, or `null` to let it proceed. `fail` (a reason) fails it: the page sees a network error. A `response` that is not a valid protocol 1.2 `BrowserReplacement` (status outside 100-599 or 300-399, a reason that is not one non-empty line, a multi-line header) also fails the request, and the reply is `invalid`. `replay: true` marks the client's own capture replay (`BrowserCaptureReplay`, never a worker's replacement): it may also serve a captured redirect whose `Location` is an absolute http(s) URL, and the engine's navigation policy still checks every hop |
 | `cookies` | `session`, `url` | `cookies: [{name, value, domain?, path?, expiresUnix?, secure, httpOnly}]` |
 | `setCookie` | `session`, `url`, `cookie` | `{}`; domain and path default to the URL host and `/` |
 | `userAgent` | `session`, `userAgent` | `{}` |
@@ -60,6 +61,7 @@ Scheme policy (KTD20) is enforced in the helper as well as in the client. `load`
 | `message` | `session`, `name`, `message`: the page called `window.<name>.postMessage(string)` on an enabled channel |
 | `request` | `session`, `rid` (an integer when the request is held for `respond`, `null` when observed only), `url`, `method`, `headers`, `bodyBase64` (the body, at most 1 MiB, or `null`), `bodyOmitted` (the request had a body the event does not carry: larger than 1 MiB, or not exposed by the engine), `mainFrame` (the top-level document request), `redirect`, `context` |
 | `interactionEnded` | `session`, `reason`: `closed` (the user closed the window) or `session-closed` |
+| `exchange` | `--record` only: `session`, `method`, `url`, `requestBodyBase64` (or `null`), `requestBodyOmitted`, `status`, `headers` (every response header in order as `[name, value]` pairs, repeated names kept), `bodyBase64` (the decoded body, at most 10 MiB, or `null` when the engine keeps none, as for a redirect hop), `bodyOmitted`. Headers may carry credentials (`Set-Cookie`): the client passes exchanges only to a capture recorder, which keeps the allowed headers and allow-listed sanitised cookies |
 | `protocolError` | `message` |
 
 ## Page bridge
@@ -86,4 +88,9 @@ The key keeps other pages' frames from being accepted. It does not stop the sess
 
 - Synchronous script-interface return values (`@JavascriptInterface` methods that return a value) cannot be emulated over asynchronous message handlers on any engine.
 - Request bodies on WKWebView and WebKitGTK (no request observation there).
-- Request replacement (`replace` tier) works only on WebView2.
+- Request replacement (`replace` tier) works only on WebView2, so browser capture replay (`BrowserCaptureReplay`) does too.
+- Browser recording (`--record`) works only on WebView2. A WebKit capture would need a proxy recorder, which does not exist.
+
+## Capture record and replay (client)
+
+`DesktopWebViewConfig.onExchange` starts the helper with `--record` and receives each `exchange` with its session's source; `BrowserCaptureRecorder` writes them through `CaptureRecorder` (the same rules as host HTTP captures: only `content-type`, `location`, `retry-after` and `cf-mitigated`, allow-listed sanitised cookies, credential URLs abort, an include rule drops other hosts). `DesktopWebViewConfig.replay` (with `offline`) opens every session with `intercept: replace` and answers each held request from the worker's own interceptor first, then from the captures (CORS headers synthesised from the request's `Origin`); a miss is failed (`respond` `fail`) and listed in `BrowserCaptureReplay.misses`, and the offline helper's resolver rules block DNS as a backstop.

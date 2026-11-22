@@ -19,6 +19,7 @@ use webview2_com::{
   FrameCreatedEventHandler, FrameWebMessageReceivedEventHandler,
   Microsoft::Web::WebView2::Win32::*, NavigationCompletedEventHandler, NavigationStartingEventHandler,
   WebMessageReceivedEventHandler, WebResourceRequestedEventHandler, WebResourceResponseReceivedEventHandler,
+  WebResourceResponseViewGetContentCompletedHandler,
 };
 use windows::{
   core::{Interface, BOOL, HSTRING, PWSTR},
@@ -28,7 +29,7 @@ use windows::{
 use wry::{WebContext, WebView, WebViewBuilder, WebViewBuilderExtWindows, WebViewExtWindows};
 
 use super::{Answer, Caps, ReplacementResponse};
-use crate::{policy, InterceptMode, RequestEvent, Shared, UserEvent, MAX_FORWARDED_BODY_BYTES};
+use crate::{policy, ExchangeEvent, InterceptMode, RequestEvent, Shared, UserEvent, MAX_FORWARDED_BODY_BYTES, MAX_RECORDED_BODY_BYTES};
 
 pub const ENGINE: &str = "webview2";
 
@@ -50,6 +51,7 @@ pub static CAPS: Caps = Caps {
   navigation_failures: true,
   storage: "ephemeral-per-session (InPrivate profile per session)",
   offline_enforced: true,
+  record: true,
   browser: &[
     ("pageStartScripts", None),
     ("observeNavigations", None),
@@ -222,10 +224,16 @@ fn context_name(c: COREWEBVIEW2_WEB_RESOURCE_CONTEXT) -> &'static str {
 }
 
 fn request_headers(req: &ICoreWebView2WebResourceRequest) -> Vec<(String, String)> {
+  match unsafe { req.Headers().and_then(|h| h.GetIterator()) } {
+    Ok(it) => collect_headers(&it),
+    Err(_) => Vec::new(),
+  }
+}
+
+/// Every header of a collection, in order (repeated names kept).
+fn collect_headers(it: &ICoreWebView2HttpHeadersCollectionIterator) -> Vec<(String, String)> {
   let mut out = Vec::new();
   unsafe {
-    let Ok(headers) = req.Headers() else { return out };
-    let Ok(it) = headers.GetIterator() else { return out };
     loop {
       let mut has = BOOL::default();
       if it.HasCurrentHeader(&mut has).is_err() || !has.as_bool() {
@@ -493,6 +501,9 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
         .add_WebResourceResponseReceived(
           &WebResourceResponseReceivedEventHandler::create(Box::new(move |_, args| {
             let Some(args) = args else { return Ok(()) };
+            if sh.borrow().record {
+              record_exchange(&args, &s, &p);
+            }
             let url = args.Request().map(|r| pwstr(|p| r.Uri(p))).unwrap_or_default();
             if !sh.borrow().load_chain.iter().any(|u| *u == url) {
               return Ok(());
@@ -516,6 +527,76 @@ pub fn install(webview: &WebView, shared: Rc<RefCell<Shared>>, proxy: EventLoopP
     }
   }
   Ok(Native)
+}
+
+/// `--record`: reports the response with its request and decoded body as an
+/// `exchange` event. The body arrives asynchronously (`GetContent`); a
+/// response without one (a redirect hop, a 204) is reported without a body.
+fn record_exchange(args: &ICoreWebView2WebResourceResponseReceivedEventArgs, session: &str, proxy: &EventLoopProxy<UserEvent>) {
+  let (Ok(req), Ok(resp)) = (unsafe { args.Request() }, unsafe { args.Response() }) else { return };
+  let url = pwstr(|p| unsafe { req.Uri(p) });
+  let method = pwstr(|p| unsafe { req.Method(p) });
+  let (request_body, request_body_omitted) = request_body(&req);
+  let mut status = 0i32;
+  let _ = unsafe { resp.StatusCode(&mut status) };
+  let headers = match unsafe { resp.Headers().and_then(|h| h.GetIterator()) } {
+    Ok(it) => collect_headers(&it),
+    Err(_) => Vec::new(),
+  };
+  let event = ExchangeEvent {
+    session: session.to_string(),
+    method,
+    url,
+    request_body,
+    request_body_omitted,
+    status,
+    headers,
+    body: None,
+    body_omitted: false,
+  };
+  let p = proxy.clone();
+  let pending = std::rc::Rc::new(RefCell::new(Some(event)));
+  let fallback = pending.clone();
+  let handler = WebResourceResponseViewGetContentCompletedHandler::create(Box::new(move |hr, stream| {
+    let Some(mut event) = pending.borrow_mut().take() else { return Ok(()) };
+    match (hr.is_ok(), stream) {
+      (true, Some(stream)) => match read_stream(&stream, MAX_RECORDED_BODY_BYTES) {
+        Some(body) => event.body = Some(body),
+        None => event.body_omitted = true,
+      },
+      // No content: the engine keeps none for this response.
+      (true, None) => {}
+      (false, _) => event.body_omitted = true,
+    }
+    let _ = p.send_event(UserEvent::Exchange(event));
+    Ok(())
+  }));
+  if unsafe { resp.GetContent(&handler) }.is_err() {
+    if let Some(mut event) = fallback.borrow_mut().take() {
+      event.body_omitted = true;
+      let _ = proxy.send_event(UserEvent::Exchange(event));
+    }
+  }
+}
+
+/// Reads a whole stream, or `None` when it is unreadable or larger than `cap`.
+fn read_stream(stream: &IStream, cap: usize) -> Option<Vec<u8>> {
+  let mut body = Vec::new();
+  let mut chunk = vec![0u8; 64 * 1024];
+  loop {
+    let mut read = 0u32;
+    let hr = unsafe { stream.Read(chunk.as_mut_ptr().cast(), chunk.len() as u32, Some(&mut read)) };
+    if hr.is_err() {
+      return None;
+    }
+    if read == 0 {
+      return Some(body);
+    }
+    body.extend_from_slice(&chunk[..read as usize]);
+    if body.len() > cap {
+      return None;
+    }
+  }
 }
 
 /// Where a failed held request is sent instead of its own URL: port 1 is on

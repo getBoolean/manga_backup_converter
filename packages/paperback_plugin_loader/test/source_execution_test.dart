@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:checks/checks.dart';
+import 'package:desktop_webview/desktop_webview.dart';
 import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/paperback_plugin_loader.dart';
 import 'package:source_runtime/source_runtime.dart';
@@ -426,6 +427,81 @@ void main() {
     // Every session the source opened was closed (its storage deleted).
     check(port.closed).length.equals(port.pages.length);
   });
+
+  test(
+    'MangaFire 0.9 searches, fetches details and chapters through the desktop helper replaying its browser capture',
+    skip: _desktopHelperSkip(),
+    () async {
+      // The page's own scripts compute the VRF signature inside the real
+      // WebView; their requests are served from the committed browser
+      // capture (`mangafire/browser/`, recorded by the capture tool's
+      // `--browser` mode) and the helper is offline, so nothing reaches a
+      // server. The worker side replays `mangafire/` as every test does.
+      final Directory dataRoot = Directory.systemTemp.createTempSync('paperback_mangafire_webview');
+      final replay = BrowserCaptureReplay(loadCaptureSet(Directory('${paperbackFixtures().path}/mangafire/browser')));
+      final port = DesktopBrowserPort(
+        DesktopWebViewConfig(
+          helperExecutable: _desktopHelper()!,
+          dataRoot: dataRoot,
+          startupTimeout: const Duration(seconds: 60),
+          shutdownGrace: const Duration(seconds: 10),
+          allowVisibleWindows: false,
+          offline: true,
+          replay: replay,
+        ),
+      );
+      addTearDown(() async {
+        await port.dispose();
+        try {
+          dataRoot.deleteSync(recursive: true);
+        } on FileSystemException {
+          // The browser process may still hold the directory; the next helper start wipes it.
+        }
+      });
+      final (List<BundleRun> runs, MultiReplayHttpClient client) = await _replay('mangafire', port: port);
+      check(client.misses).isEmpty();
+      final BundleRun run = runs.single;
+      final SearchPage page = _page(run);
+      check(page.hits).length.equals(30);
+      check(page.hits.first.ref.mangaId).equals('72k68');
+      check(page.hits.first.title).equals('Highschool ONIMAI');
+      check((run.page2! as SourceSuccess<SearchPage>).value.hits).length.equals(30);
+      final MangaSnapshot s = _snapshot(run);
+      check(s.metadata.title).equals('Highschool ONIMAI');
+      _checkChapters(s, count: 86);
+      check(s.chapters.first.chapterId).equals('4954408');
+      // The page's scripts were served from the capture; only what the
+      // capture deliberately leaves out (third-party hosts, Cloudflare's
+      // /cdn-cgi/, the browser's favicon probe) missed, and failed closed.
+      check(replay.served).isNotEmpty();
+      check(
+        replay.misses.where(
+          (CaptureKey k) =>
+              keepBrowserExchange('mangafire', Uri.parse(k.url)) && !k.url.endsWith('/assets/mangafire/favicon.svg'),
+        ),
+      ).isEmpty();
+    },
+  );
+}
+
+/// The desktop WebView helper built for this host, or `null`.
+File? _desktopHelper() {
+  final manifest = File('${repoRootDir().path}/packages/desktop_webview/build/helper/runtime-artifacts.json');
+  if (!manifest.existsSync()) return null;
+  try {
+    return RuntimeArtifactManifest.load(manifest).findForHost(RuntimeArtifactManifest.webviewHelper)?.verifiedFile();
+  } on Object {
+    return null;
+  }
+}
+
+/// Why the desktop browser replay cannot run here, or `null`.
+String? _desktopHelperSkip() {
+  if (!Platform.isWindows) return 'browser capture replay needs the helper replace tier (WebView2, Windows)';
+  if (_desktopHelper() == null) {
+    return 'desktop WebView helper not built: dart run tool/build_helper.dart in packages/desktop_webview';
+  }
+  return null;
 }
 
 Future<SourceFailure> _failureOf(Future<Object?> operation) async {

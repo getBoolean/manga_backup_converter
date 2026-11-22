@@ -45,6 +45,7 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
     this.browserPort,
     this.browserReplacementTimeout,
     this.interactionTimeout,
+    this.interactiveChallenges = false,
   });
 
   /// Resolves where the worker is (see [TachiWorkerLocation.resolve]).
@@ -72,6 +73,11 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
 
   /// Bound on a visible browser interaction (`host.browser.show`).
   final Duration? interactionTimeout;
+
+  /// Interactive runs: a Cloudflare challenge is shown in the browser window
+  /// (for at most [interactionTimeout]); unattended runs leave it
+  /// interaction-required without opening a window.
+  final bool interactiveChallenges;
 
   ConversionOwner? _owner;
   ConversionRuntimeScope? _scope;
@@ -104,7 +110,11 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
         late final TachiRuntime runtime;
         final scope = ConversionRuntimeScope(
           workers: <WorkerKind, WorkerSpec>{
-            WorkerKind.jvm: location.spec(stateDirectory: stateDirectory, replay: replay),
+            WorkerKind.jvm: location.spec(
+              stateDirectory: stateDirectory,
+              replay: replay,
+              interactiveChallenges: interactiveChallenges && browserPort != null ? interactionTimeout : null,
+            ),
           },
           limits: AdoptWorkerLimits(
             handshakeDeadline: location.handshakeDeadline,

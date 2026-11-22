@@ -83,6 +83,8 @@ pub struct Caps {
   pub storage: &'static str,
   /// Whether `--offline` can block every non-loopback request.
   pub offline_enforced: bool,
+  /// Whether `--record` can report every response with its body.
+  pub record: bool,
   /// Protocol 1.2 `BrowserFeature`s of every session: `(feature, None)` when
   /// available, `(feature, Some(reason))` when not, the reason naming the
   /// engine. Each listed state is what this engine's code path does; a
@@ -108,6 +110,7 @@ impl Caps {
       "navigationFailures": self.navigation_failures,
       "storage": self.storage,
       "offlineEnforced": self.offline_enforced,
+      "record": self.record,
       "loadDataBaseUrl": true,
       "startScripts": true,
       "messageChannels": "window.<name>.postMessage(string)",
@@ -138,7 +141,10 @@ pub struct ReplacementResponse {
 }
 
 impl ReplacementResponse {
-  pub fn from_json(v: &Value) -> Result<Self, String> {
+  /// Parses a `respond` response. `allow_redirect` admits a 3xx whose
+  /// `Location` is an absolute http(s) URL (the client's capture replay);
+  /// the engine's navigation hooks still check every hop.
+  pub fn from_json(v: &Value, allow_redirect: bool) -> Result<Self, String> {
     use base64::Engine as _;
     let status = v.get("status").and_then(Value::as_u64).ok_or("response needs a status")?;
     let body = match v.get("bodyBase64").and_then(Value::as_str) {
@@ -157,7 +163,11 @@ impl ReplacementResponse {
       return Err(format!("status {status} is outside 100-599"));
     }
     if (300..=399).contains(&status) {
-      return Err(format!("redirect status {status} cannot be substituted"));
+      let location = headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("location")).map(|(_, v)| v.as_str());
+      let web_target = location.is_some_and(|l| crate::policy::is_allowed_base(l));
+      if !allow_redirect || !web_target {
+        return Err(format!("redirect status {status} cannot be substituted"));
+      }
     }
     let reason = v.get("reason").and_then(Value::as_str).unwrap_or("OK").to_string();
     let multiline = |s: &str| s.contains(['\r', '\n']);

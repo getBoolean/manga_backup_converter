@@ -1,8 +1,8 @@
 {
   "kind": "source-runner-conversion",
   "evidence": "replayed-capture",
-  "recordedAt": "2026-11-21T21:05:53.583014Z",
-  "hostCommit": "0b59d977304726f7ab3b4978d5d953826d90b743",
+  "recordedAt": "2026-11-22T02:35:56.335932Z",
+  "hostCommit": "0a298169050ecfe137f8b32d9e3b65e215d57f72",
   "hostDirty": false,
   "os": "windows",
   "osVersion": "\"Windows 11 Pro\" 10.0 (Build 26300)",
@@ -34,7 +34,10 @@
       "handshakeDeadlineMs": 31125
     }
   },
-  "java": "jdk21.0.13_1",
+  "java": {
+    "version": "21.0.13.1+2-LTS",
+    "vendor": "Amazon.com Inc."
+  },
   "artifacts": [
     {
       "kind": "jar",

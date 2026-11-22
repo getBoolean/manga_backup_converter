@@ -7,11 +7,9 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.webkit.ScriptHandler
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import mangabackup.tachi.host.CapabilityUnavailableException
 import mangabackup.tachi.host.HostOperationException
@@ -21,8 +19,6 @@ import mangabackup.tachi.protocol.ErrorCode
 import mangabackup.tachi.protocol.WorkerError
 import mangabackup.tachi.protocol.optStr
 import mangabackup.tachi.shim.WebViewBackend
-import okhttp3.Cookie
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.lang.reflect.Method
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -215,45 +211,11 @@ class WebViewTranslation(private val view: WebView, private val bridge: BrowserB
         throw e
     }
 
-    private fun pushCookies(session: String, url: String) {
-        val httpUrl = url.toHttpUrlOrNull() ?: return
-        for (cookie in environment.cookieJar.loadForRequest(httpUrl)) {
-            call("host.browser.setCookie", buildJsonObject {
-                put("session", session)
-                put("url", url)
-                put("cookie", cookieJson(cookie))
-            })
-        }
-    }
+    private val cookies = BrowserCookies(environment.cookieJar, ::call)
 
-    private fun pullCookies(session: String, url: String) {
-        val httpUrl = url.toHttpUrlOrNull() ?: return
-        val reply = call("host.browser.getCookies", buildJsonObject {
-            put("session", session)
-            put("url", url)
-        })
-        val cookies = (reply["cookies"] as? JsonArray ?: return).mapNotNull { element ->
-            val o = element.jsonObject
-            val builder = Cookie.Builder().name(o.optStr("name") ?: return@mapNotNull null).value(o.optStr("value").orEmpty())
-            val domain = o.optStr("domain")?.removePrefix(".") ?: httpUrl.host
-            builder.domain(domain).path(o.optStr("path") ?: "/")
-            o.optStr("expires")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }?.let(builder::expiresAt)
-            if ((o["secure"] as? JsonPrimitive)?.content == "true") builder.secure()
-            if ((o["httpOnly"] as? JsonPrimitive)?.content == "true") builder.httpOnly()
-            runCatching { builder.build() }.getOrNull()
-        }
-        environment.cookieJar.saveFromResponse(httpUrl, cookies)
-    }
+    private fun pushCookies(session: String, url: String) = cookies.push(session, url)
 
-    private fun cookieJson(c: Cookie) = buildJsonObject {
-        put("name", c.name)
-        put("value", c.value)
-        put("domain", c.domain)
-        put("path", c.path)
-        if (c.persistent) put("expires", java.time.Instant.ofEpochMilli(c.expiresAt).toString())
-        put("secure", c.secure)
-        put("httpOnly", c.httpOnly)
-    }
+    private fun pullCookies(session: String, url: String) = cookies.pull(session, url)
 
     private fun onMain(block: () -> Unit) {
         WebkitHost.mainHandler.post { if (!view.isDestroyed) block() }

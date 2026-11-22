@@ -386,6 +386,7 @@ class ConvertCommand extends Command<void> {
       browserPort: browser,
       browserReplacementTimeout: CliBrowserPolicy.replacementTimeout,
       interactionTimeout: CliBrowserPolicy.interactionTimeout,
+      interactiveChallenges: interactive,
       locate: () => TachiWorkerLocation.resolve(
         manifestPath: results.option('tachi-runtime') ?? packagedTachiManifest(),
         handshakeDeadline: tachiHandshakeDeadline,

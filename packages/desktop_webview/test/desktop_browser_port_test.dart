@@ -812,6 +812,17 @@ Future<void> main() async {
       }
     });
 
+    test('an HTTP error page is a completed load carrying its status, not a navigation failure', () async {
+      final DesktopBrowserPort port = await newPort();
+      final DesktopBrowserSession s = await open(port, 'a');
+      for (final code in <int>[403, 404, 503]) {
+        final BrowserOutcome<BrowserPage> loaded = await s.loadUrl(server.url('/status/$code'));
+        check(loaded).isA<BrowserCompleted<BrowserPage>>();
+        if (port.helperInfo!.capabilities.statusCodes) check(loaded.valueOrNull!.statusCode).equals(code);
+        check((await s.evaluate('document.title')).valueOrNull).equals('"status"');
+      }
+    });
+
     test('a request over the frame bound is refused before it is sent', () async {
       final DesktopBrowserPort port = await newPort();
       await open(port, 'a');

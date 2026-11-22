@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:source_runtime/src/backends/redaction.dart';
 import 'package:source_runtime/src/capture/capture_format.dart';
+import 'package:source_runtime/src/capture/capture_recorder.dart';
 
 /// Loads committed captures from `<root>/<ecosystem>/<source>/`.
 CaptureSet loadCaptureSet(Directory captureDir) {
@@ -72,17 +73,6 @@ class ReplayHttpClient extends http.BaseClient {
   }
 }
 
-/// The only response headers written to a capture: what replay needs.
-/// Everything else is dropped, including credentials (`set-cookie`, except
-/// the sanitised allow-listed cookies in [CaptureExchange.setCookies]),
-/// transfer framing that no longer describes the stored decoded body, and
-/// CDN/edge headers that identify the recording machine's network or region.
-///
-/// `cf-mitigated` is Cloudflare's header-based challenge signal
-/// (`cf-mitigated: challenge`); replay keeps it so a source's challenge
-/// detection sees the same response a live challenge produced.
-const Set<String> recordedResponseHeaders = <String>{'content-type', 'location', 'retry-after', 'cf-mitigated'};
-
 /// HTTP client that forwards to a real client and records exchanges (record
 /// mode). Used only by `tool/capture_source_fixtures.dart`; no test uses it.
 ///
@@ -102,45 +92,42 @@ class RecordingHttpClient extends http.BaseClient {
   RecordingHttpClient(
     this._inner, {
     required this.minInterval,
-    required this.licence,
-    this.volatileQueryParameters = const <String>{},
+    required String licence,
+    Set<String> volatileQueryParameters = const <String>{},
     Map<String, CapturedCookieValue> setCookieAllowList = const <String, CapturedCookieValue>{},
     Redactor? redactor,
-  }) : setCookieAllowList = Map<String, CapturedCookieValue>.unmodifiable(setCookieAllowList),
-       _redactor = redactor ?? Redactor();
+  }) : recorder = CaptureRecorder(
+         licence: licence,
+         volatileQueryParameters: volatileQueryParameters,
+         setCookieAllowList: setCookieAllowList,
+         redactor: redactor,
+       );
 
   final http.Client _inner;
   final Duration minInterval;
 
-  /// Licence or terms statement recorded for every artifact.
-  final String licence;
-
-  /// Query parameters matched by name only (for example a current date).
-  final Set<String> volatileQueryParameters;
-
-  /// Cookie names whose `Set-Cookie` is recorded, and how (see the class
-  /// documentation). Written to the manifest.
-  final Map<String, CapturedCookieValue> setCookieAllowList;
-  final Redactor _redactor;
-
-  /// Each exchange, its body, and the headers the live caller receives.
-  final Map<CaptureKey, (CaptureExchange, Uint8List, Map<String, String>)> _recorded =
-      <CaptureKey, (CaptureExchange, Uint8List, Map<String, String>)>{};
+  /// What this client recorded (shared format with the browser recorder).
+  final CaptureRecorder recorder;
   DateTime? _last;
 
+  /// Licence or terms statement recorded for every artifact.
+  String get licence => recorder.licence;
+
+  /// Query parameters matched by name only (for example a current date).
+  Set<String> get volatileQueryParameters => recorder.volatileQueryParameters;
+
+  /// Cookie names whose `Set-Cookie` is recorded, and how.
+  Map<String, CapturedCookieValue> get setCookieAllowList => recorder.setCookieAllowList;
+
   /// Number of distinct exchanges recorded.
-  int get length => _recorded.length;
+  int get length => recorder.length;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final Uint8List requestBody = await request.finalize().toBytes();
-    final String liveUrl = CaptureKey.canonicalUrl(request.url);
-    if (_redactor.redact(liveUrl) != liveUrl) {
-      throw StateError('Refusing to record a URL that carries credentials: ${_redactor.redact(liveUrl)}');
-    }
-    final key = CaptureKey.forRequest(request.method, request.url, requestBody, volatile: volatileQueryParameters);
-    final (CaptureExchange, Uint8List, Map<String, String>)? existing = _recorded[key];
-    if (existing == null) {
+    recorder.checkUrl(request.url);
+    RecordedExchange? recorded = recorder[recorder.keyFor(request.method, request.url, requestBody)];
+    if (recorded == null) {
       final DateTime? last = _last;
       if (last != null) {
         final Duration wait = minInterval - DateTime.now().difference(last);
@@ -152,80 +139,25 @@ class RecordingHttpClient extends http.BaseClient {
         ..followRedirects = request.followRedirects
         ..bodyBytes = requestBody;
       final http.StreamedResponse live = await _inner.send(forwarded);
-      final Uint8List body = await live.stream.toBytes();
-      final String digest = sha256Hex(body);
-      final headers = <String, String>{
-        for (final MapEntry<String, String> h in live.headers.entries)
-          if (recordedResponseHeaders.contains(h.key.toLowerCase())) h.key.toLowerCase(): h.value,
-      };
-      final (List<CapturedCookie> recordedCookies, List<String> liveCookies) = _cookies(live.headers);
-      _recorded[key] = (
-        CaptureExchange(
-          key: key,
-          status: live.statusCode,
-          headers: headers,
-          bodyFile: '$captureBodiesDirName/$digest.bin',
-          artifact: CaptureArtifact(sourceUrl: liveUrl, sha256: digest, size: body.length, licence: licence),
-          setCookies: recordedCookies,
-        ),
-        body,
-        <String, String>{...headers, if (liveCookies.isNotEmpty) 'set-cookie': liveCookies.join(', ')},
+      recorded = recorder.record(
+        method: request.method,
+        url: request.url,
+        requestBody: requestBody,
+        status: live.statusCode,
+        headers: <(String, String)>[for (final MapEntry<String, String> h in live.headers.entries) (h.key, h.value)],
+        body: await live.stream.toBytes(),
       );
     }
-    final (CaptureExchange exchange, Uint8List body, Map<String, String> liveHeaders) = _recorded[key]!;
     return http.StreamedResponse(
-      Stream<List<int>>.value(body),
-      exchange.status,
-      contentLength: body.length,
+      Stream<List<int>>.value(recorded.body),
+      recorded.exchange.status,
+      contentLength: recorded.body.length,
       request: request,
-      headers: liveHeaders,
+      headers: recorded.liveHeaders,
     );
-  }
-
-  /// The allow-listed cookies of a live response: as recorded (sanitised,
-  /// redacted where configured) and as the live caller receives them.
-  (List<CapturedCookie>, List<String>) _cookies(Map<String, String> liveHeaders) {
-    final recorded = <CapturedCookie>[];
-    final live = <String>[];
-    if (setCookieAllowList.isEmpty) return (recorded, live);
-    for (final MapEntry<String, String> h in liveHeaders.entries) {
-      if (h.key.toLowerCase() != 'set-cookie') continue;
-      for (final ParsedSetCookie c in parseSetCookieHeader(h.value)) {
-        final CapturedCookieValue? mode = setCookieAllowList[c.name];
-        if (mode == null) continue;
-        final redact = mode == CapturedCookieValue.redact;
-        if (redact) _redactor.addSecret(c.value);
-        final captured = CapturedCookie(
-          name: c.name,
-          value: redact ? CapturedCookie.redactedValue : c.value,
-          path: c.path,
-          domain: c.domain,
-          redacted: redact,
-        );
-        recorded.add(captured);
-        live.add(CapturedCookie(name: c.name, value: c.value, path: c.path, domain: c.domain).toHeader());
-      }
-    }
-    return (recorded, live);
   }
 
   /// Writes `capture.json` and `bodies/` into [dir], replacing earlier files.
-  void writeTo(Directory dir, {required String ecosystem, required String source, String notes = ''}) {
-    final bodiesDir = Directory(p.join(dir.path, captureBodiesDirName));
-    if (bodiesDir.existsSync()) bodiesDir.deleteSync(recursive: true);
-    bodiesDir.createSync(recursive: true);
-    for (final (CaptureExchange e, Uint8List body, _) in _recorded.values) {
-      File(p.join(dir.path, e.bodyFile)).writeAsBytesSync(body);
-    }
-    final manifest = CaptureManifest(
-      ecosystem: ecosystem,
-      source: source,
-      recordedAt: DateTime.now().toUtc(),
-      notes: notes,
-      volatileQueryParameters: volatileQueryParameters,
-      setCookieAllowList: setCookieAllowList,
-      exchanges: <CaptureExchange>[for (final (CaptureExchange e, _, _) in _recorded.values) e],
-    );
-    File(p.join(dir.path, captureManifestFileName)).writeAsStringSync(manifest.encode());
-  }
+  void writeTo(Directory dir, {required String ecosystem, required String source, String notes = ''}) =>
+      recorder.writeTo(dir, ecosystem: ecosystem, source: source, notes: notes);
 }

@@ -59,8 +59,9 @@ internal class WorkerHost(private val context: Context) {
         // challenge Activity (unattended runs keep interaction-required).
         eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor.challengeSolver =
             started.challengeTimeoutMs?.let { bound ->
-                { url: String, userAgent: String? ->
-                    dev.getboolean.sourceruntime.webview.ChallengeLauncher.solve(context, url, userAgent, bound)
+                eu.kanade.tachiyomi.network.interceptor.CloudflareChallengeSolver { challenge ->
+                    val finished = dev.getboolean.sourceruntime.webview.ChallengeLauncher.solve(context, challenge.url, challenge.userAgent, bound)
+                    if (finished) eu.kanade.tachiyomi.network.interceptor.CloudflareSolution() else null
                 }
             }
         Thread({

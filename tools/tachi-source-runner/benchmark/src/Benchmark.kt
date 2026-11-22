@@ -513,6 +513,12 @@ fun main(args: Array<String>) {
         put("hostDirty", git(repo, "status", "--porcelain", "--untracked-files=no")?.isNotEmpty())
         put("quick", quick)
         put("machine", machine)
+        // What was measured, so tool/check_benchmark_results.dart can tell a stale result from a current one.
+        put("worker", buildJsonObject {
+            put("name", mangabackup.tachi.protocol.WorkerOptions.WORKER_NAME)
+            put("version", mangabackup.tachi.protocol.WorkerOptions.WORKER_VERSION)
+            put("hostCompatibility", mangabackup.tachi.protocol.WorkerOptions.HOST_COMPATIBILITY)
+        })
         put("network", "replay of committed captures (fixtures/source_captures/tachi); no network")
         put("latency", latency)
         put("cancelSettleFixture", cancelFixture.json())

@@ -19,3 +19,4 @@ export 'src/backends/worker_supervisor.dart';
 export 'src/capture/capture_browser.dart';
 export 'src/capture/capture_format.dart';
 export 'src/capture/capture_http.dart';
+export 'src/capture/capture_recorder.dart';

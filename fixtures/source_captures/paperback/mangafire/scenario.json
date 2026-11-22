@@ -8,19 +8,44 @@
       "apiFamily": "paperback-0.9",
       "sha256": "193ba19c1f837f1f5a4ac2fe2a378c4546ce8cd048670ae93f684cbd4a280eab",
       "search": {
-        "failure": {
-          "code": "capability-unavailable",
-          "message": "executeInWebView: No browser port configured",
-          "operation": "executeInWebView"
-        }
+        "hits": 30,
+        "first": {
+          "mangaId": "72k68",
+          "title": "Highschool ONIMAI"
+        },
+        "nextCursor": "{\"page\":2}"
+      },
+      "searchPage2": {
+        "hits": 30,
+        "nextCursor": "{\"page\":3}"
       },
       "details": {
-        "failure": {
-          "code": "capability-unavailable",
-          "message": "executeInWebView: No browser port configured",
-          "operation": "executeInWebView"
+        "mangaId": "72k68",
+        "title": "Highschool ONIMAI",
+        "authors": [
+          "Kotobuki (Stealth Sendan)"
+        ],
+        "status": "ongoing",
+        "chapters": 86,
+        "firstChapter": {
+          "chapterId": "4954408",
+          "sourceOrder": 0,
+          "context": {
+            "apiFamily": "paperback-0.9",
+            "langCode": "en"
+          },
+          "title": "Magical Girl Mahiro (2)",
+          "chapterNumber": 115.0,
+          "volumeNumber": 0.0,
+          "scanlators": [],
+          "language": "en",
+          "dateUploaded": "2025-09-15T00:38:30.000Z",
+          "url": null
         }
       }
     }
-  ]
+  ],
+  "rerecorded": {
+    "inkdex-0.9/MangaFire": "2026-11-21T23:16:37.885373Z"
+  }
 }

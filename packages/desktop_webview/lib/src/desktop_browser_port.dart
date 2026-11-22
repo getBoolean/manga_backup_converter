@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:desktop_webview/src/browser_capture.dart';
 import 'package:desktop_webview/src/helper_process.dart';
 import 'package:meta/meta.dart';
 import 'package:source_runtime/source_contracts.dart';
@@ -22,7 +24,9 @@ final class DesktopWebViewConfig {
     this.onLog,
     this.extraArguments = const <String>[],
     this.wipeRetry,
-  });
+    this.replay,
+    this.onExchange,
+  }) : assert(replay == null || offline, 'replay needs offline: a miss must never reach the network');
 
   /// The verified helper binary (see `RuntimeArtifactManifest`).
   final File helperExecutable;
@@ -61,6 +65,17 @@ final class DesktopWebViewConfig {
   /// releasing files), or `null` for a single attempt. The helper's own
   /// start-up wipe always makes a single attempt.
   final Duration? wipeRetry;
+
+  /// Replay mode for every session: requests are answered from these
+  /// captures (after any worker interception) and a miss fails closed.
+  /// Needs [offline].
+  final BrowserCaptureReplay? replay;
+
+  /// Record mode (manual capture runs only): the helper reports every
+  /// response with its body (`--record`, WebView2 only), and each is passed
+  /// here with its session's source. With [offline] only loopback traffic
+  /// is recorded (the helper's own tests); a capture run records live.
+  final void Function(BrowserExchange exchange)? onExchange;
 }
 
 /// The helper's JSON for a replacement (`respond` command).
@@ -112,7 +127,10 @@ class DesktopBrowserPort implements BrowserPort {
   List<String> get _arguments => <String>[
     '--data-root',
     config.dataRoot.path,
-    if (config.offline) '--offline',
+    // Replay always runs offline, whether or not asserts are enabled: a miss
+    // must never reach the network.
+    if (config.offline || config.replay != null) '--offline',
+    if (config.onExchange != null) '--record',
     if (config.testHooks) '--test-hooks',
     ...config.extraArguments,
   ];
@@ -194,6 +212,8 @@ class DesktopBrowserPort implements BrowserPort {
       'session': id,
       'userAgent': ?request.userAgent,
       'title': 'Source browser: ${request.source.sourceId}',
+      // Replay holds every request from the first navigation on.
+      if (config.replay != null) 'intercept': 'replace',
     });
     switch (reply) {
       case HelperOk():
@@ -650,6 +670,9 @@ class DesktopBrowserSession implements BrowserSession {
     if (!available) {
       return mode == 'none' ? const BrowserCompleted<void>(null) : capabilities.check<void>(feature, operation)!;
     }
+    // Under replay the helper already holds every request; the worker's
+    // interceptor runs in front of the captures (see _answer).
+    if (_port.config.replay != null) return const BrowserCompleted<void>(null);
     return switch (await _call<void>('intercept', <String, Object?>{'mode': mode}, null, _done, operation: operation)) {
       // Report the contract operation, not the helper's internal name.
       BrowserCapabilityUnavailable<void>(:final String reason) => BrowserCapabilityUnavailable<void>(operation, reason),
@@ -682,6 +705,8 @@ class DesktopBrowserSession implements BrowserSession {
               ? const BrowserCompleted<void>(null)
               : BrowserCancelled<void>('Interaction ended: $reason'),
         );
+      case 'exchange':
+        _port.config.onExchange?.call(_exchange(event));
       case 'request':
         final Object? rid = event['rid'];
         final Uri? url = Uri.tryParse(event['url'] as String? ?? '');
@@ -712,10 +737,31 @@ class DesktopBrowserSession implements BrowserSession {
     }
   }
 
+  BrowserExchange _exchange(Map<String, Object?> event) {
+    Uint8List? bytes(Object? b64) => b64 is String ? base64Decode(b64) : null;
+    return BrowserExchange(
+      source: source,
+      method: event['method'] as String? ?? 'GET',
+      url: Uri.parse(event['url'] as String? ?? ''),
+      requestBody: bytes(event['requestBodyBase64']),
+      requestBodyOmitted: event['requestBodyOmitted'] as bool? ?? false,
+      status: event['status'] as int? ?? 0,
+      headers: <(String, String)>[
+        for (final Object? h in event['headers'] as List<Object?>? ?? const <Object?>[])
+          if (h case [final String name, final String value]) (name, value),
+      ],
+      body: bytes(event['bodyBase64']),
+      bodyOmitted: event['bodyOmitted'] as bool? ?? false,
+    );
+  }
+
   /// Answers held request [rid]: the replacement, `null` to proceed, or a
-  /// failure for an invalid replacement or a throwing replacer.
+  /// failure for an invalid replacement or a throwing replacer. Under replay
+  /// the worker's replacer (or observer) goes first, then the captures; a
+  /// request neither answers fails.
   Future<void> _answer(int rid, BrowserRequest request) async {
     final BrowserRequestReplacer? replacer = _replacer;
+    final BrowserCaptureReplay? replay = _port.config.replay;
     BrowserReplacement? replacement;
     String? fail;
     try {
@@ -723,6 +769,13 @@ class DesktopBrowserSession implements BrowserSession {
       fail = replacement?.invalidReason;
     } on Object catch (e) {
       fail = 'request handler threw: $e';
+    }
+    var replayed = false;
+    if (replay != null && fail == null && replacement == null) {
+      _observer?.call(request);
+      replacement = replay.serve(request);
+      replayed = replacement != null;
+      if (replacement == null) fail = 'no committed capture for ${request.method} ${request.url}';
     }
     if (fail != null) {
       _port.config.onLog?.call('[desktop_webview] failing request ${request.url}: $fail');
@@ -732,6 +785,7 @@ class DesktopBrowserSession implements BrowserSession {
     await _helper.request('respond', <String, Object?>{
       'rid': rid,
       'response': replacement == null ? null : _replacementJson(replacement),
+      if (replayed) 'replay': true,
     });
   }
 

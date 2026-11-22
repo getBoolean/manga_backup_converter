@@ -127,7 +127,7 @@ val fixtureJarsDir = layout.buildDirectory.dir("fx")
 
 // Each fixture package is its own JAR so tests can load them into separate
 // class loaders. `fixture-a` and `fixture-b` deliberately share class names.
-val fixturePackages = listOf("a", "b", "multi", "busy", "webview", "legacy", "prefs")
+val fixturePackages = listOf("a", "b", "multi", "busy", "webview", "legacy", "prefs", "cloudflare")
 val fixtureJarTasks = fixturePackages.map { name ->
     tasks.register<Jar>("fixtureJar_$name") {
         archiveFileName = "fixture-$name.jar"

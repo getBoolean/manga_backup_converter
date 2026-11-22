@@ -103,6 +103,50 @@ Future<void> main(List<String> args) async {
           jreLegal,
       <String, Object?>{'licenses': licenseFiles, 'jreLegal': jreLegal},
     );
+    // Every Rust crate listed for a tree has its licence texts bundled.
+    final crateTexts = <String, Object?>{};
+    var cratesComplete = true;
+    final bool scraperBundled = files.keys.any(
+      (String f) => f.startsWith('lib/') && f.contains('scraper'),
+    );
+    for (final tree in <String>[
+      'desktop_webview_helper',
+      // Only where jsoup uses the scraper bridge (not macOS).
+      if (scraperBundled) 'scraper_bridge',
+    ]) {
+      final list = File(p.join(pkg.path, 'licenses', '$tree-crates.txt'));
+      if (!list.existsSync()) {
+        cratesComplete = false;
+        crateTexts[tree] = 'no crate list';
+        continue;
+      }
+      final missing = <String>[];
+      var listed = 0;
+      for (final String line in list.readAsLinesSync()) {
+        final Match? m = RegExp(r'^(\S+) (\d\S*): ').firstMatch(line);
+        if (m == null) continue;
+        listed++;
+        final dir = Directory(
+          p.join(pkg.path, 'licenses', 'rust', tree, '${m[1]}-${m[2]}'),
+        );
+        final bool hasText =
+            dir.existsSync() &&
+            dir.listSync().whereType<File>().any(
+              (File f) => f.lengthSync() > 0,
+            );
+        if (!hasText) missing.add('${m[1]} ${m[2]}');
+      }
+      if (listed == 0 || missing.isNotEmpty) cratesComplete = false;
+      crateTexts[tree] = <String, Object?>{
+        'crates': listed,
+        if (missing.isNotEmpty) 'missingTexts': missing,
+      };
+    }
+    _record(
+      'every bundled Rust crate has its licence text',
+      cratesComplete,
+      crateTexts,
+    );
     final List<String> fixtures = files.keys
         .where(
           (String f) =>
