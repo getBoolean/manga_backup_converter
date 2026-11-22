@@ -4,20 +4,15 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:manga_backup_core/src/common/convertable.dart';
 import 'package:manga_backup_core/src/conversion/backup_format.dart';
-import 'package:manga_backup_core/src/conversion/conversion_journal.dart';
 import 'package:manga_backup_core/src/conversion/conversion_owner.dart';
 import 'package:manga_backup_core/src/conversion/conversion_report.dart';
 import 'package:manga_backup_core/src/conversion/conversion_session.dart';
 import 'package:manga_backup_core/src/conversion/conversion_strategy.dart';
-import 'package:manga_backup_core/src/conversion/extension_settings.dart';
 import 'package:manga_backup_core/src/conversion/format_registry.dart';
 import 'package:manga_backup_core/src/conversion/migration_pipeline.dart';
 import 'package:manga_backup_core/src/conversion/plugin_loader.dart';
 import 'package:manga_backup_core/src/conversion/repository_trust.dart';
 import 'package:manga_backup_core/src/conversion/runtime_registry.dart';
-import 'package:manga_backup_core/src/conversion/selection_port.dart';
-import 'package:manga_backup_core/src/conversion/source_language_policy.dart';
-import 'package:manga_backup_core/src/conversion/source_rating_policy.dart';
 import 'package:source_runtime/source_contracts.dart';
 
 /// Where a finished conversion is published (a platform I/O adapter).
@@ -111,44 +106,20 @@ final class ConversionResult {
 /// validates the exact output bytes, KTD8), and only then publishes and
 /// clears the journal. Any failure publishes nothing.
 final class ConversionJob {
-  /// The per-run parameters ([selection] through [settingsFor]) are a
-  /// compatibility path: given here, they form the session [run] uses when it
-  /// is passed none. New hosts pass a [ConversionSession] to [run] instead.
   ConversionJob({
     required this.formats,
     required this.runtimes,
     this.trustStore,
     this.redact = _identity,
     this.onOwnerOpened,
-    SelectionPort? selection,
-    void Function(int current, int total, String message)? onProgress,
-    JournalStore? journalStore,
-    SourceRatingPolicy ratingPolicy = const SourceRatingPolicy(),
-    SourceLanguagePolicy? languagePolicy,
-    void Function(int decisions)? onResume,
-    void Function(ConvertableBackup input)? onDecoded,
-    ExtensionSettingsProvider settingsFor = noExtensionSettings,
-  }) : _defaultSession = selection == null
-           ? null
-           : ConversionSession(
-               selection: selection,
-               onProgress: onProgress ?? _noProgress,
-               journalStore: journalStore,
-               ratingPolicy: ratingPolicy,
-               languagePolicy: languagePolicy,
-               onResume: onResume,
-               onDecoded: onDecoded,
-               settingsFor: settingsFor,
-             );
+  });
 
   final FormatRegistry formats;
   final RuntimeRegistry runtimes;
   final TrustStore? trustStore;
   final String Function(String text) redact;
   final FutureOr<void> Function(ConversionOwner owner)? onOwnerOpened;
-  final ConversionSession? _defaultSession;
 
-  static void _noProgress(int current, int total, String message) {}
   static String _identity(String s) => s;
 
   /// Why [target] cannot be produced from [source] on this host, or `null`
@@ -160,9 +131,7 @@ final class ConversionJob {
   bool enabled(BackupFormat source, BackupFormat target, {bool forceMigration = false}) =>
       unavailable(source, target, forceMigration: forceMigration) == null;
 
-  Future<ConversionResult> run(ConversionRequest request, ConversionOutput output, [ConversionSession? session]) async {
-    final ConversionSession s =
-        session ?? _defaultSession ?? (throw ArgumentError('ConversionJob.run needs a ConversionSession'));
+  Future<ConversionResult> run(ConversionRequest request, ConversionOutput output, ConversionSession s) async {
     final ConversionRoute route = _route(request, s);
 
     final ConvertableBackup input = await formats.codecFor(request.sourceFormat)!(

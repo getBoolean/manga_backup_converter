@@ -233,7 +233,6 @@ void main() {
           await ConversionJob(
             formats: cliFormatRegistry(),
             runtimes: registry(tachi),
-            selection: selection,
             onOwnerOpened: (ConversionOwner owner) async {
               await tachi.attach(owner);
               // Read the handshake for the receipt before the owner closes the scope.
@@ -248,6 +247,7 @@ void main() {
               sources: const <String>{_weebCentralId, _mangaDexEnId},
             ),
             output,
+            ConversionSession(selection: selection),
           );
       // Both repositories were trusted and listed, both packages loaded and
       // searched, all in the one worker process.

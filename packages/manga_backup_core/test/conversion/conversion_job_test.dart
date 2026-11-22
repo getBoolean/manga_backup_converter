@@ -85,23 +85,34 @@ Future<Uint8List> _input(BackupFormat format) async {
   return writer.build(<MangaConversionPlan>[planConversion(c)]).toData();
 }
 
-ConversionJob _job(
+/// A job paired with the one session the test runs it with.
+final class _Job {
+  _Job(this.job, this.session);
+
+  final ConversionJob job;
+  final ConversionSession session;
+
+  Future<ConversionResult> run(ConversionRequest request, ConversionOutput output) => job.run(request, output, session);
+}
+
+_Job _job(
   RuntimeRegistry runtimes, {
   bool acceptPartial = true,
   FormatRegistry? formats,
   SourceLanguagePolicy? languages,
   List<String>? searched,
-}) => ConversionJob(
-  formats: formats ?? FormatRegistry.portable(),
-  runtimes: runtimes,
-  languagePolicy: languages,
-  selection: CallbackSelectionPort(
-    onSelectExtensions: (List<ExtensionEntry> e) async => e,
-    onConfirmMatches: (List<String> names, List<SourceMangaData> manga, onSearch, onFetch) {
-      searched?.addAll(names);
-      return confirmExactTitle(names, manga, onSearch, onFetch);
-    },
-    acceptPartial: acceptPartial,
+}) => _Job(
+  ConversionJob(formats: formats ?? FormatRegistry.portable(), runtimes: runtimes),
+  ConversionSession(
+    languagePolicy: languages,
+    selection: CallbackSelectionPort(
+      onSelectExtensions: (List<ExtensionEntry> e) async => e,
+      onConfirmMatches: (List<String> names, List<SourceMangaData> manga, onSearch, onFetch) {
+        searched?.addAll(names);
+        return confirmExactTitle(names, manga, onSearch, onFetch);
+      },
+      acceptPartial: acceptPartial,
+    ),
   ),
 );
 
@@ -169,7 +180,6 @@ void main() {
     final job = ConversionJob(formats: FormatRegistry.portable(), runtimes: runtimes);
     final Uint8List input = await _input(const Mihon());
     final ConversionRequest request = _request(input, const Mihon(), const Aidoku());
-    await check(job.run(request, MemoryOutput())).throws<ArgumentError>();
 
     for (final run in <int>[1, 2]) {
       final progress = <String>[];
@@ -277,7 +287,7 @@ void main() {
       _runtime('aidoku', <String>[]),
       _runtime('tachi', <String>[], probe: () => const RuntimeUnavailableFailure('no JVM worker')),
     ]);
-    final ConversionJob job = _job(runtimes);
+    final ConversionJob job = _job(runtimes).job;
     check(job.enabled(const Paperback(), const Aidoku())).isTrue();
     check(job.unavailable(const Aidoku(), const Mihon())).isA<RuntimeUnavailableFailure>();
     check(job.unavailable(const Aidoku(), const Paperback())).isA<CapabilityUnavailableFailure>();
@@ -288,7 +298,7 @@ void main() {
 
     final output = MemoryOutput();
     await check(
-      job.run(_request(await _input(const Aidoku()), const Aidoku(), const Mihon()), output),
+      _job(runtimes).run(_request(await _input(const Aidoku()), const Aidoku(), const Mihon()), output),
     ).throws<DestinationUnavailable>();
     check(output.publishes).equals(0);
   });
@@ -449,16 +459,18 @@ void main() {
           },
         ),
       ]);
-      await ConversionJob(
-        formats: FormatRegistry.portable(),
-        runtimes: runtimes,
-        settingsFor: settings.provider,
-        selection: CallbackSelectionPort(
-          onSelectExtensions: (List<ExtensionEntry> e) async => e,
-          onConfirmMatches: confirmExactTitle,
-          acceptPartial: true,
+      await ConversionJob(formats: FormatRegistry.portable(), runtimes: runtimes).run(
+        _request(await englishAidoku(), const Aidoku(), const Mihon()),
+        MemoryOutput(),
+        ConversionSession(
+          settingsFor: settings.provider,
+          selection: CallbackSelectionPort(
+            onSelectExtensions: (List<ExtensionEntry> e) async => e,
+            onConfirmMatches: confirmExactTitle,
+            acceptPartial: true,
+          ),
         ),
-      ).run(_request(await englishAidoku(), const Aidoku(), const Mihon()), MemoryOutput());
+      );
       check(seen!.values['quality']).equals('high');
       check(seen!.values['langs']! as List<String>).deepEquals(<String>['en', 'ja']);
       check(seen!.valuesFor('1')['quality']).equals('low');

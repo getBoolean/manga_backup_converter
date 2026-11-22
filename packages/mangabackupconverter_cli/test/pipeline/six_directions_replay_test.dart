@@ -256,11 +256,11 @@ void main() {
         await ConversionJob(
           formats: cliFormatRegistry(),
           runtimes: runtimes(),
-          selection: _selection(),
           onOwnerOpened: tachi.attach,
         ).run(
           ConversionRequest(input: await _input(source), sourceFormat: source, targetFormat: target, repoUrls: repos),
           _FileOutput(out),
+          ConversionSession(selection: _selection()),
         );
     final Uint8List published = out.readAsBytesSync();
     check(published).deepEquals(result.draft.bytes);

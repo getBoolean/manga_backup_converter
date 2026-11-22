@@ -40,19 +40,22 @@ class ConversionService {
 
   static String _identity(String s) => s;
 
+  /// The one host-lifetime job; each [convert] runs it with its own session.
+  late final ConversionJob _job = ConversionJob(
+    formats: formats,
+    runtimes: runtimes,
+    trustStore: trustStore,
+    redact: redact,
+    onOwnerOpened: onOwnerOpened,
+  );
+
   /// Why [target] cannot be produced from [source] on this device, or
   /// `null` when it can.
   SourceFailure? unavailable(
     BackupFormat source,
     BackupFormat target, {
     bool forceMigration = false,
-  }) => conversionUnavailable(
-    formats,
-    runtimes,
-    source,
-    target,
-    forceMigration: forceMigration,
-  );
+  }) => _job.unavailable(source, target, forceMigration: forceMigration);
 
   /// The destinations enabled for [source] on this device.
   List<BackupFormat> availableTargets(BackupFormat source) => <BackupFormat>[
@@ -77,20 +80,19 @@ class ConversionService {
     ExtensionSettingsProvider settingsFor = noExtensionSettings,
     void Function(int current, int total, String message)? onProgress,
     void Function(int decisions)? onResume,
-  }) => ConversionJob(
-    formats: formats,
-    runtimes: runtimes,
-    selection: selection,
-    journalStore: journal,
-    ratingPolicy: ratingPolicy,
-    languagePolicy: languages,
-    settingsFor: settingsFor,
-    trustStore: trustStore,
-    redact: redact,
-    onOwnerOpened: onOwnerOpened,
-    onResume: onResume,
-    onProgress: onProgress ?? (_, _, _) {},
-  ).run(request, output);
+  }) => _job.run(
+    request,
+    output,
+    ConversionSession(
+      selection: selection,
+      journalStore: journal,
+      ratingPolicy: ratingPolicy,
+      languagePolicy: languages,
+      settingsFor: settingsFor,
+      onResume: onResume,
+      onProgress: onProgress ?? (_, _, _) {},
+    ),
+  );
 }
 
 /// The app's [ConversionService]. The platform composition root overrides

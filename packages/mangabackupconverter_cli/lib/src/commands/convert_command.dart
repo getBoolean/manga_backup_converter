@@ -634,15 +634,11 @@ class ConvertCommand extends Command<void> {
           final job = ConversionJob(
             formats: formats,
             runtimes: runtimes,
-            selection: selection,
-            journalStore: journalStore,
-            ratingPolicy: ratingPolicy,
-            languagePolicy: languagePolicy,
-            settingsFor: userSettings.provider,
             trustStore: PinnedTrustStore(
               FileTrustStore(p.join(userConfigDirectory(), 'trusted_repositories.json')),
               tachiPins,
             ),
+            redact: redactor.redact,
             // The Tachi worker scope is closed with every plugin, in the
             // pipeline's finally; it starts only if a Tachi package loads.
             // Adopted first, so it closes last: after the workers and their
@@ -651,10 +647,16 @@ class ConvertCommand extends Command<void> {
               if (browser != null) await owner.adopt(browser.dispose);
               await tachi.attach(owner);
             },
+          );
+          final session = ConversionSession(
+            selection: selection,
+            journalStore: journalStore,
+            ratingPolicy: ratingPolicy,
+            languagePolicy: languagePolicy,
+            settingsFor: userSettings.provider,
             onResume: (int decisions) => Zone.root.print(
               'Resuming from journal $journalPath ($decisions manga decision(s)); use --fresh to start over.',
             ),
-            redact: redactor.redact,
             onDecoded: (ConvertableBackup imported) {
               if (!verbose) return;
               print('[VERBOSE] All arguments: ${results.arguments}');
@@ -688,6 +690,7 @@ class ConvertCommand extends Command<void> {
               forceMigration: forceMigration,
             ),
             FileConversionOutput(outputPath),
+            session,
           );
           _conversionReport = result.report;
 
