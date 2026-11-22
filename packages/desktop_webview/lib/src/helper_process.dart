@@ -5,11 +5,50 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 import 'package:source_runtime/source_contracts.dart';
-import 'package:source_runtime/source_runtime.dart' show RedactingLineSink, Redactor;
+import 'package:source_runtime/source_runtime.dart'
+    show RedactingLineSink, Redactor, defaultEnvironmentAllowlist, scrubbedEnvironment;
 
 /// Maximum encoded frame size in either direction (KTD4); the helper uses the
 /// same bound.
 const int helperMaxFrameBytes = 16 * 1024 * 1024;
+
+/// Parent variables the helper keeps beyond the workers' allowlist
+/// ([defaultEnvironmentAllowlist]): what WebView2, WebKitGTK and WKWebView
+/// need to find the user's profile folders, the display and the session bus.
+/// Everything else is dropped like it is for the workers (L5), notably
+/// `WEBVIEW2_*` overrides (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` could add
+/// `--proxy-server` or remove the offline rules), proxy variables, which
+/// WebKitGTK honours, and loader variables such as `LD_PRELOAD`.
+const List<String> helperEnvironmentAllowlist = <String>[
+  // Windows: profile and system folders WebView2 resolves.
+  'USERPROFILE',
+  'LOCALAPPDATA',
+  'APPDATA',
+  'ProgramData',
+  'ProgramFiles',
+  'ProgramFiles(x86)',
+  'ProgramW6432',
+  'SystemDrive',
+  'COMPUTERNAME',
+  'USERNAME',
+  // Unix: home, user, display and session bus.
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'DISPLAY',
+  'WAYLAND_DISPLAY',
+  'XAUTHORITY',
+  'XDG_RUNTIME_DIR',
+  'XDG_DATA_DIRS',
+  'DBUS_SESSION_BUS_ADDRESS',
+];
+
+/// The helper's scrubbed environment: the workers' allowlist plus
+/// [helperEnvironmentAllowlist].
+Map<String, String> helperEnvironment({Map<String, String>? parent}) => scrubbedEnvironment(
+  allow: <String>[...defaultEnvironmentAllowlist, ...helperEnvironmentAllowlist],
+  parent: parent,
+);
 
 /// Helper protocol version this client speaks.
 const int helperProtocolVersion = 1;
@@ -229,8 +268,12 @@ class HelperProcess {
     }
   }
 
-  static Future<Process> _defaultLaunch(String executable, List<String> arguments) =>
-      Process.start(executable, arguments);
+  static Future<Process> _defaultLaunch(String executable, List<String> arguments) => Process.start(
+    executable,
+    arguments,
+    environment: helperEnvironment(),
+    includeParentEnvironment: false,
+  );
 
   /// Splits stdout into bounded JSON frames; an oversized or malformed frame
   /// is a protocol error.
