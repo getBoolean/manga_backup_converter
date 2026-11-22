@@ -105,10 +105,10 @@ class BrowserBridge(private val worker: Worker) : mangabackup.tachi.protocol.Wor
     }
 
     /**
-     * How long closing an operation's sessions may hold its reply: half the supervisor's cancel grace
-     * (KTD25), shared by all of the operation's closes, so a stuck port leaves the reply the other half.
+     * How long closing an operation's sessions may hold its reply, shared by all of its closes (they run
+     * concurrently): the worker's measured [Worker.browserCloseWaitMs].
      */
-    val closeWaitMs: Long get() = worker.limits.cancelGraceMs / 2
+    val closeWaitMs: Long get() = worker.browserCloseWaitMs
 
     /** Closes every session an operation opened, within [closeWaitMs] in all, so a stuck port cannot hold the reply. */
     override fun closeSessionsOf(operationId: String) {

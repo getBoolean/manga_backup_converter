@@ -481,8 +481,12 @@ fun main(args: Array<String>) {
     val tp = throughput.values.map { it.jsonObject["poolSize"]!!.jsonPrimitive.content.toInt() to it.jsonObject["opsPerSecond"]!!.jsonPrimitive.content.toDouble() }
     val peak = tp.maxOf { it.second }
     val knee = tp.filter { it.second >= 0.9 * peak }.minOf { it.first }
+    // The browser close term comes from its own benchmark (packages/desktop_webview/tool/benchmark_browser_close.dart):
+    // carry it and its citation over from the committed rule.
+    val committed = SizingRule.committed()
+    val closeCitation = committed?.source?.let { Regex("docs/\\S*browser-close\\S*\\.json \\([^)]*\\)[^;]*").find(it)?.value }
     val rule = SizingRule(
-        source = "docs/validation/source-runners/desktop/benchmark-${osTag()}.json (${started})",
+        source = "docs/validation/source-runners/desktop/benchmark-${osTag()}.json (${started})" + (closeCitation?.let { "; $it" } ?: ""),
         coresFactor = round(1.0 / bench.cpuUtilisation.coerceAtLeast(0.01)),
         baseHeapMiB = ceil(baseHeap),
         perPackageHeapMiB = ceil(maxOf(perPackage, 1.0) * 2),
@@ -495,6 +499,7 @@ fun main(args: Array<String>) {
         maxPoolSize = tp.maxOf { it.first },
         maxStartupToHandshakeMs = round(bench.maxStartupToHandshakeMs),
         handshakeFactor = HANDSHAKE_FACTOR,
+        p99BrowserCloseMs = committed?.p99BrowserCloseMs.takeIf { closeCitation != null },
     )
     val inputs = SizingRule.measureInputs()
     val derived = rule.derive(inputs)

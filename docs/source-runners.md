@@ -237,7 +237,7 @@ The worker negotiates minor 1.3 (`Wire.MINOR_VERSION`); against an older supervi
 One standalone helper (`desktop_webview_helper`, Rust over `wry` 0.57.3 / `tao` 0.37.3, pinned by
 `helper/Cargo.lock`) per conversion, one WebView per source session. It is built by
 `tool/build_helper.dart` (`cargo build --locked`) and located through `build/helper/runtime-artifacts.json`, which
-records the SHA-256 the client verifies before launch. Protocol: `packages/desktop_webview/doc/helper-protocol.md`.
+records the SHA-256 the client verifies before launch. Protocol: `packages/desktop_webview/doc/helper-protocol.md`. Desktop never sends `wipe`, so the helper removes its own data directory at exit in one attempt, and whatever a still-terminating browser process holds is removed by the next helper's start-up wipe.
 
 Status key: **pass** = ran and passed here; **compiled** = type-checks for the target, never run; **not run** =
 neither built nor run. Windows cells come from the runs on 2026-11-20 (Windows 11, WebView2 157.0.4341.60,

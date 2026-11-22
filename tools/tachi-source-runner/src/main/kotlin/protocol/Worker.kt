@@ -21,7 +21,7 @@ import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
 import mangabackup.tachi.host.WorkerLimits
-import mangabackup.tachi.host.withHandshake
+import mangabackup.tachi.host.withRuleBounds
 import mangabackup.tachi.shim.HostFailures
 import java.io.BufferedReader
 import java.io.File
@@ -86,6 +86,13 @@ class Worker(
     private var supervisorInteractionTimeoutMs: Long? = null
 
     private fun interactionBoundMs(): Long = supervisorInteractionTimeoutMs ?: limits.interactionTimeoutMs
+
+    /**
+     * How long an operation's browser session closes may hold its reply: the rule's measured
+     * `browserCloseWaitMs` (storage deletion confirmed, KTD9). Without a measurement for this platform
+     * (explicit limits, or a rule that predates it) the close is bounded only by the operation deadline.
+     */
+    val browserCloseWaitMs: Long get() = options.sizing.rule?.browserCloseWaitMs ?: limits.operationDeadlineMs
 
     /** Whether the supervisor negotiated a protocol minor that has [op]. */
     fun supports(op: HostBrowserOp): Boolean = op.availableAt(protocolMinor)
@@ -328,7 +335,7 @@ class Worker(
                     put("browser", options.browser)
                 })
                 // KTD25 limits and sizing (1.1), then additive runtime identity fields readers ignore.
-                put("limits", options.sizing.limits.toJson().withHandshake(options.sizing.rule))
+                put("limits", options.sizing.limits.toJson().withRuleBounds(options.sizing.rule))
                 put("sizing", options.sizing.toJson())
                 put("networkMode", options.networkMode)
                 for ((key, value) in runtime.runtimeIdentity()) put(key, value)
