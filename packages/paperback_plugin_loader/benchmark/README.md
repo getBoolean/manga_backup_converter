@@ -29,6 +29,17 @@ Results and the derived limits are in `docs/source-runners.md` (Paperback host, 
 - AOT is 2.6-5× faster than the Windows AOT run (calibration 27.7 ms against 122.2 ms; Weeb Central details median 232-237 ms against 1.14-1.21 s). Slowest operation: numby-0.8 Weeb Central details (p95 244 ms). Worst deadline overshoot 36.3 ms (numby load), Windows 214 ms.
 - Synthetic interrupt overshoot past a 50 ms deadline: median 0.20 ms, max 0.44 ms.
 
+## Worker start-up (handshake deadline)
+
+The supervisor needs a handshake deadline before the worker reports anything, so it cannot come from the handshake's own limits. `worker_startup_benchmark.dart` measures launch → handshake reply for both launchers the hosts use: the CLI executable re-launched with `__paperback-worker`, and the in-app worker isolate. Build it and the CLI as AOT executables, then run it:
+
+```
+dart build cli -t benchmark/worker_startup_benchmark.dart -o <dir>          # from packages/paperback_plugin_loader
+<dir>/bundle/bin/worker_startup_benchmark <cli-exe> __paperback-worker 15 results/<date>-<os>-worker-startup-aot.json
+```
+
+`planPaperbackWorker` derives the deadline as the worst sample (`referenceStartupToHandshake`), scaled by device calibration like the operation deadline, times `handshakeHeadroom` (10). This is the same form as the Tachi rule's `maxStartupToHandshakeMs × handshakeFactor`. On 2026-11-22, Windows 11 x64 (`results/2026-11-22-windows-x64-worker-startup-aot.json`): the desktop process had a median of 90 ms and a maximum of 826 ms (the cold first launch). The isolate had a median of 0.3 ms and a maximum of 3.6 ms. The reference device's handshake deadline is therefore about 8.3 s; it replaces the earlier unmeasured 30 s.
+
 ## Running
 
 From the repository root (no network is used; host calls are served in-process):

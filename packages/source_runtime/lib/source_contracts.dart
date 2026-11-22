@@ -8,6 +8,7 @@ library;
 export 'src/contracts/background_gate.dart';
 export 'src/contracts/browser_port.dart';
 export 'src/contracts/cancellation.dart';
+export 'src/contracts/host_limits.dart';
 export 'src/contracts/identity.dart';
 export 'src/contracts/keyed_mutex.dart';
 export 'src/contracts/outcome.dart';

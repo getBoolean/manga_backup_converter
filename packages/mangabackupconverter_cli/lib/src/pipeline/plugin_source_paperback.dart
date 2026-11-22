@@ -52,13 +52,13 @@ WorkerSpec desktopPaperbackWorkerSpec(PaperbackWorkerPlan plan, [List<String> ex
 /// [launcher] the built-executable check is skipped.
 PaperbackPluginLoader desktopPaperbackLoader({
   required String cacheRoot,
+  required Duration interactionTimeout,
   PluginByteCache? cache,
   void Function(SettingsSnapshot settings)? onSettings,
   void Function(String line)? onLog,
   ExtensionSettingsProvider settingsFor = noExtensionSettings,
   BrowserPort? browserPort,
   Duration? browserReplacementTimeout,
-  Duration interactionTimeout = const Duration(minutes: 5),
   http.Client? client,
   WorkerLauncher? launcher,
   List<String> workerArguments = const <String>[],

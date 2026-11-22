@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:desktop_webview/desktop_webview.dart';
 import 'package:path/path.dart' as p;
+import 'package:source_runtime/source_contracts.dart' show hostRequestTimeout;
 
 /// Where the packaged runtime lives, relative to the CLI executable: the
 /// `runtime/` directory beside `bin/` in a `dart build cli` bundle (and in
@@ -104,9 +105,8 @@ abstract final class CliBrowserPolicy {
 
   /// How long a request held for the worker's replacement
   /// (`shouldInterceptRequest`, replace tier) waits before it proceeds
-  /// unchanged: the hosts' own per-request network timeout (30 s), so a
-  /// held request never waits longer than the request itself could.
-  static const Duration replacementTimeout = Duration(seconds: 30);
+  /// unchanged: the hosts' own per-request network timeout.
+  static const Duration replacementTimeout = hostRequestTimeout;
 
   /// How long the helper may take to report ready (WebView2 environment
   /// creation included). The contract and desktop suites use the same bound.

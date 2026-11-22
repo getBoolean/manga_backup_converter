@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:paperback_plugin_loader/src/runtime/limit_sizing.dart';
-import 'package:source_runtime/source_runtime.dart' show AdoptWorkerLimits;
+import 'package:source_runtime/source_runtime.dart' show AdoptWorkerLimits, hostRequestTimeoutSeconds;
 
 /// The real-bundle workload profile (KTD25, U6): measured by
 /// `benchmark/bundle_benchmark.dart` over the pinned Paperback 0.8/0.9
@@ -43,10 +43,24 @@ const double deadlineTailHeadroom = 4;
 /// Host waits an operation may spend outside QuickJS: the most requests one
 /// qualification operation made in the captures (MangaDex 0.9 details: 4
 /// requests, plus redirects; WeebCentral details: 2), rounded up to 6, each
-/// bounded by the host's per-request timeout (`PaperbackHttp`, 30 s), plus
+/// bounded by the host's per-request timeout ([hostRequestTimeoutSeconds]), plus
 /// one bundle rate-limiter sleep (about 1 s) per request. Not a QuickJS
 /// property; the supervisor's policy (KTD4).
-const Duration paperbackHostWaitAllowance = Duration(seconds: 6 * 30 + 6);
+const Duration paperbackHostWaitAllowance = Duration(seconds: 6 * (hostRequestTimeoutSeconds + 1));
+
+/// The slowest launch → handshake reply measured over both launchers the
+/// hosts use (the desktop CLI executable re-launched as the worker, and the
+/// in-app worker isolate), on the reference device as an AOT executable
+/// (`benchmark/worker_startup_benchmark.dart`,
+/// `benchmark/results/2026-11-22-windows-x64-worker-startup-aot.json`): the
+/// desktop process's cold first launch. Scaled to the device like the
+/// operation time.
+const Duration referenceStartupToHandshake = Duration(microseconds: _startupToHandshakeMicros);
+
+/// Multiplier on the device-scaled [referenceStartupToHandshake] for the
+/// handshake deadline: the Tachi sizing rule's `handshakeFactor`, for loaded
+/// machines and slow storage on first launch.
+const double handshakeHeadroom = 10;
 
 // Values from benchmark/results/2026-11-21-windows-x64-bundles-aot.json.
 const String _profileSource = 'U6 real Paperback bundles (14 workloads, replayed captures), windows AOT';
@@ -57,6 +71,10 @@ const int _referenceCalibrationMicros = 122176;
 // Largest single-operation deadline overshoot (64,150 us, WeebCentral 0.8
 // details) plus the largest reply frame encode (2,478 us).
 const int _deadlineTailMicros = 66628;
+// Desktop process maximum (826,452 us, first of 15 runs) from
+// benchmark/results/2026-11-22-windows-x64-worker-startup-aot.json; the
+// worker isolate's maximum was 3,618 us.
+const int _startupToHandshakeMicros = 826452;
 
 /// What the supervisor launches the worker with, and why.
 final class PaperbackWorkerPlan {
@@ -81,7 +99,9 @@ final class PaperbackWorkerPlan {
   final Duration cancelGrace;
 
   /// Bound on worker start-up to handshake (process start, isolate and
-  /// QuickJS library load).
+  /// QuickJS library load), derived like the other limits: the measured
+  /// [referenceStartupToHandshake] scaled to the device, times
+  /// [handshakeHeadroom].
   final Duration handshakeDeadline;
 
   /// The supervisor limits for a worker launched with this plan: the
@@ -125,14 +145,17 @@ PaperbackWorkerPlan planPaperbackWorker({
     concurrentRuntimes: concurrentRuntimes,
     hostWaitAllowance: hostWaitAllowance,
   );
-  final double speed = d.calibration.inMicroseconds / paperbackBundleProfile.referenceCalibration.inMicroseconds;
-  final headroom = Duration(
-    microseconds: (referenceDeadlineTail.inMicroseconds * math.max(1, speed) * deadlineTailHeadroom).ceil(),
+  final double speed = math.max<double>(
+    1,
+    d.calibration.inMicroseconds / paperbackBundleProfile.referenceCalibration.inMicroseconds,
   );
+  final headroom = Duration(microseconds: (referenceDeadlineTail.inMicroseconds * speed * deadlineTailHeadroom).ceil());
   return PaperbackWorkerPlan(
     sizing: sizing,
     deadlineHeadroom: headroom,
     cancelGrace: sizing.limits.jobSlice + headroom,
-    handshakeDeadline: const Duration(seconds: 30),
+    handshakeDeadline: Duration(
+      microseconds: (referenceStartupToHandshake.inMicroseconds * speed * handshakeHeadroom).ceil(),
+    ),
   );
 }

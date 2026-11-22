@@ -29,6 +29,9 @@ void main() {
     check(plan.arguments)
         .contains('--deadline-headroom-ms=${((referenceDeadlineTail * 4).inMicroseconds + 999) ~/ 1000}');
     check(parseWorkerArguments(plan.arguments).limits.memoryLimitBytes).equals(limits.memoryLimitBytes);
+    // The handshake bound is the measured start-up times the headroom, never
+    // a guess (the Tachi sizing rule's form).
+    check(plan.handshakeDeadline).equals(referenceStartupToHandshake * 10);
   });
 
   test('a slower device scales the deadline and the headroom; its stack cap is reported', () {
@@ -41,6 +44,7 @@ void main() {
     final PaperbackWorkerPlan plan = planPaperbackWorker(device: slow, hostWaitAllowance: Duration.zero);
     check(plan.sizing.limits.operationDeadline).equals(paperbackBundleProfile.slowestOperation * 12);
     check(plan.deadlineHeadroom).equals(referenceDeadlineTail * 12);
+    check(plan.handshakeDeadline).equals(referenceStartupToHandshake * 30);
     // Half of a 512 KiB stack is below twice the measured need, but above
     // the need itself: capped without a warning.
     check(plan.sizing.limits.maxStackBytes).equals(256 * 1024);

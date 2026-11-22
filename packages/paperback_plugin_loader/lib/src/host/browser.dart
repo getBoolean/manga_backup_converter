@@ -240,7 +240,7 @@ final class PaperbackBrowser {
   Future<Map<String, Object?>> bypassCloudflare(
     CloudflareBypass request,
     CancellationToken cancel, {
-    Duration autoSolveWait = const Duration(seconds: 8),
+    required Duration autoSolveWait,
     Duration pollInterval = const Duration(milliseconds: 500),
   }) async {
     final Uri? url = Uri.tryParse(request.url);

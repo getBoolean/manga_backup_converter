@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:paperback_plugin_loader/src/runtime/bounded_body.dart';
 import 'package:paperback_plugin_loader/src/runtime/promise_bridge.dart';
-import 'package:source_runtime/source_runtime.dart' show CaptureMissException;
+import 'package:source_runtime/source_runtime.dart' show CaptureMissException, hostRequestTimeout;
 
 /// One HTTP exchange for the Paperback host (`__pbHost.fetch`).
 ///
@@ -23,7 +23,7 @@ import 'package:source_runtime/source_runtime.dart' show CaptureMissException;
 /// `Set-Cookie` value separate; `redirectUrl` is the absolute `Location` of
 /// a 3xx response.
 final class PaperbackHttp {
-  PaperbackHttp(this.client, {this.defaultTimeout = const Duration(seconds: 30)});
+  PaperbackHttp(this.client, {this.defaultTimeout = hostRequestTimeout});
 
   final http.Client client;
 

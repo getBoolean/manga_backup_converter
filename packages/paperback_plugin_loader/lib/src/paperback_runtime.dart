@@ -28,6 +28,11 @@ final class PaperbackLoadedSource {
   final String? version;
 }
 
+/// How long a Cloudflare bypass waits for a challenge to clear on its own
+/// (most clear in a few seconds without input) before it shows the page to
+/// the user.
+const Duration paperbackCloudflareAutoSolveWait = Duration(seconds: 8);
+
 /// One Paperback bundle running in its own [SourceJsRuntime] (KTD2, KTD6):
 /// the host primitives, the shared prelude, the pinned host library, the
 /// family's API adapter, the original bundle and the operation glue are
@@ -42,7 +47,7 @@ final class PaperbackSourceHost {
     required this.http,
     this.browser,
     this.userAgent = paperbackDefaultUserAgent,
-    this.cloudflareAutoSolveWait = const Duration(seconds: 8),
+    this.cloudflareAutoSolveWait = paperbackCloudflareAutoSolveWait,
     void Function(String line)? log,
   }) : _log = log ?? ((String _) {});
 
