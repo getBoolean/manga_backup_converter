@@ -67,7 +67,8 @@ void main() {
       'tachi',
     ]);
     check(r.runtimeFor(const Mihon())!.ecosystem).equals('tachi');
-    check(r.runtimeFor(const Tachimanga())!.ecosystem).equals('tachi');
+    // Tachimanga has no writer, which the job checks before any runtime.
+    check(r.runtimeFor(const Tachimanga())).isNull();
   });
 
   test('all six R5 directions are enabled when their runtimes are available', () {

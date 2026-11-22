@@ -27,6 +27,15 @@ SourceFailure? paperbackWorkerUnavailable() {
       : null;
 }
 
+/// This executable re-launched as the Paperback worker with [plan]'s limit
+/// arguments (plus [extra]), in a scrubbed environment.
+WorkerSpec desktopPaperbackWorkerSpec(PaperbackWorkerPlan plan, [List<String> extra = const <String>[]]) => WorkerSpec(
+  label: 'paperback',
+  executable: Platform.resolvedExecutable,
+  arguments: <String>[paperbackWorkerCommand, ...plan.arguments, ...extra],
+  environment: scrubbedEnvironment(),
+);
+
 /// The desktop composition: the CLI executable re-launched as the worker
 /// ([paperbackWorkerCommand]) with limits from the KTD25 sizing rule, an
 /// artifact cache under [cacheRoot], and the live network.
@@ -79,23 +88,9 @@ PaperbackPluginLoader desktopPaperbackLoader({
         }
         final created = ConversionRuntimeScope(
           workers: <WorkerKind, WorkerSpec>{
-            WorkerKind.paperback: WorkerSpec(
-              label: 'paperback',
-              executable: Platform.resolvedExecutable,
-              arguments: <String>[paperbackWorkerCommand, ...plan.arguments, ...workerArguments],
-              environment: scrubbedEnvironment(),
-            ),
+            WorkerKind.paperback: desktopPaperbackWorkerSpec(plan, workerArguments),
           },
-          // The worker reports its supervisor-side deadline (engine
-          // deadline plus measured headroom); the rest are not QuickJS
-          // limits and come from the desktop policy (KTD4).
-          limits: AdoptWorkerLimits(
-            handshakeDeadline: plan.handshakeDeadline,
-            maxConcurrentPackages: 1,
-            cancelGrace: plan.cancelGrace,
-            interactionTimeout: interactionTimeout,
-            shutdownGrace: plan.cancelGrace,
-          ),
+          limits: plan.adoptLimits(interactionTimeout: interactionTimeout),
           launcher: launcher,
           browserPort: browserPort,
           resolveBrowserSource: (WorkerKind kind, String? packageId, String sourceId) =>

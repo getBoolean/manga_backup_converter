@@ -67,20 +67,9 @@ Future<void> runRuntimeCheck(List<String> args) async {
     final PaperbackWorkerPlan plan = planPaperbackWorker();
     final paperback = ConversionRuntimeScope(
       workers: <WorkerKind, WorkerSpec>{
-        WorkerKind.paperback: WorkerSpec(
-          label: 'paperback',
-          executable: Platform.resolvedExecutable,
-          arguments: <String>[paperbackWorkerCommand, ...plan.arguments],
-          environment: scrubbedEnvironment(),
-        ),
+        WorkerKind.paperback: desktopPaperbackWorkerSpec(plan),
       },
-      limits: AdoptWorkerLimits(
-        handshakeDeadline: plan.handshakeDeadline,
-        maxConcurrentPackages: 1,
-        cancelGrace: plan.cancelGrace,
-        interactionTimeout: CliBrowserPolicy.interactionTimeout,
-        shutdownGrace: plan.cancelGrace,
-      ),
+      limits: plan.adoptLimits(interactionTimeout: CliBrowserPolicy.interactionTimeout),
     );
     scopes.add(paperback);
     final SourceOutcome<WorkerSupervisor> pb = await paperback.worker(WorkerKind.paperback);

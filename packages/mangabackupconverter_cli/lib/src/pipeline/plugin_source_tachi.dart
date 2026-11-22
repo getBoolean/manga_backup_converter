@@ -129,9 +129,10 @@ final class DesktopTachiRuntime implements TachiLoaderRuntime {
           browserReplacementTimeout: browserReplacementTimeout,
         );
         _scope = scope;
-        runtime = TachiRuntime(
+        runtime = TachiRuntime.cached(
           worker: () => scope.worker(WorkerKind.jvm),
-          store: TachiArtifactStore(cache: ArtifactCache(cacheDirectory), fetch: fetch),
+          cache: ArtifactCache(cacheDirectory),
+          fetch: fetch,
           policy: policy,
         );
         return SourceSuccess<TachiRuntime>(runtime);

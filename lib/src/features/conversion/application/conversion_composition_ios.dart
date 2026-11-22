@@ -198,9 +198,10 @@ final class IosSourceRuntimes extends LocalSourceRuntimes {
       await backend.close();
     };
     return SourceSuccess<TachiRuntime>(
-      TachiRuntime(
+      TachiRuntime.cached(
         worker: backend.worker,
-        store: TachiArtifactStore(cache: cache, fetch: config.tachiFetch),
+        cache: cache,
+        fetch: config.tachiFetch,
         policy: config.tachiPolicy,
         hostCompatibility: iosTachiHostCompatibility,
       ),

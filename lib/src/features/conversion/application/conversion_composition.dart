@@ -156,9 +156,8 @@ abstract base class LocalSourceRuntimes {
   /// The runtime registry for [ConversionService]: one entry per ecosystem,
   /// each probed without starting anything.
   late final RuntimeRegistry registry = RuntimeRegistry(<DestinationRuntime>[
-    DestinationRuntime(
-      ecosystem: 'aidoku',
-      serves: (BackupFormat f) => f is Aidoku,
+    DestinationRuntime.of(
+      SourceEcosystem.aidoku,
       probe: () => _aidokuProvider.failureOrNull,
       createLoader: (RuntimeContext context) => AidokuPluginLoader(
         providerFactory: () => _aidokuProvider.valueOrNull!,
@@ -167,9 +166,8 @@ abstract base class LocalSourceRuntimes {
         settingsFor: context.settingsFor,
       ),
     ),
-    DestinationRuntime(
-      ecosystem: 'paperback',
-      serves: (BackupFormat f) => f is Paperback,
+    DestinationRuntime.of(
+      SourceEcosystem.paperback,
       probe: _paperbackProbe,
       createLoader: (RuntimeContext context) => PaperbackPluginLoader(
         client: config.client,
@@ -181,9 +179,8 @@ abstract base class LocalSourceRuntimes {
         settingsFor: context.settingsFor,
       ),
     ),
-    DestinationRuntime(
-      ecosystem: tachiTrustEcosystem,
-      serves: (BackupFormat f) => f is Tachiyomi,
+    DestinationRuntime.of(
+      SourceEcosystem.tachi,
       probe: _tachiProbe,
       createLoader: (RuntimeContext context) => TachiPluginLoader(
         runtime: _TachiLoaderRuntime(this),
@@ -250,13 +247,7 @@ abstract base class LocalSourceRuntimes {
       workers: const <WorkerKind, WorkerSpec>{
         WorkerKind.paperback: inAppPaperbackWorkerSpec,
       },
-      limits: AdoptWorkerLimits(
-        handshakeDeadline: plan.handshakeDeadline,
-        maxConcurrentPackages: 1,
-        cancelGrace: plan.cancelGrace,
-        interactionTimeout: config.interactionTimeout,
-        shutdownGrace: plan.cancelGrace,
-      ),
+      limits: plan.adoptLimits(interactionTimeout: config.interactionTimeout),
       launcher: isolatePaperbackLauncher(
         PaperbackIsolateWorkerConfig(
           limits: plan.sizing.limits,

@@ -102,6 +102,23 @@ class TachiRuntime implements SourceProvider {
     this.hostCompatibility = tachiHostCompatibility,
   });
 
+  /// A runtime over [worker] whose downloads go through [fetch] into the
+  /// content-addressed [cache] (shared with the host's backend when it
+  /// prepares artifacts itself, as on iOS). Every host builds it this way;
+  /// only the worker differs.
+  TachiRuntime.cached({
+    required TachiWorkerAccess worker,
+    required ArtifactCache cache,
+    required TachiFetch fetch,
+    TachiArtifactPolicy policy = const TachiArtifactPolicy(),
+    String hostCompatibility = tachiHostCompatibility,
+  }) : this(
+         worker: worker,
+         store: TachiArtifactStore(cache: cache, fetch: fetch),
+         policy: policy,
+         hostCompatibility: hostCompatibility,
+       );
+
   final TachiWorkerAccess worker;
   final TachiArtifactStore store;
   final TachiArtifactPolicy policy;

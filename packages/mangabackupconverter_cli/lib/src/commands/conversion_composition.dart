@@ -55,15 +55,13 @@ RuntimeRegistry cliRuntimeRegistry({
   WorkerLauncher? paperbackLauncher,
   Redactor? redactor,
 }) => RuntimeRegistry(<DestinationRuntime>[
-  DestinationRuntime(
-    ecosystem: 'aidoku',
-    serves: (BackupFormat f) => f is Aidoku,
+  DestinationRuntime.of(
+    SourceEcosystem.aidoku,
     createLoader: (RuntimeContext context) =>
         AidokuPluginLoader(onSettings: onSettings, settingsFor: context.settingsFor, cache: cache),
   ),
-  DestinationRuntime(
-    ecosystem: 'paperback',
-    serves: (BackupFormat f) => f is Paperback,
+  DestinationRuntime.of(
+    SourceEcosystem.paperback,
     createLoader: (RuntimeContext context) => desktopPaperbackLoader(
       cacheRoot: cacheRoot,
       cache: cache,
@@ -79,10 +77,8 @@ RuntimeRegistry cliRuntimeRegistry({
     ),
     probe: paperbackProbe ?? (paperbackLauncher == null ? paperbackWorkerUnavailable : () => null),
   ),
-  DestinationRuntime(
-    ecosystem: tachiTrustEcosystem,
-    // Tachimanga uses Tachi source identities too (it has no writer yet).
-    serves: (BackupFormat f) => f is Tachiyomi || f is Tachimanga,
+  DestinationRuntime.of(
+    SourceEcosystem.tachi,
     createLoader: (RuntimeContext context) =>
         TachiPluginLoader(runtime: tachi, onSettings: onSettings, settingsFor: context.settingsFor, cache: cache),
     probe: tachiProbe ?? () => probeTachiWorker(tachi),

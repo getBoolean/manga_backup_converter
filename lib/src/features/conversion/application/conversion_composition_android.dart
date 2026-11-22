@@ -227,14 +227,12 @@ final class AndroidSourceRuntimes extends LocalSourceRuntimes {
       await workers.close();
     };
     return SourceSuccess<TachiRuntime>(
-      TachiRuntime(
+      TachiRuntime.cached(
         worker: () => workers.worker(WorkerKind.jvm),
-        store: TachiArtifactStore(
-          cache: ArtifactCache(
-            Directory('${config.storageRoot.path}/tachi_artifacts'),
-          ),
-          fetch: config.tachiFetch,
+        cache: ArtifactCache(
+          Directory('${config.storageRoot.path}/tachi_artifacts'),
         ),
+        fetch: config.tachiFetch,
         policy: config.tachiPolicy,
       ),
     );

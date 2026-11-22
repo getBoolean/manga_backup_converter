@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:paperback_plugin_loader/src/runtime/limit_sizing.dart';
+import 'package:source_runtime/source_runtime.dart' show AdoptWorkerLimits;
 
 /// The real-bundle workload profile (KTD25, U6): measured by
 /// `benchmark/bundle_benchmark.dart` over the pinned Paperback 0.8/0.9
@@ -82,6 +83,19 @@ final class PaperbackWorkerPlan {
   /// Bound on worker start-up to handshake (process start, isolate and
   /// QuickJS library load).
   final Duration handshakeDeadline;
+
+  /// The supervisor limits for a worker launched with this plan: the
+  /// worker reports its supervisor-side operation deadline (engine deadline
+  /// plus measured headroom) itself; the handshake deadline and cancel grace
+  /// come from this plan, one package at a time, and [interactionTimeout] is
+  /// the host's bound on a visible browser interaction (KTD4).
+  AdoptWorkerLimits adoptLimits({required Duration interactionTimeout}) => AdoptWorkerLimits(
+    handshakeDeadline: handshakeDeadline,
+    maxConcurrentPackages: 1,
+    cancelGrace: cancelGrace,
+    interactionTimeout: interactionTimeout,
+    shutdownGrace: cancelGrace,
+  );
 
   /// The worker's limit arguments (`runPaperbackWorker`).
   List<String> get arguments => <String>[

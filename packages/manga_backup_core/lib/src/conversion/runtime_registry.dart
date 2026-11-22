@@ -11,6 +11,29 @@ final class RuntimeContext {
   final ExtensionSettingsProvider settingsFor;
 }
 
+/// The source ecosystems a destination runtime belongs to, declared once
+/// for every host: the [id] used in `SourceIdentity.ecosystem` and the
+/// formats whose destination identities it supplies. Hosts register a
+/// backend for a row ([DestinationRuntime.of]), never their own row.
+///
+/// Tachimanga is not served: it has no writer, and the job checks the writer
+/// before it asks for a runtime.
+enum SourceEcosystem {
+  aidoku('aidoku'),
+  paperback('paperback'),
+  tachi('tachi');
+
+  const SourceEcosystem(this.id);
+
+  final String id;
+
+  bool serves(BackupFormat format) => switch (this) {
+    aidoku => format is Aidoku,
+    paperback => format is Paperback,
+    tachi => format is Tachiyomi,
+  };
+}
+
 /// One source runtime a host can run (Aidoku, Paperback, Tachi), as the
 /// composition root registers it (KTD15).
 ///
@@ -27,6 +50,13 @@ final class DestinationRuntime {
     required this.createLoader,
     this.probe = _available,
   });
+
+  /// The host's backend for an [ecosystem] row.
+  DestinationRuntime.of(
+    SourceEcosystem ecosystem, {
+    required PluginLoader Function(RuntimeContext context) createLoader,
+    SourceFailure? Function() probe = _available,
+  }) : this(ecosystem: ecosystem.id, serves: ecosystem.serves, createLoader: createLoader, probe: probe);
 
   /// Ecosystem name (`SourceIdentity.ecosystem`).
   final String ecosystem;
