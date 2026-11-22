@@ -152,7 +152,7 @@ void main() {
       for (final plugin in plugins) {
         check(plugin.identity.ecosystem).equals('paperback');
         final PluginSearchPageResult page =
-            (await plugin.search('Onimai', 1) as SourceSuccess<PluginSearchPageResult>).value;
+            (await plugin.search('Onimai') as SourceSuccess<PluginSearchPageResult>).value;
         final PluginSearchResult hit = page.results.single;
         check(hit.title).equals("ONIMAI - I'm Now Your Sister!");
         final DetailsOutcome details = await plugin.fetchDetails(hit.ref);

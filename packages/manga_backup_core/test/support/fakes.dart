@@ -93,12 +93,11 @@ class FakePluginSource implements PluginSource {
       NativeMangaRef(source: identity, mangaId: key, settingsRevision: settingsRevision);
 
   @override
-  Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page) async {
+  Future<SourceOutcome<PluginSearchPageResult>> search(String query, {String? cursor}) async {
     final SourceFailure? failure = searchFailure;
     if (failure != null) return SourceFailed<PluginSearchPageResult>(failure);
     return SourceSuccess<PluginSearchPageResult>(
       PluginSearchPageResult(
-        hasNextPage: false,
         results: <PluginSearchResult>[
           for (final FakeManga m in manga)
             if (m.title.toLowerCase() == query.toLowerCase())

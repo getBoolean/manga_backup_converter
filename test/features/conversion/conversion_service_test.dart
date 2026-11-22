@@ -39,16 +39,15 @@ final class _DeviceSource implements PluginSource {
 
   @override
   Future<SourceOutcome<PluginSearchPageResult>> search(
-    String query,
-    int page,
-  ) async {
+    String query, {
+    String? cursor,
+  }) async {
     searches++;
     return SourceSuccess<PluginSearchPageResult>(
       PluginSearchPageResult(
         results: <PluginSearchResult>[
           PluginSearchResult(ref: _ref, title: 'Onimai'),
         ],
-        hasNextPage: false,
       ),
     );
   }

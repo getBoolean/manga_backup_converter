@@ -347,7 +347,7 @@ void main() {
         final ExtensionEntry mangaFire = entries.firstWhere((ExtensionEntry e) => e.id.endsWith('#MangaFire'));
         final List<PluginSource> plugins = await loader.loadPlugins(<ExtensionEntry>[mangaFire], owner: owner);
         check(plugins).length.equals(1);
-        searched = await plugins.single.search('Onimai', 1);
+        searched = await plugins.single.search('Onimai');
         final PluginSearchResult? hit = searched.valueOrNull?.results.firstOrNull;
         if (hit != null) details = await plugins.single.fetchDetails(hit.ref);
         helperPid = browser.helperInfo?.pid;

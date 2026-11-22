@@ -273,7 +273,7 @@ void main() {
       check(wc.sourceId).equals('2131019126180322627');
       check(wc.identity.ecosystem).equals('tachi');
 
-      final PluginSearchPageResult page = (await wc.search('Onimai', 1)).valueOrNull!;
+      final PluginSearchPageResult page = (await wc.search('Onimai')).valueOrNull!;
       final PluginSearchResult hit = page.results.first;
       check(hit.ref.source).equals(wc.identity);
       check(hit.ref.source.sourceId).equals('2131019126180322627');

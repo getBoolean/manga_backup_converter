@@ -22,8 +22,10 @@ abstract interface class PluginSource {
   /// source per language) to the input backup's languages.
   String? get language;
 
-  /// Searches; failures are typed, never thrown.
-  Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page);
+  /// Searches for [query]; [cursor] is the opaque [PluginSearchPageResult.nextCursor]
+  /// of the previous page (`null` for the first). Failures are typed, never
+  /// thrown.
+  Future<SourceOutcome<PluginSearchPageResult>> search(String query, {String? cursor});
 
   /// Fetches metadata and the complete chapter list for [ref].
   Future<DetailsOutcome> fetchDetails(NativeMangaRef ref);
@@ -88,12 +90,16 @@ class PluginSearchResult {
 class PluginSearchPageResult {
   const PluginSearchPageResult({
     required this.results,
-    required this.hasNextPage,
+    this.nextCursor,
     this.warnings = const <String>[],
   });
 
   final List<PluginSearchResult> results;
-  final bool hasNextPage;
+
+  /// The source's opaque cursor for the next page (a Paperback cursor is
+  /// JSON, not a page number); `null` on the last page.
+  final String? nextCursor;
+  bool get hasNextPage => nextCursor != null;
   final List<String> warnings;
 }
 

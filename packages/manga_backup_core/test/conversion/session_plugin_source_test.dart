@@ -58,20 +58,30 @@ void main() {
           ),
         ),
       );
-      final SourceOutcome<PluginSearchPageResult> outcome = await SessionPluginSource(session).search('q', 1);
+      final SourceOutcome<PluginSearchPageResult> outcome = await SessionPluginSource(session).search('q');
       final PluginSearchPageResult page = outcome.valueOrNull!;
       check(page.results.single.ref.mangaId).equals('9007199254740993');
       check(page.results.single.ref.context['url']).equals('/m/1');
       check(page.results.single.pluginSourceName).equals('Source');
-      check(page.hasNextPage).isTrue();
+      check(page.nextCursor).equals('2');
       check(page.warnings).deepEquals(<String>['[CB] bad selector']);
       check(session.lastSearch!.cursor).isNull();
+    });
+
+    test('the next page passes the source cursor through unchanged', () async {
+      const cursor = '{"page":2,"token":"a b"}';
+      final session = _Session(
+        searchOutcome: const SourceSuccess<SearchPage>(SearchPage(hits: <SearchHit>[])),
+      );
+      final PluginSearchPageResult page = (await SessionPluginSource(session).search('q', cursor: cursor)).valueOrNull!;
+      check(session.lastSearch!.cursor).equals(cursor);
+      check(page.hasNextPage).isFalse();
     });
 
     test('a failed search stays typed', () async {
       final SourceOutcome<PluginSearchPageResult> outcome = await SessionPluginSource(
         _Session(searchOutcome: const SourceFailed<SearchPage>(InteractionRequiredFailure('captcha'))),
-      ).search('q', 1);
+      ).search('q');
       check(outcome.failureOrNull).isA<InteractionRequiredFailure>();
     });
 

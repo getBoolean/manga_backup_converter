@@ -90,7 +90,7 @@ void main() {
       check(source.identity.ecosystem).equals('aidoku');
       check(source.identity.artifact.kind).equals('aix');
 
-      final PluginSearchPageResult page = (await source.search('Onimai', 1)).valueOrNull!;
+      final PluginSearchPageResult page = (await source.search('Onimai')).valueOrNull!;
       final PluginSearchResult hit = page.results.firstWhere((PluginSearchResult r) => r.mangaKey == _mangaId);
       check(hit.ref.source).equals(source.identity);
       check(hit.ref.settingsRevision).equals(source.settingsRevision);

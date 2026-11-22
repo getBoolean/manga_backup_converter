@@ -554,7 +554,7 @@ class MigrationPipeline {
 
     for (final plugin in plugins) {
       controller.add(PluginSearchStarted(pluginId: plugin.sourceId, pluginName: plugin.sourceName));
-      Future<SourceOutcome<PluginSearchPageResult>>(() => plugin.search(query, 1))
+      Future<SourceOutcome<PluginSearchPageResult>>(() => plugin.search(query))
           .then(
             (SourceOutcome<PluginSearchPageResult> outcome) {
               switch (outcome) {

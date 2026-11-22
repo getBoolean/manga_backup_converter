@@ -32,12 +32,12 @@ final class SessionPluginSource implements PluginSource {
   String get sourceName => session.displayName;
 
   @override
-  Future<SourceOutcome<PluginSearchPageResult>> search(String query, int page) async {
+  Future<SourceOutcome<PluginSearchPageResult>> search(String query, {String? cursor}) async {
     if (!session.capabilities.supports(SourceOperation.search)) {
       return SourceFailed<PluginSearchPageResult>(session.capabilities.unavailable(SourceOperation.search));
     }
     final SourceOutcome<SearchPage> outcome = await session.search(
-      SearchRequest(query: query, cursor: page <= 1 ? null : '$page'),
+      SearchRequest(query: query, cursor: cursor),
     );
     return outcome.map(
       (SearchPage p) => PluginSearchPageResult(
@@ -51,7 +51,7 @@ final class SessionPluginSource implements PluginSource {
               authors: hit.authors,
             ),
         ],
-        hasNextPage: p.nextCursor != null,
+        nextCursor: p.nextCursor,
         warnings: p.warnings,
       ),
     );
