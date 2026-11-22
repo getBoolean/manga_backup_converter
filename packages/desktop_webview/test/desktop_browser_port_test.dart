@@ -315,17 +315,16 @@ Future<void> main() async {
       // Steals any `k` that passes through toJSON or a replaced
       // JSON.stringify, then posts through the channel (if it has one).
       const thief =
-          "var got=null;Object.prototype.toJSON=function(){if(this&&typeof this.k==='string')got=this.k;return this};"
-          "var J=JSON.stringify;JSON.stringify=function(v){if(v&&typeof v.k==='string')got=v.k;return J.apply(JSON,arguments)};"
+          "var got=null;Object.prototype.toJSON=function(){if(this&&typeof this.k==='string')got=this.k;return this}; "
+          "var J=JSON.stringify;JSON.stringify=function(v){if(v&&typeof v.k==='string')got=v.k;return J.apply(JSON,arguments)}; "
           "try{bridge.postMessage('{who}')}catch(e){}";
       final String frameScript = thief.replaceAll('{who}', 'from-frame');
       final String topScript = thief.replaceAll('{who}', 'from-top');
       // A sandboxed srcdoc frame runs in an opaque origin: cross-origin to
       // the page, with no network. It reports what it stole to the page.
-      final String srcdoc =
-          '<script>$frameScript parent.postMessage("frame:"+(typeof bridge)+":"+got,"*")</script>'
-              .replaceAll('&', '&amp;')
-              .replaceAll('"', '&quot;');
+      final String srcdoc = '<script>$frameScript parent.postMessage("frame:"+(typeof bridge)+":"+got,"*")</script>'
+          .replaceAll('&', '&amp;')
+          .replaceAll('"', '&quot;');
       check(
         await s.loadData(
           '<html><body><script>window.report=null;addEventListener("message",function(e){window.report=e.data})'
