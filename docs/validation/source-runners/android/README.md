@@ -459,7 +459,9 @@ The package check requires a notice for every native library and for each host l
 ## How it works
 
 - **One signal.** The Activity tracker moved out of `AppBrowserHost` into `browser/AppForeground.kt`. `AppForegroundMonitor` and `AppForegroundListener` are a JNIgen facade, with `@Keep` and consumer rules. The Dart side, `AndroidAppForeground`, notifies its listeners in order. `AndroidSourceRuntimes.start` adds the gate first and passes the same object to the browser port. Given that object, the port ignores its host's own foreground events. The gate therefore answers `cancelled: app-backgrounded` before the port reacts. The test seam is `AndroidAppForeground.setBackgroundedOverride`.
-- **Challenge Activity.** Tachi's `ChallengeActivity` runs in `:source_runtime`. While this process has no started Activity, the tracker treats another process of the app (same UID) at importance `VISIBLE` or better as foreground. It re-checks every 700 ms, so an interactive Cloudflare challenge is not cancelled as backgrounding. **Untested on a device.** The harness is `interactive: false`. If the bound service process kept `VISIBLE` importance after Home, the app would never report background while a Tachi worker is bound. The "BG real tachi" case is the one that tells.
+- **Challenge Activity.** Tachi's `ChallengeActivity` runs in `:source_runtime`. While this process has no started Activity, the tracker treats another process of the app (same UID) at importance `VISIBLE` or better as foreground. It re-checks every 700 ms, so an interactive Cloudflare challenge is not cancelled as backgrounding.
+  - **Checked on the emulator:** a bound Tachi worker does not keep the app in the foreground after Home. In "BG real tachi" the app was reported backgrounded about 2.8 s after agent-device `home` returned (5.3 s after the case asked for it). That is a few re-checks beyond the 700 ms delay: the service's inherited importance drops shortly after the app's. So the rule did not need changing.
+  - **Not checked:** the positive half, that a challenge on screen keeps the app in the foreground. The harness runs `interactive: false`, so no `ChallengeActivity` is shown during a job.
 - **Gate** (`BackgroundGate`, `source_runtime`):
   - The Aidoku provider is wrapped by `gate.provider`, the shared form of the former iOS gate.
   - The workers go through `WorkerSupervisor.gate`, via `ConversionRuntimeScope(gate:)`.
@@ -471,20 +473,22 @@ The package check requires a notice for every native library and for each host l
 
 ## Results
 
+API 36 emulator (AVD `Pixel_9_Pro`, Android 16, x86_64, debug build). The AVD normally lives on B:, which was full, so it ran from a temporary copy on C: with a cold boot (`-no-snapshot`); the copy was deleted afterwards.
+
 | Suite | Result |
 |---|---|
+| "BG real tachi", the first case run, driven by agent-device `home`/`open` | pass: held `busy` search `cancelled: app-backgrounded`, two new searches refused, retry after reopen hit `2131019126180322627`, one validated output, no service or scope left |
+| "BG real" (Aidoku, Paperback, Tachi), driven by agent-device | 3/3 pass; each held call answered `cancelled: app-backgrounded` once (0-9 ms after detection), new calls were refused, the retry after reopen hit (`en.weebcentral`, `WeebCentral`, `2131019126180322627`), and each job published one output |
+| "BG programmatic" (declined and resume, three ecosystems) | 6/6 pass; declined jobs threw `PartialConversionDeclined` and published nothing, then the same runtimes published the next job; resumed jobs published exactly one output |
+| Whole file `source_runners_android_test.dart` (U11-U14 + BG) | 110 pass, 7 skip, 1 fail. The failure is U11 "extension WebViews run in the service; cookies and web storage are wiped…" (`webview=timeout`, the first service WebView after a cold boot). It passed when re-run alone (1/1). That case runs only in `:source_runtime` and touches neither the tracker nor the gate |
 | `packages/source_runtime` host (incl. `background_gate_test.dart`, 10 new) | 221 pass |
 | `packages/source_runtime_ios` host | 12 pass (iOS device suites not run: no Mac) |
 | `packages/source_runtime_android` host (incl. the shared-signal port case) | 31 pass |
 | `test/features/conversion` | 7 pass |
 | JNIgen bindings regenerated twice | no diff on the second run |
+| Debug APK, release APK | built |
+| `scripts/android_package_check.py` on the release APK (`--build-dir build`) | PASS; R8 kept `AppForegroundMonitor`, `AppForegroundListener` and `onForegroundChanged` |
 | `dart analyze --fatal-infos` (three packages, `lib`, `integration_test`, `test`), format | clean |
 
-**Not run** (C: drive at about 0.7 GB free: `errno 112` while Flutter compiled the integration test):
-- the debug and release APKs from the final tree (only `:source_runtime_android:compileDebugKotlin` succeeded) and the package check;
-- the emulator cases in `integration_test/android_background_cases.dart`:
-  - "BG programmatic", 6 cases: declined and resume for each of the three ecosystems;
-  - "BG real", 3 cases, with `SRT_MANUAL=true`, driven by agent-device `home`/`open`;
-- the whole-file regression run (U11 to U14) with the moved tracker.
-
-The new Kotlin has not run yet. Run "BG real tachi" first once there is space.
+- **Device actions.** Home and reopen went through agent-device. Once agent-device `open` reported "could not launch the application" while the app still came back to the foreground (the case recorded `foregrounded`). A System UI "isn't responding" dialog after the cold boot was dismissed with agent-device `alert dismiss`. That disturbed the first try of "BG real tachi", whose held call had already reached its deadline before Home; the receipt row above is from a clean run.
+- **Detection times** (`detected-after-ask-ms` in the events) include agent-device and log-flush latency. They are upper bounds, not the tracker's own delay.
