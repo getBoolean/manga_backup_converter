@@ -293,6 +293,45 @@ void main() {
     check(output.publishes).equals(0);
   });
 
+  test('forceMigration takes the plugin path for a direct-conversion pair', () async {
+    final calls = <String>[];
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('tachi', calls)]);
+    final ConvertableBackup mihon = await FormatRegistry.portable().codecFor(const Mihon())!(
+      await _input(const Mihon()),
+    );
+    final formats = FormatRegistry.portable()
+      ..registerCodec(const Tachimanga(), (Uint8List bytes, {String? name}) async => mihon);
+    final ConversionResult result = await _job(runtimes, formats: formats).run(
+      ConversionRequest(
+        input: Uint8List(1),
+        sourceFormat: const Tachimanga(),
+        targetFormat: const Mihon(),
+        forceMigration: true,
+      ),
+      MemoryOutput(),
+    );
+    check(calls).deepEquals(<String>['tachi']);
+    check(result.draft.backup).isA<TachiBackup>();
+  });
+
+  test('forcing migration onto a format with no writer is a typed failure before any source work', () async {
+    final calls = <String>[];
+    final runtimes = RuntimeRegistry(<DestinationRuntime>[_runtime('tachi', calls)]);
+    final DestinationUnavailable caught = await _caught<DestinationUnavailable>(
+      _job(runtimes).run(
+        ConversionRequest(
+          input: await _input(const Mihon()),
+          sourceFormat: const Mihon(),
+          targetFormat: const Tachimanga(),
+          forceMigration: true,
+        ),
+        MemoryOutput(),
+      ),
+    );
+    check(caught.failure.code).equals('capability-unavailable');
+    check(calls).isEmpty();
+  });
+
   group('language narrowing', () {
     /// One picked multi-language package ("mangadex": en, ja, all) and one
     /// picked single-language package ("jaonly": ja).

@@ -172,7 +172,7 @@ final class ConversionJob {
     s.onDecoded?.call(input);
 
     final ConversionDraft draft =
-        await MigrationPipeline.forJob(
+        await MigrationPipeline(
           session: s,
           repoUrls: request.repoUrls,
           explicitSources: request.sources,
