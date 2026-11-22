@@ -76,11 +76,46 @@ in the importing framework's own manifest.
 HotSpot is GPLv2 without the Classpath exception and is linked statically.
 The runtime payload ships `legal/LICENSE`, `ASSEMBLY_EXCEPTION`,
 `ADDITIONAL_LICENSE_INFO` and the per-module notices (the package check fails
-without the first three). Since U15 the app registers those notices and a
-**written offer of the corresponding source** (the pinned OpenJDK mobile
-commit, libffi 3.8.1, `tools/tachi-source-runner/ios/` and the dispatcher
-sources) in Flutter's `LicenseRegistry`, so they appear on the app's license
-page (`registerSourceRuntimeLicenses` in `source_runtime_ios`).
+without the first three). `registerSourceRuntimeLicenses` in
+`source_runtime_ios` registers on the app's licence page every `legal/` file
+the payload stages (from `layout.txt`), every library in the generated
+third-party notices (below), and a **pointer to the corresponding source**.
+
+**Corresponding source accompanies the binary** (GPLv2 section 3(a)), replacing
+the earlier written offer. Every tagged release attaches
+`manga_backup_converter-<tag>-ios-runtime-source.tar.gz` (and its `.sha256`)
+next to the iOS build, in the same release-action call, so the IPA is never
+published without it. `scripts/build_gpl_source_archive.dart` builds it from
+the pins in `tools/tachi-source-runner/ios/manifest.env` at the release
+commit and refuses to build unless the OpenJDK commit, the libffi digest and
+all eight patch digests equal the committed runtime build receipt. It holds
+the openjdk/mobile tree at the pinned commit, the libffi 3.8.1 tarball, the
+patches, build manifest and scripts, back-edge rewriter and iOS host
+(`tools/tachi-source-runner/`), the native dispatcher and build hook
+(`packages/source_runtime_ios/`), rebuilding instructions and a SHA-256
+manifest. The release workflow builds the app with
+`--dart-define=SOURCE_RELEASE_TAG=<tag>`, so the licence page links that
+release's archive (`sourceRuntimeArchiveUrl` in
+`packages/source_runtime_ios/lib/source_archive.dart`, the same function that
+names the archive). A build without the define says it is a development build,
+that no archive was published for it, and how to build one.
+
+This follows the licence's own terms as guidance; it has not had a legal
+review. It covers binaries downloaded from the project's GitHub releases, where
+the source sits next to the binary. Distribution through TestFlight or the App
+Store is a different place of distribution and is not settled here (see
+below).
+
+**Full per-library attribution.** `scripts/generate_notices.dart ios` writes
+`packages/source_runtime_ios/notices/third_party_notices.json` (a package
+asset): every JAR of the Tachi host class path (the worker's
+`runtimeClasspath` without the replay server), libffi, Zstandard (inside the
+zstd-kmp JAR), the extracted Mihon source API, QuickJS-ng, Wasm3, SwiftSoup,
+Swift Atomics, LRUCache, CocoaAsyncSocket, and the Rust crates of
+`super_native_extensions`, each with its full licence text (the mechanism is
+shared with Android and the desktop package; see `scripts/licenses/README.md`).
+The package check fails when a class path JAR in the payload or a framework's
+components lack an entry with a full text, or when a framework has no rule.
 
 ## Deployment target
 
@@ -98,3 +133,14 @@ the runtime minimum U16 set; every bundled binary is built for minos ≤ 15.0
 - **App Store Connect validation** of a distribution-signed build: deferred to
   the TestFlight setup; needs the team ID, an Apple Distribution certificate,
   an App Store provisioning profile and the user's go-ahead to upload.
+- **Source for TestFlight/App Store distribution.** Section 3(a) is met where
+  the archive sits next to the binary (GitHub releases). A build distributed
+  through TestFlight or the App Store is downloaded from elsewhere; how its
+  source accompanies it (for example, the licence-page link to the release
+  archive plus an offer) is not decided.
+- **CI IPAs carry no JVM.** The `build_ios` job does not run `build_runtime.sh`
+  or `stage_runtime.sh`, so its IPAs link the dispatcher with `SRT_HAS_JVM=0`
+  and contain no OpenJDK code; the archive is attached anyway so a release that
+  does ship the runtime is covered.
+- **iOS package check not re-run** since the notices and source pointer
+  changed (no Mac in that session); run it as in the iOS README.

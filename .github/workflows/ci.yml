@@ -421,8 +421,15 @@ jobs:
           timeout_minutes: 30
           max_attempts: 3
           retry_on: error
+          # SOURCE_RELEASE_TAG makes the licence page link this release's
+          # GPL source archive (attached below); other builds say they are
+          # untagged.
           command: |
-            flutter build ios --release --no-codesign
+            tag_define=""
+            if [ "${{ github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v') }}" = "true" ]; then
+              tag_define="--dart-define=SOURCE_RELEASE_TAG=${{ github.ref_name }}"
+            fi
+            flutter build ios --release --no-codesign --dart-define=SOURCE_COMMIT=${{ github.sha }} $tag_define
             cd build/ios/iphoneos
             mkdir Payload
             cd Payload
@@ -435,11 +442,22 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-ios
           path: build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
-      - name: Release IPA
+      # GPLv2 section 3(a): the corresponding source of the statically linked
+      # OpenJDK runtime accompanies the iOS build, as an asset of the same
+      # release (built from the pins in tools/tachi-source-runner/ios/
+      # manifest.env at this commit, checked against the runtime receipt).
+      - name: Build the iOS runtime's corresponding-source archive
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        run: dart run scripts/build_gpl_source_archive.dart --ref ${{ github.sha }} --tag ${{ github.ref_name }} --out build/gpl-source
+
+      - name: Release IPA and its runtime source
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
+          artifacts: |
+            build/ios/iphoneos/${{ github.event.repository.name }}-*.ipa
+            build/gpl-source/*-ios-runtime-source.tar.gz
+            build/gpl-source/*-ios-runtime-source.tar.gz.sha256
           allowUpdates: true
           omitBodyDuringUpdate: true
 

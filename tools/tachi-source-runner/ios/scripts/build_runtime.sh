@@ -14,6 +14,12 @@
 #             (see bake_java_base), link the modular runtime images, copy
 #             headers, and write build/out/outputs.json
 #
+# Offline rebuild from the corresponding-source archive
+# (scripts/build_gpl_source_archive.dart): set OPENJDK_MOBILE_SOURCE to the
+# archive's openjdk-mobile/ tree and SOURCE_DATE_EPOCH to the pin's commit
+# time (SOURCES.json), and put the libffi tarball in ../build/downloads/.
+# `fetch` then copies that tree instead of cloning the pin.
+#
 # All outputs stay under ../build/ (git-ignored). Original work for this
 # repository; it does not reuse openjdk-mobile/ios-tools code.
 
@@ -61,7 +67,40 @@ gnu_make() {
   gmake "$@"
 }
 
+# Offline fetch: a copy of an unmodified openjdk-mobile tree (from the
+# corresponding-source archive) in its own git repository, so the patches
+# apply exactly as they do to a clone.
+stage_fetch_offline() {
+  local tree="$OPENJDK_MOBILE_SOURCE"
+  [[ -f "$tree/make/conf/version-numbers.conf" ]] || die "$tree is not an openjdk/mobile tree"
+  [[ -n "${SOURCE_DATE_EPOCH:-}" ]] || die "set SOURCE_DATE_EPOCH to the pin's commit time (SOURCES.json)"
+  log "copying openjdk/mobile from $tree"
+  rm -rf "$src" && mkdir -p "$src"
+  cp -R "$tree/." "$src/"
+  git init -q "$src"
+  apply_patches
+}
+
+apply_patches() {
+  local p
+  for p in "$ios_root"/patches/*.patch; do
+    log "applying $(basename "$p")"
+    git -C "$src" apply --whitespace=nowarn "$p"
+  done
+  # Source files added by this repository (not patches to existing files).
+  if [[ -d "$ios_root/overlay" ]]; then
+    (cd "$ios_root/overlay" && find . -type f) | while read -r f; do
+      mkdir -p "$src/$(dirname "$f")"
+      cp "$ios_root/overlay/$f" "$src/$f"
+    done
+  fi
+}
+
 stage_fetch() {
+  if [[ -n "${OPENJDK_MOBILE_SOURCE:-}" ]]; then
+    stage_fetch_offline
+    return
+  fi
   if [[ ! -d "$src/.git" ]]; then
     mkdir -p "$(dirname "$src")"
     git init -q "$src"
@@ -76,18 +115,7 @@ stage_fetch() {
   git -C "$src" clean -q -fdx -e build/
   [[ "$(git -C "$src" rev-parse HEAD)" == "$OPENJDK_MOBILE_COMMIT" ]] ||
     die "checkout is not at $OPENJDK_MOBILE_COMMIT"
-  local p
-  for p in "$ios_root"/patches/*.patch; do
-    log "applying $(basename "$p")"
-    git -C "$src" apply --whitespace=nowarn "$p"
-  done
-  # Source files added by this repository (not patches to existing files).
-  if [[ -d "$ios_root/overlay" ]]; then
-    (cd "$ios_root/overlay" && find . -type f) | while read -r f; do
-      mkdir -p "$src/$(dirname "$f")"
-      cp "$ios_root/overlay/$f" "$src/$f"
-    done
-  fi
+  apply_patches
 }
 
 stage_libffi() {
@@ -136,7 +164,7 @@ configure_and_make() {
       --with-conf-name="$conf" --with-boot-jdk="$jdk" \
       --disable-warnings-as-errors --with-jobs="$jobs" \
       --with-build-user=srt --with-version-opt="sourcerunner.r$RUNTIME_BUILD_REVISION" \
-      --with-source-date="$(git -C "$src" log -1 --format=%ct)" \
+      --with-source-date="${SOURCE_DATE_EPOCH:-$(git -C "$src" log -1 --format=%ct)}" \
       ${configure_args[@]+"${configure_args[@]}"} >"$logs/$conf-configure.log" 2>&1
   ) || die "configure $conf failed; see $logs/$conf-configure.log"
 }

@@ -28,6 +28,8 @@ from them.
 | 0004 Zero back-edge safepoint poll | original, GPLv2 | GC and handshake liveness during call-free loops (KTD11 mechanism B infrastructure) |
 | 0005 java.base deadline check | original, GPLv2 + Classpath exception | `jdk.internal.misc.SourceRunnerDeadline` / `SourceRunnerDeadlineError` (mechanism A) |
 | 0006 no executable memory | original, GPLv2 | Commit the code cache read/write on iOS; no RWX mappings |
+| 0007 libjava built-in library lookup | original, GPLv2 + Classpath exception | `NativeLibraries.findBuiltinLib` searches every loaded image, so the class-library natives linked into the app framework are found (U9) |
+| 0008 Zero signal context pc | original, GPLv2 | `ucontext_get_pc` returns null on iOS instead of aborting, so SIGPIPE reaches its ignore branch (U9) |
 
 ## Prerequisites (macOS, Apple silicon)
 
@@ -145,6 +147,39 @@ certificate in the keychain, an App Store provisioning profile for
 Checked without signing: `flutter build ios --release --no-codesign` links;
 the `source_runtime_ios` framework is arm64, minos 15.0, 7.2 MB, exports 483
 `Java_*` natives, and imports no JIT APIs.
+
+## Corresponding source (GPLv2 section 3(a))
+
+HotSpot is GPLv2 without the Classpath exception and is linked statically, so
+every tagged release publishes the runtime's complete corresponding source
+next to its iOS build (`.github/workflows/ci.yml`, `build_ios`):
+
+```bash
+dart run scripts/build_gpl_source_archive.dart --ref <commit> --tag <tag>   # build/gpl-source/
+```
+
+The script reads `manifest.env` at `<commit>` from git objects (never the
+working tree), checks the OpenJDK commit, libffi digest and every patch digest
+against the committed runtime build receipt
+(`docs/validation/source-runners/ios/u9-runtime-build-outputs.json`), fetches
+the pinned openjdk/mobile commit with object checking and the libffi tarball
+(SHA-256 checked), and writes
+`manga_backup_converter-<tag>-ios-runtime-source.tar.gz`: the OpenJDK tree,
+the libffi tarball byte for byte, `tools/tachi-source-runner/` (this directory
+included), `packages/source_runtime_ios/` (dispatcher and build hook), the
+receipt, a README with rebuilding steps, `SOURCES.json` and `SHA256SUMS`.
+The uncompressed tar is byte-reproducible (sorted entries, 0:0, the commit's
+time, gzip header without time or OS); the `.tar.gz` is reproducible with the
+same Dart SDK. The app's licence page links the archive of its own release
+(`SOURCE_RELEASE_TAG`, see `packages/source_runtime_ios/lib/source_archive.dart`).
+
+Offline rebuild from the archive: `OPENJDK_MOBILE_SOURCE=<archive>/openjdk-mobile
+SOURCE_DATE_EPOCH=<SOURCES.json openjdk_mobile.commit_time>
+build_runtime.sh` with the libffi tarball copied to `build/downloads/`
+(`fetch` copies the tree instead of cloning). Not yet exercised on a Mac.
+
+When the pin, a patch or libffi changes, commit the new receipt with them:
+the archive script refuses to build when the receipt and manifest disagree.
 
 ## Moving the pin (security updates)
 
