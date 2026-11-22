@@ -634,7 +634,7 @@ the Android branch of the app's composition root. It shares `LocalSourceRuntimes
   service WebViews reached the network (U14 receipts, "API 28 network contact").
 - **Lifecycle (KTD18).** One signal, `AndroidAppForeground` over the Kotlin `AppForegroundMonitor` (the Activity
   tracker the browser port's host already used: background after 700 ms without a started Activity; a visible
-  `:source_runtime` challenge Activity counts as foreground), feeds the shared `BackgroundGate`
+  `:source_runtime` challenge Activity counts as foreground, not yet exercised on a device), feeds the shared `BackgroundGate`
   (`source_runtime`) first and the browser port second. The gate wraps the Aidoku provider and both worker scopes
   (`WorkerSupervisor.gate`). While backgrounded, new calls fail `cancelled: app-backgrounded`; searches and
   details in flight answer the same at once and their late replies are dropped; prepare, load and settings calls

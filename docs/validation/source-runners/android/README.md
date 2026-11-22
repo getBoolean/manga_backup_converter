@@ -448,3 +448,43 @@ The package check requires a notice for every native library and for each host l
 - **The CI package-check step was not run in CI**; the same command passed locally on the release APK.
 - **Platforms built.** Android debug and release, and Windows debug (the licence registration now imports `source_runtime_android` on every native platform). iOS, macOS and Linux were not built.
 - **iOS not re-run.** The iOS branch moved onto `LocalSourceRuntimes`, and the iOS harness onto the shared harness. Both analyze clean, but no iOS suite ran (no Mac here).
+
+# Android background gate — receipts
+
+## Decision
+
+- **Gate:** Android gets a background gate like iOS (parent decision). Aidoku (U13), Paperback (U12 isolate) and Tachi (U11 service) calls go through it.
+- **Activity recreation → journal resume is enough.** A destroyed `MainActivity` ends the job with its engine, and the next launch resumes from the journal. There is no cached engine and no foreground service.
+
+## How it works
+
+- **One signal.** The Activity tracker moved out of `AppBrowserHost` into `browser/AppForeground.kt`. `AppForegroundMonitor` and `AppForegroundListener` are a JNIgen facade, with `@Keep` and consumer rules. The Dart side, `AndroidAppForeground`, notifies its listeners in order. `AndroidSourceRuntimes.start` adds the gate first and passes the same object to the browser port. Given that object, the port ignores its host's own foreground events. The gate therefore answers `cancelled: app-backgrounded` before the port reacts. The test seam is `AndroidAppForeground.setBackgroundedOverride`.
+- **Challenge Activity.** Tachi's `ChallengeActivity` runs in `:source_runtime`. While this process has no started Activity, the tracker treats another process of the app (same UID) at importance `VISIBLE` or better as foreground. It re-checks every 700 ms, so an interactive Cloudflare challenge is not cancelled as backgrounding. **Untested on a device.** The harness is `interactive: false`. If the bound service process kept `VISIBLE` importance after Home, the app would never report background while a Tachi worker is bound. The "BG real tachi" case is the one that tells.
+- **Gate** (`BackgroundGate`, `source_runtime`):
+  - The Aidoku provider is wrapped by `gate.provider`, the shared form of the former iOS gate.
+  - The workers go through `WorkerSupervisor.gate`, via `ConversionRuntimeScope(gate:)`.
+  - `search` and `details` are refused when new, and interrupted in flight: they answer at once, a cooperative cancel is sent, and the late reply is dropped.
+  - `artifact.prepare`, `package.load` and `settings.update` are refused when new but finish once sent. Interrupting them would leave the worker holding state the supervisor does not track.
+  - `dispose`, `package.unload`, restart rehydration, handshake and shutdown are never gated.
+  - A scope does not start a new worker while backgrounded.
+- **iOS** uses the same `BackgroundGate` class inside `IosAidokuBackend`, with an unchanged API. iOS still gates Aidoku only: Paperback and Tachi were never gated there (`workerGate` is `null`).
+
+## Results
+
+| Suite | Result |
+|---|---|
+| `packages/source_runtime` host (incl. `background_gate_test.dart`, 10 new) | 221 pass |
+| `packages/source_runtime_ios` host | 12 pass (iOS device suites not run: no Mac) |
+| `packages/source_runtime_android` host (incl. the shared-signal port case) | 31 pass |
+| `test/features/conversion` | 7 pass |
+| JNIgen bindings regenerated twice | no diff on the second run |
+| `dart analyze --fatal-infos` (three packages, `lib`, `integration_test`, `test`), format | clean |
+
+**Not run** (C: drive at about 0.7 GB free: `errno 112` while Flutter compiled the integration test):
+- the debug and release APKs from the final tree (only `:source_runtime_android:compileDebugKotlin` succeeded) and the package check;
+- the emulator cases in `integration_test/android_background_cases.dart`:
+  - "BG programmatic", 6 cases: declined and resume for each of the three ecosystems;
+  - "BG real", 3 cases, with `SRT_MANUAL=true`, driven by agent-device `home`/`open`;
+- the whole-file regression run (U11 to U14) with the moved tracker.
+
+The new Kotlin has not run yet. Run "BG real tachi" first once there is space.
