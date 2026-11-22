@@ -8,8 +8,6 @@ import mangabackup.tachi.extensions.ExtensionLoader
 import mangabackup.tachi.extensions.ExtensionPackage
 import mangabackup.tachi.host.DesktopPackageScope
 import mangabackup.tachi.host.PackageEnvironment
-import mangabackup.tachi.host.PackageScope
-import mangabackup.tachi.shim.HostFailures
 import mangabackup.tachi.webkit.BrowserBridge
 import mangabackup.tachi.webkit.WebkitHost
 import java.io.File
@@ -32,7 +30,6 @@ object JvmPackageRuntime : PackageRuntime {
 
     override fun attach(worker: Worker): WorkerBrowser {
         DesktopPackageScope.install()
-        HostFailures.install { failure -> PackageScope.current()?.currentOperation?.recordHostFailure(failure) }
         val bridge = BrowserBridge(worker)
         WebkitHost.install(bridge)
         return bridge
@@ -56,16 +53,8 @@ object JvmPackageRuntime : PackageRuntime {
         ExtensionLoader.load(path, environment, artifact.sha256)
 }
 
-/** The desktop worker process: deadlines are the supervisor's, and prepared JARs are not rewritten. */
-object DesktopPlatform : WorkerPlatform {
-    override val name = "desktop"
-
-    override fun pid(): Long = ProcessHandle.current().pid()
-
-    override val artifactRewrite: ArtifactRewrite? = null
-
-    override fun enterOperation(thread: Thread, onExpire: Runnable): OperationGuard = NoOperationGuard
-}
+/** The desktop worker process ([ProcessPlatform]; its pid is read when first used). */
+val DesktopPlatform: WorkerPlatform by lazy { ProcessPlatform("desktop", ProcessHandle.current().pid()) }
 
 /** A worker over [input]/[output] that runs packages on the JVM ([JvmPackageRuntime]). */
 fun Worker(input: InputStream, output: OutputStream, options: WorkerOptions): Worker =

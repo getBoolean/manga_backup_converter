@@ -21,6 +21,7 @@ import mangabackup.tachi.host.OperationContext
 import mangabackup.tachi.host.PackageEnvironment
 import mangabackup.tachi.host.PackageScope
 import mangabackup.tachi.host.withHandshake
+import mangabackup.tachi.shim.HostFailures
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStream
@@ -195,6 +196,8 @@ class Worker(
 
     init {
         HostInjekt.install()
+        // Shims report host failures (unsupported API, browser capability) to the running operation.
+        HostFailures.install { failure -> PackageScope.current()?.currentOperation?.recordHostFailure(failure) }
         browser = runtime.attach(this)
     }
 
@@ -616,10 +619,6 @@ class Worker(
 
     companion object {
         /** Maps a failure to a protocol error (KTD4 error codes; distinct host errors per U3). */
-        /** Host-specific failure mapping, installed by the platform before any operation runs. */
-        @Volatile
-        var platformHostError: (Throwable) -> WorkerError? = { null }
-
         fun mapError(t: Throwable, task: OperationContext?): WorkerError {
             if (t is WorkerError) return t
             if (task?.isCancelled == true) return WorkerError(ErrorCode.CANCELLED, "cancelled")
@@ -644,7 +643,7 @@ class Worker(
                 val name = (t.message ?: "").replace('/', '.').substringBefore(' ')
                 if (HostOwnership.isHostOwned(name)) WorkerError(ErrorCode.CAPABILITY_UNAVAILABLE, "missing host class $name", "host.class:$name", t) else null
             }
-            else -> platformHostError(t)
+            else -> null
         }
     }
 }

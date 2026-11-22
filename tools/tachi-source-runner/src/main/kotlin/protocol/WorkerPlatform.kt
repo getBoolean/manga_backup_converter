@@ -5,8 +5,8 @@ import java.io.File
 /**
  * What differs between the processes that host this worker (KTD11 "shared host
  * code"): handshake identity, operation deadlines and a prepared-JAR rewrite.
- * The desktop worker ([DesktopPlatform]) and the Android `:source_runtime`
- * service are their own processes and need nothing beyond their pid. The iOS
+ * The desktop worker and the Android `:source_runtime` service are their own
+ * processes and need nothing beyond their pid ([ProcessPlatform]). The iOS
  * embedding (`tools/tachi-source-runner/ios/host`) runs the same classes
  * inside the app's single VM and supplies native operation deadlines and its
  * artifact rewrite pass through this interface. How packages are prepared and
@@ -60,6 +60,19 @@ interface OperationGuard : AutoCloseable {
 
     /** Ends the guard. After it returns the deadline can no longer fire on this thread. */
     override fun close()
+}
+
+/**
+ * A worker that is its own process (the desktop worker, the Android `:source_runtime` service): the
+ * supervisor owns its deadlines and can stop it, and prepared artifacts are loaded as verified. [pid]
+ * comes from the caller, because how a process reads its own id differs by platform.
+ */
+class ProcessPlatform(override val name: String, private val pid: Long) : WorkerPlatform {
+    override fun pid(): Long = pid
+
+    override val artifactRewrite: ArtifactRewrite? = null
+
+    override fun enterOperation(thread: Thread, onExpire: Runnable): OperationGuard = NoOperationGuard
 }
 
 /** The guard of a platform whose deadlines are the supervisor's alone (desktop, Android): nothing to stop. */

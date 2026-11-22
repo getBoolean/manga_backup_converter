@@ -3,6 +3,7 @@ package mangabackup.tachi.android
 import android.content.Context
 import mangabackup.tachi.host.HostTransport
 import mangabackup.tachi.host.SizingReport
+import mangabackup.tachi.protocol.ProcessPlatform
 import mangabackup.tachi.protocol.Worker
 import mangabackup.tachi.protocol.WorkerOptions
 import java.io.File
@@ -94,7 +95,8 @@ object AndroidWorkerRuntime {
             stateRoot = root,
             // Tachi's WebViews are real ones in this process; the worker sends no host.browser.* requests.
             browser = false,
-            platform = AndroidHostPlatform,
+            // Its own process: the supervisor owns its deadlines, and original DEX is loaded as verified.
+            platform = ProcessPlatform("android", android.os.Process.myPid().toLong()),
         )
         return Started(Worker(input, output, options, runtime), options, notes, challengeTimeoutMs)
     }
